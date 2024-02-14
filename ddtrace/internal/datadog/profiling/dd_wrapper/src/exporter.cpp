@@ -3,7 +3,9 @@
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
 // Datadog, Inc.
 #include "exporter.hpp"
+#include <initializer_list>
 #include <iostream>
+#include <stdexcept>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -19,56 +21,59 @@ to_slice(std::string_view str)
 }
 
 UploaderBuilder&
-UploaderBuilder::set_env(std::string_view env)
+UploaderBuilder::set_env(std::string_view _env)
 {
-    if (!env.empty())
-        this->env = env;
+    if (!_env.empty())
+        env = _env;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_service(std::string_view service)
+UploaderBuilder::set_service(std::string_view _service)
 {
-    if (!service.empty())
-        this->service = service;
+    if (!_service.empty())
+        service = _service;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_version(std::string_view version)
+UploaderBuilder::set_version(std::string_view _version)
 {
-    if (!version.empty())
-        this->version = version;
+    if (!_version.empty())
+        version = _version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_runtime(std::string_view runtime)
+UploaderBuilder::set_runtime(std::string_view _runtime)
 {
-    this->runtime = runtime;
+    if (!_runtime.empty())
+        runtime = _runtime;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_runtime_version(std::string_view runtime_version)
+UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
-    this->runtime_version = runtime_version;
+    if (!_runtime_version.empty())
+        runtime_version = _runtime_version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_profiler_version(std::string_view profiler_version)
+UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
-    this->profiler_version = profiler_version;
+    if (!_profiler_version.empty())
+        profiler_version = _profiler_version;
     return *this;
 }
 UploaderBuilder&
-UploaderBuilder::set_url(std::string_view url)
+UploaderBuilder::set_url(std::string_view _url)
 {
-    this->url = url;
+    if (!_url.empty())
+        url = _url;
     return *this;
 }
 UploaderBuilder&
 UploaderBuilder::set_tag(std::string_view key, std::string_view val)
 {
-    if (key.empty() || val.empty())
-        return *this;
-    user_tags[key] = val;
+    if (!key.empty() && !val.empty())
+        user_tags[key] = val;
     return *this;
 }
 
@@ -178,7 +183,8 @@ Uploader::set_runtime_id(std::string_view id)
 bool
 Uploader::upload(const Profile* profile)
 {
-    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(profile->ddog_profile, nullptr, nullptr);
+    ddog_prof_Profile* ddog_profile = const_cast<ddog_prof_Profile*>(&profile->ddog_profile);
+    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(ddog_profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         std::string ddog_err(ddog_Error_message(&result.err).ptr);
         errmsg = "Error serializing pprof, err:" + ddog_err;
@@ -194,15 +200,11 @@ Uploader::upload(const Profile* profile)
 
     // Attach file
     ddog_prof_Exporter_File file[] = {
-      {
+        {
           .name = to_slice("auto.pprof"),
-          .file =
-              {
-                  .ptr = encoded->buffer.ptr,
-                  .len = encoded->buffer.len,
-              },
-      },
-  };
+          .file = ddog_Vec_U8_as_slice(&encoded->buffer),
+        },
+    };
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -210,8 +212,16 @@ Uploader::upload(const Profile* profile)
     add_tag(tags, ExportTagKey::runtime_id, runtime_id, errmsg);
 
     // Build the request object
-    auto build_res = ddog_prof_Exporter_Request_build(
-      ddog_exporter.get(), start, end, { .ptr = file, .len = 1 }, &tags, nullptr, nullptr, 5000);
+    const uint64_t max_timeout_ms = 5000; // 5s is a common timeout parameter for Datadog profilers
+    auto build_res = ddog_prof_Exporter_Request_build(ddog_exporter.get(),
+                                                      start,
+                                                      end,
+                                                      ddog_prof_Exporter_Slice_File_empty(),
+                                                      { .ptr = file, .len = 1 },
+                                                      &tags,
+                                                      nullptr,
+                                                      nullptr,
+                                                      max_timeout_ms);
 
     if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
         std::string ddog_err(ddog_Error_message(&build_res.err).ptr);
@@ -259,9 +269,10 @@ ProfileBuilder::add_type(unsigned int type)
 }
 
 ProfileBuilder&
-ProfileBuilder::set_max_nframes(unsigned int max_nframes)
+ProfileBuilder::set_max_nframes(unsigned int _max_nframes)
 {
-    this->max_nframes = max_nframes;
+    if (_max_nframes > 0)
+        max_nframes = _max_nframes;
     return *this;
 }
 
@@ -274,11 +285,10 @@ ProfileBuilder::build_ptr()
 Profile::Profile(ProfileType type, unsigned int _max_nframes)
   : type_mask{ type & ProfileType::All }
   , max_nframes{ _max_nframes }
-  , nframes{ 0 }
 {
     // Push an element to the end of the vector, returning the position of
     // insertion
-    std::vector<ddog_prof_ValueType> samplers;
+    std::vector<ddog_prof_ValueType> samplers{};
     auto get_value_idx = [&samplers](std::string_view value, std::string_view unit) {
         size_t idx = samplers.size();
         samplers.push_back({ to_slice(value), to_slice(unit) });
@@ -316,19 +326,30 @@ Profile::Profile(ProfileType type, unsigned int _max_nframes)
     values.resize(samplers.size());
     std::fill(values.begin(), values.end(), 0);
 
-    ddog_prof_Period default_sampler = { samplers[0], 1 }; // Mandated by pprof, but probably unused
-    ddog_profile = ddog_prof_Profile_new({ &samplers[0], samplers.size() }, &default_sampler, nullptr);
+    ddog_prof_Period default_period = { .type_ = samplers[0], .value = 1 }; // Mandated by pprof, but probably unused
+    ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, &default_period, nullptr);
+
+    // Check that the profile was created properly
+    if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
+        std::string ddog_err(ddog_Error_message(&res.err).ptr);
+        errmsg = "Could not create profile, err: " + ddog_err;
+        ddog_Error_drop(&res.err);
+        throw std::runtime_error(errmsg);
+        return;
+    }
+    ddog_profile = res.ok;
+
+    // Initialize storage
+    locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
 
     // Prepare for use
     reset();
-
-    // Initialize the size for buffers
-    cur_frame = 0;
 }
 
 Profile::~Profile()
 {
-    ddog_prof_Profile_drop(ddog_profile);
+    ddog_prof_Profile_drop(&ddog_profile);
 }
 
 std::string_view
@@ -347,8 +368,11 @@ Profile::insert_or_get(std::string_view sv)
 bool
 Profile::reset()
 {
-    if (!ddog_prof_Profile_reset(ddog_profile, nullptr)) {
-        errmsg = "Unable to reset profile";
+    auto res = ddog_prof_Profile_reset(&ddog_profile, nullptr);
+    if (!res.ok) {
+        std::string ddog_err(ddog_Error_message(&res.err).ptr);
+        errmsg = "Could not reset profile, err: " + ddog_err;
+        ddog_Error_drop(&res.err);
         std::cout << errmsg << std::endl;
         return false;
     }
@@ -356,52 +380,42 @@ Profile::reset()
 }
 
 bool
-Profile::start_sample(unsigned int nframes)
+Profile::start_sample()
 {
     // NB, since string_storage is a deque, `clear()` may not return all of
     // the allocated space
     strings.clear();
     string_storage.clear();
     clear_buffers();
-    this->nframes = nframes;
     return true;
 }
 
 void
 Profile::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    if (cur_frame >= lines.size() || cur_frame >= locations.size())
-        return;
-
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
     name = insert_or_get(name);
     filename = insert_or_get(filename);
 
-    lines[cur_frame] = {
-      .function =
-          {
-              .name = to_slice(name),
-              .system_name = {},
-              .filename = to_slice(filename),
-              .start_line = 0,
-          },
-      .line = line,
-  };
-
-    locations[cur_frame] = {
-        {},
-        address,
-        { &lines[cur_frame], 1 },
-        false,
+    ddog_prof_Location loc = {
+        null_mapping, // No support for mappings in Python
+        {
+          .name = to_slice(name),
+          .system_name = {}, // No support for system name in Python
+          .filename = to_slice(filename),
+          .start_line = 0 // We don't know the start_line in the typical case
+        },
+        .address = address,
+        .line = line,
     };
-
-    ++cur_frame;
+    locations.push_back(loc);
 }
 
 void
 Profile::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (cur_frame <= max_nframes)
+    if (locations.size() < max_nframes)
         push_frame_impl(name, filename, address, line);
 }
 
@@ -449,9 +463,8 @@ Profile::clear_buffers()
 {
     std::fill(values.begin(), values.end(), 0);
     std::fill(std::begin(labels), std::end(labels), ddog_prof_Label{});
+    locations.clear();
     cur_label = 0;
-    cur_frame = 0;
-    nframes = 0;
 }
 
 bool
@@ -459,25 +472,26 @@ Profile::flush_sample()
 {
     // We choose to normalize thread counts against the user's indicated
     // preference, even though we have no control over how many frames are sent.
-    if (nframes > max_nframes) {
-        auto dropped_frames = nframes - max_nframes;
+    if (locations.size() > max_nframes) {
+        auto dropped_frames = locations.size() - max_nframes;
         std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Profile::push_frame_impl(name, "", 0, 0);
     }
 
     ddog_prof_Sample sample = {
-        .locations = { &locations[0], cur_frame },
-        .values = { &values[0], values.size() },
-        .labels = { &labels[0], cur_label },
+        .locations = { locations.data(), locations.size() },
+        .values = { values.data(), values.size() },
+        .labels = { labels.data(), cur_label },
     };
 
-    ddog_prof_Profile_AddResult address = ddog_prof_Profile_add(ddog_profile, sample);
-    if (address.tag == DDOG_PROF_PROFILE_ADD_RESULT_ERR) {
-        std::string ddog_errmsg(ddog_Error_message(&address.err).ptr);
-        errmsg = "Could not flush sample: " + errmsg;
-        ddog_Error_drop(&address.err);
-
+    ddog_prof_Profile_Result res = ddog_prof_Profile_add(&ddog_profile, sample, 0);
+    if (res.tag == DDOG_PROF_PROFILE_RESULT_ERR) {
+        std::string ddog_errmsg(ddog_Error_message(&res.err).ptr);
+        std::cout << "'" << ddog_errmsg << "'" << std::endl;
+        errmsg = "Could not flush sample: " + ddog_errmsg;
+        std::cout << errmsg << std::endl;
+        ddog_Error_drop(&res.err);
         clear_buffers();
         return false;
     }
