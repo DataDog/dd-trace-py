@@ -25,7 +25,7 @@ void ddup_config_sample_type(unsigned int type);
 
 void ddup_init();
 
-void ddup_start_sample(unsigned int nframes);
+void ddup_start_sample();
 void ddup_push_walltime(int64_t walltime, int64_t count);
 void ddup_push_cputime(int64_t cputime, int64_t count);
 void ddup_push_acquire(int64_t acquire_time, int64_t count);
