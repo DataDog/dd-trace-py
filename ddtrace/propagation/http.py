@@ -821,11 +821,13 @@ class _TraceContext:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
             ts = span_context._tracestate
-            # Adds last parent_id to the datadog tracestate. This tag is used to reconnect a traces with missing spans
-            # span_context._tracestate must have at least one tag (sampling priority), so we can safely add to it
-            ts.replace("dd=", "dd=lp.id:{:016x};".format(span_context.span_id))  # type: ignore[str-format]
-            if ts:
-                headers[_HTTP_HEADER_TRACESTATE] = ts
+            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a traces with missing spans
+            if "dd=" in ts:
+                ts = ts.replace("dd=", "dd=lp.id:{:016x};".format(span_context.span_id or 0))
+            else:
+                ts = "dd=lp.id:{:016x}".format(span_context.span_id or 0)
+
+            headers[_HTTP_HEADER_TRACESTATE] = ts
 
 
 class _NOP_Propagator:
