@@ -191,11 +191,39 @@ def test_extended_sampling_tags_and_resource(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_w_None(writer, tracer):
+def test_extended_sampling_w_None_meta(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": None}, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
 
     tracer._tags = {"test": None}
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+
+    tracer._tags = {"test": "None"}
+    tracer.trace("should_not_send2", resource=RESOURCE).finish()
+
+    tracer.trace("should_send1", resource="banana").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_w_metrics_as_int(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = {"test": 123}
+    tracer.trace("should_not_send", resource=RESOURCE).finish()
+
+    tracer._tags = {"test": "None"}
+    tracer.trace("should_not_send2", resource=RESOURCE).finish()
+
+    tracer.trace("should_send1", resource="banana").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_w_metrics_as_str(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": "123"}, resource=RESOURCE)])
+    tracer.configure(sampler=sampler, writer=writer)
+
+    tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
 
     tracer._tags = {"test": "None"}
