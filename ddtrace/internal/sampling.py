@@ -90,7 +90,7 @@ def validate_sampling_decision(
         if TRACE_TAG_RE.match(value) is None:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
-            log.warning("failed to decode _dd.p.dm: %r", value, exc_info=True)
+            log.warning("failed to decode _dd.p.dm: %r", value)
     return meta
 
 
