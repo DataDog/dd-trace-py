@@ -423,6 +423,12 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="accupath",
+            command="pytest --no-cov {cmdargs} tests/accupath/",
+            pkgs={"msgpack": [latest], "six": "==1.12.0"},
+            pys=select_pys(min_version="3.7", max_version="3.12"),
+        ),
+        Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
             pkgs={

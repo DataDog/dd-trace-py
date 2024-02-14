@@ -35,7 +35,7 @@ from ..periodic import PeriodicService
 from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
-from .fnv import fnv1_64
+from ddtrace.internal.utils.fnv import fnv1_64
 
 
 def gzip_compress(payload):
