@@ -221,17 +221,18 @@ def test_extended_sampling_w_metrics(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_w_tags_none(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": "None"}, resource=RESOURCE)])
+def test_extended_sampling_glob_multi_rule(writer, tracer):
+    sampler = DatadogSampler(
+        rules=[
+            SamplingRule(0, service="webserv?r.non-matching", name="web.req*"),
+            SamplingRule(0, service="webserv?r", name="web.req*.non-matching"),
+            SamplingRule(1, service="webserv?r", name="web.req*"),
+        ]
+    )
     tracer.configure(sampler=sampler, writer=writer)
 
-    tracer._tags = {"test": None}
-    tracer.trace("should_not_send", resource=RESOURCE).finish()
-
-    tracer._tags = {"test": "None"}
-    tracer.trace("should_not_send2", resource=RESOURCE).finish()
-    tracer._tags = {"test": "send"}
-    tracer.trace("should_send1", resource="banana").finish()
+    tracer._tags = {"test": "tag"}
+    tracer.trace(name="web.reqUEst", service="wEbServer").finish()
 
 
 @snapshot_parametrized_with_writers
