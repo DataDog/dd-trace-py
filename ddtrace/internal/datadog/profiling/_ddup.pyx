@@ -6,7 +6,7 @@ import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 
 from .utils import sanitize_string
 
@@ -39,7 +39,7 @@ IF UNAME_SYSNAME == "Linux":
 
         void ddup_init()
 
-        void ddup_start_sample(unsigned int nframes)
+        void ddup_start_sample()
         void ddup_push_walltime(int64_t walltime, int64_t count)
         void ddup_push_cputime(int64_t cputime, int64_t count)
         void ddup_push_acquire(int64_t acquire_time, int64_t count)
@@ -89,11 +89,13 @@ IF UNAME_SYSNAME == "Linux":
         ddup_config_max_nframes(max_nframes)
         if tags is not None:
             for key, val in tags.items():
-                ddup_config_user_tag(key, val)
+                if key and val:
+                    ddup_config_user_tag(ensure_binary(key), ensure_binary(val))
         ddup_init()
 
-    def start_sample(nframes: int) -> None:
-        ddup_start_sample(nframes)
+    def start_sample(unsigned int _) -> None:
+        # The number of frames is not used in the C++ implementation
+        ddup_start_sample()
 
     def push_cputime(value: int, count: int) -> None:
         ddup_push_cputime(value, count)

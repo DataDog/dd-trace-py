@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa:F401
     from typing import Type  # noqa:F401
 
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 

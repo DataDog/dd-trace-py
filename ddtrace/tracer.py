@@ -26,6 +26,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import Span
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
@@ -67,7 +68,6 @@ from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
 from .sampler import RateSampler
-from .span import Span
 
 
 if TYPE_CHECKING:
@@ -75,9 +75,6 @@ if TYPE_CHECKING:
 
     from .internal.writer import AgentResponse  # noqa: F401
 
-
-if config._telemetry_enabled:
-    from ddtrace.internal import telemetry
 
 log = get_logger(__name__)
 
@@ -1013,7 +1010,10 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            telemetry.disable_and_flush()
+            if config._telemetry_enabled:
+                from ddtrace.internal import telemetry
+
+                telemetry.disable_and_flush()
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
