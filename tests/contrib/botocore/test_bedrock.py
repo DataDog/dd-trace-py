@@ -417,22 +417,17 @@ class TestLLMObsBedrock:
         expected_llmobs_writer_calls += [
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span.span_id),
                     "trace_id": "{:x}".format(span.trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(span.trace_id),
-                    "apm_context": {
-                        "span_id": str(span.span_id),
-                        "trace_id": "{:x}".format(span.trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "ok",
-                    "status_message": "",
+                    "error": 0,
                     "meta": {
+                        "span.kind": "llm",
                         "model_name": span.get_tag("bedrock.request.model"),
                         "model_provider": span.get_tag("bedrock.request.model_provider"),
                         "input": {
@@ -603,22 +598,18 @@ class TestLLMObsBedrock:
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span.span_id),
                     "trace_id": "{:x}".format(span.trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(span.trace_id),
-                    "apm_context": {
-                        "span_id": str(span.span_id),
-                        "trace_id": "{:x}".format(span.trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "error",
-                    "status_message": span.get_tag("error.message"),
+                    "error": 1,
                     "meta": {
+                        "span.kind": "llm",
+                        "error.message": span.get_tag("error.message"),
                         "model_name": span.get_tag("bedrock.request.model"),
                         "model_provider": span.get_tag("bedrock.request.model_provider"),
                         "input": {

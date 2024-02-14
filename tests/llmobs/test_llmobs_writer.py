@@ -50,17 +50,13 @@ def _completion_event():
         "trace_id": "98765432101",
         "parent_id": "",
         "session_id": "98765432101",
-        "apm_context": {
-            "span_id": "12345678901",
-            "trace_id": "98765432101",
-        },
         "name": "completion_span",
         "tags": ["version:", "env:", "service:", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
-        "status": "ok",
-        "status_message": "",
+        "error": 0,
         "meta": {
+            "span.kind": "llm",
             "model_name": "ada",
             "model_provider": "openai",
             "input": {
@@ -81,22 +77,17 @@ def _completion_event():
 
 def _chat_completion_event():
     return {
-        "kind": "llm",
         "span_id": "12345678902",
         "trace_id": "98765432102",
         "parent_id": "",
         "session_id": "98765432102",
-        "apm_context": {
-            "span_id": "12345678902",
-            "trace_id": "98765432102",
-        },
         "name": "chat_completion_span",
         "tags": ["version:", "env:", "service:", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "status": "ok",
-        "status_message": "",
+        "error": 0,
         "meta": {
+            "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
             "model_provider": "openai",
             "input": {

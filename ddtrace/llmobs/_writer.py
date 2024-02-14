@@ -26,11 +26,10 @@ class LLMObsEvent(TypedDict):
     trace_id: str
     parent_id: str
     session_id: str
-    apm_context: Dict[str, str]
     tags: List[str]
     service: str
     name: str
-    kind: str
+    error: int
     start_ns: int
     duration: float
     status: str

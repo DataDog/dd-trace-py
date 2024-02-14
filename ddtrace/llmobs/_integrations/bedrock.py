@@ -23,7 +23,7 @@ class BedrockIntegration(BaseLLMIntegration):
         meta = {
             "model_name": span.get_tag("bedrock.request.model"),
             "model_provider": span.get_tag("bedrock.request.model_provider"),
-            "kind": "llm",
+            "span.kind": "llm",
             "input": {
                 "messages": [{"content": prompt}],
                 "parameters": {

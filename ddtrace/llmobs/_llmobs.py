@@ -111,6 +111,8 @@ class LLMObsTraceProcessor(TraceProcessor):
     def submit_llmobs_span(self, span):
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         meta = json.loads(span._meta.pop("ml_obs.meta", {}))
+        if span.error:
+            meta["error.message"] = span.get_tag("error.message")
         metrics = json.loads(span._meta.pop("ml_obs.metrics", {}))
         span_event = self._llmobs_span_event(span, meta, metrics)
         log.debug("Submitting span to LLMObs: %s", span)
@@ -123,14 +125,11 @@ class LLMObsTraceProcessor(TraceProcessor):
             "span_id": str(span.span_id),
             "parent_id": str(span.parent_id or ""),
             "session_id": "{:x}".format(span.trace_id),
-            "apm_context": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
             "tags": self._llmobs_tags(span, meta),
             "name": span.name,
-            "kind": meta.pop("kind"),
+            "error": span.error,
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
-            "status": "error" if span.error else "ok",
-            "status_message": span.get_tag("error.message") or "",
             "meta": meta,
             "metrics": metrics,
         }

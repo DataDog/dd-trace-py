@@ -1897,22 +1897,17 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span_id),
                     "trace_id": "{:x}".format(trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(trace_id),
-                    "apm_context": {
-                        "span_id": str(span_id),
-                        "trace_id": "{:x}".format(trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "ok",
-                    "status_message": "",
+                    "error": 0,
                     "meta": {
+                        "span.kind": "llm",
                         "model_name": model,
                         "model_provider": "openai",
                         "input": {
@@ -1969,22 +1964,17 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span_id),
                     "trace_id": "{:x}".format(trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(trace_id),
-                    "apm_context": {
-                        "span_id": str(span_id),
-                        "trace_id": "{:x}".format(trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "ok",
-                    "status_message": "",
+                    "error": 0,
                     "meta": {
+                        "span.kind": "llm",
                         "model_name": resp.model,
                         "model_provider": "openai",
                         "input": {
@@ -2038,22 +2028,17 @@ def test_llmobs_chat_completion_function_call(
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span_id),
                     "trace_id": "{:x}".format(trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(trace_id),
-                    "apm_context": {
-                        "span_id": str(span_id),
-                        "trace_id": "{:x}".format(trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "ok",
-                    "status_message": "",
+                    "error": 0,
                     "meta": {
+                        "span.kind": "llm",
                         "model_name": resp.model,
                         "model_provider": "openai",
                         "input": {
@@ -2109,22 +2094,18 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span_id),
                     "trace_id": "{:x}".format(trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(trace_id),
-                    "apm_context": {
-                        "span_id": str(span_id),
-                        "trace_id": "{:x}".format(trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "error",
-                    "status_message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                    "error": 1,
                     "meta": {
+                        "span.kind": "llm",
+                        "error.message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                         "model_name": model,
                         "model_provider": "openai",
                         "input": {
@@ -2180,22 +2161,18 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "kind": "llm",
                     "span_id": str(span_id),
                     "trace_id": "{:x}".format(trace_id),
                     "parent_id": "",
                     "session_id": "{:x}".format(trace_id),
-                    "apm_context": {
-                        "span_id": str(span_id),
-                        "trace_id": "{:x}".format(trace_id),
-                    },
                     "name": span.name,
                     "tags": expected_tags,
                     "start_ns": span.start_ns,
                     "duration": span.duration_ns,
-                    "status": "error",
-                    "status_message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                    "error": 1,
                     "meta": {
+                        "span.kind": "llm",
+                        "error.message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                         "model_name": model,
                         "model_provider": "openai",
                         "input": {

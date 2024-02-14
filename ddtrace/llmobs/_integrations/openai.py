@@ -114,7 +114,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         meta = {
             "model_name": span.get_tag("openai.response.model") or span.get_tag("openai.request.model"),
             "model_provider": "openai",
-            "kind": "llm",
+            "span.kind": "llm",
         }
         if record_type == "completion":
             meta = self._llmobs_set_completion_meta(resp, err, kwargs, meta)
