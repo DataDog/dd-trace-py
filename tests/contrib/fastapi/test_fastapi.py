@@ -624,7 +624,7 @@ def test_table_query_snapshot(snapshot_client):
 @snapshot()
 def test_traced_websocket(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
-    with override_config("fastapi", dict(trace_asgi_websocket=True)):
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}

@@ -126,7 +126,6 @@ def override_global_config(values):
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
-        "_trace_asgi_websocket",
         "_trace_rate_limit",
         "_trace_sampling_rules",
         "_trace_sample_rate",

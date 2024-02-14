@@ -33,7 +33,7 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 
@@ -117,7 +117,7 @@ class TraceMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             method = scope["method"]
-        elif scope["type"] == "websocket" and self.integration_config.trace_asgi_websocket:
+        elif scope["type"] == "websocket" and self.integration_config._trace_asgi_websocket:
             method = "WEBSOCKET"
         else:
             return await self.app(scope, receive, send)
