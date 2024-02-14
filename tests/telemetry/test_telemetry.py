@@ -158,6 +158,7 @@ telemetry_writer.periodic(True)
 telemetry_writer.disable()
     """
 
+    initial_requests_count = len(test_agent_session.get_requests())
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b"", stderr
@@ -167,11 +168,10 @@ telemetry_writer.disable()
     requests = test_agent_session.get_requests()
 
     # We expect events from the parent process to get sent, but none from the child process
-    # flaky
-    # assert len(requests) == 1
-    # Validate that the runtime id sent for every event is the parent processes runtime id
-    assert requests[0]["body"]["runtime_id"] == runtime_id
-    assert requests[0]["body"]["request_type"] == "app-heartbeat"
+    assert len(requests) == initial_requests_count + 1
+    matching_requests = [r for r in requests if r["body"]["runtime_id"] == runtime_id]
+    assert len(matching_requests) == 1
+    assert matching_requests[0]["body"]["request_type"] == "app-heartbeat"
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
@@ -245,13 +245,14 @@ tracer.configure(
 # generate and encode span
 tracer.trace("hello").finish()
 """
+    initial_event_count = len(test_agent_session.get_events())
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 3
+    assert len(events) == initial_event_count + 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
@@ -443,3 +444,28 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         "install_type": "k8s_single_step",
         "install_time": "1703188212",
     }
+
+
+def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
+    """Ensure no telemetry events are sent when telemetry is disabled"""
+
+    env = os.environ.copy()
+    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+
+    code = """
+from ddtrace import tracer
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    assert status == 0, stderr
+    assert stderr == b""
