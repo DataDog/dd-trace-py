@@ -154,7 +154,7 @@ class SamplingRule(object):
         # type: (Span) -> bool
         tag_match = True
         if self._tag_value_matchers:
-            tag_match = self.check_tags(span.get_tags(), span.get_metrics)
+            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
         return tag_match
 
     def check_tags(self, meta, metrics):
@@ -164,7 +164,7 @@ class SamplingRule(object):
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
             value = meta.get(tag_key)
-            tag_match = self._tag_value_matchers[tag_key].match(value)
+            tag_match = self._tag_value_matchers[tag_key].match(str(value))
             # If the value doesn't match in meta, check the metrics
             if tag_match is False:
                 value = metrics.get(tag_key)

@@ -205,30 +205,31 @@ def test_extended_sampling_w_None_meta(writer, tracer):
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_w_metrics_as_int(writer, tracer):
+def test_extended_sampling_w_metrics(writer, tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
 
-    tracer._tags = {"test": "None"}
+    tracer._tags = {"test": "123"}
     tracer.trace("should_not_send2", resource=RESOURCE).finish()
 
+    tracer._tags = {"test": "1234"}
     tracer.trace("should_send1", resource="banana").finish()
 
 
 @snapshot_parametrized_with_writers
-def test_extended_sampling_w_metrics_as_str(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": "123"}, resource=RESOURCE)])
+def test_extended_sampling_w_tags_none(writer, tracer):
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": "None"}, resource=RESOURCE)])
     tracer.configure(sampler=sampler, writer=writer)
 
-    tracer._tags = {"test": 123}
+    tracer._tags = {"test": None}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
 
     tracer._tags = {"test": "None"}
     tracer.trace("should_not_send2", resource=RESOURCE).finish()
-
+    tracer._tags = {"test": "send"}
     tracer.trace("should_send1", resource="banana").finish()
 
 
