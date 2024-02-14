@@ -40,6 +40,7 @@
             "ddtrace/pin.py",
             "ddtrace/provider.py",
             "ddtrace/sampler.py",
+            "ddtrace/sampling_rule.py",
             "ddtrace/span.py",
             "ddtrace/tracer.py",
             "ddtrace/tracing/*",
