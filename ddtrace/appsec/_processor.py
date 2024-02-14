@@ -14,6 +14,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -35,7 +36,6 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
