@@ -82,13 +82,13 @@ class LLMObsWriter(PeriodicService):
 
         data = {"ml_obs": {"stage": "raw", "type": "span", "spans": events}}
         try:
-            enc_llm_records = json.dumps(data)
+            enc_llm_events = json.dumps(data)
         except TypeError:
             logger.error("failed to encode %d LLMObs events", len(events), exc_info=True)
             return
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
-            conn.request("POST", self._endpoint, enc_llm_records, self._headers)
+            conn.request("POST", self._endpoint, enc_llm_events, self._headers)
             resp = get_connection_response(conn)
             if resp.status >= 300:
                 logger.error(
