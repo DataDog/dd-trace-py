@@ -98,12 +98,6 @@
             "ddtrace/internal/ci_visibility/*",
             "ddtrace/ext/test.py"
         ],
-        "coverage": [
-            "ddtrace/contrib/coverage/*"
-        ],
-        "llmobs": [
-            "ddtrace/llmobs/*"
-        ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
         ],
@@ -423,7 +417,6 @@
             "@tracing",
             "@ci_visibility",
             "@ci",
-            "@coverage",
             "@git",
             "@pytest",
             "tests/ci_visibility/*"
@@ -832,7 +825,6 @@
             "@tracing",
             "@pytest",
             "@ci_visibility",
-            "@coverage",
             "tests/contrib/pytest/*",
             "tests/contrib/pytest_benchmark/*",
             "tests/contrib/pytest_bdd/*",
@@ -842,7 +834,6 @@
             "@contrib",
             "@unittest",
             "@ci_visibility",
-            "@coverage",
             "tests/contrib/unittest/*",
             "tests/snapshots/tests.contrib.unittest.*"
         ],
