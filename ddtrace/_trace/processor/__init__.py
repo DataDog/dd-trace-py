@@ -11,6 +11,9 @@ from typing import Union  # noqa:F401
 import attr
 
 from ddtrace import config
+from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
+from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
@@ -21,9 +24,6 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.span import Span  # noqa:F401
-from ddtrace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.span import _is_top_level
 
 
 if config._telemetry_enabled:
@@ -158,11 +158,9 @@ class TraceSamplingProcessor(TraceProcessor):
 
                     return single_spans or None
 
-            for span in trace:
-                if span.sampled:
-                    return trace
+            return trace
 
-            log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+        log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
         return None
 

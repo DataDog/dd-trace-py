@@ -5,7 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt

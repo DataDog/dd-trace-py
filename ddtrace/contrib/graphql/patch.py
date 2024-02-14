@@ -4,7 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 from typing import List
 
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 
