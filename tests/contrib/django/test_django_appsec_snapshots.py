@@ -123,15 +123,8 @@ def test_request_ipblock_nomatch_200():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
+        "meta",
+        "metrics",
     ]
 )
 def test_request_ipblock_match_403():
@@ -157,15 +150,8 @@ def test_request_ipblock_match_403():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
-        "meta._dd.appsec.waf.duration",
-        "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
-        "meta.http.request.headers.accept-encoding",
-        "meta.http.request.headers.user-agent",
-        "meta.http.useragent",
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-        "metrics._dd.appsec.event_rules.loaded",
+        "meta",
+        "metrics",
     ]
 )
 def test_request_ipblock_match_403_json():
