@@ -99,7 +99,6 @@ IF UNAME_SYSNAME == "Linux":
                     ddup_config_user_tag(ensure_binary(key), ensure_binary(val))
         ddup_init()
 
-
     def upload() -> None:
         runtime_id = ensure_binary(runtime.get_runtime_id())
         ddup_set_runtime_id(runtime_id, len(runtime_id))

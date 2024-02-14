@@ -3,7 +3,7 @@ from .utils import sanitize_string  # noqa: F401
 
 try:
     from ._ddup import *  # noqa: F403, F401
-except ImportError:
+except Exception:
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
