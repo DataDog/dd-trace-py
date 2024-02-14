@@ -11,6 +11,7 @@ from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -41,7 +42,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.tracing._span_link import SpanLink
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -322,7 +322,7 @@ class Span(object):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:
+        if value is not None and val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
@@ -523,7 +523,7 @@ class Span(object):
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
+            "%s=%s" % (k, pprint.pformat(v, width=1024 ** 2).strip())
             for (k, v) in data
         )
 
