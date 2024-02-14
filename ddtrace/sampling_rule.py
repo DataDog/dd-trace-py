@@ -74,7 +74,11 @@ class SamplingRule(object):
                 ).format(sample_rate)
             )
         self.sample_rate = float(sample_rate)
-        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
+        # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
+        # we can just create a GlobMatcher for 'None' and it will match properly
+        self._tag_value_matchers = (
+            {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
+        )
         self.tags = tags
         self.service = self.choose_matcher(service)
         self.name = self.choose_matcher(name)
@@ -97,10 +101,6 @@ class SamplingRule(object):
         #   e.g. ignoring `span.service` vs `span.service == None`
         if pattern is self.NO_RULE:
             return True
-
-        if pattern is None and prop is None:
-            return True
-
         if isinstance(pattern, GlobMatcher):
             return pattern.match(str(prop))
 
@@ -213,8 +213,10 @@ class SamplingRule(object):
                 category=DDTraceDeprecationWarning,
             )
             return prop
+        # Name and Resource will never be None, but service can be, since we str()
+        #  whatever we pass into the GlobMatcher, we can just use its matching
         elif prop is None:
-            return None
+            prop = "None"
         else:
             return GlobMatcher(prop) if prop != SamplingRule.NO_RULE else SamplingRule.NO_RULE
 
