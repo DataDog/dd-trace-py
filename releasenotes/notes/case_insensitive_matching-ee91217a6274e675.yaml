@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    tracing: Matching for span and trace sampling rules is now case insensitive.
+    tracing: Span and trace sampling rules are case insensitive.
