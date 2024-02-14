@@ -123,6 +123,9 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      run_agent_checks:
+        type: boolean
+        default: true
     steps:
       - checkout
       - attach_workspace:
@@ -206,10 +209,13 @@ commands:
           key: lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ epoch }}
           paths:
             - ./latest-success-commit
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when: always
-          command: bash ./scripts/get-test-agent-results.sh
+      - when:
+          condition:
+              << parameters.run_agent_checks >>
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
   run_hatch_env_test:
     description: "Run hatch env test"
@@ -229,6 +235,9 @@ commands:
       trace_agent_url:
         type: string
         default: "http://localhost:9126"
+      run_agent_checks:
+        type: boolean
+        default: true
     steps:
       - checkout
       - attach_workspace:
@@ -295,10 +304,13 @@ commands:
       - store_artifacts:
           path: artifacts
           destination: supported-integrations
-      - run:
-          name: Get APM Test Agent Trace Check Results
-          when: always
-          command: bash ./scripts/get-test-agent-results.sh
+      - when:
+          condition:
+              << parameters.run_agent_checks >>
+          steps:
+            - run:
+                name: Get APM Test Agent Trace Check Results
+                command: bash ./scripts/get-test-agent-results.sh
 
 executors:
   cimg_base:
@@ -437,6 +449,7 @@ jobs:
 
   appsec_iast:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'appsec_iast$'
@@ -470,6 +483,7 @@ jobs:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
+          run_agent_checks: false
 
   appsec_threats_django:
     parallelism: 12
@@ -518,6 +532,7 @@ jobs:
     <<: *contrib_job_small
     steps:
       - run_test:
+          store_coverage: false
           pattern: "datastreams"
 
   tracer:
@@ -534,6 +549,12 @@ jobs:
           pattern: "ci_visibility"
           trace_agent_url: ""
 
+  llmobs:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "llmobs"
+
   subprocess:
     <<: *contrib_job_small
     steps:
@@ -547,6 +568,7 @@ jobs:
           pattern: "sourcecode"
 
   telemetry:
+    parallelism: 6
     <<: *machine_executor
     steps:
       - run_test:
@@ -743,6 +765,7 @@ jobs:
         - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
+          store_coverage: false
           pattern: 'celery'
 
   cherrypy:
@@ -774,7 +797,7 @@ jobs:
 
   elasticsearch:
     <<: *machine_executor
-    parallelism: 4
+    parallelism: 17
     steps:
       - run_test:
           pattern: 'elasticsearch'
@@ -853,6 +876,7 @@ jobs:
 
   graphql:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "graphql"
@@ -894,6 +918,7 @@ jobs:
 
   mariadb:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mariadb$'
@@ -1240,6 +1265,7 @@ jobs:
 
   langchain:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: "langchain"

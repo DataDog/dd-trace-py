@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.contrib.asyncio import helpers
 from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE

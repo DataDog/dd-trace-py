@@ -23,7 +23,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
-from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from ..utils.http import verify_url
@@ -41,6 +40,7 @@ from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
 from .constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
+from .context import CIContextProvider
 from .git_client import METADATA_UPLOAD_STATUS
 from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES

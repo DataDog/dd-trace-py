@@ -9,7 +9,7 @@ PROPAGATION_STYLE_B3_MULTI = "b3multi"
 PROPAGATION_STYLE_B3_SINGLE = "b3"
 _PROPAGATION_STYLE_W3C_TRACECONTEXT = "tracecontext"
 _PROPAGATION_STYLE_NONE = "none"
-_PROPAGATION_STYLE_DEFAULT = "tracecontext,datadog"
+_PROPAGATION_STYLE_DEFAULT = "datadog,tracecontext"
 PROPAGATION_STYLE_ALL = (
     _PROPAGATION_STYLE_W3C_TRACECONTEXT,
     PROPAGATION_STYLE_DATADOG,
@@ -72,6 +72,9 @@ HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
+
+ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
+CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 
 MESSAGING_SYSTEM = "messaging.system"
 

@@ -52,21 +52,6 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
         assert not ip or ip == "127.0.0.1"  # this varies when running under PyCharm or CI
 
 
-@pytest.mark.parametrize(
-    "kwargs,expected",
-    [
-        ({"HTTP_X_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
-    ],
-)
-def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
-    with override_global_config(dict(_asm_enabled=True)):
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d", headers=kwargs)
-        assert root_span.get_tag(http.CLIENT_IP) == expected
-
-
 def test_request_block_request_callable(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(

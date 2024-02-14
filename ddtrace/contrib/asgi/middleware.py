@@ -5,8 +5,8 @@ from typing import Optional
 from urllib import parse
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -273,8 +273,6 @@ class TraceMiddleware:
 
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 return await self.app(scope, receive, wrapped_send)
             except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)

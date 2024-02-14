@@ -4,8 +4,14 @@ import attr
 import mock
 import pytest
 
-from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace._trace.context import Context
+from ddtrace._trace.processor import SpanAggregator
+from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.processor import SpanSamplingProcessor
+from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -15,15 +21,9 @@ from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.processor.trace import SpanAggregator
-from ddtrace.internal.processor.trace import SpanProcessor
-from ddtrace.internal.processor.trace import SpanSamplingProcessor
-from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTagsProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from tests.utils import DummyTracer
@@ -49,7 +49,7 @@ def test_default_post_init():
         def on_span_finish(self, data):  # type: (Any) -> Any
             pass
 
-    with mock.patch("ddtrace.internal.processor.log") as log:
+    with mock.patch("ddtrace._trace.processor.log") as log:
         p = MyProcessor()
 
     calls = [
@@ -370,6 +370,21 @@ def test_span_creation_metrics():
                 mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
             ]
         )
+
+
+def test_span_creation_metrics_disabled_telemetry():
+    """Test that telemetry metrics are not queued when telemetry is disabled"""
+    aggr = SpanAggregator(
+        partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=DummyWriter()
+    )
+
+    with override_global_config(dict(_telemetry_enabled=False)):
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+            for _ in range(300):
+                span = Span("span", on_finish=[aggr.on_span_finish])
+                aggr.on_span_start(span)
+                span.finish()
+        mock_tm.assert_not_called()
 
 
 def test_single_span_sampling_processor():
