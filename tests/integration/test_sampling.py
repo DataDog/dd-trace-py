@@ -211,7 +211,8 @@ def test_extended_sampling_w_metrics(writer, tracer):
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
-
+    # "123" actually gets set in _meta, not _metrics, but good to test that
+    # both _meta and _metrics are checked by the rule
     tracer._tags = {"test": "123"}
     tracer.trace("should_not_send2", resource=RESOURCE).finish()
 
