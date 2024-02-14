@@ -12,8 +12,7 @@ DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : url{ _url }
   , ddog_exporter{ _ddog_exporter }
-{
-}
+{}
 
 bool
 Uploader::upload(ddog_prof_Profile& profile)
