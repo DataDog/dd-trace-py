@@ -289,3 +289,34 @@ fastapi = ["==0.94.1"]
 [[envs.appsec_threats_fastapi.matrix]]
 python = ["3.8", "3.10", "3.11"]
 fastapi = ["~=0.109"]
+
+[envs.wheels]
+detached = true
+dependencies = [
+  "cibuildwheel==2.16.5",
+]
+
+[envs.wheels.scripts]
+build = [
+    "cibuildwheel --output-dir $WHEELS_DIR {args}",
+]
+
+[envs.wheels.env-vars]
+CIBW_PLATFORM = "linux"
+CIBW_SKIP = "*-musllinux* pp*"
+# TODO: Remove after https://github.com/DataDog/dd-trace-py/pull/8429
+CIBW_REPAIR_WHEEL_COMMAND = ""
+
+[[envs.wheels.matrix]]
+python-version = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.wheels.overrides]
+matrix.python-version.env-vars = [
+    { key = "CIBW_BUILD", value = "cp37*", if = ["3.7"]},
+    { key = "CIBW_BUILD", value = "cp38*", if = ["3.8"]},
+    { key = "CIBW_BUILD", value = "cp39*", if = ["3.9"]},
+    { key = "CIBW_BUILD", value = "cp310*", if = ["3.10"]},
+    { key = "CIBW_BUILD", value = "cp311*", if = ["3.11"]},
+    { key = "CIBW_BUILD", value = "cp312*", if = ["3.12"]},
+    { key = "WHEELS_DIR", value = "./wheelhouse/{matrix:python-version}"},
+]
