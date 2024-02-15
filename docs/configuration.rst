@@ -398,6 +398,15 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Prevents large payloads being sent to APM.
+    
+   DD_ASGI_TRACE_WEBSOCKET:
+     default: False
+     description: |
+         Enables tracing ASGI websockets. Please note that the websocket span duration will last until the 
+         connection is closed, which can result in long running spans.
+
+     version_added:
+       v2.7.0:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer

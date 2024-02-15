@@ -1,5 +1,6 @@
 variables:
   BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
   stage: benchmarks
@@ -37,6 +38,9 @@ benchmarks-pr-comment:
   when: on_success
   tags: ["arch:amd64"]
   image: $BASE_CI_IMAGE
+  rules:
+    - if: '$CI_COMMIT_BRANCH == main'
+      when: never
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
@@ -118,9 +122,21 @@ benchmark-http-propagation-inject:
 
 benchmark-serverless:
   stage: benchmarks
+  image: $SLS_CI_IMAGE
+  tags: ["arch:amd64"]
+  when: on_success
+  needs:
+    - benchmark-serverless-trigger
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
+    - ./ci/check_trigger_status.sh
+
+benchmark-serverless-trigger:
+  stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
+  allow_failure: true
   variables:
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR

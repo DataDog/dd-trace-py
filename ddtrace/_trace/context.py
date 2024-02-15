@@ -20,10 +20,10 @@ from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa:F401,I001
 
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
-    from ddtrace.span import _MetaDictType
-    from ddtrace.span import _MetricDictType
+    from ddtrace._trace.span import _MetaDictType
+    from ddtrace._trace.span import _MetricDictType
 
     _ContextState = Tuple[
         Optional[int],  # trace_id

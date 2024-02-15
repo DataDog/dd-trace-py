@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fixes issues derived from AST patching code with type annotations.

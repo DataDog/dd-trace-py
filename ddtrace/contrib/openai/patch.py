@@ -202,7 +202,8 @@ def patch():
 def unpatch():
     # FIXME: add unpatching. The current wrapping.unwrap method requires
     #        the wrapper function to be provided which we don't keep a reference to.
-    pass
+    if LLMObs.enabled:
+        LLMObs.disable()
 
 
 def _patched_client_init(openai, integration):
