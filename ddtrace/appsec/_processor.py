@@ -168,8 +168,12 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
             raise
+        self._update_required()
+
+    def _update_required(self):
+        self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
-            self._mark_needed(address)
+            self._addresses_to_keep.add(address)
         # we always need the request headers
         self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
@@ -182,6 +186,7 @@ class AppSecSpanProcessor(SpanProcessor):
             self._actions[a.get(WAF_ACTIONS.ID, None)] = a
         if "actions" in rules:
             del rules["actions"]
+        self._update_required()
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
@@ -382,9 +387,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results.derivatives
-
-    def _mark_needed(self, address: str) -> None:
-        self._addresses_to_keep.add(address)
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
