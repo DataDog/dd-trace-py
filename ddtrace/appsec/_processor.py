@@ -186,7 +186,6 @@ class AppSecSpanProcessor(SpanProcessor):
             self._actions[a.get(WAF_ACTIONS.ID, None)] = a
         if "actions" in rules:
             del rules["actions"]
-        self._update_required()
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
