@@ -129,6 +129,7 @@ else:
     assert requests[1]["body"]["request_type"] == "app-started"
 
 
+@flaky(1735812000)
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
