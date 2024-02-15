@@ -1403,12 +1403,17 @@ class PytestTestCase(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        test_module_spans = sorted([span for span in spans if span.get_tag("type") == "test_module_end"], key=lambda s: s.get_tag("test.module"))
+        test_module_spans = sorted(
+            [span for span in spans if span.get_tag("type") == "test_module_end"],
+            key=lambda s: s.get_tag("test.module"),
+        )
         assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
         assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
         assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
         assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
-        test_suite_spans = sorted([span for span in spans if span.get_tag("type") == "test_suite_end"], key=lambda s: s.get_tag("test.suite"))
+        test_suite_spans = sorted(
+            [span for span in spans if span.get_tag("type") == "test_suite_end"], key=lambda s: s.get_tag("test.suite")
+        )
         assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
         assert test_suite_spans[1].get_tag("test.suite") == "test_outer_abc.py"
 
@@ -1920,12 +1925,13 @@ class PytestTestCase(TracerTestCase):
                 "test_outer_package/test_inner_package/test_inner_abc.py": [],
             },
         ):
-            self.inline_run("--ddtrace")
+            self.inline_run("--ddtrace", "-vv")
 
         spans = self.pop_spans()
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.status") == "pass"
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
@@ -1935,14 +1941,17 @@ class PytestTestCase(TracerTestCase):
         module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
         assert len(module_spans) == 2
         outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
+        assert outer_module_span.get_tag("test.status") == "skip"
         assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
         assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
         assert outer_module_span.get_tag("test.itr.tests_skipping.type") == "test"
         assert outer_module_span.get_metric("test.itr.tests_skipping.count") == 1
+
         inner_module_span = [
             span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
         ][0]
+        assert inner_module_span.get_tag("test.status") == "pass"
         assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
@@ -1957,10 +1966,6 @@ class PytestTestCase(TracerTestCase):
         skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
-
-        breakpoint()
-
-        assert True
 
     def test_pytest_skip_none_tests(self):
         """
