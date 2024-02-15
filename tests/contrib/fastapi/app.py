@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks
 from fastapi import FastAPI
 from fastapi import Header
 from fastapi import HTTPException
+from fastapi import WebSocket
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -34,6 +35,12 @@ class User(BaseModel):
 def get_app():
     app = FastAPI()
     async_condition = asyncio.Condition()
+
+    @app.websocket("/ws")
+    async def websocket(websocket: WebSocket):
+        await websocket.accept()
+        await websocket.send_json({"test": "Hello WebSocket"})
+        await websocket.close()
 
     @app.get("/")
     async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
