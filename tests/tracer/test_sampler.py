@@ -259,7 +259,7 @@ def test_sampling_rule_init():
     )
 
     assert rule.sample_rate == 0.0, "SamplingRule should store the rate it's initialized with"
-    assert rule.service == a_string, "SamplingRule should store the service it's initialized with"
+    assert rule.service.pattern == a_string, "SamplingRule should store the service it's initialized with"
     assert rule.name == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
@@ -350,8 +350,8 @@ def test_sampling_rule_init_via_env():
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes one rule from envvar"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
         assert len(sampling_rule) == 1
 
     with override_global_config(
@@ -362,12 +362,12 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
         assert len(sampling_rule) == 2
 
     with override_global_config(
@@ -378,14 +378,14 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
+        assert sampling_rule[0].resource.pattern == "def"
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
-        assert sampling_rule[1].resource == "ghi"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
+        assert sampling_rule[1].resource.pattern == "ghi"
         assert len(sampling_rule) == 2
 
     with override_global_config(
@@ -397,15 +397,15 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
+        assert sampling_rule[0].resource.pattern == "def"
         assert sampling_rule[0].tags == {"ghi": "jkl"}
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
-        assert sampling_rule[1].resource == "ghi"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
+        assert sampling_rule[1].resource.pattern == "ghi"
         assert sampling_rule[1].tags == SamplingRule.NO_RULE
         assert len(sampling_rule) == 2
 
@@ -419,7 +419,7 @@ def test_sampling_rule_init_via_env():
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without name set"
-        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].service.pattern == "xyz"
         assert sampling_rule[0].name == SamplingRule.NO_RULE
         assert len(sampling_rule) == 1
 
@@ -427,7 +427,7 @@ def test_sampling_rule_init_via_env():
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without service set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].name.pattern == "abc"
         assert len(sampling_rule) == 1
 
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"resource":"def"}]')):
@@ -435,7 +435,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only resource set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == SamplingRule.NO_RULE
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].resource.pattern == "def"
         assert len(sampling_rule) == 1
 
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"tags":{"def": "def"}}]')):
