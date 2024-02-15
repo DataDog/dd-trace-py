@@ -683,7 +683,7 @@ def test_asm_context_registration(tracer_appsec):
 
 
 def test_required_addresses():
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
 
     assert processor._addresses_to_keep == {
