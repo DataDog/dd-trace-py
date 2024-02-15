@@ -55,7 +55,7 @@ The following environment variables for the tracer are supported:
    DD_SITE:
      default: datadoghq.com
      description: |
-         Specify which site to use for uploading profiles. Set to
+         Specify which site to use for uploading profiles and logs. Set to
          ``datadoghq.eu`` to use EU site.
 
    DD_TRACE_ENABLED:
@@ -310,7 +310,7 @@ The following environment variables for the tracer are supported:
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``tracecontext,datadog``
+         ``datadog,tracecontext``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
 
@@ -332,10 +332,11 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
+       v2.6.0: Updated default value to ``datadog,tracecontext``.
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
-         ``tracecontext,datadog``
+         ``datadog,tracecontext``
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
@@ -389,6 +390,15 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Prevents large payloads being sent to APM.
+    
+   DD_ASGI_TRACE_WEBSOCKET:
+     default: False
+     description: |
+         Enables tracing ASGI websockets. Please note that the websocket span duration will last until the 
+         connection is closed, which can result in long running spans.
+
+     version_added:
+       v2.7.0:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer

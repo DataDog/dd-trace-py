@@ -60,6 +60,7 @@ class Capabilities(enum.IntFlag):
     APM_TRACING_LOGS_INJECTION = 1 << 13
     APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
     APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
 
 
 class RemoteConfigError(Exception):
@@ -180,11 +181,7 @@ class RemoteConfigClient(object):
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         tags = ddtrace.config.tags.copy()
 
@@ -294,6 +291,10 @@ class RemoteConfigClient(object):
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
+            data_length = resp.headers.get("Content-Length")
+            if data_length is not None and int(data_length) == 0:
+                log.debug("[%s][P: %s] RC response payload empty", os.getpid(), os.getppid())
+                return None
             data = resp.read()
 
             if config.log_payloads:
@@ -366,6 +367,7 @@ class RemoteConfigClient(object):
             | Capabilities.APM_TRACING_LOGS_INJECTION
             | Capabilities.APM_TRACING_HTTP_HEADER_TAGS
             | Capabilities.APM_TRACING_CUSTOM_TAGS
+            | Capabilities.APM_TRACING_ENABLED
         )
         return dict(
             client=dict(

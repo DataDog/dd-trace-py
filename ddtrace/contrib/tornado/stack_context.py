@@ -1,8 +1,9 @@
 import tornado
 from tornado.ioloop import IOLoop
 
-from ...provider import BaseContextProvider
-from ...provider import DefaultContextProvider
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.provider import DefaultContextProvider
+
 from ...span import Span
 
 

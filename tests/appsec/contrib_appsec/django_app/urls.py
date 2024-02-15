@@ -23,6 +23,7 @@ else:
     from django.conf.urls import url as path
 
 
+@csrf_exempt
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 
@@ -33,13 +34,30 @@ def multi_view(request, param_int=0, param_str=""):
     body = {
         "path_params": {"param_int": param_int, "param_str": param_str},
         "query_params": query_params,
-        "headers": dict(request.headers),
         "cookies": dict(request.COOKIES),
         "body": request.body.decode("utf-8"),
         "method": request.method,
     }
     status = int(query_params.get("status", "200"))
-    return JsonResponse(body, status=status)
+    headers_query = query_params.get("headers", "").split(",")
+    response_headers = {}
+    for header in headers_query:
+        vk = header.split("=")
+        if len(vk) == 2:
+            response_headers[vk[0]] = vk[1]
+    # setting headers in the response with compatibility for django < 4.0
+    json_response = JsonResponse(body, status=status)
+    for k, v in response_headers.items():
+        json_response[k] = v
+    return json_response
+
+
+@csrf_exempt
+def new_service(request, service_name: str):
+    import ddtrace
+
+    ddtrace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
+    return HttpResponse(service_name, status=200)
 
 
 def send_file(request):
@@ -75,8 +93,14 @@ urlpatterns = [
 if django.VERSION >= (2, 0, 0):
     urlpatterns += [
         path("asm/<int:param_int>/<str:param_str>/", multi_view, name="multi_view"),
+        path("asm/<int:param_int>/<str:param_str>", multi_view, name="multi_view"),
+        path("new_service/<str:service_name>/", new_service, name="new_service"),
+        path("new_service/<str:service_name>", new_service, name="new_service"),
     ]
 else:
     urlpatterns += [
         path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)/$", multi_view, name="multi_view"),
+        path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)$", multi_view, name="multi_view"),
+        path(r"new_service/(?P<service_name>\w+)/$", new_service, name="new_service"),
+        path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
     ]

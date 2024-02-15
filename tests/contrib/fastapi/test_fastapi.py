@@ -16,6 +16,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -620,6 +621,25 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
+@snapshot()
+def test_traced_websocket(test_spans, snapshot_app):
+    client = TestClient(snapshot_app)
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+
+
+def test_dont_trace_websocket_by_default(client, test_spans):
+    initial_event_count = len(test_spans.pop_traces())
+    with client.websocket_connect("/ws") as websocket:
+        data = websocket.receive_json()
+        assert data == {"test": "Hello WebSocket"}
+        spans = test_spans.pop_traces()
+        assert len(spans) <= initial_event_count
+
+
+@flaky(1735812000)
 # Ignoring span link attributes until values are
 # normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])

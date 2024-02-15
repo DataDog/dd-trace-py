@@ -14,6 +14,7 @@ from ddtrace.filters import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
+from tests.utils import override_global_config
 
 
 if TYPE_CHECKING:
@@ -100,7 +101,7 @@ class FilterOrg(TraceFilter):
 
 @pytest.fixture(scope="session")
 def mock_metrics():
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.get_dogstatsd_client")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
     DogStatsdMock = patcher.start()
     m = mock.MagicMock()
     DogStatsdMock.return_value = m
@@ -114,7 +115,7 @@ def mock_logs(scope="session"):
     Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
     before it is instantiated.
     """
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.V2LogWriter")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
     V2LogWriterMock = patcher.start()
     m = mock.MagicMock()
     V2LogWriterMock.return_value = m
@@ -124,7 +125,7 @@ def mock_logs(scope="session"):
 
 @pytest.fixture
 def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.internal.llmobs.integrations.base.LLMObsWriter")
+    patcher = mock.patch("ddtrace.llmobs._integrations.base.LLMObsWriter")
     LLMObsWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsWriterMock.return_value = m
@@ -139,14 +140,30 @@ def ddtrace_config_openai():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
-    with override_config("openai", ddtrace_config_openai):
-        if api_key_in_env:
-            openai.api_key = openai_api_key
-        openai.organization = openai_organization
-        patch(openai=True)
-        yield
-        unpatch()
+def ddtrace_global_config():
+    config = {}
+    return config
+
+
+def default_global_config():
+    return {
+        "_dd_api_key": "<not-a-real-api_key>",
+        "_dd_app_key": "<not-a-real-app-key",
+    }
+
+
+@pytest.fixture
+def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("openai", ddtrace_config_openai):
+            if api_key_in_env:
+                openai.api_key = openai_api_key
+            openai.organization = openai_organization
+            patch(openai=True)
+            yield
+            unpatch()
 
 
 @pytest.fixture

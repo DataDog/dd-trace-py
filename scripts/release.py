@@ -3,6 +3,9 @@ import json
 import os
 import re
 import subprocess
+from typing import Any
+from typing import Callable
+from typing import Optional
 
 from datadog_api_client import ApiClient
 from datadog_api_client import Configuration
@@ -42,6 +45,7 @@ Optional:
     PRINT - Whether or not the release notes should be printed to CLI or be used to create a Github release. Default is 0 e.g. PRINT=1 or PRINT=0
     NOTEBOOK - Whether or not to create a notebook in staging. Note this only works for RC1s since those are usually what we create notebooks for.
     Default is 1 for RC1s, 0 for everything else e.g. NOTEBOOK=0 or NOTEBOOK=1
+    DRY_RUN - When set to "1", this script does not write anything to github. This can be useful for development testing.
 Examples:
 Generate release notes and staging testing notebook for next release candidate version of 2.11: `BASE=2.11 RC=1 python release.py`
 
@@ -53,6 +57,7 @@ Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
 DEFAULT_BRANCH = "main"
+DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
 
 
 def _ensure_current_checkout():
@@ -77,11 +82,12 @@ def _decide_next_release_number(base: str, candidate: bool = False) -> int:
 def _get_rc_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
     """Build a ReleaseParameters object representing the in-progress release candidate"""
     # patch value should always be 0 if we're doing an RC
-    name = "%s.0" % (base)
     new_rc_version = _decide_next_release_number(base, candidate=True)
     release_branch = DEFAULT_BRANCH if new_rc_version == 1 else base
     rn = clean_release_notes(generate_release_notes(release_branch))
-    return ReleaseParameters(release_branch, "%s.0rc%s" % (base, str(new_rc_version)), "v%s" % name, dd_repo, rn, True)
+    version_string = "%s.0rc%s" % (base, str(new_rc_version))
+    tag_name = "v%s" % version_string
+    return ReleaseParameters(release_branch, version_string, tag_name, dd_repo, rn, True)
 
 
 def _get_patch_parameters(dd_repo, base: str, rc, patch) -> ReleaseParameters:
@@ -211,13 +217,18 @@ def create_draft_release_github(release_parameters: ReleaseParameters):
             )
         )
     else:
-        dd_repo.create_git_release(
-            name=release_parameters.name,
-            tag=release_parameters.tag,
-            prerelease=release_parameters.prerelease,
-            draft=True,
-            target_commitish=base_branch,
-            message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
+        _dry(
+            lambda: dd_repo.create_git_release(
+                name=release_parameters.name,
+                tag=release_parameters.tag,
+                prerelease=release_parameters.prerelease,
+                draft=True,
+                target_commitish=base_branch,
+                message=release_parameters.rn[:MAX_GH_RELEASE_NOTES_LENGTH],
+            ),
+            f"create_git_release(name={release_parameters.name}, tag={release_parameters.tag}, "
+            f"prerelease={release_parameters.prerelease}, draft=True, target_commitish={base_branch}, "
+            f"message={release_parameters.rn[:100]}...)",
         )
         print("\nPlease review your release notes draft here: https://github.com/DataDog/dd-trace-py/releases")
 
@@ -360,7 +371,7 @@ def create_notebook(dd_repo, name, rn, base):
         "DD-APPLICATION-KEY": dd_app_key,
     }
     # create new release notebook
-    requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers)
+    _dry(lambda: requests.post("https://api.datadoghq.com/api/v1/notebooks", data=notebook_json, headers=headers))
 
     configuration = Configuration()
     configuration.api_key["apiKeyAuth"] = dd_api_key
@@ -386,6 +397,14 @@ Check the release notebook {nb_url} for asynchronous updates on the release proc
             version=name, author_slack_handles=author_slack_handles, nb_url=nb_url
         )
     )
+
+
+def _dry(fn: Callable, description: Optional[str] = None) -> Any:
+    if DRY_RUN:
+        print("Dry run - would call:")
+        print(description or fn.__name__)
+    else:
+        return fn()
 
 
 if __name__ == "__main__":
@@ -417,7 +436,7 @@ if __name__ == "__main__":
     name, rn = create_release_draft(dd_repo, base, rc, patch)
 
     if rc:
-        if os.getenv("NOTEBOOK", 1):
+        if not DRY_RUN and os.getenv("NOTEBOOK", 1):
             print("Creating Notebook")
             create_notebook(dd_repo, name, rn, base)
         else:

@@ -4,13 +4,14 @@ import json
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+import ddtrace.constants as constants
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
@@ -38,7 +39,7 @@ class APIManager(Service):
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
     ]
 
     _instance = None  # type: Optional[APIManager]
@@ -87,17 +88,19 @@ class APIManager(Service):
         # type: () -> None
         add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env):
+    def _should_collect_schema(self, env, priority):
+        sample_rate = asm_config._api_security_sample_rate
+        # Rate limit per route
+        self.current_sampling_value += sample_rate
+
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        sample_rate = asm_config._api_security_sample_rate
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
-        # Rate limit per route
-        self.current_sampling_value += sample_rate
-        if self.current_sampling_value >= 1.0:
+        # Keep most of manual keep spans and auto keep spans. Other spans are not considered.
+        if self.current_sampling_value >= 1.0 and (priority == constants.USER_KEEP or priority == constants.AUTO_KEEP):
             self.current_sampling_value -= 1.0
             return True
         return False
@@ -112,7 +115,7 @@ class APIManager(Service):
             return
 
         try:
-            if not self._should_collect_schema(env):
+            if not self._should_collect_schema(env, root.context.sampling_priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
