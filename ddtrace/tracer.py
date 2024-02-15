@@ -48,7 +48,6 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
-from .internal.atexit import register_on_exit_signal
 from .internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from .internal.constants import SPAN_API_DATADOG
 from .internal.dogstatsd import get_dogstatsd_client
@@ -276,10 +275,9 @@ class Tracer(object):
             from .internal.datastreams.processor import DataStreamsProcessor
 
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
-            register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
-        atexit.register(self._atexit)
+        atexit.register(self._atexit, True)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()

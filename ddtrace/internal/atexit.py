@@ -16,14 +16,36 @@ from ddtrace.internal.utils import signals
 log = logging.getLogger(__name__)
 
 
-register = atexit.register
-unregister = atexit.unregister
+unregistered_signals = set()  # type: typing.Set[typing.Callable]
+
+
+def register(func, register_signal=False):
+    # type: (typing.Callable, bool) -> None
+    """
+    Register a function to be called when the program exits.
+    """
+    atexit.register(func)
+    if register_signal:
+        # Register the function to be called when an exit signal (TERM or INT) is received.
+        # Default value is False to avoid breaking existing behavior.
+        register_on_exit_signal(func)
+        unregistered_signals.discard(func)
+
+
+def unregister(func):
+    # type: (typing.Callable) -> None
+    """
+    Unregister a function to be called when the program exits.
+    """
+    unregistered_signals.add(func)
+    atexit.unregister(func)
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
 def register_on_exit_signal(f):
     def handle_exit(sig, frame):
-        f()
+        if f not in unregistered_signals:
+            f()
 
     if threading.current_thread() is threading.main_thread():
         try:
