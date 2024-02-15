@@ -171,14 +171,14 @@ def test_dbm_peer_entity_tags():
 
     dbspan = tracer.trace("dbname")
     dbspan.set_tag("out.host", "some-hostname")
-    dbspan.set_tag("db.name", "some-db-instance")
+    dbspan.set_tag("db.name", "some-db")
 
     # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
     dbm_propagator = _database_monitoring._DBM_Propagator(0, "procedure")
     sqlcomment = dbm_propagator._get_dbm_comment(dbspan)
     # assert tags sqlcomment contains the correct value
     assert (
-        sqlcomment == "/*dddb='some-db-instance',dddbs='orders-app',dde='staging',ddh='some-hostname',"
+        sqlcomment == "/*dddb='some-db',dddbs='orders-app',dde='staging',ddh='some-hostname',"
         "ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/ " % (dbspan.context._traceparent,)
     ), sqlcomment
 
