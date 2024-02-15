@@ -71,6 +71,11 @@ if di_config.enabled or ed_config.enabled:
 
     DynamicInstrumentation.enable()
 
+if True:
+    from ddtrace.debugging._origin.span import SpanOriginProcessor
+
+    SpanOriginProcessor.enable()
+
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
