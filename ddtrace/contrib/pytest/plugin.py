@@ -153,7 +153,6 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
-    print("ROMAIN SAYS MARK NOT SKIPPED %s" % item)
     item_parent = _get_parent(item)
     if item_parent:
         _mark_not_skipped(item_parent)
@@ -231,8 +230,6 @@ def _mark_test_status(item, span):
     """
     Given a `pytest.Item`, determine and set the test status of the corresponding span.
     """
-    print(f"ROMAIN SAYS marking item: {item}, parent: {item.parent}, parent type: {type(item.parent)}")
-
     item_parent = _get_parent(item)
 
     # If any child has failed, mark span as failed.
@@ -267,7 +264,6 @@ def _get_pytest_command(config):
 def _get_module_path(item):
     """Extract module path from a `pytest.Item` instance."""
     # type (pytest.Item) -> str
-    # breakpoint()
     if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
 
