@@ -30,7 +30,7 @@ if (DD_WRAPPER_IS_SUBPROJECT)
 endif()
 
 add_compile_options(
-  "$<$<CONFIG:Debug>:-Og;-ggdb3;-fno-omit-frame-pointer>"
+  "$<$<CONFIG:Debug>:-Og;-ggdb3>"
   "$<$<CONFIG:Release>:-Os -s>"
   -fno-semantic-interposition -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
 )
@@ -83,7 +83,9 @@ add_cppcheck_target(cppcheck_dd_wrapper ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Propagate sanitizers
 if (SANITIZE_OPTIONS)
-    target_compile_options(dd_wrapper PRIVATE -fsanitize=${SANITIZE_OPTIONS})
+    # Some sanitizers (or the analysis--such as symbolization--tooling thereof) work better with frame
+    # pointers, so we include it here.
+    target_compile_options(dd_wrapper PRIVATE -fsanitize=${SANITIZE_OPTIONS} -fno-omit-frame-pointer)
     target_link_options(dd_wrapper PRIVATE -fsanitize=${SANITIZE_OPTIONS})
 endif()
 

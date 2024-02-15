@@ -136,11 +136,16 @@ Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 
     // Set the type mask
     const unsigned int mask_as_int = type & SampleType::All;
+    if (mask_as_int == 0) {
+        // This can't happen in contemporary dd-trace-py, but we need better handling around this case
+        // TODO fix this
+        std::cerr << "No valid sample types were enabled" << std::endl;
+        return;
+    }
     type_mask = static_cast<SampleType>(mask_as_int);
 
     // Setup the samplers
     setup_samplers();
-    current_pid.store(getpid());
 
     // We need to initialize the profiles
     const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };

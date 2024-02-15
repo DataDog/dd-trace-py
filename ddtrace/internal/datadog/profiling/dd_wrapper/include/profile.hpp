@@ -32,7 +32,6 @@ class Profile
     // - ddog_profile
     std::atomic<bool> first_time{ true };
     std::mutex profile_mtx{};
-    std::atomic<pid_t> current_pid{ 0 };
 
     // Storage for strings
     std::deque<std::string> string_storage{};

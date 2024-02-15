@@ -59,11 +59,10 @@ single_manyframes_sample()
     auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
 
-    // Populate the frames; we add exactly 512, which ought to
-    // be the limit
+    // Populate the frames; we add exactly 512, which ought to be the limit
     std::string base_func = "my_function_";
     std::string base_file = "my_file_";
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < 512; i++) {
         std::string name = base_func + std::to_string(i);
         std::string file = base_file + std::to_string(i);
         ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
@@ -90,8 +89,7 @@ single_toomanyframes_sample()
     auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
 
-    // Now, for something completely different, we
-    // add way too many frames
+    // Now, for something completely different, we add way too many frames
     std::string base_func = "my_function_";
     std::string base_file = "my_file_";
     for (int i = 0; i < 1024; i++) {

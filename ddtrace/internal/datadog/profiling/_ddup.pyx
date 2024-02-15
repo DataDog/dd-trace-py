@@ -63,7 +63,8 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_exceptioninfo(Sample *sample, const char *exception_type, int64_t count)
         void ddup_push_class_name(Sample *sample, const char *class_name)
         void ddup_push_frame(Sample *sample, const char *_name, const char *_filename, uint64_t address, int64_t line)
-        void ddup_flush_sample(Sample *sample, )
+        void ddup_flush_sample(Sample *sample)
+        void ddup_drop_sample(Sample *sample)
         void ddup_set_runtime_id(const char *_id, size_t sz)
         bint ddup_upload() nogil
 
@@ -109,13 +110,12 @@ IF UNAME_SYSNAME == "Linux":
         cdef Sample *ptr
 
         def __cinit__(self):
-            self.ptr = NULL
             self.ptr = ddup_start_sample()
 
         def __dealloc__(self):
             if self.ptr is not NULL:
-                # flush_sample zeroes the pointer
-                ddup_flush_sample(self.ptr)
+                ddup_drop_sample(self.ptr)
+                self.ptr = NULL # defensively, in case of post-dealloc access in native
 
         def push_cputime(self, value: int, count: int) -> None:
             if self.ptr is not NULL:
@@ -195,6 +195,9 @@ IF UNAME_SYSNAME == "Linux":
                 ddup_push_trace_resource_container(self.ptr, span._local_root._resource)
 
         def flush_sample(self) -> None:
+            # Flushing the sample consumes it.  The user will no longer be able to use
+            # this handle after flushing it.
             if self.ptr is not NULL:
                 ddup_flush_sample(self.ptr)
+                ddup_drop_sample(self.ptr)
                 self.ptr = NULL

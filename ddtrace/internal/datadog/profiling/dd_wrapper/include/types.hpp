@@ -3,6 +3,7 @@
 namespace Datadog {
 enum SampleType : unsigned int
 {
+    Invalid = 0,
     CPU = 1 << 0,
     Wall = 1 << 1,
     Exception = 1 << 2,
@@ -13,8 +14,8 @@ enum SampleType : unsigned int
     All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap
 };
 
-// Rather than wrapping and unwrapping values when they're flushed, we just use a vector.
-// Features are implemented by way of indices, which are stored in the shared state
+// Every Sample object has a corresponding `values` vector, since libdatadog expects contiguous values per sample.
+// The index into that vector is determined by the configured sample types, which is encoded below.
 struct ValueIndex
 {
     unsigned short cpu_time;

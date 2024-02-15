@@ -285,6 +285,7 @@ ddup_flush_sample(Datadog::Sample* sample)
 void
 ddup_drop_sample(Datadog::Sample* sample)
 {
+    // After a sample is dropped, the user should no longer use it
     delete sample;
 }
 

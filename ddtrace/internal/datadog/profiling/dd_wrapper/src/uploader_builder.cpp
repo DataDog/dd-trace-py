@@ -12,10 +12,10 @@
 using namespace Datadog;
 
 void
-UploaderBuilder::set_env(std::string_view dd_env_)
+UploaderBuilder::set_env(std::string_view _dd_env)
 {
-    if (!dd_env_.empty()) {
-        dd_env = dd_env_;
+    if (!_dd_env.empty()) {
+        dd_env = _dd_env;
     }
 }
 void

@@ -8,7 +8,7 @@
 #include <atomic>
 #include <mutex>
 #include <optional>
-#
+
 #include <vector>
 
 namespace Datadog {
@@ -22,7 +22,6 @@ class SampleManager
 
   public:
     // Configuration
-    static void add_type(SampleType type);
     static void add_type(unsigned int type);
     static void set_max_nframes(unsigned int _max_nframes);
 
@@ -35,8 +34,4 @@ class SampleManager
     // Initialization
     static void init();
 };
-
-// Prevent leaking the macro
-#undef MAKE_PROXY
-
 } // namespace Datadog

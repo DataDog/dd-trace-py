@@ -4,15 +4,9 @@
 using namespace Datadog;
 
 void
-SampleManager::add_type(SampleType type)
-{
-    type_mask = static_cast<SampleType>((type_mask | type) & SampleType::All);
-}
-
-void
 SampleManager::add_type(unsigned int type)
 {
-    add_type(static_cast<SampleType>(type));
+    type_mask = static_cast<SampleType>((type_mask | type) & SampleType::All);
 }
 
 void
