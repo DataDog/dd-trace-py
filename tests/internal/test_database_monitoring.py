@@ -170,8 +170,8 @@ def test_dbm_peer_entity_tags():
     from ddtrace.propagation import _database_monitoring
 
     dbspan = tracer.trace("dbname")
-    dbspan.set_tag("peer.hostname", "some-hostname")
-    dbspan.set_tag("db.instance", "some-db-instance")
+    dbspan.set_tag("out.host", "some-hostname")
+    dbspan.set_tag("db.name", "some-db-instance")
 
     # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
     dbm_propagator = _database_monitoring._DBM_Propagator(0, "procedure")

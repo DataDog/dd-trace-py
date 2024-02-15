@@ -13,32 +13,14 @@ from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:
-    from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
 
     from ddtrace import Span  # noqa:F401
 
 DBM_PARENT_SERVICE_NAME_KEY = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"
-
 DBM_PEER_HOSTNAME_KEY = "ddh"
-DBM_PEER_HOSTNAME_SOURCE_TAGS = [
-    "peer.hostname",
-    "hostname",
-    "net.peer.name",
-    "db.hostname",
-    "network.destination.name",
-    "grpc.host",
-    "http.host",
-]
-
-DBM_PEER_DB_INSTANCE_KEY = "dddb"
-DBM_PEER_DB_INSTANCE_SOURCE_TAGS = [
-    "db.instance",
-    "db.name",
-    "mongodb.db",
-]
-
+DBM_PEER_DB_NAME_KEY = "dddb"
 DBM_ENVIRONMENT_KEY = "dde"
 DBM_VERSION_KEY = "ddpv"
 DBM_TRACE_PARENT_KEY = "traceparent"
@@ -65,10 +47,19 @@ def default_sql_injector(dbm_comment, sql_statement):
 
 
 class _DBM_Propagator(object):
-    def __init__(self, sql_pos, sql_kw, sql_injector=default_sql_injector):
+    def __init__(
+        self,
+        sql_pos,
+        sql_kw,
+        sql_injector=default_sql_injector,
+        peer_hostname_tag="out.host",
+        peer_db_name_tag="db.name",
+    ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
         self.sql_injector = sql_injector
+        self.peer_hostname_tag = peer_hostname_tag
+        self.peer_db_name_tag = peer_db_name_tag
 
     def inject(self, dbspan, args, kwargs):
         dbm_comment = self._get_dbm_comment(dbspan)
@@ -106,11 +97,11 @@ class _DBM_Propagator(object):
             DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
 
-        db_instance = _find_first_tag(db_span, DBM_PEER_DB_INSTANCE_SOURCE_TAGS)
-        if db_instance:
-            dbm_tags[DBM_PEER_DB_INSTANCE_KEY] = db_instance
+        peer_db_name = db_span.get_tags().get(self.peer_db_name_tag)
+        if peer_db_name:
+            dbm_tags[DBM_PEER_DB_NAME_KEY] = peer_db_name
 
-        peer_hostname = _find_first_tag(db_span, DBM_PEER_HOSTNAME_SOURCE_TAGS)
+        peer_hostname = db_span.get_tags().get(self.peer_hostname_tag)
         if peer_hostname:
             dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
 
@@ -123,13 +114,3 @@ class _DBM_Propagator(object):
             # replace leading whitespace with trailing whitespace
             return sql_comment.strip() + " "
         return ""
-
-
-def _find_first_tag(db_span, tags):
-    # type: (Span, List[str]) -> Optional[str]
-    for tag in tags:
-        val = db_span.get_tags().get(tag)
-        if val:
-            return val
-
-    return None
