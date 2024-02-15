@@ -5,6 +5,8 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -71,14 +73,16 @@ class SamplingRule(object):
                     "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
                 ).format(sample_rate)
             )
-
-        self._tag_value_matchers = {k: GlobMatcher(v) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
-
-        self.sample_rate = sample_rate
-        self.service = service
-        self.name = name
-        self.resource = resource
+        self.sample_rate = float(sample_rate)
+        # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
+        # we can just create a GlobMatcher for 'None' and it will match properly
+        self._tag_value_matchers = (
+            {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
+        )
         self.tags = tags
+        self.service = self.choose_matcher(service)
+        self.name = self.choose_matcher(name)
+        self.resource = self.choose_matcher(resource)
 
     @property
     def sample_rate(self):
@@ -97,6 +101,8 @@ class SamplingRule(object):
         #   e.g. ignoring `span.service` vs `span.service == None`
         if pattern is self.NO_RULE:
             return True
+        if isinstance(pattern, GlobMatcher):
+            return pattern.match(str(prop))
 
         # If the pattern is callable (e.g. a function) then call it passing the prop
         #   The expected return value is a boolean so cast the response in case it isn't
@@ -141,28 +147,34 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        glob_match = self.glob_matches(span)
-        return glob_match and self._matches((span.service, span.name, span.resource))
+        tags_match = self.tags_match(span)
+        return tags_match and self._matches((span.service, span.name, span.resource))
 
-    def glob_matches(self, span):
+    def tags_match(self, span):
         # type: (Span) -> bool
         tag_match = True
         if self._tag_value_matchers:
-            tag_match = self.tag_match(span.get_tags())
+            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
         return tag_match
 
-    def tag_match(self, tags):
-        if tags is None:
+    def check_tags(self, meta, metrics):
+        if meta is None and metrics is None:
             return False
 
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
-            value = tags.get(tag_key)
-            if value is not None:
-                tag_match = self._tag_value_matchers[tag_key].match(value)
+            value = meta.get(tag_key)
+            tag_match = self._tag_value_matchers[tag_key].match(str(value))
+            # If the value doesn't match in meta, check the metrics
+            if tag_match is False:
+                value = metrics.get(tag_key)
+                tag_match = self._tag_value_matchers[tag_key].match(str(value))
             else:
-                # if we don't match with all specified tags for a rule, it's not a match
+                continue
+            # if we don't match with all specified tags for a rule, it's not a match
+            if tag_match is False:
                 return False
+
         return tag_match
 
     def sample(self, span, allow_false=True):
@@ -186,7 +198,33 @@ class SamplingRule(object):
         )
 
     def _no_rule_or_self(self, val):
-        return "NO_RULE" if val is self.NO_RULE else val
+        if val is self.NO_RULE:
+            return "NO_RULE"
+        elif val is None:
+            return "None"
+        elif type(val) == GlobMatcher:
+            return val.pattern
+        else:
+            return val
+
+    def choose_matcher(self, prop):
+        # We currently support the ability to pass in a function, a regular expression, or a string
+        # If a string is passed in we create a GlobMatcher to handle the matching
+        if callable(prop) or isinstance(prop, pattern_type):
+            # deprecated: passing a function or a regular expression'
+            deprecate(
+                "Using methods or regular expressions for SamplingRule matching is deprecated. ",
+                message="Please move to passing in a string for Glob matching.",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            return prop
+        # Name and Resource will never be None, but service can be, since we str()
+        #  whatever we pass into the GlobMatcher, we can just use its matching
+        elif prop is None:
+            prop = "None"
+        else:
+            return GlobMatcher(prop) if prop != SamplingRule.NO_RULE else SamplingRule.NO_RULE
 
     def __repr__(self):
         return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})".format(
@@ -204,11 +242,4 @@ class SamplingRule(object):
         # type: (Any) -> bool
         if not isinstance(other, SamplingRule):
             raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
-
-        return (
-            self.sample_rate == other.sample_rate
-            and self.service == other.service
-            and self.name == other.name
-            and self.resource == other.resource
-            and self.tags == other.tags
-        )
+        return str(self) == str(other)
