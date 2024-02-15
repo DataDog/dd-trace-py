@@ -45,7 +45,7 @@ def handle_response_out(headers, resource_name, operation_name, status_code, *ar
         current_pathway_context = _get_current_pathway_context()
         current_pathway_context.checkpoint("response_out", time.time_ns())
         log.debug(f"AccuPath - response_out {current_pathway_context.uid}")
-        if current_pathway_context.status is None:
+        if current_pathway_context.success is None:
             current_pathway_context.success = (status_code < 400)
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
