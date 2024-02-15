@@ -175,9 +175,9 @@ class AppSecSpanProcessor(SpanProcessor):
         for address in self._ddwaf.required_data:
             self._addresses_to_keep.add(address)
         # we always need the request headers
-        self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
-        self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_actions(self, rules: Dict[str, Any]) -> None:
         new_actions = rules.get("actions", [])
