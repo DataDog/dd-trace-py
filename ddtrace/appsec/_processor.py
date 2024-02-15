@@ -204,6 +204,7 @@ class AppSecSpanProcessor(SpanProcessor):
             error_msg = "Error updating ASM rules. Invalid rules"
             log.debug(error_msg)
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        self._update_required()
         return result
 
     def on_span_start(self, span: Span) -> None:
