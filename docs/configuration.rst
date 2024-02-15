@@ -77,7 +77,7 @@ The following environment variables for the tracer are supported:
      version_added:
        v1.12.0:
     
-    DD_RUNTIME_METRICS_ENABLED:
+   DD_RUNTIME_METRICS_ENABLED:
      type: Boolean
      default: False
      description: |
