@@ -1,6 +1,6 @@
 """
-`Datadog Source Code Integration`__ is supported for Git by the addition of the
-repository URL and commit hash in the Python package metadata field
+`Datadog Source Code Integration <https://docs.datadoghq.com/integrations/guide/source-code-integration/>`_ is
+supported for Git by the addition of the repository URL and commit hash in the Python package metadata field
 ``Project-URL`` with name ``source_code_link``.
 
 Format of ``source_code_link``: ``<repository url>#<commit hash>``
@@ -31,6 +31,4 @@ source code link with a one-line import in ``setup.py`` (before setuptools impor
        version="0.0.1",
        #...
    )
-
-.. __: https://docs.datadoghq.com/integrations/guide/source-code-integration/
 """
