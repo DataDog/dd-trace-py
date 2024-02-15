@@ -29,36 +29,38 @@ configure(const char* service,
     ddup_init();
 }
 
-inline static std::string get_name() {
-    constexpr std::array<std::array<std::string_view, 7>, 3> names = {{
-        {
-            "Unreliable",
-            "Dastardly",
-            "Careless",
-            "Clever",
-            "Inexpensive",
-            "Righteous",
-            "Wonderful",
-        },
-        {
-            "IBM",
-            "DEC",
-            "HPE",
-            "Fujitsu",
-            "Cray",
-            "NEC",
-            "SGI",
-        },
-        {
-            "Buyer",
-            "Seller",
-            "Trader",
-            "Broker",
-            "Dealer",
-            "Merchant",
-            "Customer",
-        },
-    }};
+inline static std::string
+get_name()
+{
+    constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
+      {
+        "Unreliable",
+        "Dastardly",
+        "Careless",
+        "Clever",
+        "Inexpensive",
+        "Righteous",
+        "Wonderful",
+      },
+      {
+        "IBM",
+        "DEC",
+        "HPE",
+        "Fujitsu",
+        "Cray",
+        "NEC",
+        "SGI",
+      },
+      {
+        "Buyer",
+        "Seller",
+        "Trader",
+        "Broker",
+        "Dealer",
+        "Merchant",
+        "Customer",
+      },
+    } };
     constexpr auto sz = names[0].size();
 
     thread_local static std::random_device rd;
@@ -140,7 +142,10 @@ emulate_sampler(unsigned int id, unsigned int sleep_time_ns, std::atomic<bool>& 
 // Launches the specified number of threads, each of which emulates a different sampler
 // The done flag is used to signal the samplers to stop
 void
-launch_samplers(std::vector<unsigned int>& ids, unsigned int sleep_time_ns, std::vector<std::thread>& threads, std::atomic<bool>& done)
+launch_samplers(std::vector<unsigned int>& ids,
+                unsigned int sleep_time_ns,
+                std::vector<std::thread>& threads,
+                std::atomic<bool>& done)
 {
     threads.clear();
     for (auto id : ids) {

@@ -5,11 +5,10 @@
 #include <chrono>
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
-void upload_in_thread()
+void
+upload_in_thread()
 {
-    std::thread([&]() {
-        ddup_upload();
-    }).detach();
+    std::thread([&]() { ddup_upload(); }).detach();
 }
 
 [[noreturn]] void
@@ -104,14 +103,13 @@ fork_stress_test(unsigned int num_threads, unsigned int sleep_time_ns, unsigned 
     done.store(true);
     upload_in_thread();
     for (pid_t pid : children) {
-      waitpid(pid, &status, 0);
-      if (!is_exit_normal(status)) {
-          std::exit(1);
-      }
+        waitpid(pid, &status, 0);
+        if (!is_exit_normal(status)) {
+            std::exit(1);
+        }
     }
     std::exit(0);
 }
-
 
 TEST(ForkDeathTest, SampleInThreadsAndForkNormal)
 {
