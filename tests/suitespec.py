@@ -21,7 +21,7 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/settings/exception_debugging.py', 'ddtrace/settings/http.py', 'ddtrace/settings/integration.py',
     'ddtrace/span.py', 'ddtrace/tracer.py', 'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml',
     'pyproject.toml', 'riotfile.py', 'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py',
-    'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py', 'tests/debugging/*']
+    'tests/.suitespec.json', 'tests/__init__.py', 'tests/conftest.py', 'tests/debugging/*', 'tests/utils.py']
     >>> get_patterns("foobar")
     set()
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
@@ -37,7 +37,7 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml', 'pyproject.toml', 'riotfile.py',
     'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json',
     'tests/__init__.py', 'tests/conftest.py', 'tests/contrib/__init__.py', 'tests/contrib/patch.py',
-    'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*']
+    'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*', 'tests/utils.py']
     """
     compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:
