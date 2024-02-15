@@ -115,7 +115,7 @@ IF UNAME_SYSNAME == "Linux":
         def __dealloc__(self):
             if self.ptr is not NULL:
                 ddup_drop_sample(self.ptr)
-                self.ptr = NULL # defensively, in case of post-dealloc access in native
+                self.ptr = NULL  # defensively, in case of post-dealloc access in native
 
         def push_cputime(self, value: int, count: int) -> None:
             if self.ptr is not NULL:
