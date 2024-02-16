@@ -43,7 +43,7 @@ fmt = [
     "style",
 ]
 spelling = [
-    "codespell --skip='ddwaf.h' {args:ddtrace/ tests/}",
+    "codespell --skip='ddwaf.h' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
