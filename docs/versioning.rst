@@ -36,7 +36,7 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - All fixes are backported to the three most recent General Availability minor releases.
+     - All fixes are backported to the three most recent General Availability minor release lines.
 
        .. _versioning_support_maintenance:
    * - Maintenance
