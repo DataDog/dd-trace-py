@@ -53,6 +53,9 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
 
 
 def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
+    """
+    TODO: This method can be deleted once the legacy syntax is officially deprecated
+    """
     dd_trace_methods = []
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified

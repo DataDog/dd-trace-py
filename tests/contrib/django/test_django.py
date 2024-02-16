@@ -2426,6 +2426,7 @@ def test_django_base_handler_failure(client, test_spans):
         root = test_spans.get_root_span()
         assert root.resource == "GET ^$"
 
+
 @pytest.mark.parametrize(
     "dd_trace_methods,error_expected",
     [("django_q.tasks[async_task]", True), ("django_q.tasks:async_task", False)],  # legacy syntax, updated syntax
