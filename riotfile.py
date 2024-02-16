@@ -784,7 +784,7 @@ venv = Venv(
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
-                "django-q": latest
+                "django-q": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
