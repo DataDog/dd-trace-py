@@ -36,6 +36,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.vendor import wrapt
+from tests.contrib.django.test_django_snapshots import daphne_client
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
@@ -2424,3 +2425,18 @@ def test_django_base_handler_failure(client, test_spans):
             pass  # We expect an error
         root = test_spans.get_root_span()
         assert root.resource == "GET ^$"
+
+@pytest.mark.parametrize(
+    "dd_trace_methods,error_expected",
+    [("django_q.tasks[async_task]", True), ("django_q.tasks:async_task", False)],  # legacy syntax, updated syntax
+)
+def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
+    with daphne_client(
+        "application",
+        additional_env={"DD_TRACE_METHODS": dd_trace_methods, "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": ""},
+        django_settings_module="tests.contrib.django.django_app.settings",
+    ) as (client, proc):
+        assert client.get("simple/").status_code == 200
+
+    _, stderr = proc.communicate(timeout=5)
+    assert (b"error configuring Datadog tracing" in stderr) == error_expected

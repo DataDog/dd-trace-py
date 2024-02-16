@@ -316,19 +316,3 @@ def test_django_resource_handler():
     with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as (client, _):
         # Request a class based view
         assert client.get("simple/").status_code == 200
-
-
-@pytest.mark.parametrize(
-    "dd_trace_methods,error_expected",
-    [("django_q.tasks[async_task]", True), ("django_q.tasks:async_task", False)],  # legacy syntax  # updated syntax
-)
-def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
-    with daphne_client(
-        "application",
-        additional_env={"DD_TRACE_METHODS": dd_trace_methods, "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": ""},
-        django_settings_module="tests.contrib.django.django_app.settings",
-    ) as (client, proc):
-        assert client.get("simple/").status_code == 200
-
-    _, stderr = proc.communicate(timeout=5)
-    assert (b"error configuring Datadog tracing" in stderr) == error_expected
