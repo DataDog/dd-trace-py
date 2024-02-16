@@ -1,6 +1,7 @@
 import asyncio
 import os
-from typing import List, Tuple
+from typing import List
+from typing import Tuple
 
 import pytest
 
@@ -9,34 +10,43 @@ from .test_integration import AGENT_VERSION
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
+
 @pytest.mark.parametrize(
-        "input,expected_output,raises_error",
-        [
-            ("", [], False),
-            ("module:method1", [("module","method1")], False),
-            ("module:method1,method2",[("module","method1"), ("module","method2")], False),
-            ("module:method1,method2;mod2:m1,m2", [("module","method1"), ("module","method2"), ("mod2","m1"), ("mod2", "m2")], False),
-            ("mod.submod:m1,m2,m3", [("mod.submod", "m1"), ("mod.submod", "m2"), ("mod.submod", "m3")], False),
-            ("mod.submod.subsubmod:m1,m2", [("mod.submod.subsubmod", "m1"), ("mod.submod.subsubmod", "m2")], False),
-            ("mod.mod2.mod3:Class.test_method,Class.test_method2", [("mod.mod2.mod3", "Class.test_method"), ("mod.mod2.mod3", "Class.test_method2")], False),
-            ("module[method1, method2]", None, True),
-            ("module", None, True),
-            ("module.", None, True),
-            ("module.method", None, True),
-            ("module.method[m1,m2,]", None, True),
-            ("module.method;module.method", None, True),
-            ("module.method[m1];module.method[m1,m2,]", None, True),
-            ("module.method[[m1]", None, True)
-        ]
+    "dd_trace_methods,expected_output,raises_error",
+    [
+        ("", [], False),
+        ("module:method1", [("module", "method1")], False),
+        ("module:method1,method2", [("module", "method1"), ("module", "method2")], False),
+        (
+            "module:method1,method2;mod2:m1,m2",
+            [("module", "method1"), ("module", "method2"), ("mod2", "m1"), ("mod2", "m2")],
+            False,
+        ),
+        ("mod.submod:m1,m2,m3", [("mod.submod", "m1"), ("mod.submod", "m2"), ("mod.submod", "m3")], False),
+        ("mod.submod.subsubmod:m1,m2", [("mod.submod.subsubmod", "m1"), ("mod.submod.subsubmod", "m2")], False),
+        (
+            "mod.mod2.mod3:Class.test_method,Class.test_method2",
+            [("mod.mod2.mod3", "Class.test_method"), ("mod.mod2.mod3", "Class.test_method2")],
+            False,
+        ),
+        ("module[method1, method2]", None, True),
+        ("module", None, True),
+        ("module.", None, True),
+        ("module.method", None, True),
+        ("module.method[m1,m2,]", None, True),
+        ("module.method;module.method", None, True),
+        ("module.method[m1];module.method[m1,m2,]", None, True),
+        ("module.method[[m1]", None, True),
+    ],
 )
-def test_trace_methods_parse(input: str, expected_output: List[Tuple[str, str]], raises_error: bool):
+def test_trace_methods_parse(dd_trace_methods: str, expected_output: List[Tuple[str, str]], raises_error: bool):
     from ddtrace.internal.tracemethods import _parse_trace_methods
 
     if raises_error:
         with pytest.raises(ValueError):
-            _parse_trace_methods(input)
+            _parse_trace_methods(dd_trace_methods)
     else:
-        assert _parse_trace_methods(input) == expected_output
+        assert _parse_trace_methods(dd_trace_methods) == expected_output
 
 
 def test_legacy_trace_methods_parse():
@@ -52,7 +62,10 @@ def test_legacy_trace_methods_parse():
         "mod2.m2",
     ]
     assert _parse_legacy_trace_methods("mod.submod[m1,m2,m3]") == ["mod.submod.m1", "mod.submod.m2", "mod.submod.m3"]
-    assert _parse_legacy_trace_methods("mod.submod.subsubmod[m1,m2]") == ["mod.submod.subsubmod.m1", "mod.submod.subsubmod.m2"]
+    assert _parse_legacy_trace_methods("mod.submod.subsubmod[m1,m2]") == [
+        "mod.submod.subsubmod.m1",
+        "mod.submod.subsubmod.m2",
+    ]
     assert _parse_legacy_trace_methods("mod.mod2.mod3.Class[test_method,test_method2]") == [
         "mod.mod2.mod3.Class.test_method",
         "mod.mod2.mod3.Class.test_method2",
