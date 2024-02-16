@@ -3,6 +3,9 @@ from typing import Tuple
 
 import wrapt
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 
 def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
     """Return a list of the module,methodname tuples to trace based on the
@@ -104,6 +107,12 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
 def _install_trace_methods(raw_dd_trace_methods: str) -> None:
     """Install tracing on the given methods."""
     if "[" in raw_dd_trace_methods:
+        deprecate(
+            "Using DD_TRACE_METHODS with the square bracket notation is deprecated",
+            message="Please use DD_TRACE_METHODS with the new ':' syntax instead",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
         # Using legacy syntax
         for qualified_method in _parse_legacy_trace_methods(raw_dd_trace_methods):
             # We don't know if the method is a class method or a module method, so we need to assume it's a module
