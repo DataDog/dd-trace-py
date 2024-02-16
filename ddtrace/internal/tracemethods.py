@@ -16,6 +16,8 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
 
     Note that support for wildcard methods ([*]) is not implemented.
     """
+    if not raw_dd_trace_methods:
+        return []
     dd_trace_methods = []
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified
@@ -41,7 +43,7 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
 
         # Add the methods to the list of methods to trace
         for method in methods.split(","):
-            if not str.isidentifier(method):
+            if not str.isidentifier(method.split(".")[-1]):
                 raise ValueError(
                     "Invalid method name: %r. %s"
                     % (
@@ -59,6 +61,8 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
     """
     TODO: This method can be deleted once the legacy syntax is officially deprecated
     """
+    if not raw_dd_trace_methods:
+        return []
     dd_trace_methods = []
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified
