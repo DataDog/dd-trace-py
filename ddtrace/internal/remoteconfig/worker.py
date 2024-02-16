@@ -33,7 +33,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
-        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
+        log.debug(
+            "[PID %d] RemoteConfigWorker created with polling interval %d", self._parent_id, get_poll_interval_seconds()
+        )
 
     def _agent_check(self):
         # type: () -> None
@@ -118,7 +120,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def disable(self, join=False):
         # type: (bool) -> None
-        self.stop_subscribers(join=join)
         self._client.reset_products()
 
         if self.status == ServiceStatus.STOPPED:
