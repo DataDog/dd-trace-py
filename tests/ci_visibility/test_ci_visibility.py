@@ -3,6 +3,7 @@ import contextlib
 from ctypes import c_int
 import json
 import multiprocessing
+import socket
 import textwrap
 import time
 
@@ -127,6 +128,22 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
 def test_ci_visibility_service_settings_timeout(_do_request):
+    with override_env(
+        dict(
+            DD_API_KEY="foobar.baz",
+            DD_APP_KEY="foobar",
+            DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
+        )
+    ), _dummy_noop_git_client():
+        ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+        CIVisibility.enable(service="test-service")
+        assert CIVisibility._instance._api_settings.coverage_enabled is False
+        assert CIVisibility._instance._api_settings.skipping_enabled is False
+        CIVisibility.disable()
+
+
+@mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=socket.timeout)
+def test_ci_visibility_service_settings_socket_timeout(_do_request):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -1350,6 +1367,26 @@ class TestFetchTestsToSkip:
                     }]}""",
                 ),
             ),
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_timeout_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            side_effect=TimeoutError,
+        ):
+            ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
+            mock_civisibility._fetch_tests_to_skip(SUITE)
+            assert mock_civisibility._test_suites_to_skip == []
+            assert mock_civisibility._tests_to_skip == {}
+
+    def test_fetch_tests_to_skip_socket_timeout_error(self, mock_civisibility):
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._do_request",
+            side_effect=socket.timeout,
         ):
             ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
             mock_civisibility._fetch_tests_to_skip(SUITE)
