@@ -36,15 +36,15 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Receives new features, bug fixes, and security fixes. Fixes are backported to the three most recent minor releases.
+     - All fixes are backported to the three most recent General Availability minor releases.
 
        .. _versioning_support_maintenance:
    * - Maintenance
-     - Does not receive new features. Receives only those bug fixes and security fixes considered "critical". Fixes are backported to the most recent minor release.
+     - The most recent Maintenance minor release line receives security fixes and selected bug fixes.
 
        .. _versioning_support_eol:
    * - End-of-Life (EOL)
-     - No support.
+     - Receives no updates or support
 
 .. _versioning_release:
 
