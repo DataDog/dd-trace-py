@@ -39,7 +39,7 @@ benchmarks-pr-comment:
   tags: ["arch:amd64"]
   image: $BASE_CI_IMAGE
   rules:
-    - if: '$CI_COMMIT_BRANCH == main'
+    - if: $CI_COMMIT_BRANCH == "main"
       when: never
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
