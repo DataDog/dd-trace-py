@@ -37,8 +37,8 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
 from ddtrace._trace.span import Span  # noqa: E402
+from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
-from .tracer import Tracer  # noqa: E402
 from .version import get_version  # noqa: E402
 
 
@@ -61,6 +61,7 @@ __all__ = [
 
 _DEPRECATED_MODULE_ATTRIBUTES = [
     "Span",
+    "Tracer",
 ]
 
 
