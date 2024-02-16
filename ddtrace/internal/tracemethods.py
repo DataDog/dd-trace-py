@@ -108,8 +108,8 @@ def _install_trace_methods(raw_dd_trace_methods: str) -> None:
     """Install tracing on the given methods."""
     if "[" in raw_dd_trace_methods:
         deprecate(
-            "Using DD_TRACE_METHODS with the square bracket notation is deprecated",
-            message="Please use DD_TRACE_METHODS with the new ':' syntax instead",
+            "Using DD_TRACE_METHODS with the '[]' notation is deprecated",
+            message="Please use DD_TRACE_METHODS with the new ':' notation instead",
             removal_version="3.0.0",
             category=DDTraceDeprecationWarning,
         )
