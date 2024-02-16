@@ -39,7 +39,7 @@ if pip_version < MIN_PIP_VERSION:
     )
 
 
-supported_pythons = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+supported_pythons = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_1", "manylinux2014"]
 
@@ -77,7 +77,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         print("Downloading %s %s %s wheel" % (python_version, arch, platform))
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
-        if python_version in ["2.7", "3.5", "3.6", "3.7"]:
+        if python_version == "3.7":
             abi += "m"
 
         # See the docs for an explanation of all the options used:
