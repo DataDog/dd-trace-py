@@ -580,7 +580,7 @@ setup(
                 language="c",
             ),
             Extension(
-                "ddtrace.internal._encoding",
+                "ddtrace._trace.writer._encoding",
                 ["ddtrace/internal/_encoding.pyx"],
                 include_dirs=["."],
                 libraries=encoding_libraries,

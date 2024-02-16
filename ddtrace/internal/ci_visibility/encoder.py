@@ -3,9 +3,11 @@ import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
+from ddtrace._trace.writer._encoding import BufferedEncoder
+from ddtrace._trace.writer._encoding import packb as msgpack_packb
+from ddtrace._trace.writer.encoding import JSONEncoderV2
+from ddtrace._trace.writer.writer import NoEncodableSpansError
 from ddtrace.ext import SpanTypes
-from ddtrace.internal._encoding import BufferedEncoder
-from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
@@ -14,8 +16,6 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
-from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.writer.writer import NoEncodableSpansError
 
 
 if TYPE_CHECKING:  # pragma: no cover

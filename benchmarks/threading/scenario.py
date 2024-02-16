@@ -9,7 +9,7 @@ import bm
 
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.tracer import Tracer  # noqa:F401
-from ddtrace.internal.writer import TraceWriter
+from ddtrace._trace.writer import TraceWriter
 
 
 class NoopWriter(TraceWriter):

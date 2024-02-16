@@ -2,7 +2,7 @@
 from msgpack import OutOfData
 from msgpack import Unpacker
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 UnexpectedTypeException = ValueError

@@ -2,12 +2,12 @@ import time
 
 import pytest
 
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer.encoding import JSONEncoder
+from ddtrace._trace.writer.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
-from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import override_global_config

@@ -20,6 +20,7 @@ from ddsketch.pb.proto import DDSketchProto
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.writer import _human_size
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -32,7 +33,6 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .fnv import fnv1_64

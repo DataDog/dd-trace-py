@@ -13,32 +13,31 @@ from typing import Optional  # noqa:F401
 from typing import TextIO  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.writer._encoding import BufferFull
+from ddtrace._trace.writer._encoding import BufferItemTooLarge
+from ddtrace._trace.writer.encoding import JSONEncoderV2
+from ddtrace._trace.writer_client import WRITER_CLIENTS
+from ddtrace._trace.writer_client import AgentWriterClientV3
+from ddtrace._trace.writer_client import AgentWriterClientV4
+from ddtrace._trace.writer_client import WriterClientBase  # noqa:F401
+from ddtrace.constants import KEEP_SPANS_RATE_KEY
+from ddtrace.internal import compat
+from ddtrace.internal import periodic
+from ddtrace.internal import service
+from ddtrace.internal.agent import get_connection
+from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import container
+from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.sma import SimpleMovingAverage
+from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
-
-from ...constants import KEEP_SPANS_RATE_KEY
-from ...internal.utils.formats import parse_tags_str
-from ...internal.utils.http import Response
-from ...internal.utils.time import StopWatch
-from .. import compat
-from .. import periodic
-from .. import service
-from .._encoding import BufferFull
-from .._encoding import BufferItemTooLarge
-from ..agent import get_connection
-from ..constants import _HTTPLIB_NO_TRACE_REQUEST
-from ..encoding import JSONEncoderV2
-from ..logger import get_logger
-from ..runtime import container
-from ..serverless import in_azure_function_consumption_plan
-from ..serverless import in_gcp_function
-from ..sma import SimpleMovingAverage
-from .writer_client import WRITER_CLIENTS
-from .writer_client import AgentWriterClientV3
-from .writer_client import AgentWriterClientV4
-from .writer_client import WriterClientBase  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -275,7 +274,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _get_finalized_headers(self, count, client):
         # type: (int, WriterClientBase) -> dict
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers.update({"Content-Type": client.encoder.content_type})
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -510,7 +509,7 @@ class AgentWriter(HTTPWriter):
         self._container_info = container.get_container_info()
         container.update_headers_with_container_info(_headers, self._container_info)
 
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        _headers.update({"Content-Type": client.encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))

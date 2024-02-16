@@ -18,6 +18,9 @@ import ddtrace
 from ddtrace import Tracer
 from ddtrace import config as dd_config
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer.encoding import JSONEncoder
+from ddtrace._trace.writer.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
@@ -26,12 +29,9 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt

@@ -5,7 +5,7 @@ from collections import namedtuple
 
 import pytest
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 class MyList(list):

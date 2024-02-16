@@ -76,7 +76,7 @@ def test_civisibility_intake_payloads():
         t = Tracer()
         t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=True))
         t._writer._conn = mock.MagicMock()
-        with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
+        with mock.patch("ddtrace._trace.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response
             from_http_response.return_value.status = 200
             s = t.trace("operation", service="svc-no-cov")

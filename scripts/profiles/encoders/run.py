@@ -1,6 +1,6 @@
 import sys
 
-from ddtrace.internal.encoding import MSGPACK_ENCODERS as ENCODERS
+from ddtrace._trace.writer.encoding import MSGPACK_ENCODERS as ENCODERS
 from tests.tracer.test_encoders import gen_trace
 
 

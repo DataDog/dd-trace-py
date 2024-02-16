@@ -11,8 +11,8 @@ import struct
 from msgpack import Unpacker
 from msgpack import unpackb
 
-from ddtrace.internal._encoding import Packer
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import Packer
+from ddtrace._trace.writer._encoding import packb
 
 
 def check(data):

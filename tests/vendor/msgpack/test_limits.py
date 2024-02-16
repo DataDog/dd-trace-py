@@ -13,7 +13,7 @@ from msgpack import UnpackValueError
 from msgpack import unpackb
 import pytest
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 def test_integer():

@@ -10,7 +10,7 @@ import six
 
 from ddtrace import ext
 from ddtrace.internal import packages
-from ddtrace.internal._encoding import ListStringTable as _StringTable
+from ddtrace._trace.writer._encoding import ListStringTable as _StringTable
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.datadog.profiling.utils import sanitize_string
 from ddtrace.internal.utils import config

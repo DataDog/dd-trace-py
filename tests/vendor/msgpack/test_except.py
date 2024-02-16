@@ -10,7 +10,7 @@ from msgpack import Unpacker
 from msgpack import unpackb
 from pytest import raises
 
-from ddtrace.internal._encoding import packb
+from ddtrace._trace.writer._encoding import packb
 
 
 class DummyException(Exception):

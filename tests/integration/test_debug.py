@@ -13,9 +13,9 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer import TraceWriter
 from ddtrace.internal import debug
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess

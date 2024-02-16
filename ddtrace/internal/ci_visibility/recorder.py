@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
+from ddtrace._trace.writer import Response
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -23,7 +24,6 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.writer.writer import Response
 
 from .. import agent
 from ..utils.http import verify_url

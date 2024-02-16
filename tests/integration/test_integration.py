@@ -9,9 +9,9 @@ import pytest
 import six
 
 from ddtrace import Tracer
+from ddtrace._trace.writer import AgentWriter
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
-from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
 from tests.integration.utils import import_ddtrace_in_subprocess
@@ -104,7 +104,7 @@ def test_single_trace_uds():
     sockdir = "/tmp/ddagent/trace.sock"
     t.configure(uds_path=sockdir)
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
         log.warning.assert_not_called()
@@ -121,7 +121,7 @@ def test_uds_wrong_socket_path():
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
     t.configure(uds_path="/tmp/ddagent/nosockethere")
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
     calls = [
@@ -157,7 +157,7 @@ def test_payload_too_large():
     encoding = os.environ["DD_TRACE_API_VERSION"]
     assert t._writer._max_payload_size == FOUR_KB
     assert t._writer._buffer_size == FOUR_KB
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
                 s.set_tag(str(i), "b" * 190)
@@ -209,7 +209,7 @@ def test_large_payload_is_sent_without_warning_logs():
 
     from ddtrace import tracer as t
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         for _ in range(10000):
             with t.trace("operation"):
                 pass
@@ -225,7 +225,7 @@ def test_child_spans_do_not_cause_warning_logs():
 
     from ddtrace import tracer as t
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         spans = []
         for _ in range(10000):
             spans.append(t.trace("op"))
@@ -250,7 +250,7 @@ def test_metrics():
     with override_global_config(dict(health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        with mock.patch("ddtrace.internal.writer.writer.log") as log:
+        with mock.patch("ddtrace._trace.writer.log") as log:
             for _ in range(2):
                 spans = []
                 for _ in range(600):
@@ -300,7 +300,7 @@ def test_metrics_partial_flush_disabled():
     with override_global_config(dict(health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
-        with mock.patch("ddtrace.internal.writer.writer.log") as log:
+        with mock.patch("ddtrace._trace.writer.log") as log:
             for _ in range(2):
                 spans = []
                 for _ in range(600):
@@ -334,14 +334,14 @@ def test_single_trace_too_large():
     import mock
 
     from ddtrace import tracer as t
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace._trace.writer import AgentWriter
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     long_string = "a" * 250
     assert t._partial_flush_enabled is True
     with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
-        "ddtrace.internal.writer.writer.log"
+        "ddtrace._trace.writer.log"
     ) as log:
         with t.trace("huge"):
             for i in range(30000):
@@ -373,7 +373,7 @@ def test_single_trace_too_large_partial_flush_disabled():
     from ddtrace import tracer as t
     from tests.utils import AnyInt
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         with t.trace("huge"):
             for _ in range(200000):
                 with t.trace("operation") as s:
@@ -395,7 +395,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
 
     t.configure(hostname="bad", port=1111)
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         t.trace("op").finish()
         t.shutdown()
 
@@ -491,7 +491,7 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
     t = Tracer()
     for client in t._writer._clients:
         client.ENDPOINT = "/bad"
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
         t.shutdown()
@@ -595,7 +595,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
     encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.5"
     t._writer._downgrade(None, None, t._writer._clients[0])
     assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding]
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
     log.warning.assert_not_called()
@@ -616,8 +616,8 @@ def test_writer_flush_queue_generates_debug_log():
 
     import mock
 
+    from ddtrace._trace.writer import AgentWriter
     from ddtrace.internal import agent
-    from ddtrace.internal.writer import AgentWriter
     from tests.integration.utils import AGENT_VERSION
     from tests.utils import AnyFloat
     from tests.utils import AnyStr
@@ -625,7 +625,7 @@ def test_writer_flush_queue_generates_debug_log():
     encoding = os.environ["DD_TRACE_API_VERSION"]
     writer = AgentWriter(agent.get_trace_url())
 
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
+    with mock.patch("ddtrace._trace.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
         # for latest agent, default to v0.3 since no priority sampler is set

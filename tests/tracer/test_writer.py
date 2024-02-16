@@ -15,17 +15,17 @@ from six.moves import socketserver
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace._trace.writer import AgentWriter
+from ddtrace._trace.writer import LogWriter
+from ddtrace._trace.writer import Response
+from ddtrace._trace.writer import _human_size
+from ddtrace._trace.writer.encoding import MSGPACK_ENCODERS
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
-from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import Response
-from ddtrace.internal.writer import _human_size
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
@@ -662,7 +662,7 @@ def test_racing_start(writer_class):
     env={"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "additional-header:additional-value,header2:value2"}
 )
 def test_additional_headers():
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace._trace.writer import AgentWriter
 
     writer = AgentWriter("http://localhost:9126")
     assert writer._headers["additional-header"] == "additional-value"

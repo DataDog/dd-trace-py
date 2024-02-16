@@ -10,6 +10,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import _is_top_level
+from ddtrace._trace.writer import _human_size
 from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
@@ -22,7 +23,6 @@ from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import container
-from ..writer import _human_size
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
