@@ -19,7 +19,7 @@ SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
 
 
 @contextmanager
-def daphne_client(django_asgi, additional_env=None):
+def daphne_client(django_asgi, additional_env=None, django_settings_module="tests.contrib.django.django_app.settings"):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -34,7 +34,7 @@ def daphne_client(django_asgi, additional_env=None):
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
-            "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
+            "DJANGO_SETTINGS_MODULE": django_settings_module,
         }
     )
 
@@ -55,7 +55,7 @@ def daphne_client(django_asgi, additional_env=None):
     client.wait()
 
     try:
-        yield client
+        yield (client, proc)
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
@@ -234,7 +234,7 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
-    with daphne_client(django_asgi) as client:
+    with daphne_client(django_asgi) as (client, _):
         resp = client.get("/")
         assert resp.status_code == 200
         assert resp.content == b"Hello, test app."
@@ -246,7 +246,7 @@ def test_asgi_200(django_asgi):
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
-    with daphne_client("channels_application") as client:
+    with daphne_client("channels_application") as (client, _):
         resp = client.get("/simple-asgi-app/")
         assert resp.status_code == 200
         assert resp.content == b"Hello World. It's me simple asgi app"
@@ -255,7 +255,7 @@ def test_asgi_200_simple_app():
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
-    with daphne_client("channels_application") as client:
+    with daphne_client("channels_application") as (client, _):
         resp = client.get("/traced-simple-asgi-app/")
         assert resp.status_code == 200
         assert resp.content == b"Hello World. It's me simple asgi app"
@@ -269,7 +269,7 @@ def test_asgi_200_traced_simple_app():
     },
 )
 def test_asgi_500():
-    with daphne_client("application") as client:
+    with daphne_client("application") as (client, _):
         resp = client.get("/error-500/")
         assert resp.status_code == 500
 
@@ -283,7 +283,7 @@ def test_asgi_500():
 )
 def test_templates_enabled():
     """Default behavior to compare with disabled variant"""
-    with daphne_client("application") as client:
+    with daphne_client("application") as (client, _):
         resp = client.get("/template-view/")
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
@@ -298,7 +298,7 @@ def test_templates_enabled():
 )
 def test_templates_disabled():
     """Template instrumentation disabled"""
-    with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as client:
+    with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as (client, _):
         resp = client.get("/template-view/")
         assert resp.status_code == 200
         assert resp.content == b"some content\n"
@@ -313,6 +313,20 @@ def test_streamed_file(client):
 @pytest.mark.skipif(django.VERSION > (3, 0, 0), reason="ASGI not supported in django<3")
 def test_django_resource_handler():
     # regression test for: DataDog/dd-trace-py/issues/5711
-    with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as client:
+    with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as (client, _):
         # Request a class based view
         assert client.get("simple/").status_code == 200
+
+@pytest.mark.parametrize(
+        "dd_trace_methods,error_expected",
+        [
+            ("django_q.tasks[async_task]", True), # legacy syntax
+            ("django_q.tasks:async_task", False)  # updated syntax
+        ]
+)
+def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
+    with daphne_client("application", additional_env={"DD_TRACE_METHODS": dd_trace_methods, "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": ""}, django_settings_module="tests.contrib.django.django_app.settings") as (client, proc):
+        assert client.get("simple/").status_code == 200
+    
+    _, stderr = proc.communicate(timeout=5)
+    assert (b"error configuring Datadog tracing" in stderr) == error_expected
