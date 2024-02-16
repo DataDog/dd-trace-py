@@ -38,6 +38,9 @@ benchmarks-pr-comment:
   when: on_success
   tags: ["arch:amd64"]
   image: $BASE_CI_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: never
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
