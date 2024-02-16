@@ -1,4 +1,3 @@
-import sys
 import threading
 import time
 
@@ -9,6 +8,7 @@ import pytest
 import six
 
 from ddtrace import Pin
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -179,6 +179,7 @@ class GrpcTestCase(TracerTestCase):
         assert span.get_tag("grpc.method.kind") == method_kind
         assert span.get_tag("grpc.status.code") == "StatusCode.OK"
         assert span.get_tag("grpc.host") == "localhost"
+        assert span.get_tag("peer.hostname") == "localhost"
         assert span.get_tag("network.destination.port") == "50531"
         assert span.get_tag("component") == "grpc"
         assert span.get_tag("span.kind") == "client"
@@ -416,8 +417,8 @@ class GrpcTestCase(TracerTestCase):
 
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span, server_span = spans
-
-        assert "x-datadog-trace-id={}".format(client_span.trace_id) in response.message
+        assert f"x-datadog-trace-id={str(client_span._trace_id_64bits)}" in response.message
+        assert f"_dd.p.tid={_get_64_highest_order_bits_as_hex(client_span.trace_id)}" in response.message
         assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
         assert "x-datadog-sampling-priority=1" in response.message
 
@@ -756,8 +757,8 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 
 def test_handle_response_future_like():
+    from ddtrace._trace.span import Span
     from ddtrace.contrib.grpc.client_interceptor import _handle_response
-    from ddtrace.span import Span
 
     span = Span(None)
 
@@ -794,7 +795,6 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
         return grpc.unary_unary_rpc_method_handler(self._handler)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="flaky on older python versions")
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
 def test_method_service(patch_grpc):
     def handler(request, context):

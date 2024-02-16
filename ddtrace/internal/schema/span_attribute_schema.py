@@ -1,5 +1,7 @@
 from enum import Enum
 
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+
 
 class SpanDirection(Enum):
     INBOUND = "inbound"
@@ -110,4 +112,4 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
 }
 
 
-_DEFAULT_SPAN_SERVICE_NAMES = {"v0": None, "v1": "unnamed-python-service"}
+_DEFAULT_SPAN_SERVICE_NAMES = {"v0": None, "v1": DEFAULT_SERVICE_NAME}

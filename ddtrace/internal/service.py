@@ -1,9 +1,8 @@
 import abc
 import enum
-import typing
+import typing  # noqa:F401
 
 import attr
-import six
 
 from . import forksafe
 
@@ -29,7 +28,7 @@ class ServiceStatusError(RuntimeError):
 
 
 @attr.s(eq=False)
-class Service(six.with_metaclass(abc.ABCMeta)):
+class Service(metaclass=abc.ABCMeta):
     """A service that can be started or stopped."""
 
     status = attr.ib(default=ServiceStatus.STOPPED, type=ServiceStatus, init=False, eq=False)
@@ -46,7 +45,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def start(
         self,
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> None
         """Start the service."""
@@ -62,7 +61,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def _start_service(
         self,
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> None
         """Start the service for real.
@@ -75,7 +74,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def stop(
         self,
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> None
         """Stop the service."""
@@ -89,7 +88,7 @@ class Service(six.with_metaclass(abc.ABCMeta)):
     def _stop_service(
         self,
         *args,  # type: typing.Any
-        **kwargs  # type: typing.Any
+        **kwargs,  # type: typing.Any
     ):
         # type: (...) -> None
         """Stop the service for real.
@@ -100,7 +99,8 @@ class Service(six.with_metaclass(abc.ABCMeta)):
         """
 
     def join(
-        self, timeout=None  # type: typing.Optional[float]
+        self,
+        timeout=None,  # type: typing.Optional[float]
     ):
         # type: (...) -> None
         """Join the service once stopped."""

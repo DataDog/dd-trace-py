@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Adds distributed tracing for confluent-kafka integration. Distributed tracing connects Kafka consumer spans 
+    with Kafka producer spans within the same trace if a message is valid. To enable distributed tracing, set 
+    the configuration: ``DD_KAFKA_DISTRIBUTED_TRACING_ENABLED=True`` for both the consumer and producer service.

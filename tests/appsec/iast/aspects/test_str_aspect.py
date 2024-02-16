@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
+import mock
 import pytest
 
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
+from tests.appsec.iast.aspects.conftest import _iast_patched_module
 
-try:
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-    from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
-    from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
 
@@ -19,24 +21,297 @@ def setup():
 
 
 @pytest.mark.parametrize(
-    "obj, kwargs",
+    "obj, args, kwargs",
     [
-        (3.5, {}),
-        ("Hi", {}),
-        ("🙀", {}),
-        (b"Hi", {}),
-        (b"Hi", {"encoding": "utf-8", "errors": "strict"}),
-        (b"Hi", {"encoding": "utf-8", "errors": "ignore"}),
-        ({"a": "b", "c": "d"}, {}),
-        ({"a", "b", "c", "d"}, {}),
-        (("a", "b", "c", "d"), {}),
-        (["a", "b", "c", "d"], {}),
+        (3.5, (), {}),
+        ("Hi", (), {}),
+        ("🙀", (), {}),
+        (b"Hi", (), {}),
+        (b"Hi", (), {"encoding": "utf-8", "errors": "strict"}),
+        (b"Hi", (), {"encoding": "utf-8", "errors": "ignore"}),
+        ({"a": "b", "c": "d"}, (), {}),
+        ({"a", "b", "c", "d"}, (), {}),
+        (("a", "b", "c", "d"), (), {}),
+        (["a", "b", "c", "d"], (), {}),
     ],
 )
-def test_str_aspect(obj, kwargs):
+def test_str_aspect(obj, args, kwargs):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    assert ddtrace_aspects.str_aspect(obj, **kwargs) == str(obj, **kwargs)
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    assert ddtrace_aspects.str_aspect(str, 0, obj, *args, **kwargs) == str(obj, *args, **kwargs)
+
+
+@pytest.mark.parametrize("obj", [dict(), set(), list(), tuple(), 3.5, "Hi", "🙀"])
+def test_str_aspect_objs(obj):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    assert ddtrace_aspects.str_aspect(str, 0, obj) == str(obj)
+
+
+@pytest.mark.parametrize("obj", [dict(), set(), list(), tuple(), 3.5, "Hi", "🙀"])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("utf-8", "strict"),
+        ("latin1", "strict"),
+        ("iso-8859-8", "strict"),
+        ("sjis", "strict"),
+        ("utf-8", "replace"),
+    ],
+)
+@pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "replace"}])
+def test_str_aspect_objs_typeerror(obj, args, kwargs):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    with pytest.raises(TypeError) as e:
+        ddtrace_aspects.str_aspect(str, 0, obj, *args, **kwargs)
+
+    with pytest.raises(TypeError) as f:
+        str(obj, *args, **kwargs)
+
+    assert str(e.value) == str(f.value)
+
+
+@pytest.mark.parametrize("obj", [b"Hi", bytearray(b"Hi")])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("utf-8", "strict"),
+        ("latin1", "strict"),
+        ("iso-8859-8", "strict"),
+        ("sjis", "strict"),
+        ("utf-8", "replace"),
+        ("latin1", "replace"),
+        ("iso-8859-8", "replace"),
+        ("sjis", "replace"),
+        ("utf-8", "ignore"),
+        ("latin1", "ignore"),
+        ("iso-8859-8", "ignore"),
+        ("sjis", "ignore"),
+    ],
+)
+def test_str_aspect_args(obj, args):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    assert ddtrace_aspects.str_aspect(str, 0, obj, *args) == str(obj, *args)
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-16"])
+def test_str_utf(encoding):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
+
+    obj = taint_pyobject(obj, source_name="test_str_utf", source_value=obj, source_origin=OriginType.PARAMETER)
+    result = ddtrace_aspects.str_aspect(str, 0, obj, **{"encoding": encoding, "errors": "strict"})
+    orig_result = str(obj, **{"encoding": encoding, "errors": "strict"})
+
+    assert result == orig_result
+
+    formatted_result = ":+-<test_str_utf>" + orig_result + "<test_str_utf>-+:"
+    assert as_formatted_evidence(result) == formatted_result
+
+
+def test_repr_utf16():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_utf16", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "b':+-<test_repr_utf16>\\xe8\\xa8\\x98\\xe8\\x80\\x85 \\xe9\\x84\\xad\\xe5\\x95\\x9f\\xe6\\xba\\x90 \\xe7\\xbe\\x85\\xe6\\x99\\xba\\xe5\\xa0\\x85<test_repr_utf16>-+:'"  # noqa:E501
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+def test_repr_utf16_2():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = (
+            "\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85".encode(
+                "utf-16"
+            )
+        )
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_utf16_2", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "b':+-<test_repr_utf16_2>" + ascii(obj)[2:-1] + "<test_repr_utf16_2>-+:'"
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+def test_repr_nonascii():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = "記者 鄭啟源 羅智堅"
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_nonascii", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "':+-<test_repr_nonascii>" + obj + "<test_repr_nonascii>-+:'"
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+def test_repr_bytearray():
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        obj = bytearray(
+            b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
+        )
+
+        obj = taint_pyobject(
+            obj, source_name="test_repr_bytearray", source_value=str(obj), source_origin=OriginType.PARAMETER
+        )
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+
+        assert result == repr(obj)
+        assert is_pyobject_tainted(result)
+
+        expected_result = "bytearray(b':+-<test_repr_bytearray>\\xe8\\xa8\\x98\\xe8\\x80\\x85 \\xe9\\x84\\xad\\xe5\\x95\\x9f\\xe6\\xba\\x90 \\xe7\\xbe\\x85\\xe6\\x99\\xba\\xe5\\xa0\\x85<test_repr_bytearray>-+:')"  # noqa:E501
+        assert as_formatted_evidence(result) == expected_result
+
+    _iast_error_metric.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "obj, expected_result",
+    [
+        (b"Hi", ":+-<test_str_aspect_tainting>Hi<test_str_aspect_tainting>-+:"),
+        (
+            b"\xc3\xa9\xc3\xa7\xc3\xa0\xc3\xb1\xc3\x94\xc3\x8b",
+            ":+-<test_str_aspect_tainting>éçàñÔË<test_str_aspect_tainting>-+:",
+        ),
+        (bytearray(b"Hi"), ":+-<test_str_aspect_tainting>Hi<test_str_aspect_tainting>-+:"),
+    ],
+)
+@pytest.mark.parametrize(
+    "encoding",
+    [
+        "utf-8",
+    ],
+)
+@pytest.mark.parametrize("errors", ["ignore", "strict", "replace"])
+def test_str_aspect_kwargs(obj, expected_result, encoding, errors):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    result = ddtrace_aspects.str_aspect(str, 0, obj, **{"encoding": encoding, "errors": errors})
+
+    assert result == str(obj, **{"encoding": encoding, "errors": errors})
+
+    assert as_formatted_evidence(result) == expected_result
+
+
+@pytest.mark.parametrize(
+    "obj",
+    [
+        b"\xe9\xe7\xe0\xf1\xd4\xcb",
+        b"\x83v\x83\x8d\x83_\x83N\x83g\x83e\x83X\x83g",
+    ],
+)
+def test_str_aspect_decode_error(obj):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj,
+        source_name="test_str_aspect_tainting",
+        source_value=str(obj, "utf-8", errors="ignore"),
+        source_origin=OriginType.PARAMETER,
+    )
+    with pytest.raises(UnicodeDecodeError) as e:
+        ddtrace_aspects.str_aspect(str, 0, obj, **{"encoding": "utf-8", "errors": "strict"})
+
+    with pytest.raises(UnicodeDecodeError) as f:
+        str(obj, **{"encoding": "utf-8", "errors": "strict"})
+
+    assert str(e.value) == str(f.value)
+
+
+@pytest.mark.parametrize("obj", [b"Hi", bytearray(b"Hi")])
+@pytest.mark.parametrize(
+    "args",
+    [
+        (),
+        ("utf-8",),
+        ("latin1",),
+        ("iso-8859-8",),
+        ("sjis",),
+    ],
+)
+@pytest.mark.parametrize("kwargs", [{}, {"errors": "ignore"}, {"errors": "strict"}, {"errors": "replace"}])
+def test_str_aspect_encoding_kwargs(obj, args, kwargs):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    assert ddtrace_aspects.str_aspect(str, 0, obj, *args, **kwargs) == str(obj, *args, **kwargs)
+
+
+@pytest.mark.parametrize("obj", [b"Hi", bytearray(b"Hi")])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("utf-8", "strict"),
+        ("latin1", "strict"),
+        ("latin1", "ignore"),
+        ("iso-8859-8", "ignore"),
+        ("sjis", "ignore"),
+    ],
+)
+@pytest.mark.parametrize("kwargs", [{"encoding": "latin1"}, {"errors": "strict"}, {"errors": "replace"}])
+def test_str_aspect_typeerror(obj, args, kwargs):
+    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+
+    obj = taint_pyobject(
+        obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+    )
+    with pytest.raises(TypeError) as e:
+        ddtrace_aspects.str_aspect(str, 0, obj, *args, **kwargs)
+
+    with pytest.raises(TypeError) as f:
+        str(obj, *args, **kwargs)
+
+    assert str(e.value) == str(f.value)
 
 
 @pytest.mark.parametrize(
@@ -56,46 +331,43 @@ def test_str_aspect(obj, kwargs):
     ],
 )
 def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-
     if should_be_tainted:
         obj = taint_pyobject(
             obj, source_name="test_str_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
         )
 
-    result = ddtrace_aspects.str_aspect(obj, **kwargs)
+    result = ddtrace_aspects.str_aspect(str, 0, obj, **kwargs)
     assert is_pyobject_tainted(result) == should_be_tainted
 
     assert result == str(obj, **kwargs)
 
 
 @pytest.mark.parametrize(
-    "obj, expected_result",
+    "obj, expected_result, formatted_result",
     [
-        ("3.5", "'3.5'"),
-        ("Hi", "'Hi'"),
-        ("🙀", "'🙀'"),
-        (b"Hi", "b'Hi'"),
-        (bytearray(b"Hi"), "bytearray(b'Hi')"),
+        ("3.5", "'3.5'", "':+-<test_repr_aspect_tainting>3.5<test_repr_aspect_tainting>-+:'"),
+        ("Hi", "'Hi'", "':+-<test_repr_aspect_tainting>Hi<test_repr_aspect_tainting>-+:'"),
+        ("🙀", "'🙀'", "':+-<test_repr_aspect_tainting>🙀<test_repr_aspect_tainting>-+:'"),
+        (b"Hi", "b'Hi'", "b':+-<test_repr_aspect_tainting>Hi<test_repr_aspect_tainting>-+:'"),
+        (
+            bytearray(b"Hi"),
+            "bytearray(b'Hi')",
+            "bytearray(b':+-<test_repr_aspect_tainting>Hi<test_repr_aspect_tainting>-+:')",
+        ),
     ],
 )
-def test_repr_aspect_tainting(obj, expected_result):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+def test_repr_aspect_tainting(obj, expected_result, formatted_result):
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+        assert repr(obj) == expected_result
 
-    assert repr(obj) == expected_result
+        obj = taint_pyobject(
+            obj, source_name="test_repr_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
+        )
 
-    obj = taint_pyobject(
-        obj, source_name="test_repr_aspect_tainting", source_value=obj, source_origin=OriginType.PARAMETER
-    )
-
-    result = ddtrace_aspects.repr_aspect(obj)
-    assert is_pyobject_tainted(result) is True
+        result = ddtrace_aspects.repr_aspect(obj.__repr__, 0, obj)
+        assert is_pyobject_tainted(result) is True
+        assert as_formatted_evidence(result) == formatted_result
+    _iast_error_metric.assert_not_called()
 
 
 class TestOperatorsReplacement(BaseReplacement):
@@ -111,6 +383,14 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-foo-+:")
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
+
+    def test_aspect_ljust_error_and_no_log_metric(self, telemetry_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_ljust(string_input, "aaaaa")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
     def test_zfill(self):
         # Not tainted
@@ -130,6 +410,14 @@ class TestOperatorsReplacement(BaseReplacement):
         string_input = create_taint_range_with_format(":+-012-+:34")
         res = mod.do_zfill(string_input, 7)  # pylint: disable=no-member
         assert as_formatted_evidence(res) == "00:+-012-+:34"
+
+    def test_aspect_zfill_error_and_no_log_metric(self, telemetry_writer):
+        string_input = create_taint_range_with_format(":+-foo-+:")
+        with pytest.raises(TypeError):
+            mod.do_zfill(string_input, "aaaaa")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
     def test_format(self):
         # type: () -> None

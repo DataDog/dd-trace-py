@@ -6,23 +6,24 @@ import threading
 import time
 import timeit
 from types import FrameType
-import typing  # noqa
+import typing  # noqa:F401
 import uuid
 
 import pytest
-import six
 from six.moves import _thread
 
-import ddtrace  # noqa
+import ddtrace  # noqa:F401
 from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
+from tests.utils import flaky
 
 from . import test_collector
 
 
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+# FIXME: remove version limitation when gevent segfaults are fixed on Python 3.12
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and sys.version_info < (3, 12)
 
 
 def func1():
@@ -173,7 +174,7 @@ def _fib(n):
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
-    from gevent import monkey  # noqa
+    from gevent import monkey  # noqa:F401
 
     monkey.patch_all()
 
@@ -265,8 +266,8 @@ def test_ignore_profiler_gevent_task():
     import os
     import time
 
-    from ddtrace.profiling import collector  # noqa
-    from ddtrace.profiling import event as event_mod  # noqa
+    from ddtrace.profiling import collector  # noqa:F401
+    from ddtrace.profiling import event as event_mod  # noqa:F401
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
 
@@ -345,10 +346,7 @@ FN_TEMPLATE = """def _f{num}():
   return _f{nump1}()"""
 
 for num in range(MAX_FN_NUM):
-    if six.PY3:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
-    else:
-        exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
+    exec(FN_TEMPLATE.format(num=num, nump1=num + 1))
 
 exec(
     """def _f{MAX_FN_NUM}():
@@ -778,6 +776,7 @@ def test_collect_gevent_threads():
     assert values.pop() > 0
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
 def test_collect_ensure_all_frames_gc():
     # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+

@@ -20,7 +20,9 @@ def test_pathway_encoding():
     expected_pathway_start = ctx.pathway_start_sec
     data = ctx.encode()
 
-    def on_checkpoint_creation(hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec):
+    def on_checkpoint_creation(
+        hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, *args, **kwargs
+    ):
         assert parent_hash == ctx.hash
         assert sorted(edge_tags) == sorted(["direction:in", "type:kafka", "topic:topic1"])
 

@@ -1,11 +1,11 @@
 import os
 
 import aiobotocore.client
-import wrapt
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
@@ -14,7 +14,6 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
-from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.schema import schematize_cloud_api_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import ArgumentError
@@ -95,16 +94,14 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         return result
 
     # wrapt doesn't proxy `async with` context managers
-    if PYTHON_VERSION_INFO >= (3, 5, 0):
+    async def __aenter__(self):
+        # call the wrapped method but return the object proxy
+        await self.__wrapped__.__aenter__()
+        return self
 
-        async def __aenter__(self):
-            # call the wrapped method but return the object proxy
-            await self.__wrapped__.__aenter__()
-            return self
-
-        async def __aexit__(self, *args, **kwargs):
-            response = await self.__wrapped__.__aexit__(*args, **kwargs)
-            return response
+    async def __aexit__(self, *args, **kwargs):
+        response = await self.__wrapped__.__aexit__(*args, **kwargs)
+        return response
 
 
 async def _wrapped_api_call(original_func, instance, args, kwargs):
@@ -131,7 +128,6 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
-
             operation = get_argument_value(args, kwargs, 0, "operation_name")
             params = get_argument_value(args, kwargs, 1, "params")
 

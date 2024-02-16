@@ -23,7 +23,7 @@ def run(scenario_py, cname, cvars, output_dir):
         "--name",
         cname,
     ]
-    for (cvarname, cvarval) in cvars.items():
+    for cvarname, cvarval in cvars.items():
         cmd.append("--{}".format(cvarname))
         cmd.append(str(cvarval))
     proc = subprocess.Popen(cmd)
@@ -38,5 +38,5 @@ if __name__ == "__main__":
     output_dir = sys.argv[1]
     print("Saving results to {}".format(output_dir))
     config = read_config("config.yaml")
-    for (cname, cvars) in config.items():
+    for cname, cvars in config.items():
         run("scenario.py", cname, cvars, output_dir)

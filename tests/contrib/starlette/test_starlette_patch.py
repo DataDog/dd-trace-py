@@ -9,6 +9,7 @@ class TestStarlettePatch(PatchTestCase.Base):
     __module_name__ = "starlette"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
     def assert_module_patched(self, starlette):
         self.assert_wrapped(starlette.applications.Starlette.__init__)
@@ -26,8 +27,3 @@ class TestStarlettePatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(starlette.applications.Starlette.__init__)
         self.assert_not_double_wrapped(starlette.routing.Mount.handle)
         self.assert_not_double_wrapped(starlette.routing.Route.handle)
-
-    def assert_module_implements_get_version(self):
-        version = get_version()
-        assert type(version) == str
-        assert version != ""

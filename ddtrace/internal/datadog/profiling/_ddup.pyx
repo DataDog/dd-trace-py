@@ -6,7 +6,7 @@ import ddtrace
 from ddtrace.internal import runtime
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 
 from .utils import sanitize_string
 
@@ -39,7 +39,7 @@ IF UNAME_SYSNAME == "Linux":
 
         void ddup_init()
 
-        void ddup_start_sample(unsigned int nframes)
+        void ddup_start_sample()
         void ddup_push_walltime(int64_t walltime, int64_t count)
         void ddup_push_cputime(int64_t cputime, int64_t count)
         void ddup_push_acquire(int64_t acquire_time, int64_t count)
@@ -50,8 +50,8 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char *thread_name)
         void ddup_push_task_id(int64_t task_id)
         void ddup_push_task_name(const char *task_name)
-        void ddup_push_span_id(int64_t span_id)
-        void ddup_push_local_root_span_id(int64_t local_root_span_id)
+        void ddup_push_span_id(uint64_t span_id)
+        void ddup_push_local_root_span_id(uint64_t local_root_span_id)
         void ddup_push_trace_type(const char *trace_type)
         void ddup_push_trace_resource_container(const char *trace_resource_container)
         void ddup_push_exceptioninfo(const char *exception_type, int64_t count)
@@ -59,7 +59,7 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_push_frame(const char *_name, const char *_filename, uint64_t address, int64_t line)
         void ddup_flush_sample()
         void ddup_set_runtime_id(const char *_id, size_t sz)
-        void ddup_upload()
+        bint ddup_upload() nogil
 
     def init(
             service: Optional[str],
@@ -89,11 +89,13 @@ IF UNAME_SYSNAME == "Linux":
         ddup_config_max_nframes(max_nframes)
         if tags is not None:
             for key, val in tags.items():
-                ddup_config_user_tag(key, val)
+                if key and val:
+                    ddup_config_user_tag(ensure_binary(key), ensure_binary(val))
         ddup_init()
 
-    def start_sample(nframes: int) -> None:
-        ddup_start_sample(nframes)
+    def start_sample(unsigned int _) -> None:
+        # The number of frames is not used in the C++ implementation
+        ddup_start_sample()
 
     def push_cputime(value: int, count: int) -> None:
         ddup_push_cputime(value, count)
@@ -146,13 +148,18 @@ IF UNAME_SYSNAME == "Linux":
         ddup_push_class_name(ensure_binary(class_name))
 
     def push_span(span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
-        if span:
+        if not span:
+            return
+        if span.span_id:
             ddup_push_span_id(span.span_id)
-            if span._local_root is not None:
-                ddup_push_local_root_span_id(span._local_root)
-                ddup_push_trace_type(span._local_root.span_type)
-                if endpoint_collection_enabled:
-                    ddup_push_trace_resource_container(span._local_root._resource)
+        if not span._local_root:
+            return
+        if span._local_root.span_id:
+            ddup_push_local_root_span_id(span._local_root.span_id)
+        if span._local_root.span_type:
+            ddup_push_trace_type(span._local_root.span_type)
+        if endpoint_collection_enabled:
+            ddup_push_trace_resource_container(span._local_root._resource)
 
     def flush_sample() -> None:
         ddup_flush_sample()
@@ -160,4 +167,5 @@ IF UNAME_SYSNAME == "Linux":
     def upload() -> None:
         runtime_id = ensure_binary(runtime.get_runtime_id())
         ddup_set_runtime_id(runtime_id, len(runtime_id))
-        ddup_upload()
+        with nogil:
+            ddup_upload()

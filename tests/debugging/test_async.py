@@ -16,8 +16,7 @@ class MockSignalContext:
 
 
 @pytest.mark.asyncio
-async def test_dd_coroutine_wrapper_return():
-    # type: () -> None
+async def test_dd_coroutine_wrapper_return() -> None:
     contexts = [MockSignalContext() for _ in range(10)]
 
     async def coro():
@@ -31,8 +30,7 @@ async def test_dd_coroutine_wrapper_return():
 
 
 @pytest.mark.asyncio
-async def test_dd_coroutine_wrapper_exc():
-    # type: () -> None
+async def test_dd_coroutine_wrapper_exc() -> None:
     contexts = [MockSignalContext() for _ in range(10)]
 
     class MyException(Exception):

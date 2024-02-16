@@ -1,4 +1,4 @@
-import ddtrace.profiling.auto  # noqa
+import ddtrace.profiling.auto  # noqa:F401
 
 
 def application():

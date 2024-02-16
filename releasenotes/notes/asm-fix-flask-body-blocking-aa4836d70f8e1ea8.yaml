@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    ASM: fix a body read problem on some corner case where passing empty content length makes wsgi.input.read() blocks.

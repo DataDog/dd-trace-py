@@ -39,10 +39,9 @@ class FunctionStore(object):
     removed when the functions are restored.
     """
 
-    def __init__(self, extra_attrs=None):
-        # type: (Optional[List[str]]) -> None
-        self._code_map = {}  # type: Dict[FunctionType, CodeType]
-        self._wrapper_map = {}  # type: Dict[FunctionType, Wrapper]
+    def __init__(self, extra_attrs: Optional[List[str]] = None) -> None:
+        self._code_map: Dict[FunctionType, CodeType] = {}
+        self._wrapper_map: Dict[FunctionType, Wrapper] = {}
         self._extra_attrs = ["__dd_wrapped__"]
         if extra_attrs:
             self._extra_attrs.extend(extra_attrs)
@@ -53,13 +52,11 @@ class FunctionStore(object):
     def __exit__(self, *exc):
         self.restore_all()
 
-    def _store(self, function):
-        # type: (FunctionType) -> None
+    def _store(self, function: FunctionType) -> None:
         if function not in self._code_map:
             self._code_map[function] = function.__code__
 
-    def inject_hooks(self, function, hooks):
-        # type: (FullyNamedWrappedFunction, List[HookInfoType]) -> Set[str]
+    def inject_hooks(self, function: FullyNamedWrappedFunction, hooks: List[HookInfoType]) -> Set[str]:
         """Bulk-inject hooks into a function.
 
         Returns the set of probe IDs for those probes that failed to inject.
@@ -71,8 +68,7 @@ class FunctionStore(object):
             self._store(f)
             return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
-    def eject_hooks(self, function, hooks):
-        # type: (FunctionType, List[HookInfoType]) -> Set[str]
+    def eject_hooks(self, function: FunctionType, hooks: List[HookInfoType]) -> Set[str]:
         """Bulk-eject hooks from a function.
 
         Returns the set of probe IDs for those probes that failed to eject.
@@ -86,30 +82,25 @@ class FunctionStore(object):
             # Try on the wrapped function.
             return self.eject_hooks(cast(FunctionType, wrapped), hooks)
 
-    def inject_hook(self, function, hook, line, arg):
-        # type: (FullyNamedWrappedFunction, HookType, int, Any) -> bool
+    def inject_hook(self, function: FullyNamedWrappedFunction, hook: HookType, line: int, arg: Any) -> bool:
         """Inject a hook into a function."""
         return not not self.inject_hooks(function, [(hook, line, arg)])
 
-    def eject_hook(self, function, hook, line, arg):
-        # type: (FunctionType, HookType, int, Any) -> bool
+    def eject_hook(self, function: FunctionType, hook: HookType, line: int, arg: Any) -> bool:
         """Eject a hook from a function."""
         return not not self.eject_hooks(function, [(hook, line, arg)])
 
-    def wrap(self, function, wrapper):
-        # type: (FunctionType, Wrapper) -> None
+    def wrap(self, function: FunctionType, wrapper: Wrapper) -> None:
         """Wrap a function with a hook."""
         self._store(function)
         self._wrapper_map[function] = wrapper
         wrap(function, wrapper)
 
-    def unwrap(self, function):
-        # type: (FullyNamedWrappedFunction) -> None
+    def unwrap(self, function: FullyNamedWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""
         unwrap(function, self._wrapper_map.pop(cast(FunctionType, function)))
 
-    def restore_all(self):
-        # type: () -> None
+    def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
         for function, code in self._code_map.items():
             function.__code__ = code

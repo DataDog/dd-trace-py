@@ -49,9 +49,9 @@ your desired settings in place of the example environment variables)::
 For more advanced usage of ``ddtrace-run`` refer to the documentation
 :ref:`here<ddtracerun>`.
 
-To verify the environment configuration for your application run the command ``ddtrace-run --info``. 
-This will print out info useful for debugging to make sure your environment variable configurations are 
-being picked up correctly and that the tracer will be able to connect to the Datadog agent with them. 
+To verify the environment configuration for your application run the command ``ddtrace-run --info``.
+This will print out info useful for debugging to make sure your environment variable configurations are
+being picked up correctly and that the tracer will be able to connect to the Datadog agent with them.
 Note: ``--info`` Only reflects configurations made via environment variables, not those made in code.
 
 
@@ -59,8 +59,8 @@ When ``ddtrace-run`` cannot be used, a similar start-up behavior can be achieved
 with the import of ``ddtrace.auto``. This should normally be imported as the
 first thing during the application start-up.
 
-If ``ddtrace-run`` isn't suitable for your application, then :py:func:`ddtrace.patch_all`
-can be used to configure the tracer::
+If neither ``ddtrace-run`` nor ``import ddtrace.auto`` are suitable for your application, then
+:py:func:`ddtrace.patch_all` can be used to configure the tracer::
 
     from ddtrace import config, patch_all
 

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    logging: A log handler is automatically added to the ddtrace logger
+    upon ddtrace import, when not using ddtrace-run. This can lead to duplicate logging
+    if users add additional loggers and do not explicitly modify the ddtrace logger.
+    This fix adds a feature flag that can be used to toggle this behavior off
+    ``DD_TRACE_LOG_STREAM_HANDLER`` which defaults to ``true``.

@@ -1,6 +1,6 @@
 import json
 import os
-import sys
+from unittest import mock
 
 import pytest
 
@@ -11,7 +11,9 @@ from ddtrace.contrib.pytest_bdd.plugin import _get_step_func_args_json
 from ddtrace.contrib.pytest_bdd.plugin import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _patch_dummy_writer
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -31,6 +33,18 @@ class TestPytest(TracerTestCase):
     def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
+
+    @pytest.fixture(autouse=True)
+    def _dummy_check_enabled_features(self):
+        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
+
+        Tests that need a different response should re-patch the CIVisibility object.
+        """
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
+            yield
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""
@@ -52,10 +66,12 @@ class TestPytest(TracerTestCase):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
 
-    def test_module_implements_get_version(self):
+    def test_and_emit_get_version(self):
         version = get_version()
         assert type(version) == str
         assert version != ""
+
+        emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
@@ -110,7 +126,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
@@ -152,7 +168,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -198,7 +214,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -221,7 +237,7 @@ class TestPytest(TracerTestCase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -244,13 +260,6 @@ class TestPytest(TracerTestCase):
             "ddtrace.contrib.pytest_bdd.plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
         )
 
-        if sys.version_info < (3, 6, 0):
-            expected = '{"error_serializing_args": "set([]) is not JSON serializable"}'
-        elif sys.version_info < (3, 6, 0):
-            expected = '{"error_serializing_args": "set() is not JSON serializable"}'
-        elif sys.version_info < (3, 7, 0):
-            expected = '{"error_serializing_args": "Object of type \'set\' is not JSON serializable"}'
-        else:
-            expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'
+        expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'
 
         assert _get_step_func_args_json(None, lambda: None, None) == expected

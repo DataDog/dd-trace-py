@@ -9,7 +9,6 @@ if django.VERSION >= (1, 10, 1):
         # https://code.djangoproject.com/ticket/26988
         return user.is_authenticated == True  # noqa E712
 
-
 else:
     from django.conf import settings
     from django.core import urlresolvers

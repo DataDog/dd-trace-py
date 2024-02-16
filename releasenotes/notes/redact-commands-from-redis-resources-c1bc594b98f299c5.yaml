@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: The Datadog Agent removes command arguments from the resource name. However there are cases, like compressed keys, where this obfuscation cannot correctly remove command arguments. To safeguard that situation, the resource name set by the tracer will only be the command (e.g. SET) with no arguments. To retain the previous behavior and keep arguments in the span resource, with the potential risk of some command arguments not being fully obfuscated, set ``DD_REDIS_RESOURCE_ONLY_COMMAND=false``.

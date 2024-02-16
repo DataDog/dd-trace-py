@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    propagation: 128-bit trace ids are now used by default for propagation. Previously
+    the default was 64-bit. This change is backwards compatible with tracers that still use 
+    64-bit trace ids and should not cause any breaking behavior.

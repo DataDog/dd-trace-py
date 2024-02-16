@@ -2,11 +2,11 @@ name: flask-overhead-profile
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
+      - main
   pull_request:
     paths:
       - 'ddtrace/**'
+      - 'scripts/profiles/flask-simple/**'
 jobs:
   flask-overhead-profile:
     runs-on: ubuntu-latest

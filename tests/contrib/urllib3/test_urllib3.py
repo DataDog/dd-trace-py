@@ -3,6 +3,7 @@ import pytest
 import urllib3
 
 from ddtrace import config
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -112,7 +113,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         ]
 
         for args, kwargs in inputs:
-
             with self.override_http_config("urllib3", {"_header_tags": dict()}):
                 config.urllib3.http.trace_headers(["accept"])
                 pool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
@@ -488,10 +488,10 @@ class TestUrllib3(BaseUrllib3TestCase):
             spans = self.pop_spans()
             s = spans[0]
             expected_headers = {
-                "x-datadog-trace-id": str(s.trace_id),
+                "x-datadog-trace-id": str(s._trace_id_64bits),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0",
+                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
                 "traceparent": s.context._traceparent,
                 "tracestate": s.context._tracestate,
             }

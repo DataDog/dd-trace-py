@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+CHECKPOINT_FILENAME="latest-success-commit"
+HATCH_ENV=${1}
+DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
+DDTEST_CMD=$([[ ${2} == "1" ]] && echo "./scripts/ddtest")
+
+HATCH_ENVS=( $(hatch env show --json | jq --arg hatch_env "${HATCH_ENV}" -r 'keys[] | select(. | contains($hatch_env + ".py"))' | sort ) )
+echo "Found ${#HATCH_ENVS[@]} hatch envs: ${HATCH_ENVS[@]}"
+if [[ ${#HATCH_ENVS[@]} -eq 0 ]]; then
+    echo "No hatch envs found for $HATCH_ENV"
+    if [[ -v CIRCLECI ]]; then
+        circleci step halt
+    fi
+    exit 1
+fi
+
+if [[ -v CIRCLECI ]]; then
+    # circleci tests splits expects one test per line
+    HATCH_ENVS=( $( printf '%s\n' "${HATCH_ENVS[@]}"  | circleci tests split) )
+    if [[ ${#HATCH_ENVS[@]} -eq 0 ]]; then
+        echo "No hatch env after split, halting."
+        circleci step halt
+        exit 0
+    fi
+    echo "${#HATCH_ENVS[@]} hatch env split for CircleCI: ${HATCH_ENVS[@]}"
+fi
+
+
+
+set -e
+
+if ! [[ -v CIRCLECI && $CIRCLE_BRANCH =~ main ]]; then
+    if [[ -f "$CHECKPOINT_FILENAME" ]]; then
+        latest_success_commit=$(cat $CHECKPOINT_FILENAME)
+        if ! ./scripts/needs_testrun.py $CIRCLE_JOB --sha $latest_success_commit; then
+            echo "The $CIRCLE_JOB job succeeded at commit $latest_success_commit."
+            echo "None of the changes on this branch since that commit affect the $CIRCLE_JOB job."
+            echo "Skipping this job."
+            circleci step halt
+            exit 0
+        fi
+    fi
+fi
+
+for hatch_env in ${HATCH_ENVS[@]}; do
+    echo "Running hatch env: $hatch_env"
+    if ! $DDTEST_CMD hatch run $hatch_env:test; then
+        if [[ -v CIRCLECI ]]; then
+            circleci step halt
+        fi
+        exit 1
+    fi
+done
+
+rm -f $CHECKPOINT_FILENAME
+echo $CIRCLE_SHA1 > $CHECKPOINT_FILENAME
+echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for job $CIRCLE_JOB"

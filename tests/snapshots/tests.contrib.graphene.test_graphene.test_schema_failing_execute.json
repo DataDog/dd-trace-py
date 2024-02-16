@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "component": "graphql",
       "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
       "error.type": "graphql.error.graphql_error.GraphQLError",
@@ -35,8 +36,10 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -51,8 +54,10 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -70,6 +75,7 @@
        "error": 1,
        "meta": {
          "_dd.base_service": "",
+         "_dd.p.tid": "654a694400000000",
          "component": "graphql",
          "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
          "error.type": "graphql.error.graphql_error.GraphQLError",
@@ -93,6 +99,7 @@
           "error": 1,
           "meta": {
             "_dd.base_service": "",
+            "_dd.p.tid": "654a694400000000",
             "component": "graphql",
             "error.message": "exception was raised in a graphene query",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/graphql/patch.py\", line 236, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/root/project/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",

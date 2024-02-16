@@ -44,7 +44,7 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     }
 
     for (auto& kv_taint_map : *tx_map) {
-        kv_taint_map.second->decref();
+        kv_taint_map.second.second->decref();
     }
 
     tx_map->clear();
@@ -80,6 +80,25 @@ Initializer::num_objects_tainted()
     return 0;
 }
 
+string
+Initializer::debug_taint_map()
+{
+    auto ctx_map = initializer->get_tainting_map();
+    if (!ctx_map) {
+        return ("[]");
+    }
+
+    std::stringstream output;
+    output << "[";
+    for (const auto& item : *ctx_map) {
+        output << "{ 'Id-Key': " << item.first << ",";
+        output << "'Value': { 'Hash': " << item.second.first << ", 'TaintedObject': '" << item.second.second->toString()
+               << "'}},";
+    }
+    output << "]";
+    return output.str();
+}
+
 int
 Initializer::initializer_size()
 {
@@ -104,6 +123,40 @@ Initializer::allocate_tainted_object()
     return new TaintedObject();
 }
 
+TaintedObjectPtr
+Initializer::allocate_ranges_into_taint_object(TaintRangeRefs ranges)
+{
+    auto toptr = allocate_tainted_object();
+    toptr->set_values(std::move(ranges));
+    return toptr;
+}
+
+TaintedObjectPtr
+Initializer::allocate_tainted_object(TaintedObjectPtr from)
+{
+    if (!from) {
+        return allocate_tainted_object();
+    }
+    return allocate_ranges_into_taint_object(std::move(from->ranges_));
+}
+
+TaintedObjectPtr
+Initializer::allocate_ranges_into_taint_object_copy(const TaintRangeRefs& ranges)
+{
+    auto toptr = allocate_tainted_object();
+    toptr->copy_values(ranges);
+    return toptr;
+}
+
+TaintedObjectPtr
+Initializer::allocate_tainted_object_copy(const TaintedObjectPtr& from)
+{
+    if (!from) {
+        return allocate_tainted_object();
+    }
+    return allocate_ranges_into_taint_object_copy(from->ranges_);
+}
+
 void
 Initializer::release_tainted_object(TaintedObjectPtr tobj)
 {
@@ -123,7 +176,7 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(int start, int length, Source origin)
+Initializer::allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
@@ -197,6 +250,7 @@ void
 pyexport_initializer(py::module& m)
 {
     m.def("clear_tainting_maps", [] { initializer->clear_tainting_maps(); });
+    m.def("debug_taint_map", [] { return initializer->debug_taint_map(); });
 
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });

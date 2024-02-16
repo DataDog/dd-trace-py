@@ -18,20 +18,8 @@ python3.8 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
 pip install pip --upgrade
 
-# Install austin
-pushd ${PREFIX}
-    sudo apt update
-    sudo apt-get -y install libunwind-dev binutils-dev libiberty-dev
-    git clone --depth=1 https://github.com/p403n1x87/austin.git -b devel
-    pushd austin
-        gcc -O3 -Os -s -Wall -pthread src/*.c -DAUSTINP -lunwind-ptrace -lunwind-generic -lbfd -o src/austinp
-        mv src/austinp ${PREFIX}/austinp
-        chmod +x ${PREFIX}/austinp
-    popd
-popd
-
 # Install dependencies
-pip install hypothesis msgpack pytest austin-python~=1.4
+pip install hypothesis msgpack pytest austin-python~=1.7 austin-dist~=3.6
 
 # Install ddtrace
 pip install -e .

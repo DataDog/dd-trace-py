@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
@@ -9,7 +10,6 @@ from ddtrace.contrib.dbapi_async import TracedAsyncCursor
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.span import Span
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.utils import assert_is_measured

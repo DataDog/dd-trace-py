@@ -2,7 +2,7 @@
 
 Only supports tracing for the synchronous client.
 
-``patch_all`` will automatically patch your Consul client to make it work.
+``import ddtrace.auto`` will automatically patch your Consul client to make it work.
 ::
 
     from ddtrace import Pin, patch

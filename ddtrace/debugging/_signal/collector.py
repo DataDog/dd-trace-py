@@ -35,19 +35,17 @@ class SignalContext(object):
 
     def __init__(
         self,
-        signal,  # type: Signal
-        handler,  # type: Callable[[Signal],None]
-    ):
-        # type: (...) -> None
+        signal: Signal,
+        handler: Callable[[Signal], None],
+    ) -> None:
         self._on_exit_handler = handler
         self.signal = signal
-        self.return_value = NO_RETURN_VALUE  # type: Any
-        self.duration = None  # type: Optional[int]
+        self.return_value: Any = NO_RETURN_VALUE
+        self.duration: Optional[int] = None
 
         self.signal.enter()
 
-    def exit(self, retval, exc_info, duration_ns):
-        # type: (Any, ExcInfoType, int) -> None
+    def exit(self, retval: Any, exc_info: ExcInfoType, duration_ns: int) -> None:
         """Exit the snapshot context.
 
         The arguments are used to record either the return value or the exception, and
@@ -61,8 +59,7 @@ class SignalContext(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, *exc_info):
-        # type: (ExcInfoType) -> None
+    def __exit__(self, *exc_info: ExcInfoType) -> None:
         self.signal.exit(self.return_value, exc_info, self.duration)
         self._on_exit_handler(self.signal)
 
@@ -79,12 +76,10 @@ class SignalCollector(object):
     data, such as the return value of the wrapped function.
     """
 
-    def __init__(self, encoder):
-        # type: (BufferedEncoder) -> None
+    def __init__(self, encoder: BufferedEncoder) -> None:
         self._encoder = encoder
 
-    def _enqueue(self, log_signal):
-        # type: (LogSignal) -> None
+    def _enqueue(self, log_signal: LogSignal) -> None:
         try:
             log.debug(
                 "[%s][P: %s] SignalCollector. _encoder (%s) _enqueue signal", os.getpid(), os.getppid(), self._encoder
@@ -94,8 +89,7 @@ class SignalCollector(object):
             log.debug("Encoder buffer full")
             meter.increment("encoder.buffer.full")
 
-    def push(self, signal):
-        # type: (Signal) -> None
+    def push(self, signal: Signal) -> None:
         if signal.state == SignalState.SKIP_COND:
             meter.increment("skip", tags={"cause": "cond", "probe_id": signal.probe.probe_id})
         elif signal.state in {SignalState.SKIP_COND_ERROR, SignalState.COND_ERROR}:
@@ -118,7 +112,6 @@ class SignalCollector(object):
                 "Skipping signal %s (has message: %s)", signal, isinstance(signal, LogSignal) and signal.has_message()
             )
 
-    def attach(self, signal):
-        # type: (Signal) -> SignalContext
+    def attach(self, signal: Signal) -> SignalContext:
         """Collect via a probe signal context manager."""
         return SignalContext(signal, lambda e: self.push(e))

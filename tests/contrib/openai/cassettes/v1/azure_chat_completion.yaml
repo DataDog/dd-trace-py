@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "What''s the weather like in
+      NYC right now?"}], "model": "gpt-35-turbo", "max_tokens": 20, "n": 1, "temperature":
+      0, "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '181'
+      content-type:
+      - application/json
+      host:
+      - test-openai.openai.azure.com
+      user-agent:
+      - AzureOpenAI/Python 1.1.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.1.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://test-openai.openai.azure.com//openai/deployments/test-openai/chat/completions?api-version=2023-07-01-preview
+  response:
+    content: '{"id":"chatcmpl-80yf1zsO83O6QA4OlMV9aHRIkSk2G","object":"chat.completion","created":1695243871,"model":"gpt-35-turbo","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}],"choices":[{"index":0,"finish_reason":"length","message":{"role":"assistant","content":"I''m
+      sorry, as an AI language model, I do not have real-time information. Please
+      check"},"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}],"usage":{"prompt_tokens":18,"completion_tokens":20,"total_tokens":38}}
+
+      '
+    headers:
+      Cache-Control:
+      - no-cache, must-revalidate
+      Content-Length:
+      - '840'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 07 Nov 2023 01:27:18 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-allow-origin:
+      - '*'
+      apim-request-id:
+      - f9816a7b-cd98-4f2c-9ccf-1160963a3c15
+      x-accel-buffering:
+      - 'no'
+      x-content-type-options:
+      - nosniff
+      x-ms-client-request-id:
+      - f9816a7b-cd98-4f2c-9ccf-1160963a3c15
+      x-ms-region:
+      - East US
+      x-request-id:
+      - 0e938e34-b906-4aec-90ac-3299b71936e4
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

@@ -1,29 +1,32 @@
 import json
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Mapping
-from typing import Text
-from typing import Union
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Text  # noqa:F401
+from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
-import six
-from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
+from ddtrace.internal import compat
+from ddtrace.internal.utils.http import parse_form_multipart
+from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.propagation._utils import from_wsgi_header
 
-from .. import trace_utils
 from ...internal import core
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
+from ...vendor.wrapt import FunctionWrapper
+from .. import trace_utils
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
@@ -172,7 +175,7 @@ def get_request_uri(request):
                     v.__class__.__name__,
                 )
                 return None
-        urlparts[k] = six.ensure_text(v)
+        urlparts[k] = compat.ensure_text(v)
 
     return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
 
@@ -263,17 +266,15 @@ def _before_request_tags(pin, span, request):
 
 def _extract_body(request):
     # DEV: Do not use request.POST or request.data, this could prevent custom parser to be used after
-    if config._appsec_enabled and request.method in _BODY_METHODS:
-        from ddtrace.appsec._utils import parse_form_multipart
-        from ddtrace.appsec._utils import parse_form_params
-
+    if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+        headers = core.dispatch_with_results("django.extract_body").headers.value
         try:
             if content_type == "application/x-www-form-urlencoded":
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
             elif content_type == "multipart/form-data":
-                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"))
+                req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"), headers)
             elif content_type in ("application/json", "text/json"):
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
             elif content_type in ("application/xml", "text/xml"):
@@ -282,7 +283,6 @@ def _extract_body(request):
                 req_body = None
         except BaseException:
             log.debug("Failed to parse request body", exc_info=True)
-            # req_body is None
         return req_body
 
 
@@ -300,7 +300,7 @@ def _get_request_headers(request):
     return request_headers
 
 
-def _after_request_tags(pin, span, request, response):
+def _after_request_tags(pin, span: Span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
@@ -343,7 +343,7 @@ def _after_request_tags(pin, span, request, response):
                 # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
                 template = response.template_name
 
-                if isinstance(template, six.string_types):
+                if isinstance(template, str):
                     template_names = [template]
                 elif isinstance(
                     template,
@@ -365,47 +365,39 @@ def _after_request_tags(pin, span, request, response):
 
             url = get_request_uri(request)
 
-            request_headers = None
-            if config._appsec_enabled:
-                from ddtrace.appsec import _asm_request_context
-
-                request_headers = _asm_request_context.get_headers()
-
+            request_headers = core.dispatch_with_results("django.after_request_headers").headers.value
             if not request_headers:
-                # did not go through AppSecProcessor.on_span_start
                 request_headers = _get_request_headers(request)
 
             response_headers = dict(response.items()) if response else {}
 
             response_cookies = {}
             if response.cookies:
-                for k, v in six.iteritems(response.cookies):
+                for k, v in response.cookies.items():
                     response_cookies[k] = v.OutputString()
 
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
-            trace_utils.set_http_meta(
-                span,
-                config.django,
-                method=request.method,
-                url=url,
-                raw_uri=raw_uri,
-                status_code=status,
-                query=request.META.get("QUERY_STRING", None),
-                parsed_query=request.GET,
-                request_headers=request_headers,
-                response_headers=response_headers,
-                request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-                request_body=_extract_body(request),
-                peer_ip=core.get_item("http.request.remote_ip", span=span),
-                headers_are_case_sensitive=core.get_item("http.request.headers_case_sensitive", span=span),
-                response_cookies=response_cookies,
+            core.dispatch(
+                "django.after_request_headers.post",
+                (
+                    request_headers,
+                    response_headers,
+                    span,
+                    config.django,
+                    request,
+                    url,
+                    raw_uri,
+                    status,
+                    response_cookies,
+                ),
             )
-            if config._appsec_enabled and config._api_security_enabled:
-                _asm_request_context.set_body_response(response.content)
+            content = getattr(response, "content", None)
+            if content is None:
+                content = getattr(response, "streaming_content", None)
+            core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method

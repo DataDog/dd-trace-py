@@ -1,1 +1,1 @@
-from .app import get_app  # noqa
+from .app import get_app  # noqa:F401

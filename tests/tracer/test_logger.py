@@ -51,8 +51,7 @@ class DDLoggerTestCase(BaseTestCase):
         records = [args[0][0] for args in handle.call_args_list]
         for record in records:
             self.assertIsInstance(record, logging.LogRecord)
-            self.assertEqual(record.name, "test.logger")
-            self.assertEqual(record.msg, "test")
+            self.assertTrue("test.logger" in record.name or "ddtrace" in record.name)
 
         levels = [r.levelname for r in records]
         self.assertEqual(levels, expected_levels)
@@ -260,7 +259,7 @@ class DDLoggerTestCase(BaseTestCase):
 
         # Assert that we did not perform any rate limiting
         total = 1000 * len(ALL_LEVEL_NAMES)
-        self.assertEqual(base_handle.call_count, total)
+        self.assertTrue(total <= base_handle.call_count <= total + 1)
 
         # Our buckets are empty
         self.assertEqual(log.buckets, dict())
@@ -426,3 +425,26 @@ def test_logger_no_dummy_thread_name_after_module_cleanup():
     t = Thread(target=logger.error, args=("Hello from thread",), name="MyThread")
     t.start()
     t.join()
+
+
+@pytest.mark.subprocess()
+def test_logger_adds_handler_as_default():
+    import logging
+
+    import ddtrace  # noqa:F401
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    assert len(ddtrace_logger.handlers) == 1
+    assert type(ddtrace_logger.handlers[0]) == logging.StreamHandler
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_LOG_STREAM_HANDLER="false"))
+def test_logger_does_not_add_handler_when_configured():
+    import logging
+
+    import ddtrace  # noqa:F401
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    assert len(ddtrace_logger.handlers) == 0
+    assert ddtrace_logger.handlers == []

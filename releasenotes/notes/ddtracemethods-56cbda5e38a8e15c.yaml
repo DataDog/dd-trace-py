@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracer: Adds support for ``DD_TRACE_METHODS``. This feature enables the
+      specification of custom methods to be instrumented by the tracer when using ``ddtrace-run``.
+      See the configuration documentation for more information: https://ddtrace.readthedocs.io/en/v2.1.0/configuration.html.

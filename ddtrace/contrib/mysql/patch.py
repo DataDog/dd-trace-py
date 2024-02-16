@@ -1,11 +1,11 @@
 import os
 
 import mysql.connector
-import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
@@ -58,7 +58,6 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)

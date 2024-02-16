@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    structlog: Fixes ``TypeError`` raised when ddtrace log processor is configured with a tuple

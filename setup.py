@@ -3,13 +3,16 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
+import sysconfig
 import tarfile
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
+from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 
@@ -27,33 +30,27 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
-if sys.version_info >= (3, 0):
-    from urllib.error import HTTPError
-    from urllib.request import urlretrieve
-else:
-    from urllib import urlretrieve
-
-    from urllib2 import HTTPError
+from urllib.error import HTTPError
+from urllib.request import urlretrieve
 
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
-LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_ddwaf", "libddwaf"))
-IAST_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "_iast", "_taint_tracking"))
+LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
+IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
+DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling"
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.14.0"
+LIBDDWAF_VERSION = "1.16.0"
 
-LIBDATADOG_PROF_DOWNLOAD_DIR = os.path.join(
-    HERE, os.path.join("ddtrace", "internal", "datadog", "profiling", "libdatadog")
-)
-
-LIBDATADOG_PROF_VERSION = "v2.1.0"
+# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+if CURRENT_OS == "Darwin":
+    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -92,23 +89,14 @@ def load_module_from_project_file(mod_name, fname):
          e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
          which has side effects like loading the tracer
     """
-    fpath = os.path.join(HERE, fname)
+    fpath = HERE / fname
 
-    if sys.version_info >= (3, 5):
-        import importlib.util
+    import importlib.util
 
-        spec = importlib.util.spec_from_file_location(mod_name, fpath)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-    elif sys.version_info >= (3, 3):
-        from importlib.machinery import SourceFileLoader
-
-        return SourceFileLoader(mod_name, fpath).load_module()
-    else:
-        import imp
-
-        return imp.load_source(mod_name, fpath)
+    spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def is_64_bit_python():
@@ -127,14 +115,12 @@ class LibraryDownload:
     @classmethod
     def download_artifacts(cls):
         suffixes = cls.translate_suffix[CURRENT_OS]
+        download_dir = Path(cls.download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
 
-        # If the directory exists and it is not empty, assume the right files are there.
-        # Use `python setup.py clean` to remove it.
-        if os.path.isdir(cls.download_dir) and os.listdir(cls.download_dir):
+        # If the directory is nonempty, assume we're done
+        if any(download_dir.iterdir()):
             return
-
-        if not os.path.isdir(cls.download_dir):
-            os.makedirs(cls.download_dir)
 
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_build_platform().endswith(arch):
@@ -151,14 +137,14 @@ class LibraryDownload:
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
                 continue
 
-            arch_dir = os.path.join(cls.download_dir, arch)
+            arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists, assume the right files are there
-            if os.path.isdir(arch_dir):
+            # If the directory for the architecture exists and is nonempty, assume we're done
+            if arch_dir.is_dir() and any(arch_dir.iterdir()):
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
-            archive_name = archive_dir + ".tar.gz"
+            archive_name = cls.get_archive_name(arch, CURRENT_OS)
 
             download_address = "%s/%s/%s" % (
                 cls.url_root,
@@ -189,20 +175,25 @@ class LibraryDownload:
 
             with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                os.rename(os.path.join(HERE, archive_dir), arch_dir)
+                Path(HERE / archive_dir).rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
+            lib_dir = arch_dir / "lib"
             for suffix in suffixes:
-                original_file = os.path.join(arch_dir, "lib", cls.name + suffix)
-                if os.path.exists(original_file):
-                    renamed_file = os.path.join(arch_dir, "lib", "lib" + cls.name + suffix)
-                    os.rename(original_file, renamed_file)
+                original_file = lib_dir / "{}{}".format(cls.name, suffix)
+                if original_file.exists():
+                    renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
+                    original_file.rename(renamed_file)
 
-            os.remove(filename)
+            Path(filename).unlink()
 
     @classmethod
     def run(cls):
         cls.download_artifacts()
+
+    @classmethod
+    def get_archive_name(cls, arch, os):
+        return cls.get_package_name(arch, os) + ".tar.gz"
 
 
 class LibDDWafDownload(LibraryDownload):
@@ -218,67 +209,23 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def get_package_name(cls, arch, os):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+    def get_package_name(cls, arch, opsys):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, opsys.lower(), arch)
         return archive_dir
-
-
-class LibDatadogDownload(LibraryDownload):
-    name = "datadog"
-    download_dir = LIBDATADOG_PROF_DOWNLOAD_DIR
-    version = LIBDATADOG_PROF_VERSION
-    url_root = "https://github.com/DataDog/libdatadog/releases/download"
-    expected_checksums = {
-        "Linux": {
-            "x86_64": "e9ee7172dd7b8f12ff8125e0ee699d01df7698604f64299c4094ae47629ccec1",
-            "aarch64": "a326e9552e65b945c64e7119c23d670ffdfb99aa96d9d90928a8a2ff6427199d",
-        },
-    }
-    available_releases = {
-        "Windows": [],
-        "Darwin": [],
-        "Linux": ["x86_64", "aarch64"],
-    }
-    translate_suffix = {"Windows": (".lib", ".h"), "Darwin": (".a", ".h"), "Linux": (".a", ".h")}
 
     @classmethod
-    def get_package_name(cls, arch, os):
-        osnames = {
-            "Linux": "unknown-linux-gnu",
-        }
-        tar_osname = osnames[os]
-        archive_dir = "lib%s-%s-%s" % (cls.name, arch, tar_osname)
+    def get_archive_name(cls, arch, opsys):
+        os_name = opsys.lower()
+        if os_name == "linux":
+            archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
+        else:
+            archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
         return archive_dir
-
-    @staticmethod
-    def get_extra_objects():
-        base_name = "libdatadog_profiling"
-        arch = platform.machine()
-        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            base_name += LibDatadogDownload.translate_suffix[CURRENT_OS][0]  # always static lib extension
-            base_path = os.path.join(
-                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "lib", base_name
-            )
-            return [base_path]
-        return []
-
-    @staticmethod
-    def get_include_dirs():
-        arch = platform.machine()
-        if arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-            base_include_dir = "ddtrace/internal/datadog/profiling/include"
-            arch_include_dir = os.path.join(
-                "ddtrace", "internal", "datadog", "profiling", "libdatadog", arch, "include"
-            )
-            return [base_include_dir, arch_include_dir]
-
-        return []
 
 
 class LibraryDownloader(BuildPyCommand):
     def run(self):
         CleanLibraries.remove_artifacts()
-        LibDatadogDownload.run()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
 
@@ -287,8 +234,7 @@ class CleanLibraries(CleanCommand):
     @staticmethod
     def remove_artifacts():
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-        shutil.rmtree(LIBDATADOG_PROF_DOWNLOAD_DIR, True)
-        shutil.rmtree(os.path.join(IAST_DIR, "*.so"), True)
+        shutil.rmtree(IAST_DIR / "*.so", True)
 
     def run(self):
         CleanLibraries.remove_artifacts()
@@ -296,77 +242,126 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
-    def build_extension(self, ext):
-        tmp_iast_file_path = os.path.abspath(self.get_ext_fullpath(ext.name))
-        tmp_iast_path = os.path.join(os.path.dirname(tmp_iast_file_path))
-        tmp_filename = tmp_iast_file_path.replace(tmp_iast_path + os.path.sep, "")
-
-        cmake_list_path = os.path.join(IAST_DIR, "CMakeLists.txt")
-
-        if (
-            sys.version_info >= (3, 6, 0)
-            and ext.name == "ddtrace.appsec._iast._taint_tracking._native"
-            and os.path.exists(cmake_list_path)
-        ):
-            os.makedirs(tmp_iast_path, exist_ok=True)
-
-            import subprocess
-
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-            build_args = ["--config", build_type]
-            cmake_args = [
-                "-S",
-                IAST_DIR,
-                "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(tmp_iast_path),
-                "-B",
-                tmp_iast_path,
-                "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                "-DCMAKE_BUILD_TYPE={}".format(build_type),
-            ]
-
-            if CURRENT_OS == "Windows":
-                cmake_args.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-
-            if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
-                # Cross-compile support for macOS - respect ARCHFLAGS if set
-                # Darwin Universal2 should bundle both architectures
-                archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
-                if archs:
-                    cmake_args += [
-                        "-DBUILD_MACOS=ON",
-                        "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
-                    ]
-
-            # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
-            # across all generators.
-            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                # self.parallel is a Python 3 only way to set parallel jobs by hand
-                # using -j in the build_ext call, not supported by pip or PyPA-build.
-                # DEV: -j is only supported in CMake 3.12+ only.
-                if hasattr(self, "parallel") and self.parallel:
-                    build_args += ["-j{}".format(self.parallel)]
+    @staticmethod
+    def try_strip_symbols(so_file):
+        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
             try:
-                cmake_cmd_with_args = [cmake_command] + cmake_args
-                subprocess.run(cmake_cmd_with_args, cwd=tmp_iast_path, check=True)
-
-                build_command = [cmake_command, "--build", tmp_iast_path] + build_args
-                subprocess.run(build_command, cwd=tmp_iast_path, check=True)
+                subprocess.run(["strip", "-g", so_file], check=True)
+            except subprocess.CalledProcessError as e:
+                print(
+                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
+                )
             except Exception as e:
-                print("WARNING: Failed to build IAST extensions, skipping: %s" % e)
-            finally:
-                import shutil
+                print(
+                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
+                )
 
-                for directory_to_remove in ["_deps", "CMakeFiles"]:
-                    shutil.rmtree(os.path.join(tmp_iast_path, directory_to_remove))
-                for file_to_remove in ["Makefile", "cmake_install.cmake", "compile_commands.json", "CMakeCache.txt"]:
-                    if os.path.exists(os.path.join(tmp_iast_path, file_to_remove)):
-                        os.remove(os.path.join(tmp_iast_path, file_to_remove))
-                iast_artifact = os.path.join(IAST_DIR, tmp_filename)
-                if os.path.exists(iast_artifact):
-                    shutil.copy(iast_artifact, tmp_iast_file_path)
+    def build_extension(self, ext):
+        if isinstance(ext, CMakeExtension):
+            try:
+                self.build_extension_cmake(ext)
+            except subprocess.CalledProcessError as e:
+                print("WARNING: Command '{}' returned non-zero exit status {}.".format(e.cmd, e.returncode))
+                if ext.optional:
+                    return
+                raise
+            except Exception as e:
+                print("WARNING: An error occurred while building the CMake extension {}, {}.".format(ext.name, e))
+                if ext.optional:
+                    return
+                raise
         else:
-            build_ext.build_extension(self, ext)
+            super().build_extension(ext)
+
+        if not DEBUG_COMPILE:
+            try:
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
+            except Exception as e:
+                print(f"WARNING: An error occurred while building the extension: {e}")
+
+    def build_extension_cmake(self, ext):
+        # Define the build and output directories
+        output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
+        extension_basename = Path(self.get_ext_fullpath(ext.name)).name
+
+        # We derive the cmake build directory from the output directory, but put it in
+        # a sibling directory to avoid polluting the final package
+        cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
+        cmake_build_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get development paths
+        python_include = sysconfig.get_paths()["include"]
+        python_lib = sysconfig.get_config_var("LIBDIR")
+
+        # Which commands are passed to _every_ cmake invocation
+        cmake_args = ext.cmake_args or []
+        cmake_args += [
+            "-S{}".format(ext.source_dir),  # cmake>=3.13
+            "-B{}".format(cmake_build_dir),  # cmake>=3.13
+            "-DPython3_INCLUDE_DIRS={}".format(python_include),
+            "-DPython3_LIBRARIES={}".format(python_lib),
+            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+            "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
+            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
+            "-DLIB_INSTALL_DIR={}".format(output_dir),
+            "-DEXTENSION_NAME={}".format(extension_basename),
+        ]
+
+        # Arguments to the cmake --build command
+        build_args = ext.build_args or []
+        build_args += ["--config {}".format(ext.build_type)]
+        if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+            # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
+            # self.parallel is a Python 3 only way to set parallel jobs by hand
+            # using -j in the build_ext call, not supported by pip or PyPA-build.
+            # DEV: -j is only supported in CMake 3.12+ only.
+            if hasattr(self, "parallel") and self.parallel:
+                build_args += ["-j{}".format(self.parallel)]
+
+        # Arguments to cmake --install command
+        install_args = ext.install_args or []
+        install_args += ["--config {}".format(ext.build_type)]
+
+        # platform/version-specific arguments--may go into cmake, build, or install as needed
+        if CURRENT_OS == "Windows":
+            cmake_args += [
+                "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
+            ]
+        if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+            # Cross-compile support for macOS - respect ARCHFLAGS if set
+            # Darwin Universal2 should bundle both architectures
+            # This is currently specific to IAST and requires cmakefile support
+            archs = re.findall(r"-arch (\S+)", os.environ.get("ARCHFLAGS", ""))
+            if archs:
+                cmake_args += [
+                    "-DBUILD_MACOS=ON",
+                    "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                ]
+
+        cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+        subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
+        subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+
+
+class CMakeExtension(Extension):
+    def __init__(
+        self,
+        name,
+        source_dir=".",
+        cmake_args=[],
+        build_args=[],
+        install_args=[],
+        build_type=None,
+        optional=False,
+    ):
+        super().__init__(name, sources=[])
+        self.source_dir = source_dir
+        self.cmake_args = cmake_args or []
+        self.build_args = build_args or []
+        self.install_args = install_args or []
+        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.optional = optional  # If True, cmake errors are ignored
 
 
 long_description = """
@@ -435,7 +430,7 @@ else:
     else:
         debug_compile_args = []
 
-if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
+if not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -459,48 +454,34 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             )
         )
 
-        if sys.version_info >= (3, 6, 0):
-            ext_modules.append(Extension("ddtrace.appsec._iast._taint_tracking._native", sources=[]))
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=True)
+        )
+
+    if platform.system() == "Linux" and is_64_bit_python():
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling._ddup",
+                source_dir=DDUP_DIR,
+                optional=True,
+                cmake_args=[
+                    "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
+                    "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
+                    "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
+                ],
+            )
+        )
+
 else:
     ext_modules = []
 
 
-def get_ddup_ext():
-    ddup_ext = []
-    arch = platform.machine()
-    if "glibc" in platform.libc_ver()[0] and arch in LibDatadogDownload.available_releases[CURRENT_OS]:
-        LibDatadogDownload.run()
-        ddup_ext.extend(
-            cythonize(
-                [
-                    Cython.Distutils.Extension(
-                        "ddtrace.internal.datadog.profiling._ddup",
-                        sources=[
-                            "ddtrace/internal/datadog/profiling/src/exporter.cpp",
-                            "ddtrace/internal/datadog/profiling/src/interface.cpp",
-                            "ddtrace/internal/datadog/profiling/_ddup.pyx",
-                        ],
-                        include_dirs=LibDatadogDownload.get_include_dirs(),
-                        extra_objects=LibDatadogDownload.get_extra_objects(),
-                        extra_compile_args=["-std=c++17"],
-                        language="c++",
-                    )
-                ],
-                compile_time_env={
-                    "PY_MAJOR_VERSION": sys.version_info.major,
-                    "PY_MINOR_VERSION": sys.version_info.minor,
-                    "PY_MICRO_VERSION": sys.version_info.micro,
-                },
-                force=True,
-                annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
-            )
-        )
-    return ddup_ext
-
-
 bytecode = [
     "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8'",
+    "bytecode; python_version>='3.8' and python_version<'3.11'",
+    "bytecode>=0.14.0; python_version>='3.11'",
+    "bytecode>=0.15.0; python_version>='3.12'",
 ]
 
 setup(
@@ -526,8 +507,9 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
+        "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
     python_requires=">=3.7",
     zip_safe=False,
@@ -540,13 +522,12 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata; python_version<'3.8'",
+        "importlib_metadata<=6.5.0; python_version<'3.8'",
         "xmltodict>=0.12",
         "envier",
         "opentelemetry-api>=1",
-        "psutil==5.6.7",
         "setuptools; python_version>='3.12'",
-        "wrapt==1.15.0",
+        "sqlparse>=0.2.2",
     ]
     + bytecode,
     extras_require={
@@ -584,7 +565,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -645,6 +626,8 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "3"},
     )
-    + get_ddup_ext(),
+    + get_exts_for("wrapt")
+    + get_exts_for("psutil"),
 )

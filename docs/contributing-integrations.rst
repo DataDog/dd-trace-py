@@ -25,7 +25,7 @@ What tools does an integration rely on?
 
 Integrations rely primarily on Wrapt, the Pin API, and the Core API.
 
-The `Wrapt <https://pypi.org/project/wrapt/>`_ library is the main
+The `Wrapt <https://pypi.org/project/wrapt/>`_ library, vendored in ``ddtrace.vendor.wrapt``, is the main
 piece of code that ``ddtrace`` uses to hook into the runtime execution of third-party libraries. The essential
 task of writing an integration is determining the functions in the third-party library that would serve as
 useful entrypoints and wrapping them with ``wrap_function_wrapper``. There are exceptions, but this is
@@ -51,13 +51,11 @@ What versions of a given library should an integration support?
 
 ``ddtrace`` supports versions of integrated libraries according to these guidelines:
 
-  - Test the oldest and latest minor versions of the most latest major version going back 2 years.
+  - Test the earliest and latest minor versions of the latest major version.
 
-  - Test the latest minor version of any previous major version going back 2 years.
+  - Test the latest minor version of all non-latest major versions going back 2 years.
 
   - If there are no new releases in the past 2 years, test the latest released version.
-
-  - For legacy Python versions (2.7,3.5,3.6), test the latest minor version known to support that legacy Python version.
 
 For libraries with many versions it is recommended to pull out the version of
 the library to use when instrumenting volatile features. A great example of

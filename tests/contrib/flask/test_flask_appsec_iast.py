@@ -15,7 +15,7 @@ from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 
@@ -38,7 +38,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _appsec_enabled=True,
+                _asm_enabled=True,
             )
         ), override_env(IAST_ENV):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
@@ -46,7 +46,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             oce.reconfigure()
 
             self.tracer._iast_enabled = True
-            self.tracer._appsec_enabled = True
+            self.tracer._asm_enabled = True
             self.tracer.configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -69,7 +69,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _appsec_enabled=True,
+                _asm_enabled=True,
             )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
@@ -89,7 +89,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -115,7 +120,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _appsec_enabled=True,
+                _asm_enabled=True,
             )
         ):
             resp = self.client.post(
@@ -140,7 +145,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -189,7 +199,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "Master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM sqlite_"},
+                    {"value": "Master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -236,7 +251,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"value": "master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM sqlite_"},
+                    {"value": "master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -348,6 +368,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _asm_enabled=True,
             )
         ), override_env(IAST_ENV):
             oce.reconfigure()
@@ -368,10 +389,20 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
-            vulnerability = loaded["vulnerabilities"][0]
+            vulnerability = False
+            for vuln in loaded["vulnerabilities"]:
+                if vuln["type"] == VULN_SQL_INJECTION:
+                    vulnerability = vuln
+
+            assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -398,7 +429,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _appsec_enabled=True,
+                _asm_enabled=True,
             )
         ):
             self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
@@ -424,13 +455,18 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 if vulnerability["type"] == VULN_SQL_INJECTION:
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
-                        "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                        "valueParts": [
+                            {"value": "SELECT "},
+                            {"redacted": True},
+                            {"value": " FROM "},
+                            {"value": "sqlite_master", "source": 0},
+                        ]
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
                     assert vulnerability["hash"] == hash_value
 
-            assert {VULN_SQL_INJECTION, "INSECURE_COOKIE"} == vulnerabilities
+            assert {VULN_SQL_INJECTION} == vulnerabilities
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter(self):
@@ -469,7 +505,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "SELECT 1 FROM "}, {"value": "sqlite_master", "source": 0}]
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -520,7 +561,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 "valueParts": [
                     {"value": "SELECT tbl_name FROM sqlite_"},
                     {"value": "master", "source": 0},
-                    {"pattern": " WHERE tbl_name LIKE '********'", "redacted": True},
+                    {"value": " WHERE tbl_name LIKE '"},
+                    {"redacted": True},
+                    {"value": "'"},
                 ]
             }
             assert vulnerability["location"]["line"] == line
@@ -541,7 +584,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         ), override_env({"DD_IAST_REQUEST_SAMPLING": "100"}):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
             self.tracer._iast_enabled = False
-            self.tracer._appsec_enabled = False
+            self.tracer._asm_enabled = False
             self.tracer.configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")

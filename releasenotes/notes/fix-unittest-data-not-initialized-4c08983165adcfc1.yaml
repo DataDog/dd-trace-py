@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes ``unittest`` data not being initialized properly

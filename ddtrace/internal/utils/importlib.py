@@ -2,9 +2,9 @@ from __future__ import absolute_import
 
 from importlib import import_module
 from types import TracebackType
-from typing import Any
-from typing import Callable
-from typing import List
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional
 from typing import Type
 
@@ -25,8 +25,12 @@ class require_modules(object):
         # type: () -> List[str]
         return self._missing_modules
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        # type: (Optional[Type[BaseException]], Optional[BaseException], Optional[TracebackType]) -> None
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         return
 
 

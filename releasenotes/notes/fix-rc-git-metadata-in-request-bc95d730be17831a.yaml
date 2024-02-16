@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    remote config: Add git metadata to configuration requests to ensure Source
+    Code Integration (SCI) works as expected with services that require it.

@@ -2,8 +2,8 @@ from typing import Any
 from typing import Dict
 from weakref import WeakValueDictionary
 
+from ddtrace._trace.span import Span
 from ddtrace.contrib.trace_utils import set_flattened_tags
-from ddtrace.span import Span
 
 from .constants import CTX_KEY
 
@@ -52,8 +52,7 @@ def should_skip_context_value(key, value):
     return False
 
 
-def set_tags_from_context(span, context):
-    # type: (Span, Dict[str, Any]) -> None
+def set_tags_from_context(span: Span, context: Dict[str, Any]) -> None:
     """Helper to extract meta values from a Celery Context"""
 
     context_tags = []

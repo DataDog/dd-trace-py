@@ -1,26 +1,25 @@
 import base64
 import gzip
 import json
-import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
-from ddtrace import config
-from ddtrace._tracing._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
-from ddtrace.appsec._asm_request_context import _WAF_RESULTS
 from ddtrace.appsec._asm_request_context import add_context_callback
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+import ddtrace.constants as constants
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
+from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -40,7 +39,7 @@ class APIManager(Service):
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
     ]
 
     _instance = None  # type: Optional[APIManager]
@@ -76,10 +75,6 @@ class APIManager(Service):
     def __init__(self):
         # type: () -> None
         super(APIManager, self).__init__()
-        try:
-            self.SAMPLE_RATE = max(0.0, min(1.0, float(os.environ.get(API_SECURITY.SAMPLE_RATE, "0.1"))))
-        except BaseException:
-            self.SAMPLE_RATE = 0.1
 
         self.current_sampling_value = self.SAMPLE_START_VALUE
         self._schema_meter = metrics.get_meter("schema")
@@ -93,33 +88,34 @@ class APIManager(Service):
         # type: () -> None
         add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env):
+    def _should_collect_schema(self, env, priority):
+        sample_rate = asm_config._api_security_sample_rate
+        # Rate limit per route
+        self.current_sampling_value += sample_rate
+
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         # Framework is not fully supported
         if not method or not route:
             log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
             return False
-        # Rate limit per route
-        self.current_sampling_value += self.SAMPLE_RATE
-        if self.current_sampling_value >= 1.0:
+        # Keep most of manual keep spans and auto keep spans. Other spans are not considered.
+        if self.current_sampling_value >= 1.0 and (priority == constants.USER_KEEP or priority == constants.AUTO_KEEP):
             self.current_sampling_value -= 1.0
-            return True
-        # WAF has triggered, always collect schemas
-        results = env.telemetry.get(_WAF_RESULTS)
-        if results and any((result.data for result in results[0])):
             return True
         return False
 
     def _schema_callback(self, env):
-        if env.span is None or not (config._api_security_enabled and config._appsec_enabled):
+        from ddtrace.appsec._utils import _appsec_apisec_features_is_active
+
+        if env.span is None or not _appsec_apisec_features_is_active():
             return
         root = env.span._local_root or env.span
         if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
             return
 
         try:
-            if not self._should_collect_schema(env):
+            if not self._should_collect_schema(env, root.context.sampling_priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
@@ -134,6 +130,8 @@ class APIManager(Service):
 
         waf_payload = {}
         for address, _, transform in self.COLLECTED:
+            if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
+                continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
             if value is _sentinel:
                 log.debug("no value for %s", address)

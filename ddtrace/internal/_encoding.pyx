@@ -3,7 +3,9 @@ from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
 
+from json import dumps as json_dumps
 import threading
+from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
 
@@ -18,6 +20,8 @@ from ._utils cimport PyBytesLike_Check
 #   in both `ddtrace` and `ddtrace.internal`
 
 from ..constants import ORIGIN_KEY
+from .constants import SPAN_LINKS_KEY
+from .constants import MAX_UINT_64BITS
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -273,13 +277,26 @@ cdef class MsgpackStringTable(StringTable):
             self.pk.length = self._sp_len
             self._next_id = self._sp_id
 
+        # After rolling back the string table next_id we must remove all stale string -> _id pairs
+        # This will resolve two classes of encoding errors:
+        #  - multiple strings referencing the same string table index. In this scenario
+        #    two different strings in the encoded trace could be serialized with the same _id. In this scenario
+        #    two different strings could reference one string in the encoded trace (string swapping).
+        # - when the string table references an index of the string table that is not serialized. The encoded
+        #    trace can not be decoded without accessing an invalid index. In this scenario the agent will
+        #    return a 400 status code.
+        self._table = {s: idx for s, idx in self._table.items() if idx < self._next_id}
+
     cdef get_bytes(self):
         cdef int ret
-        cdef stdint.uint32_t table_size = self._next_id
-        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
-        cdef int old_pos = self.pk.length
-
+        cdef stdint.uint32_t table_size
+        cdef int offset
+        cdef int old_pos
         with self._lock:
+            table_size = self._next_id
+            offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
+            old_pos = self.pk.length
+
             # Update table size prefix
             self.pk.length = offset
             ret = msgpack_pack_array(&self.pk, table_size)
@@ -292,7 +309,7 @@ cdef class MsgpackStringTable(StringTable):
                 return None
             self.pk.length = old_pos
 
-        return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
+            return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
     @property
     def size(self):
@@ -545,6 +562,59 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
+    cdef inline int _pack_links(self, object span_links):
+        ret = msgpack_pack_array(&self.pk, len(span_links))
+        if ret != 0:
+            return ret
+
+        for _, link in span_links.items():
+            # SpanLink.to_dict() returns all serializable span link fields
+            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
+            d = link.to_dict()
+            # Encode 128 bit trace ids usings two 64bit integers
+            tid = int(d["trace_id"][:16], 16)
+            if tid > 0:
+                d["trace_id_high"] = tid
+            d["trace_id"] = int(d["trace_id"][16:], 16)
+            # span id should be uint64 in v0.4 (it is hex in v0.5)
+            d["span_id"] = int(d["span_id"], 16)
+            if "flags" in d:
+                # If traceflags set, the high bit (bit 31) should be set to 1 (uint32).
+                # This helps us distinguish between when the sample decision is zero or not set
+                d["flags"] = d["flags"] | (1 << 31)
+
+            ret = msgpack_pack_map(&self.pk, len(d))
+            if ret != 0:
+                return ret
+
+            for k, v in d.items():
+                # pack the name of a span link field (ex: trace_id, span_id, flags, ...)
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    return ret
+                # pack the value of a span link field (values can be number, string or dict)
+                if isinstance(v, (int, float)):
+                    ret = pack_number(&self.pk, v)
+                elif isinstance(v, str):
+                    ret = pack_text(&self.pk, v)
+                elif k == "attributes":
+                    # span links can contain attributes, this is analougous to span tags
+                    # attributes are serialized as a nested dict with string keys and values
+                    attributes = v.items()
+                    ret = msgpack_pack_map(&self.pk, len(attributes))
+                    for attr_k, attr_v in attributes:
+                        ret = pack_text(&self.pk, attr_k)
+                        if ret != 0:
+                            return ret
+                        ret = pack_text(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                else:
+                    raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
+                if ret != 0:
+                    return ret
+        return 0
+
     cdef inline int _pack_meta(self, object meta, char *dd_origin) except? -1:
         cdef Py_ssize_t L
         cdef int ret
@@ -611,8 +681,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
+        has_links = <bint> (len(span._links) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -690,10 +761,19 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
+            if has_links:
+                ret = pack_bytes(&self.pk, <char *> b"span_links", 10)
+                if ret != 0:
+                    return ret
+                ret = self._pack_links(span._links)
+                if ret != 0:
+                    return ret
+
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
+
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0:
                     return ret
@@ -794,7 +874,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
+        span_links = ""
+        if span._links:
+            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
+
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:
             return ret
         if span._meta:
@@ -810,6 +894,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
+            if ret != 0:
+                return ret
+        if span_links:
+            ret = self._pack_string(SPAN_LINKS_KEY)
+            if ret != 0:
+                return ret
+            ret = self._pack_string(span_links)
             if ret != 0:
                 return ret
 

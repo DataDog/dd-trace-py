@@ -1,0 +1,304 @@
+{
+  "version": "2.1",
+  "metadata": {
+    "rules_version": "rules_good"
+  },
+  "exclusions": [
+    {
+      "id": "exc-000-001",
+      "on_match": "monitor",
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.5.5"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "exc-000-002",
+      "on_match": "bypass",
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.6.6"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "blk-001-001",
+      "name": "Block IP addresses",
+      "tags": {
+        "type": "ip_addresses",
+        "category": "blocking"
+      },
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.4.4"
+            ],
+            "data": "blocked_ips"
+          }
+        }
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-010",
+      "name": "Monitoring but never blocking IP addresses",
+      "tags": {
+        "type": "ip_addresses",
+        "category": "blocking"
+      },
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.5.5"
+            ]
+          }
+        }
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-011",
+      "name": "Pass list and no monitoring for IP addresses",
+      "tags": {
+        "type": "ip_addresses",
+        "category": "blocking"
+      },
+      "conditions": [
+        {
+          "operator": "ip_match",
+          "parameters": {
+            "inputs": [
+              {
+                "address": "http.client_ip"
+              }
+            ],
+            "list": [
+              "8.8.6.6"
+            ]
+          }
+        }
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "blk-001-002",
+      "name": "Block User Addresses",
+      "tags": {
+        "type": "block_user",
+        "category": "security_response"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "usr.id"
+              }
+            ],
+            "list": [
+              "123456",
+              "654321"
+            ],
+            "data": "blocked_users"
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-421-001",
+      "name": "test rule for ip passlist and monitor list",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "421001",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "list": [
+              "block_that_value"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ],
+      "on_match": [
+        "block"
+      ]
+    },
+    {
+      "id": "tst-421-002",
+      "name": "monitor value",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "421002",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "list": [
+              "monitor_that_value"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ],
+      "on_match": [
+        "monitor"
+      ]
+    },
+    {
+      "id": "crs-942-100",
+      "name": "SQL Injection Attack Detected via libinjection",
+      "tags": {
+        "type": "sql_injection",
+        "crs_id": "942100",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "server.request.cookies"
+              }
+            ]
+          },
+          "operator": "is_sqli"
+        }
+      ],
+      "transformers": [
+        "removeNulls"
+      ]
+    },
+    {
+      "id": "crs-913-120",
+      "name": "Known security scanner filename/argument",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "913120",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "server.request.cookies"
+              }
+            ],
+            "list": [
+              "/.adsensepostnottherenonobook",
+              "/<invalid>hello.html",
+              "/actsensepostnottherenonotive",
+              "/acunetix-wvs-test-for-some-inexistent-file",
+              "/antidisestablishmentarianism",
+              "/appscan_fingerprint/mac_address",
+              "/arachni-",
+              "/cybercop",
+              "/nessus_is_probing_you_",
+              "/nessustest",
+              "/netsparker-",
+              "/rfiinc.txt",
+              "/thereisnowaythat-you-canbethere",
+              "/w3af/remotefileinclude.html",
+              "appscan_fingerprint",
+              "w00tw00t.at.isc.sans.dfind",
+              "w00tw00t.at.blackhats.romanian.anti-sec"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where class-based test methods with the same
+    name across classes would be considered duplicates, and cause one (or more)
+    tests to be dropped from results, by adding ``--ddtrace-include-class-name``
+    as an optional flag (defaulting to false) to prepend the class name to the
+    test name.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ASM: dependency telemetry metrics now will only report dependencies actually in use (imported) and will 
+    also report new imported modules periodically.

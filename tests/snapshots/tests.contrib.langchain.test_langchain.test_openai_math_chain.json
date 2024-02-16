@@ -1,13 +1,16 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.chains.llm_math.base.LLMMathChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
       "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
       "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
       "langchain.request.type": "chain",
@@ -33,12 +36,15 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
+         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
          "langchain.request.inputs.stop": "['```output']",
          "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
@@ -60,12 +66,15 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.llms.openai.OpenAI",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
+            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.model": "text-davinci-003",
             "langchain.request.openai.parameters.frequency_penalty": "0",

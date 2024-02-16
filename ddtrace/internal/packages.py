@@ -1,24 +1,23 @@
 import logging
 import os
-import sys
+import sysconfig
+from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import Path
+from ddtrace.internal.module import origin
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
-
-
-try:
-    import pathlib
-except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]
 
 
 LOG = logging.getLogger(__name__)
 
+if t.TYPE_CHECKING:
+    import pathlib  # noqa
 
 try:
     fspath = os.fspath
 except AttributeError:
-
     # Stolen from Python 3.10
     def fspath(path):
         # For testing purposes, make sure the function is available when the C
@@ -33,10 +32,6 @@ except AttributeError:
         if isinstance(path, (str, bytes)):
             return path
 
-        # Hack for Python 3.5: there's no __fspath__ :(
-        if sys.version_info[:2] == (3, 5) and isinstance(path, pathlib.Path):
-            return str(path)
-
         # Work from the object's type to match method resolution of other magic
         # methods.
         path_type = type(path)
@@ -49,11 +44,10 @@ except AttributeError:
                 raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
         if isinstance(path_repr, (str, bytes)):
             return path_repr
-        else:
-            raise TypeError(
-                "expected {}.__fspath__() to return str or bytes, "
-                "not {}".format(path_type.__name__, type(path_repr).__name__)
-            )
+        raise TypeError(
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
+        )
 
 
 # We don't store every file of every package but filter commonly used extensions
@@ -108,7 +102,12 @@ def _package_file_mapping():
                 d = Distribution(name=ilmd_d.metadata["name"], version=ilmd_d.version, path=None)
                 for f in ilmd_d.files:
                     if _is_python_source_file(f):
-                        mapping[fspath(f.locate())] = d
+                        # mapping[fspath(f.locate())] = d
+                        _path = fspath(f.locate())
+                        mapping[_path] = d
+                        _realp = os.path.realpath(_path)
+                        if _realp != _path:
+                            mapping[_realp] = d
 
         return mapping
 
@@ -123,6 +122,7 @@ def _package_file_mapping():
 
 def filename_to_package(filename):
     # type: (str) -> t.Optional[Distribution]
+
     mapping = _package_file_mapping()
     if mapping is None:
         return None
@@ -134,6 +134,21 @@ def filename_to_package(filename):
     return mapping.get(filename)
 
 
-def is_third_party(filename):
-    # type: (str) -> bool
-    return filename_to_package(filename) is not None
+def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
+    """Returns the package distribution for a module"""
+    return filename_to_package(str(origin(module)))
+
+
+stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
+platstdlib_path = Path(sysconfig.get_path("platstdlib")).resolve()
+purelib_path = Path(sysconfig.get_path("purelib")).resolve()
+platlib_path = Path(sysconfig.get_path("platlib")).resolve()
+
+
+@cached()
+def is_stdlib(path: Path) -> bool:
+    rpath = path.resolve()
+
+    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
+        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    )

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes a crash where the unittest integration would try to enable coverage when tests are run even
+    if the Intelligent Test Runner is not enabled.

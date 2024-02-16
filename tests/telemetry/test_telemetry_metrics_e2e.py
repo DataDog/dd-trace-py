@@ -4,8 +4,6 @@ import os
 import subprocess
 import sys
 
-import pytest
-
 from ddtrace.internal.utils.retry import RetryError
 from tests.webclient import Client
 
@@ -70,16 +68,12 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
 
 
 def parse_payload(data):
-    decoded = data
-    if sys.version_info[1] == 5:
-        decoded = data.decode("utf-8")
-    return json.loads(decoded)
+    return json.loads(data)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6, 0), reason="Python 3.6+ only")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
-    assert len(test_agent_session.get_events()) == 0
+    initial_event_count = len(test_agent_session.get_events())
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -92,6 +86,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         assert response.status_code == 200
 
     events = test_agent_session.get_events()
+    assert len(events) > initial_event_count
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
     assert len(metrics) == 1
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
@@ -119,10 +114,9 @@ for _ in range(10):
     assert metrics[1]["points"][0][1] == 10
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
 def test_span_creation_and_finished_metrics_otel(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-import opentelemetry
+import opentelemetry.trace
 
 ot = opentelemetry.trace.get_tracer(__name__)
 for _ in range(9):
@@ -168,12 +162,10 @@ for _ in range(9):
     assert metrics[1]["points"][0][1] == 9
 
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="OpenTelemetry dropped support for python<=3.6")
 def test_span_creation_no_finish(test_agent_session, ddtrace_run_python_code_in_subprocess):
-
     code = """
 import ddtrace
-import opentelemetry
+import opentelemetry.trace
 from ddtrace import opentracer
 
 ddtracer = ddtrace.tracer

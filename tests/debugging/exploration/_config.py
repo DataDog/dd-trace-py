@@ -1,4 +1,6 @@
-import os
+from io import TextIOWrapper
+from pathlib import Path
+import sys
 import typing as t
 from warnings import warn
 
@@ -7,10 +9,9 @@ from envier import En
 from ddtrace.debugging._probe.model import CaptureLimits
 
 
-def parse_venv(value):
-    # type: (str) -> t.Optional[str]
+def parse_venv(value: str) -> t.Optional[Path]:
     try:
-        return os.path.abspath(value) if value is not None else None
+        return Path(value).resolve() if value is not None else None
     except TypeError:
         warn(
             "No virtual environment detected. Running without a virtual environment active might "
@@ -20,7 +21,7 @@ def parse_venv(value):
 
 class ExplorationConfig(En):
     venv = En.v(
-        t.Optional[str],
+        t.Optional[Path],
         "virtual_env",
         parser=parse_venv,
         default=None,
@@ -60,6 +61,18 @@ class ExplorationConfig(En):
         "dd.debugger.expl.conservative",
         default=False,
         help="Use extremely low capture limits to reduce overhead",
+    )
+
+    output_file = En.v(
+        t.Optional[Path],
+        "dd.debugger.expl.output_file",
+        default=None,
+        help="Path to the output file. The standard output is used otherwise",
+    )
+
+    output_stream = En.d(
+        TextIOWrapper,
+        lambda c: c.output_file.open("a") if c.output_file is not None else sys.__stdout__,
     )
 
     limits = En.d(

@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: '{"prompt": "why do some languages have words that can''t directly be translated
+      to other languages?", "temperature": 0, "n": 1, "max_tokens": 20, "user": "ddtrace-test"}'
+    headers:
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.5", "platform": "macOS-13.5.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Wed Jul  5 22:22:05
+        PDT 2023; root:xnu-8796.141.3~6/RELEASE_ARM64_T6000 arm64"}'
+    method: post
+    uri: https://test-openai.openai.azure.com//openai/deployments/gpt-35-turbo/completions?api-version=2023-05-15
+  response:
+    body:
+      string: '{"id":"cmpl-80yXLPWze5qul39qHFOlO1j7VViFv","object":"text_completion","created":1695243395,"model":"gpt-35-turbo","choices":[{"text":"\".
+        The answer is that languages are not just a collection of words, but also
+        a collection of cultural","index":0,"finish_reason":"length","logprobs":null}],"usage":{"completion_tokens":20,"prompt_tokens":16,"total_tokens":36}}
+
+        '
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Cache-Control:
+      - no-cache, must-revalidate
+      Content-Length:
+      - '362'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 20 Sep 2023 20:58:52 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      apim-request-id:
+      - dfbaf25c-d578-477b-b726-4c486fc724c4
+      azureml-model-group:
+      - online
+      azureml-model-session:
+      - turbo-669058-7
+      openai-model:
+      - gpt-35-turbo
+      openai-processing-ms:
+      - '393.9019'
+      x-accel-buffering:
+      - 'no'
+      x-content-type-options:
+      - nosniff
+      x-ms-client-request-id:
+      - dfbaf25c-d578-477b-b726-4c486fc724c4
+      x-ms-region:
+      - East US
+      x-request-id:
+      - 2dacf213-d95a-40ab-880e-58b1d22fc4b6
+    status:
+      code: 200
+      message: OK
+    url: https://test-openai.openai.azure.com//openai/deployments/gpt-35-turbo/completions?api-version=2023-05-15
+version: 1

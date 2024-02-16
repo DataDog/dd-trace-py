@@ -1,0 +1,1069 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: GET
+    uri: https://api.openai.com/v1/models
+  response:
+    content: "{\n  \"object\": \"list\",\n  \"data\": [\n    {\n      \"id\": \"text-search-babbage-doc-001\",\n
+      \     \"object\": \"model\",\n      \"created\": 1651172509,\n      \"owned_by\":
+      \"openai-dev\",\n      \"permission\": [\n        {\n          \"id\": \"modelperm-s9n5HnzbtVn7kNc5TIZWiCFS\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1695933794,\n
+      \         \"allow_create_engine\": false,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": true,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"text-search-babbage-doc-001\",\n      \"parent\":
+      null\n    },\n    {\n      \"id\": \"gpt-3.5-turbo-16k-0613\",\n      \"object\":
+      \"model\",\n      \"created\": 1685474247,\n      \"owned_by\": \"openai\",\n
+      \     \"permission\": [\n        {\n          \"id\": \"modelperm-6TvrqdxTZPTKF0DrBbCYP3sh\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1697854292,\n
+      \         \"allow_create_engine\": false,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-3.5-turbo-16k-0613\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"gpt-3.5-turbo\",\n      \"object\": \"model\",\n
+      \     \"created\": 1677610602,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-CkD60PZSyjJhKulrxgrh1ILD\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1698085513,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"gpt-3.5-turbo\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"curie-search-query\",\n      \"object\": \"model\",\n      \"created\":
+      1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-8aqdyZaKtD3MD831mGbqh1MD\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149182,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"curie-search-query\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"gpt-3.5-turbo-16k\",\n      \"object\": \"model\",\n      \"created\":
+      1683758102,\n      \"owned_by\": \"openai-internal\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-UTqphsmnPe8SNK52msfOjBhP\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697854304,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"gpt-3.5-turbo-16k\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-search-babbage-query-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-hXsRH2IK0hXmWxmLRiNTp70t\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695933813,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-babbage-query-001\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"babbage\",\n      \"object\": \"model\",\n      \"created\":
+      1649358449,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-h574xGeqWyBeFDDKaoVTC4CO\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1692394129,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"babbage-search-query\",\n      \"object\": \"model\",\n      \"created\":
+      1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-1zMLcaRlTvYAdpmvvixnTWlF\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695933835,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-search-query\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-babbage-001\",\n      \"object\": \"model\",\n      \"created\":
+      1649364043,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-YABzYWjC1kS6M2BnI6Fr9vuS\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1690913878,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-babbage-001\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-similarity-davinci-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-C6TT4mQR3bJQEzEuiZlhKM5u\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695143463,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-similarity-davinci-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"davinci\",\n      \"object\": \"model\",\n      \"created\":
+      1649359874,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-RcfCH2MkO5NP9C7wx6kdYnIT\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1694819047,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"davinci\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"davinci-similarity\",\n      \"object\": \"model\",\n      \"created\": 1651172509,\n
+      \     \"owned_by\": \"openai-dev\",\n      \"permission\": [\n        {\n          \"id\":
+      \"modelperm-OtRWxI0nRtN9q8mHI3OOk0GT\",\n          \"object\": \"model_permission\",\n
+      \         \"created\": 1695143471,\n          \"allow_create_engine\": false,\n
+      \         \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n          \"allow_search_indices\":
+      true,\n          \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n
+      \         \"organization\": \"*\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci-similarity\",\n      \"parent\":
+      null\n    },\n    {\n      \"id\": \"code-davinci-edit-001\",\n      \"object\":
+      \"model\",\n      \"created\": 1649880484,\n      \"owned_by\": \"openai\",\n
+      \     \"permission\": [\n        {\n          \"id\": \"modelperm-T8Ie7SvlPyvtsDvPlfC8DftZ\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1690915089,\n
+      \         \"allow_create_engine\": false,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"code-davinci-edit-001\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"curie-similarity\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172510,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-9PfIlYDKOt24EV6fnCiunZGA\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149271,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"curie-similarity\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"babbage-search-document\",\n      \"object\": \"model\",\n      \"created\":
+      1651172510,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-qJ0Iu5XcwrdsmSOn9ewphBNF\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695933877,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-search-document\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"curie-instruct-beta\",\n      \"object\": \"model\",\n
+      \     \"created\": 1649364042,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-rTxpdy2DwwUp38frYQFsj5OC\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1694819118,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"curie-instruct-beta\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-search-ada-doc-001\",\n      \"object\": \"model\",\n      \"created\":
+      1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-tdL3cX2rMgQuyfQwqNGcQOp3\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166106,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-ada-doc-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"davinci-instruct-beta\",\n      \"object\": \"model\",\n
+      \     \"created\": 1649364042,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-SKEW42qz05X43sqLXFwhbAox\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166658,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"davinci-instruct-beta\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"gpt-4\",\n      \"object\": \"model\",\n      \"created\":
+      1687882411,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-OO7KOdfYKac98TMlgT8IGLB0\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697654848,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-similarity-babbage-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-yNsfFUtfAoDhJHRofgD2Kjgd\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695933939,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-similarity-babbage-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-search-davinci-doc-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-I0hY9ySAeJrE3qBF47roClh9\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695143675,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-davinci-doc-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"gpt-4-0314\",\n      \"object\": \"model\",\n      \"created\":
+      1687882410,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-HBZvtylKdNFeA3CNLyWmo0au\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697841099,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4-0314\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"babbage-similarity\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-8Inp4vh9P5Mh0llHmSX8Va3b\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695933959,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-similarity\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"davinci-search-query\",\n      \"object\": \"model\",\n      \"created\":
+      1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-ZNL7KVorrZk5pvj7v3cG3lUz\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695143683,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"davinci-search-query\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-similarity-curie-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-J2U414W9ZcjxYqf13tZdvwI5\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149279,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-similarity-curie-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-davinci-001\",\n      \"object\": \"model\",\n      \"created\":
+      1649364042,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-bwpDudS41UaZskP1jKfAHKMG\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1694819202,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-davinci-001\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-search-davinci-query-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-lEI8RY9UBNhXYJRKub8U4Sc1\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695143690,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-davinci-query-001\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"ada-search-document\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-CSgBXBOV02tB05EbOK36apFu\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166132,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada-search-document\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"ada-code-search-code\",\n      \"object\": \"model\",\n      \"created\":
+      1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-NFpO3yF5OZ9bfwls2MSUn5cR\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166330,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada-code-search-code\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"babbage-002\",\n      \"object\": \"model\",\n      \"created\":
+      1692634615,\n      \"owned_by\": \"system\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-tC8uL3ohDEVSzUvcgZCv33gV\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1692720928,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-002\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"gpt-3.5-turbo-0613\",\n      \"object\": \"model\",\n      \"created\": 1686587434,\n
+      \     \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n          \"id\":
+      \"modelperm-nN5mJPtnKiG7u6kmlUQOd4y8\",\n          \"object\": \"model_permission\",\n
+      \         \"created\": 1697944975,\n          \"allow_create_engine\": false,\n
+      \         \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n          \"allow_search_indices\":
+      false,\n          \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n
+      \         \"organization\": \"*\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"gpt-3.5-turbo-0613\",\n      \"parent\":
+      null\n    },\n    {\n      \"id\": \"davinci-002\",\n      \"object\": \"model\",\n
+      \     \"created\": 1692634301,\n      \"owned_by\": \"system\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-9a6yBfznsbObxHVWBWRJctsx\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1694818100,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"davinci-002\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"davinci-search-document\",\n      \"object\": \"model\",\n      \"created\":
+      1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-Bbb0MBYeWROhvx9NkaDbZg3R\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695143700,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"davinci-search-document\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"curie-search-document\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172508,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-xkoHDxWoBlLQj4HM4iVwWj9C\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149161,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"curie-search-document\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"babbage-code-search-code\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-5Dv3knU1yoRtpY5TFzSHySiM\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695934020,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-code-search-code\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-search-ada-query-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-2XH9mphBxBD5uKyXKn8o77sE\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166152,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-ada-query-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"code-search-ada-text-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-MQOFciXDRywliXymhKJT5rUy\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166346,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"code-search-ada-text-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"babbage-code-search-text\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-DE4WMTkago3EHJ0n1p2urLkw\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695934039,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"babbage-code-search-text\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"code-search-babbage-code-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-xuS8vuaSaa5jIQSmyP0S35Qd\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695934060,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"code-search-babbage-code-001\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"ada-search-query\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-kSLKiCrDbosTMvZnIt5wuEqE\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166172,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada-search-query\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"ada-code-search-text\",\n      \"object\": \"model\",\n      \"created\":
+      1651172510,\n      \"owned_by\": \"openai-dev\",\n      \"permission\": [\n
+      \       {\n          \"id\": \"modelperm-Ya8bDcPgbFbqFR0K44jdPN64\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166368,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada-code-search-text\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-search-curie-query-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-7Y7YYZkPezf96wy8j5bphjjg\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149169,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-curie-query-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-davinci-002\",\n      \"object\": \"model\",\n      \"created\":
+      1649880484,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-eKMXF4rV1slbvrpgmDbTm3wD\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695082227,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-davinci-002\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"text-embedding-ada-002\",\n      \"object\": \"model\",\n      \"created\":
+      1671217299,\n      \"owned_by\": \"openai-internal\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-iHRhxPwYPqj6AJE3PFzga9rD\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695144609,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-embedding-ada-002\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-davinci-edit-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1649809179,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-bwEWUtGiBcdX0p1D1ayafH8w\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1690915020,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-davinci-edit-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"code-search-babbage-text-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-JkzgCs0oPZaC1uCfO0n0ulYX\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695934089,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"code-search-babbage-text-001\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"gpt-3.5-turbo-instruct-0914\",\n      \"object\":
+      \"model\",\n      \"created\": 1694122472,\n      \"owned_by\": \"system\",\n
+      \     \"permission\": [\n        {\n          \"id\": \"modelperm-kMX0MSKsmmMHNQaGtK0ID5Nr\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1697244057,\n
+      \         \"allow_create_engine\": false,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-3.5-turbo-instruct-0914\",\n      \"parent\":
+      null\n    },\n    {\n      \"id\": \"ada\",\n      \"object\": \"model\",\n
+      \     \"created\": 1649357491,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-0JnkYlxDvw3kMS1mht3cmQKR\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695934146,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"text-ada-001\",\n      \"object\": \"model\",\n      \"created\": 1649364042,\n
+      \     \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n          \"id\":
+      \"modelperm-jRuB7xBCdj159SqaDmpPgeWO\",\n          \"object\": \"model_permission\",\n
+      \         \"created\": 1690915029,\n          \"allow_create_engine\": false,\n
+      \         \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n          \"allow_search_indices\":
+      false,\n          \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n
+      \         \"organization\": \"*\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"text-ada-001\",\n      \"parent\":
+      null\n    },\n    {\n      \"id\": \"ada-similarity\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-z4NZ5sCV2GsxBeNqzcNVhEvH\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166231,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"ada-similarity\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"code-search-ada-code-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172507,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-9k7jVGlzTgB52nza3Po7ENUZ\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166414,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"code-search-ada-code-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-similarity-ada-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172505,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-2l92GeLtllKOhDdWb6RzzfEN\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695166256,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-similarity-ada-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"gpt-3.5-turbo-0301\",\n      \"object\": \"model\",\n
+      \     \"created\": 1677649963,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-I4IcSJFYZl2fIK0DPSBkgK3d\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1691712139,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"gpt-3.5-turbo-0301\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"gpt-3.5-turbo-instruct\",\n      \"object\": \"model\",\n      \"created\":
+      1692901427,\n      \"owned_by\": \"system\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-UK4BVstQKYTKaTj3zbCsKCGx\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697244075,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"gpt-3.5-turbo-instruct\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-search-curie-doc-001\",\n      \"object\": \"model\",\n
+      \     \"created\": 1651172509,\n      \"owned_by\": \"openai-dev\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-gMoCj5Vfel451hGbAp0kfKMH\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695149177,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": true,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-search-curie-doc-001\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"whisper-1\",\n      \"object\": \"model\",\n      \"created\":
+      1677532384,\n      \"owned_by\": \"openai-internal\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-Gcy5Sou5w0KPpqxlW6BihGxk\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697833767,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"whisper-1\",\n      \"parent\": null\n    },\n    {\n      \"id\":
+      \"text-davinci-003\",\n      \"object\": \"model\",\n      \"created\": 1669599635,\n
+      \     \"owned_by\": \"openai-internal\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-OLYlW6I3e7VURS85ytehLxKj\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1696613334,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-davinci-003\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"gpt-4-32k\",\n      \"object\": \"model\",\n      \"created\":
+      1687979321,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-LXJCnHMtDzOr1LgJCu0S4L4b\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697661124,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4-32k\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"gpt-4-32k-0314\",\n      \"object\": \"model\",\n      \"created\":
+      1687979321,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-aSZXvHAZzf4EzM2aamKJiXN9\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697664428,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4-32k-0314\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"text-curie-001\",\n      \"object\": \"model\",\n      \"created\":
+      1649364043,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-3D7myCVeMXS00PJdPESttrwj\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1695936121,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n
+      \         \"allow_search_indices\": false,\n          \"allow_view\": true,\n
+      \         \"allow_fine_tuning\": false,\n          \"organization\": \"*\",\n
+      \         \"group\": null,\n          \"is_blocking\": false\n        }\n      ],\n
+      \     \"root\": \"text-curie-001\",\n      \"parent\": null\n    },\n    {\n
+      \     \"id\": \"curie\",\n      \"object\": \"model\",\n      \"created\": 1649359874,\n
+      \     \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n          \"id\":
+      \"modelperm-FwPnxb7Y7YHn9eMwTNgQyiJ4\",\n          \"object\": \"model_permission\",\n
+      \         \"created\": 1695936177,\n          \"allow_create_engine\": false,\n
+      \         \"allow_sampling\": true,\n          \"allow_logprobs\": true,\n          \"allow_search_indices\":
+      false,\n          \"allow_view\": true,\n          \"allow_fine_tuning\": false,\n
+      \         \"organization\": \"*\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie\",\n      \"parent\": null\n
+      \   },\n    {\n      \"id\": \"gpt-4-0613\",\n      \"object\": \"model\",\n
+      \     \"created\": 1686588896,\n      \"owned_by\": \"openai\",\n      \"permission\":
+      [\n        {\n          \"id\": \"modelperm-VV6bd8m0ChGEoYt7lIwWwRbv\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697864619,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4-0613\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"gpt-4-32k-0613\",\n      \"object\": \"model\",\n      \"created\":
+      1686614047,\n      \"owned_by\": \"openai\",\n      \"permission\": [\n        {\n
+      \         \"id\": \"modelperm-shEr7lcvLspoOx68dEXtfjRZ\",\n          \"object\":
+      \"model_permission\",\n          \"created\": 1697661158,\n          \"allow_create_engine\":
+      false,\n          \"allow_sampling\": false,\n          \"allow_logprobs\":
+      false,\n          \"allow_search_indices\": false,\n          \"allow_view\":
+      false,\n          \"allow_fine_tuning\": false,\n          \"organization\":
+      \"*\",\n          \"group\": null,\n          \"is_blocking\": false\n        }\n
+      \     ],\n      \"root\": \"gpt-4-32k-0613\",\n      \"parent\": null\n    },\n
+      \   {\n      \"id\": \"ada:ft-datadog:kvs-20230314-2023-03-22-04-45-39\",\n
+      \     \"object\": \"model\",\n      \"created\": 1679460340,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-eUyzL7rMzVpTh02Y72Lj84ik\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1679460340,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog:datadog-vscode-2023-04-10-20-52-05\",\n
+      \     \"object\": \"model\",\n      \"created\": 1681159925,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-jHx1COn3hOjxlAksAU8ZDJWY\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1681159925,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog:datadog-vscode-2023-04-10-21-09-52\",\n
+      \     \"object\": \"model\",\n      \"created\": 1681160993,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Xgxj2JPI0aUJwHiglXZI3oyM\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1681160993,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:reverse-movie-search-2023-05-08-22-04-06\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683583446,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-0lFV9rhU8uRmsivLVy1Dni0R\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683583446,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-03-21-10-42\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683148242,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-scG6PTDZOxuhj6UEmAMlFzed\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683148242,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog-2023-05-03-21-26-19\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683149179,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-450TdaeaPCVOamk6ysCuV2b5\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683149179,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-08-06-24-14\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683527054,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-bDXwkBeRqSLV9HP5AVexqM26\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683527054,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-05-18-51-53\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683312713,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-oMu63vKFIV2bCgw36PhwdHYM\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683312713,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:reverse-movie-search-v2-2023-05-12-15-44-30\",\n
+      \     \"object\": \"model\",\n      \"created\": 1683906270,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-XTIOG7tgFnedaUqpGhPZmuLp\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683906270,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:ft-datadog:reverse-movie-search-2023-05-08-22-04-06\"\n    },\n    {\n
+      \     \"id\": \"davinci:ft-datadog-2023-05-10-21-35-42\",\n      \"object\":
+      \"model\",\n      \"created\": 1683754542,\n      \"owned_by\": \"datadog-4\",\n
+      \     \"permission\": [\n        {\n          \"id\": \"snapperm-c5yHbv6fULrWWPUuwWMZ322S\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1683754542,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-13-23-13\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684243393,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Lz60BLO4U5PX0XmeMhQQGA9u\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684243393,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-14-32-39\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684247559,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-qqdMrF8WSzZqjjZ4pMSC7VlG\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684247559,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-14-33-37\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684247617,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-8eo9ux2gs5f448P0GrDu0GLF\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684247617,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-02-41\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684134161,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-HFOu6LctNoid1iq1ILvuMz7W\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684134161,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-25-07\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684135507,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-ReNXLBbb96DnSXZRLQvKm38I\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684135507,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:mobile-monitor-type-2023-05-15-07-51-38\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684137098,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-sozfWmgRS0I20L7Ubhmdv5xe\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684137098,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-15-09-17-19\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684142239,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Wuk0v731XHZkDOzO6H8mckv6\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684142239,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-15-09-26-32\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684142792,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-AN4h8ulMoDfeTCXVfwI80gMU\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684142792,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:ft-datadog-2023-05-15-09-17-19\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-15-09-29-42\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684142982,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-trLweb8ZBeIKaqXGGZb9qcz5\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684142982,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-15-10-17-56\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684145876,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-wTcI65R0xZWg064rKdN6GnXO\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684145876,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-15-11-08-40\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684148920,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-yIda7iTgBzSxQTprHE8N80ux\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684148920,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-16-25-56\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684254356,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-TSJ3szrT1gTE3C5nySRFogpB\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684254356,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog-2023-05-15-13-00-56\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684155656,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-36vcxqvgiSwfRXhuUfk7amgv\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684155656,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-17-37-44\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684258664,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-p6saXiFah3Xm1qMAZygDmgIM\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684258664,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-18-08-14\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684260494,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-XjrLbHryvOt2D5pzUe6OGr8H\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684260494,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-18-36-30\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684262190,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-mtsxgUmZxC5N7mwssalZC7D3\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684262190,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog-2023-05-15-14-35-58\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684161358,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Zab2YYGHldkgYRRkvaF9ENmM\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684161358,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-15-15-24-33\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684164273,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-rPt3Wa2ro3LwEf8s6yDOUsZJ\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684164273,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-15-15-30-11\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684164611,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-1Hrl2bCLHRLOcOnz2CfPlZtr\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684164611,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-19-47-34\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684266454,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-i5dxnNODrofFPpCJEo0QJTYH\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684266454,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-15-16-20-54\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684167655,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-LhEq4Qxi3UhVhXoIqU3Ndb8z\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684167655,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-15-17-11-39\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684170699,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-o9a4oxIzXsUgDXNmRkcIkIn9\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684170699,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog-2023-05-15-19-28-30\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684178910,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-IKI1wW7eFvt9VZA7plnUaJ7b\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684178910,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-23-42-26\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684280546,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-meWBtZnPHs0LPlBPQuXviGl7\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684280546,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:mobile-monitor-type-2023-05-16-00-22-41\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684196561,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-s5WTb4dol13btNrm3Ba0hkWn\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684196561,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-07-56-58\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684223818,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-EfAs9libZtaeiF8ruimc6oYJ\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684223818,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-08-44-41\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684226681,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Ui6dnzeSWbwRFFrRTKoNUi69\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684226681,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-10-01-48\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684231308,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-ZTWM9OlbwEEPoFGLxJdFfhdF\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684231308,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-11-14-12\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684235652,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-bENXP2Y4Tn4J7aBjDuIo8a5v\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684235652,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-16-11-22-26\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684236146,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-rrfS2ov2MSzSFbJFfsWkEDxH\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684236146,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-05-16-12-13-42\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684239222,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-I24RVZFyItya2fo6Zkag8AOz\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684239222,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:deleteme-2023-05-18-20-44-56\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684442696,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-bylweQ7uRLNMLNB0un6iknqE\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684442696,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog:deleteme-2023-05-18-23-25-41\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684452341,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-Qua5xn65HKkdNE4ATv590n5e\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684452341,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"curie:ft-datadog-2023-05-19-14-54-52\",\n
+      \     \"object\": \"model\",\n      \"created\": 1684508092,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-btR8GlxEjfo3E4Suv2Pv49Nh\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1684508092,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"curie:2020-05-03\",\n      \"parent\":
+      \"curie:2020-05-03\"\n    },\n    {\n      \"id\": \"babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52\",\n
+      \     \"object\": \"model\",\n      \"created\": 1685661352,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-CEG1ScXpPFShVIwtwUyxrIwu\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1685661352,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"babbage:2020-05-03\",\n      \"parent\":
+      \"babbage:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog:app-builder-app-2023-06-20-22-37-17\",\n
+      \     \"object\": \"model\",\n      \"created\": 1687300638,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-6GjIegNKNmKIGbh5PGoLcZ1R\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1687300638,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"ada:ft-datadog-2023-07-10-12-05-44\",\n
+      \     \"object\": \"model\",\n      \"created\": 1688990744,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-XthFfcMB4mR1gXLL2wAj7unT\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1688990744,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"ada:2020-05-03\",\n      \"parent\":
+      \"ada:2020-05-03\"\n    },\n    {\n      \"id\": \"davinci:ft-datadog-2023-08-11-00-54-42\",\n
+      \     \"object\": \"model\",\n      \"created\": 1691715282,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-DfPjjSVu4rimuchPn8aNlVCT\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1691715282,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"davinci:2020-05-03\",\n      \"parent\":
+      \"davinci:2020-05-03\"\n    },\n    {\n      \"id\": \"ft:gpt-3.5-turbo-0613:datadog::7qiQ2gDE\",\n
+      \     \"object\": \"model\",\n      \"created\": 1692798158,\n      \"owned_by\":
+      \"datadog-4\",\n      \"permission\": [\n        {\n          \"id\": \"snapperm-bTtc0bOmL6ZC7jXg202uvwPd\",\n
+      \         \"object\": \"model_permission\",\n          \"created\": 1692798158,\n
+      \         \"allow_create_engine\": true,\n          \"allow_sampling\": true,\n
+      \         \"allow_logprobs\": true,\n          \"allow_search_indices\": false,\n
+      \         \"allow_view\": true,\n          \"allow_fine_tuning\": true,\n          \"organization\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n          \"group\": null,\n          \"is_blocking\":
+      false\n        }\n      ],\n      \"root\": \"gpt-3.5-turbo-0613\",\n      \"parent\":
+      \"gpt-3.5-turbo-0613\"\n    }\n  ]\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81ac2a4cdea04302-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 23 Oct 2023 18:50:21 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-processing-ms:
+      - '142'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - d4bc0a1b91daa87ee41ede35416901bd
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

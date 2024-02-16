@@ -2,11 +2,11 @@ name: django-overhead-profile
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
+      - main
   pull_request:
     paths:
       - 'ddtrace/**'
+      - 'scripts/profiles/django-simple/**'
 jobs:
   django-overhead-profile:
     runs-on: ubuntu-latest

@@ -1,25 +1,21 @@
 from collections import defaultdict
 from collections import deque
+from pathlib import Path
 
-from six import PY2
-from wrapt.wrappers import FunctionWrapper
+from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
-
-try:
-    from collections.abc import Iterator
-except ImportError:
-    from collections import Iterator  # type: ignore[attr-defined,no-redef]
 
 try:
     from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
-from os.path import abspath
 from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -27,7 +23,6 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
@@ -42,27 +37,12 @@ ContainerKey = Union[str, int, Type[staticmethod], Type[classmethod]]
 
 CONTAINER_TYPES = (type, property, classmethod, staticmethod)
 
-if PY < (3, 7):
-    # DEV: Prior to Python 3.7 the ``cell_content`` attribute of ``Cell``
-    # objects can only be mutated with the C API.
-    import ctypes
-
-    PyCell_Set = ctypes.pythonapi.PyCell_Set
-    PyCell_Set.argtypes = (ctypes.py_object, ctypes.py_object)
-    PyCell_Set.restype = ctypes.c_int
-
-    set_cell_contents = PyCell_Set
-else:
-
-    def set_cell_contents(cell, contents):  # type: ignore[misc]
-        cell.cell_contents = contents
-
 
 class FullyNamed(Protocol):
     """A fully named object."""
 
-    __name__ = None  # type: Optional[str]
-    __fullname__ = None  # type: Optional[str]
+    __name__: Optional[str] = None
+    __fullname__: Optional[str] = None
 
 
 class FullyNamedFunction(FullyNamed):
@@ -81,10 +61,9 @@ class ContainerIterator(Iterator, FullyNamedFunction):
 
     def __init__(
         self,
-        container,  # type: FunctionContainerType
-        origin=None,  # type: Optional[Union[Tuple[ContainerIterator, ContainerKey], Tuple[FullyNamedFunction, str]]]
-    ):
-        # type: (...) -> None
+        container: FunctionContainerType,
+        origin: Optional[Union[Tuple["ContainerIterator", ContainerKey], Tuple[FullyNamedFunction, str]]] = None,
+    ) -> None:
         if isinstance(container, (type, ModuleType)):
             self._iter = iter(container.__dict__.items())
             self.__name__ = container.__name__
@@ -115,49 +94,16 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         else:
             self.__fullname__ = self.__name__
 
-    def __iter__(self):
-        # type: () -> Iterator[Tuple[ContainerKey, Any]]
+    def __iter__(self) -> Iterator[Tuple[ContainerKey, Any]]:
         return self._iter
 
-    def __next__(self):
-        # type: () -> Tuple[ContainerKey, Any]
+    def __next__(self) -> Tuple[ContainerKey, Any]:
         return next(self._iter)
 
     next = __next__
 
 
-UnboundMethodType = type(ContainerIterator.__init__) if PY2 else None
-
-
-def _undecorate(f, name, path):
-    # type: (FunctionType, str, str) -> FunctionType
-    # Find the original function object from a decorated function. We use the
-    # expected function name to guide the search and pick the correct function.
-    # The recursion is needed in case of multiple decorators. We make it BFS
-    # to find the function as soon as possible.
-    # DEV: We are deliberately not handling decorators that store the original
-    #      function in __wrapped__ for now.
-    if not (f.__code__.co_name == name and abspath(f.__code__.co_filename) == path):
-        seen_functions = {f}
-        q = deque([f])  # FIFO: use popleft and append
-
-        while q:
-            next_f = q.popleft()
-
-            for g in (
-                _.cell_contents for _ in (next_f.__closure__ or []) if _isinstance(_.cell_contents, FunctionType)
-            ):
-                if g.__code__.co_name == name and abspath(g.__code__.co_filename) == path:
-                    return g
-                if g not in seen_functions:
-                    q.append(g)
-                    seen_functions.add(g)
-
-    return f
-
-
-def _local_name(name, f):
-    # type: (str, FunctionType) -> str
+def _local_name(name: str, f: FunctionType) -> str:
     func_name = f.__name__
     if func_name.startswith("__") and name.endswith(func_name):
         # Quite likely a mangled name
@@ -170,14 +116,17 @@ def _local_name(name, f):
     return func_name
 
 
-def _collect_functions(module):
-    # type: (ModuleType) -> Dict[str, FullyNamedFunction]
+def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
     """Collect functions from a given module.
 
     All the collected functions are augmented with a ``__fullname__`` attribute
     to disambiguate the same functions assigned to different names.
     """
     path = origin(module)
+    if path is None:
+        # We are not able to determine what this module actually exports.
+        return {}
+
     containers = deque([ContainerIterator(module)])
     functions = {}
     seen_containers = set()
@@ -191,9 +140,6 @@ def _collect_functions(module):
         seen_containers.add(id(c._container))
 
         for k, o in c:
-            if PY2 and _isinstance(o, UnboundMethodType):
-                o = o.__func__
-
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
             if code is not None:
                 local_name = _local_name(k, o) if isinstance(k, str) else o.__name__
@@ -205,12 +151,12 @@ def _collect_functions(module):
 
                 for name in (k, local_name) if isinstance(k, str) and k != local_name else (local_name,):
                     fullname = ".".join((c.__fullname__, name)) if c.__fullname__ else name
-                    if fullname not in functions or abspath(code.co_filename) == path:
+                    if fullname not in functions or Path(code.co_filename).resolve() == path:
                         # Give precedence to code objects from the module and
                         # try to retrieve any potentially decorated function so
                         # that we don't end up returning the decorator function
                         # instead of the original function.
-                        functions[fullname] = _undecorate(o, name, path) if name == k else o
+                        functions[fullname] = undecorated(o, name, path) if name == k else o
 
                 try:
                     if o.__closure__:
@@ -237,21 +183,23 @@ class FunctionDiscovery(defaultdict):
     module object itself.
     """
 
-    def __init__(self, module):
-        # type: (ModuleType) -> None
-        super(FunctionDiscovery, self).__init__(list)
+    def __init__(self, module: ModuleType) -> None:
+        super().__init__(list)
         self._module = module
+        self._fullname_index = {}
 
         functions = _collect_functions(module)
         seen_functions = set()
         module_path = origin(module)
-
-        self._fullname_index = {}
+        if module_path is None:
+            # We are not going to collect anything because no code objects will
+            # match the origin.
+            return
 
         for fname, function in functions.items():
             if (
                 function not in seen_functions
-                and abspath(cast(FunctionType, function).__code__.co_filename) == module_path
+                and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
             ):
                 # We only map line numbers for functions that actually belong to
                 # the module.
@@ -260,8 +208,7 @@ class FunctionDiscovery(defaultdict):
             self._fullname_index[fname] = function
             seen_functions.add(function)
 
-    def at_line(self, line):
-        # type: (int) -> List[FullyNamedFunction]
+    def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
 
         Note that, in general, there can be multiple copies of the same
@@ -269,8 +216,7 @@ class FunctionDiscovery(defaultdict):
         """
         return self[line]
 
-    def by_name(self, qualname):
-        # type: (str) -> FullyNamedFunction
+    def by_name(self, qualname: str) -> FullyNamedFunction:
         """Get the function by its qualified name."""
         fullname = ".".join((self._module.__name__, qualname))
         try:
@@ -279,8 +225,7 @@ class FunctionDiscovery(defaultdict):
             raise ValueError("Function '%s' not found" % fullname)
 
     @classmethod
-    def from_module(cls, module):
-        # type: (ModuleType) -> FunctionDiscovery
+    def from_module(cls, module: ModuleType) -> "FunctionDiscovery":
         """Return a function discovery object from the given module.
 
         If this is called on a module for the first time, it caches the

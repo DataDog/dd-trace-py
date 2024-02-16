@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: add support for psycopg2 adapt mechanism to LazyTaintList, preventing a ProgrammingError when using
+    psycopg2 with IAST.

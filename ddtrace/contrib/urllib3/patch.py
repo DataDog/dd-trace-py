@@ -1,14 +1,13 @@
 import os
 
 import urllib3
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...ext import SpanKind
@@ -21,6 +20,7 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
 
 
 # Ports which, if set, will not be used in hostnames/service names

@@ -1,12 +1,12 @@
 # Python 3 only functions (syntax errors on Python 2)
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from typing import Any  # noqa:F401
+    from typing import List  # noqa:F401
+    from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
 
 def do_fmt_value(a):  # type: (str) -> str
@@ -31,6 +31,28 @@ def do_repr_fstring_with_format(a):  # type: (Any) -> str
 
 def do_repr_fstring_with_format_twice(a):  # type: (Any) -> str
     return f"{a!r:10} {a!r:11}"
+
+
+def do_repr_fstring_with_expression1():  # type: (Any) -> str
+    return f"Hello world, {False or True}!"
+
+
+def do_repr_fstring_with_expression2():  # type: (Any) -> str
+    return f"Hello world, {'True' * 1}!"
+
+
+def do_repr_fstring_with_expression3():  # type: (Any) -> str
+    return f"Hello world, {'true'.capitalize()}!"
+
+
+def do_repr_fstring_with_expression4():  # type: (Any) -> str
+    import math
+
+    return f"Hello world, {math.sin(5.5) <= 0}!"
+
+
+def do_repr_fstring_with_expression5():  # type: (Any) -> str
+    return f"Hello world, {str([False, False, True, False][400 % 199]).lower().capitalize()}!"
 
 
 class Resolver404(Exception):

@@ -2,11 +2,11 @@ name: encoders-profile
 on:
   push:
     branches:
-      - 0.x
-      - 1.x
+      - main
   pull_request:
     paths:
       - 'ddtrace/internal/_encoding.pyx'
+      - 'scripts/profiles/encoders/**'
 jobs:
   encoders-profile:
     runs-on: ubuntu-latest

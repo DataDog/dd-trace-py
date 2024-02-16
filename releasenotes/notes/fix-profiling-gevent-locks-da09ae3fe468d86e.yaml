@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix an issue that prevented threading locks from being traced
+    when using gevent.

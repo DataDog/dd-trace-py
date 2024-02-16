@@ -1,0 +1,71 @@
+interactions:
+- request:
+    body: '{"prompt": "sleepy capybara with monkey on top", "n": 1, "response_format":
+      "url", "size": "256x256", "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '125'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/images/generations
+  response:
+    content: "{\n  \"created\": 1685630540,\n  \"data\": [\n    {\n      \"url\":
+      \"https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-ZLW2TDaOavKzqtUuoadrIqTd.png?st=2023-06-01T13%3A42%3A20Z&se=2023-06-01T15%3A42%3A20Z&sp=r&sv=2021-08-06&sr=b&rscd=inline&rsct=image/png&skoid=6aaadede-4fb3-4698-a8f6-684d7786b067&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2023-05-31T20%3A33%3A53Z&ske=2023-06-01T20%3A33%3A53Z&sks=b&skv=2021-08-06&sig=5%2BA66lMLEgPvBnmuCHRGv5Nt5iAPVkrouf1Lm38/ke8%3D\"\n
+      \   }\n  ]\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81b4b99c1d644301-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Oct 2023 19:46:28 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '7109'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 887b63da9921d2ff54a77d9f075a2c1b
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

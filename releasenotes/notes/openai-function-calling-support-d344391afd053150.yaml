@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    openai: This adds support for tagging function call arguments when using OpenAI's function calling feature.

@@ -46,7 +46,6 @@ class AiopgTestCase(AsyncioTestCase):
 
     @asyncio.coroutine
     def assert_conn_is_traced(self, tracer, db, service):
-
         # ensure the trace aiopg client doesn't add non-standard
         # methods
         try:

@@ -4,10 +4,10 @@ from .utils import sanitize_string  # noqa: F401
 try:
     from ._ddup import *  # noqa: F403, F401
 except ImportError:
-    from typing import Dict
-    from typing import Optional
+    from typing import Dict  # noqa:F401
+    from typing import Optional  # noqa:F401
 
-    from ddtrace.span import Span
+    from ddtrace._trace.span import Span  # noqa:F401
 
     # Decorator for not-implemented
     def not_implemented(func):
@@ -26,7 +26,7 @@ except ImportError:
         pass
 
     @not_implemented
-    def start_sample(nframes):  # type: (int) -> None
+    def start_sample():  # type: () -> None
         pass
 
     @not_implemented

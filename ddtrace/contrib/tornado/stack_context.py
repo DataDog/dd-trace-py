@@ -1,8 +1,9 @@
 import tornado
 from tornado.ioloop import IOLoop
 
-from ...provider import BaseContextProvider
-from ...provider import DefaultContextProvider
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.provider import DefaultContextProvider
+
 from ...span import Span
 
 
@@ -123,7 +124,6 @@ if _USE_STACK_CONTEXT:
                     if isinstance(stack_ctx, self.__class__):
                         stack_ctx._context = ctx
             return ctx
-
 
 else:
     # no-op when not using stack_context

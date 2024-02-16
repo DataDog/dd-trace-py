@@ -15,7 +15,7 @@ FIXTURES_RANDOM_MODULE_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_rando
 FIXTURES_RANDOM_SECURE_MODULE_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_random_secure_module.py"
 FIXTURES_SECRETS_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_secrets.py"
 
-WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info < (3, 12, 0))
+WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info)
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
@@ -24,7 +24,6 @@ WEEK_RANDOMNESS_PY_VERSION = not ((3, 9, 0) <= sys.version_info < (3, 12, 0))
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
 def test_weak_randomness(random_func, iast_span_defaults):
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     getattr(mod, "random_{}".format(random_func))()
@@ -46,7 +45,6 @@ def test_weak_randomness(random_func, iast_span_defaults):
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
 def test_weak_randomness_no_dynamic_import(iast_span_defaults):
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
 
     mod.random_dynamic_import()
@@ -60,7 +58,6 @@ def test_weak_randomness_no_dynamic_import(iast_span_defaults):
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
 def test_weak_randomness_module(random_func, iast_span_defaults):
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
 
     getattr(mod, "random_{}".format(random_func))()
@@ -86,7 +83,6 @@ def test_weak_randomness_module(random_func, iast_span_defaults):
     DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
 )
 def test_weak_randomness_secure_module(random_func, iast_span_defaults):
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")
 
     getattr(mod, "random_{}".format(random_func))()
@@ -96,7 +92,6 @@ def test_weak_randomness_secure_module(random_func, iast_span_defaults):
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
 def test_weak_randomness_secrets_secure_package(iast_span_defaults):
-
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_secrets")
 
     mod.random_choice()

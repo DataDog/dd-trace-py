@@ -2,11 +2,9 @@ import sys
 
 import mock
 from mock.mock import call
-import pytest
-from six import PY2
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import _undecorate
+from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
@@ -138,21 +136,14 @@ def test_function_wrap_property():
         arg.assert_called_once_with(42)
 
 
-@pytest.mark.xfail(
-    sys.version_info < (3, 6),
-    reason="Support for decorated methods is currently not available for this version of Python",
-)
 def test_function_wrap_decorated():
     with FunctionStore() as store:
         function = FunctionDiscovery.from_module(stuff).by_name(
             ".".join((stuff.Stuff.__name__, "doublydecoratedstuff"))
         )
 
-        if PY2:
-            assert function.__code__ is stuff.Stuff.doublydecoratedstuff.__func__.__code__
-        else:
-            assert function is not stuff.Stuff.doublydecoratedstuff
-            assert function is _undecorate(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
+        assert function is not stuff.Stuff.doublydecoratedstuff
+        assert function is undecorated(stuff.Stuff.doublydecoratedstuff, "doublydecoratedstuff", origin(stuff))
 
         arg = mock.Mock()
         store.wrap(function, gen_wrapper(arg, 42))

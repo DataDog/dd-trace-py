@@ -1,10 +1,8 @@
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-
-import six
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 
 class ArgumentError(Exception):
@@ -19,6 +17,7 @@ def get_argument_value(
     kwargs,  # type: Dict[str, Any]
     pos,  # type: int
     kw,  # type: str
+    optional=False,  # type: bool
 ):
     # type: (...) -> Optional[Any]
     """
@@ -41,6 +40,8 @@ def get_argument_value(
         try:
             return args[pos]
         except IndexError:
+            if optional:
+                return None
             raise ArgumentError("%s (at position %d)" % (kw, pos))
 
 
@@ -74,7 +75,8 @@ def set_argument_value(
 def _get_metas_to_propagate(context):
     # type: (Any) -> List[Tuple[str, str]]
     metas_to_propagate = []
-    for k, v in context._meta.items():
-        if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+    # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
+    for k, v in list(context._meta.items()):
+        if isinstance(k, str) and k.startswith("_dd.p."):
             metas_to_propagate.append((k, v))
     return metas_to_propagate

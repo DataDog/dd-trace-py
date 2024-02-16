@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import time
 
 import pytest
@@ -11,6 +10,7 @@ from ddtrace import Pin
 from ddtrace.contrib.rq import get_version
 from ddtrace.contrib.rq import patch
 from ddtrace.contrib.rq import unpatch
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -58,10 +58,12 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
-def test_module_implements_get_version():
+def test_and_implement_get_version():
     version = get_version()
     assert type(version) == str
     assert version != ""
+
+    emit_integration_and_version_to_test_agent("rq", version)
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
@@ -82,6 +84,16 @@ def test_sync_worker(queue):
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
     assert job.result == 2
+
+
+@snapshot(ignores=snapshot_ignores)
+def test_sync_worker_ttl(queue):
+    # queue a job where the result expires immediately
+    job = queue.enqueue(job_add1, 1, result_ttl=0)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+    assert job.get_status() is None
+    assert job.result is None
 
 
 @snapshot(ignores=snapshot_ignores)
@@ -143,9 +155,7 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
         distributed_tracing_enabled,
         worker_service_name,
     )
-    num_traces_expected = None
-    if not (sys.version_info.major == 3 and sys.version_info.minor == 5):
-        num_traces_expected = 2 if distributed_tracing_enabled is False else 1
+    num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"

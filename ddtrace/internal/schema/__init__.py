@@ -3,9 +3,9 @@ import os
 
 from ddtrace.internal.utils.formats import asbool
 
-from .span_attribute_schema import SpanDirection
 from .span_attribute_schema import _DEFAULT_SPAN_SERVICE_NAMES
 from .span_attribute_schema import _SPAN_ATTRIBUTE_TO_FUNCTION
+from .span_attribute_schema import SpanDirection
 
 
 log = logging.getLogger(__name__)

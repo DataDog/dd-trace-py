@@ -6,14 +6,13 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 from ddtrace.internal.constants import COMPONENT
 
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
-from ...internal.compat import iteritems
 from ...internal.schema import SpanDirection
 from ...internal.schema import schematize_service_name
 from ...internal.schema import schematize_url_operation
+from .. import trace_utils
 
 
 class TraceMiddleware(object):
@@ -28,7 +27,7 @@ class TraceMiddleware(object):
 
     def process_request(self, req, resp):
         # Falcon uppercases all header names.
-        headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
+        headers = dict((k.lower(), v) for k, v in req.headers.items())
         trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
         span = self.tracer.trace(
@@ -87,7 +86,15 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        trace_utils.set_http_meta(span, config.falcon, status_code=status, response_headers=resp._headers)
+        route = req.root_path or "" + req.uri_template
+
+        trace_utils.set_http_meta(
+            span,
+            config.falcon,
+            status_code=status,
+            response_headers=resp._headers,
+            route=route,
+        )
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want

@@ -1,0 +1,4 @@
+features:
+  - |
+    loguru: This introduces log correlation for the loguru library.
+    Refer to :mod:`loguru-docs <ddtrace.contrib.loguru>` for more details.

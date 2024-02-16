@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fix potential string id collisions that could cause false 
+    positives with non tainted objects being marked as tainted.

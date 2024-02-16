@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    CI Visibility: introduces a CI visibility-specific logger (enabled for the ``pytest`` plugin), enabled by setting
+    the ``DD_CIVISIBILITY_LOG_LEVEL`` environment variable (with the same level names as Python logging levels).

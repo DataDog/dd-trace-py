@@ -2,16 +2,16 @@ import os
 
 # 3p
 import kombu
-import wrapt
 
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.vendor import wrapt
 
-# project
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -22,6 +22,9 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
+
+# project
+from .. import trace_utils
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
 from .utils import extract_conn_tags
@@ -40,6 +43,7 @@ def get_version():
 config._add(
     "kombu",
     {
+        "distributed_tracing_enabled": asbool(os.getenv("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
         "service_name": config.service or os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
     },
 )
@@ -101,7 +105,7 @@ def traced_receive(func, instance, args, kwargs):
     # Signature only takes 2 args: (body, message)
     message = get_argument_value(args, kwargs, 1, "message")
 
-    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
+    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, int_config=config.kombu)
 
     with pin.tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
@@ -123,7 +127,9 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         # set analytics sample rate
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
-        return func(*args, **kwargs)
+        result = func(*args, **kwargs)
+        core.dispatch("kombu.amqp.receive.post", [instance, message, s])
+        return result
 
 
 def traced_publish(func, instance, args, kwargs):
@@ -153,5 +159,9 @@ def traced_publish(func, instance, args, kwargs):
         # set analytics sample rate
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         # run the command
-        propagator.inject(s.context, args[HEADER_POS])
+        if config.kombu.distributed_tracing_enabled:
+            propagator.inject(s.context, args[HEADER_POS])
+        core.dispatch(
+            "kombu.amqp.publish.pre", [args, kwargs, s]
+        )  # Has to happen after trace injection for actual payload size
         return func(*args, **kwargs)

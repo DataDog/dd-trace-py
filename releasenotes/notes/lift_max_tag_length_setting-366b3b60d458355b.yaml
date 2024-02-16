@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    tags: Previously ``DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH`` had a max limit setting of 512 characters.
+    This change removes that limit but keeps the default at 512.

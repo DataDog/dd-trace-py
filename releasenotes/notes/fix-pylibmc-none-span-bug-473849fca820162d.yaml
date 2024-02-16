@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pylibmc: Fixes an issue where using ``ddtrace-run`` or ``ddtrace.patch_all()`` with ``DD_TRACE_ENABLED=False`` would break with get, gets, and get_multi operations on pylibmc Clients.

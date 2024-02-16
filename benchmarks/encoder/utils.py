@@ -2,8 +2,8 @@ from functools import partial
 import random
 import string
 
-from ddtrace import Span
 from ddtrace import __version__ as ddtrace_version
+from ddtrace._trace.span import Span
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 
 
@@ -20,7 +20,6 @@ try:
 
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
         return MSGPACK_ENCODERS[encoding](max_size, max_item_size)
-
 
 except ImportError:
 
@@ -70,7 +69,7 @@ def gen_traces(config):
                         dict(
                             zip(
                                 metric_keys,
-                                [random.randint(0, 2 ** 16) for _ in range(config.nmetrics)],
+                                [random.randint(0, 2**16) for _ in range(config.nmetrics)],
                             )
                         )
                     )

@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: '{"model": "gpt-35-turbo", "prompt": "why do some languages have words that
+      can''t directly be translated to other languages?", "max_tokens": 20, "n": 1,
+      "temperature": 0, "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '193'
+      content-type:
+      - application/json
+      host:
+      - test-openai.openai.azure.com
+      user-agent:
+      - AzureOpenAI/Python 1.1.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.1.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://test-openai.openai.azure.com//openai/deployments/test-openai/completions?api-version=2023-07-01-preview
+  response:
+    content: '{"id":"cmpl-80yXLPWze5qul39qHFOlO1j7VViFv","object":"text_completion","created":1695243395,"model":"gpt-35-turbo","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}],"choices":[{"text":"\".
+      The answer is that languages are not just a collection of words, but also a
+      collection of cultural","index":0,"finish_reason":"length","logprobs":null,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}],"usage":{"prompt_tokens":16,"completion_tokens":20,"total_tokens":36}}
+
+      '
+    headers:
+      Cache-Control:
+      - no-cache, must-revalidate
+      Content-Length:
+      - '835'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 07 Nov 2023 01:20:16 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      access-control-allow-origin:
+      - '*'
+      apim-request-id:
+      - d006d6d0-6110-40c1-9593-22c90bb12cac
+      x-accel-buffering:
+      - 'no'
+      x-content-type-options:
+      - nosniff
+      x-ms-client-request-id:
+      - d006d6d0-6110-40c1-9593-22c90bb12cac
+      x-ms-region:
+      - East US
+      x-request-id:
+      - 5090c862-4fea-4b2e-a356-e85b495945ff
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

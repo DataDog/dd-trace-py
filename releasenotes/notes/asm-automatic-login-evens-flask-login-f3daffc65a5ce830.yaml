@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Add support for automatic user login events in Flask when using flask_login.

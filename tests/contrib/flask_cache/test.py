@@ -29,7 +29,7 @@ class FlaskCacheTest(TracerTestCase):
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
     def test_simple_cache_get(self):
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -41,7 +41,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": u"á_complex_operation",
+            "flask_cache.key": "á_complex_operation",
             "flask_cache.backend": "simple",
             "component": "flask_cache",
         }
@@ -49,8 +49,8 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_get_rowcount_existing_key(self):
-        self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
-        self.cache.get(u"á_complex_operation")
+        self.cache.set("á_complex_operation", "with_á_value\nin two lines")
+        self.cache.get("á_complex_operation")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
@@ -62,7 +62,7 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
 
     def test_simple_cache_get_rowcount_missing_key(self):
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -74,7 +74,7 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
 
     def test_simple_cache_set(self):
-        self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
+        self.cache.set("á_complex_operation", "with_á_value\nin two lines")
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -86,7 +86,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": u"á_complex_operation",
+            "flask_cache.key": "á_complex_operation",
             "flask_cache.backend": "simple",
             "component": "flask_cache",
         }
@@ -94,7 +94,7 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_add(self):
-        self.cache.add(u"á_complex_number", 50)
+        self.cache.add("á_complex_number", 50)
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -106,7 +106,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": u"á_complex_number",
+            "flask_cache.key": "á_complex_number",
             "flask_cache.backend": "simple",
             "component": "flask_cache",
         }
@@ -114,7 +114,7 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_delete(self):
-        self.cache.delete(u"á_complex_operation")
+        self.cache.delete("á_complex_operation")
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -126,7 +126,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": u"á_complex_operation",
+            "flask_cache.key": "á_complex_operation",
             "flask_cache.backend": "simple",
             "component": "flask_cache",
         }
@@ -328,7 +328,7 @@ class FlaskCacheTest(TracerTestCase):
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
         with ot_tracer.start_active_span("ot_span"):
-            cache.get(u"á_complex_operation")
+            cache.get("á_complex_operation")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
@@ -349,7 +349,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(dd_span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": u"á_complex_operation",
+            "flask_cache.key": "á_complex_operation",
             "flask_cache.backend": "simple",
             "component": "flask_cache",
         }
@@ -357,14 +357,14 @@ class FlaskCacheTest(TracerTestCase):
         assert_dict_issuperset(dd_span.get_tags(), expected_meta)
 
     def test_analytics_default(self):
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
         with self.override_config("flask_cache", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-            self.cache.get(u"á_complex_operation")
+            self.cache.get("á_complex_operation")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -372,7 +372,7 @@ class FlaskCacheTest(TracerTestCase):
 
     def test_analytics_without_rate(self):
         with self.override_config("flask_cache", dict(analytics_enabled=True)):
-            self.cache.get(u"á_complex_operation")
+            self.cache.get("á_complex_operation")
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -398,7 +398,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -411,7 +411,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -424,7 +424,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
         import os
 
@@ -440,7 +440,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -455,7 +455,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -470,7 +470,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -485,7 +485,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:
@@ -500,7 +500,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
             The flask-cache integration should use it as the service name
         """
 
-        self.cache.get(u"á_complex_operation")
+        self.cache.get("á_complex_operation")
         spans = self.get_spans()
 
         for span in spans:

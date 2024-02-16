@@ -1,6 +1,6 @@
 """Instrument pymemcache to report memcached queries.
 
-``patch_all`` will automatically patch the pymemcache ``Client``::
+``import ddtrace.auto`` will automatically patch the pymemcache ``Client``::
 
     from ddtrace import Pin, patch
 

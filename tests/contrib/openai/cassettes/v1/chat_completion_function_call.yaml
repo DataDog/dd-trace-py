@@ -1,0 +1,105 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "\n    David Nguyen is a sophomore
+      majoring in computer science at Stanford University and has a GPA of 3.8.\n    David
+      is an active member of the university''s Chess Club and the South Asian Student
+      Association.\n    He hopes to pursue a career in software engineering after
+      graduating.\n    "}], "model": "gpt-3.5-turbo", "function_call": "auto", "functions":
+      [{"name": "extract_student_info", "description": "Get the student information
+      from the body of the input text", "parameters": {"type": "object", "properties":
+      {"name": {"type": "string", "description": "Name of the person"}, "major": {"type":
+      "string", "description": "Major subject."}, "school": {"type": "string", "description":
+      "The university name."}, "grades": {"type": "integer", "description": "GPA of
+      the student."}, "clubs": {"type": "array", "description": "School clubs for
+      extracurricular activities. ", "items": {"type": "string", "description": "Name
+      of School Club"}}}}}], "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1014'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    content: "{\n  \"id\": \"chatcmpl-835hhNkhB9OBwmSNkrCXncoUudsEU\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1695747601,\n  \"model\": \"gpt-3.5-turbo-0613\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": null,\n        \"function_call\": {\n          \"name\":
+      \"extract_student_info\",\n          \"arguments\": \"{\\n  \\\"name\\\": \\\"David
+      Nguyen\\\",\\n  \\\"major\\\": \\\"computer science\\\",\\n  \\\"school\\\":
+      \\\"Stanford University\\\",\\n  \\\"grades\\\": 3.8,\\n  \\\"clubs\\\": [\\\"Chess
+      Club\\\", \\\"South Asian Student Association\\\"]\\n}\"\n        }\n      },\n
+      \     \"finish_reason\": \"function_call\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+      157,\n    \"completion_tokens\": 57,\n    \"total_tokens\": 214\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81b47f6bcead8c89-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Oct 2023 19:06:34 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0613
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '608'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '1000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '999910'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - a4d4c4e439c773e49ca4da1bb84cfb0a
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

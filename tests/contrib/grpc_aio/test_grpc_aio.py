@@ -8,6 +8,7 @@ from grpc import aio
 import pytest
 
 from ddtrace import Pin
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -212,6 +213,7 @@ def _check_client_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
     assert span.get_tag("grpc.host") == "localhost"
+    assert span.get_tag("peer.hostname") == "localhost"
     assert span.get_tag("network.destination.port") == "50531"
     assert span.get_tag("component") == "grpc_aio_client"
     assert span.get_tag("span.kind") == "client"
@@ -411,8 +413,8 @@ async def test_priority_sampling(server_info, tracer):
     spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, _ = spans
-
-    assert "x-datadog-trace-id={}".format(client_span.trace_id) in response.message
+    assert "x-datadog-trace-id={}".format(str(client_span._trace_id_64bits)) in response.message
+    assert "_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(client_span.trace_id)) in response.message
     assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
     assert "x-datadog-sampling-priority=1" in response.message
 
@@ -690,6 +692,7 @@ async def test_client_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
+    assert client_span.get_tag("peer.hostname") == "localhost"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if server_info.abort_supported:
@@ -792,9 +795,11 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
+    error_msg = client_span.get_tag(ERROR_MSG)
+    assert error_msg in ("abort_details", "Internal error from Core")
+    if error_msg == "abort_details":
+        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 
@@ -870,6 +875,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
+    assert client_span.get_tag("peer.hostname") == "localhost"
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 
@@ -927,8 +933,9 @@ def test_schematization_of_operation(ddtrace_run_python_code_in_subprocess, serv
         "v1": ("grpc.{}.request"),
     }[schema]
     code = """
-import pytest
 import sys
+
+import pytest
 from grpc import aio
 
 from tests.contrib.grpc.hello_pb2 import HelloReply
@@ -960,10 +967,7 @@ async def test_client_streaming(server_info, tracer):
     assert server_span.name == operation_name_format.format("server")
 
 if __name__ == "__main__":
-    if sys.version_info < (3, 7):
-        sys.exit(pytest.main(["-x", __file__]))
-    else:
-        sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
+    sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
     """.format(
         expected_operation_name_format
     )

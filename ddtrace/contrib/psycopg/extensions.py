@@ -3,11 +3,10 @@ Tracing utilities for the psycopg2 potgres client library.
 """
 import functools
 
-import wrapt
-
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -62,7 +61,6 @@ def get_psycopg2_extensions(psycopg_module):
         """Wrapper around psycopg2 for tracing"""
 
         def __init__(self, *args, **kwargs):
-
             self._datadog_tracer = kwargs.pop("datadog_tracer", None)
             self._datadog_service = kwargs.pop("datadog_service", None)
 

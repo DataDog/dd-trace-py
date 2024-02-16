@@ -16,17 +16,18 @@ large_header_no_matches: &large_header_no_matches
   extra_headers: 100
   wsgi_style: False
 
+
 # Only trace id/span id/priority
 valid_headers_basic: &valid_headers_basic
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
 
 # All possible headers we expect
 valid_headers_all: &valid_headers_all
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=value"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=-2"}
 
 # All valid/possible headers but 20 additional unrelated headers
 medium_valid_headers_all: &medium_valid_headers_all
@@ -42,25 +43,25 @@ large_valid_headers_all: &large_valid_headers_all
 invalid_trace_id_header: &invalid_trace_id_header
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "trace_id", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=value"}
+    {"x-datadog-trace-id": "trace_id", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=-2"}
 
 # x-datadog-span-id is invalid
 invalid_span_id_header: &invalid_span_id_header
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "span_id", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=value"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "span_id", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=-2"}
 
 # x-datadog-sampling-priority is invalid
 invalid_priority_header: &invalid_priority_header
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "priority", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=value"}
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "priority", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.dm=-2"}
 
 # x-datadog-tags is invalid
 invalid_tags_header: &invalid_tags_header
   <<: *default_values
   headers: |
-    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.test=☺"}
+    {"x-datadog-trace-id": ""7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.test=☺"}
 
 
 # Same scenarios as above but with HTTP_WSGI_STYLE_HEADERS
@@ -107,3 +108,54 @@ wsgi_invalid_priority_header:
 wsgi_invalid_tags_header:
   <<: *invalid_tags_header
   wsgi_style: True
+
+
+# More advanced testing for all styles, 128-bit ids, special cases like tracestate propagation, multiple valid contexts
+
+full_t_id_datadog_headers: &datadog_128_bit_headers
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8"}
+  styles: "datadog"
+
+tracecontext_headers: &tracecontext_128_bit_headers
+  <<: *default_values
+  headers: |
+    {"traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+  styles: "tracecontext"
+
+b3_headers: &b3_headers
+  <<: *default_values
+  headers: |
+    {"x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1"}
+  styles: "b3multi"
+
+b3_single_headers: &b3_single_header_headers
+  <<: *default_values
+  headers: |
+    {"b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
+  styles: "b3"
+
+none_propagation_style: &none_propagation_style
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
+  styles: "none"
+
+datadog_tracecontext_tracestate_propagated_on_trace_id_match:
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+  styles: "datadog,tracecontext"
+
+datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match:
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234567891011121314", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}
+  styles: "datadog,tracecontext"
+
+all_styles_all_headers:
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "7277407061855694839", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.tid=80f198ee56343ba8", "traceparent": "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE","x-b3-traceid": "80f198ee56343ba864fe8b2a57d3eff7", "x-b3-spanid": "a2fb4a1d1a96d312", "x-b3-sampled": "1", "b3":"80f198ee56343ba864fe8b2a57d3eff7-e457b5a2e4d86bd1-1"}
+  styles: "tracecontext,datadog,b3multi,b3"

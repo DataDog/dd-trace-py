@@ -6,7 +6,6 @@ https://github.com/cherrypy/cherrypy/blob/master/cherrypy/tutorial/tut01_hellowo
 
 import logging
 import os.path
-import sys
 
 # Import CherryPy global namespace
 import cherrypy
@@ -24,10 +23,7 @@ class TestError(Exception):
     pass
 
 
-if sys.version_info[0] < 3:
-    UNICODE_ENDPOINT = u"üŋïĉóđē".encode("utf-8")
-else:
-    UNICODE_ENDPOINT = u"üŋïĉóđē"
+UNICODE_ENDPOINT = "üŋïĉóđē"
 
 
 class StubApp:
@@ -66,7 +62,7 @@ class StubApp:
     @cherrypy.expose(UNICODE_ENDPOINT)
     def unicode(self):
         logger.info("In the /unicode resource")
-        return u"üŋïĉóđē".encode("utf-8")
+        return "üŋïĉóđē".encode("utf-8")
 
     @cherrypy.expose
     def custom_span(self):

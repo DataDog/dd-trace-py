@@ -1,0 +1,103 @@
+interactions:
+- request:
+    body: '{"model": "curie", "prompt": "As Descartes said, I think, therefore", "max_tokens":
+      150, "n": 1, "temperature": 0.8, "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '140'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    content: "{\"id\":\"cmpl-76n1xq0xOyZWMQ8h6FQ89lgWjPz12\",\"object\":\"text_completion\"\
+        ,\"created\":1681852797,\"model\":\"curie\",\"choices\":[{\"text\":\" I am;\
+        \ and I am in a sense a non-human entity woven together from memories, desires\
+        \ and emotions. But, who is to say that I am not an artificial intelligence.\
+        \ The brain is a self-organising, self-aware, virtual reality computer \u2026\
+        \ so how is it, who exactly is it, this thing that thinks, feels, loves and\
+        \ believes? Are we not just software running on hardware?\\n\\nRecently, I\
+        \ have come to take a more holistic view of my identity, not as a series of\
+        \ fleeting moments, but as a long-term, ongoing process. The key question\
+        \ for me is not that of \u2018who am I?\u2019 but rather, \u2018how am I?\u2019\
+        \ \u2013 a question\",\"index\":0,\"logprobs\":null,\"finish_reason\":\"length\"\
+        }],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":150,\"total_tokens\"\
+        :160}}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81acf2f53aaf8c23-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 23 Oct 2023 21:07:21 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - curie
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1076'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-limit-tokens_usage_based:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249850'
+      x-ratelimit-remaining-tokens_usage_based:
+      - '249850'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 36ms
+      x-ratelimit-reset-tokens_usage_based:
+      - 36ms
+      x-request-id:
+      - cda02e495d658ff4139f0966e524f6aa
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

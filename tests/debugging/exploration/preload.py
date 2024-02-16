@@ -1,5 +1,7 @@
-import os
+from pathlib import Path
 import sys
+
+from output import log
 
 
 # Make the tests/debugging folder available as a module. We don't want to
@@ -9,11 +11,12 @@ import sys
 # is likely to contain a tests/ folder. Hence, if we insert our our tests/
 # folder we risk breaking the framework's tests; whereas if we append it, we
 # risk breaking our exploration tests.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+sys.path.append(str(Path(__file__).parents[2].resolve()))
 
 
-import _coverage  # noqa
-import _profiler  # noqa
+import _coverage  # noqa:E402,F401
+import _profiler  # noqa:E402,F401
 
 
-print("Enabling debugging exploration testing")
+log("Enabling debugging exploration testing")

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves a crash that could occur during embedding when no embeddings are found.

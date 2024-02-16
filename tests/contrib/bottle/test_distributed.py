@@ -29,15 +29,17 @@ class TraceBottleDistributedTest(TracerTestCase):
         # restore the tracer
         ddtrace.tracer = self._original_tracer
 
-    def _trace_app_distributed(self, tracer=None):
-        # DD_BOTTLE_DISTRIBUTED_TRACING enabled by default
+    def _trace_app(self, tracer=None):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
         self.app = webtest.TestApp(self.app)
 
+    def _trace_app_distributed(self, tracer=None):
+        ddtrace.config.bottle["distributed_tracing"] = True
+        self._trace_app(tracer=tracer)
+
     def _trace_app_not_distributed(self, tracer=None):
         ddtrace.config.bottle["distributed_tracing"] = False
-        self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
-        self.app = webtest.TestApp(self.app)
+        self._trace_app(tracer=tracer)
 
     def test_distributed(self):
         # setup our test app
@@ -51,7 +53,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -63,7 +65,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
         assert s.get_tag("component") == "bottle"
-        assert s.get_tag("span.kind"), "server"
+        assert s.get_tag("span.kind") == "server"
         # check distributed headers
         assert 123 == s.trace_id
         assert 456 == s.parent_id
@@ -80,7 +82,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -103,13 +105,13 @@ class TraceBottleDistributedTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app_distributed(self.tracer)
+        self._trace_app(self.tracer)
 
         # make a request
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()

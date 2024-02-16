@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix eliminates some reference leaks and C-API usage when
+    IAST reports a vulnerability and calls ``get_info_frame``.

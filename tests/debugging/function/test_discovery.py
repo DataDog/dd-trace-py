@@ -1,17 +1,7 @@
-from os.path import abspath
-
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._function.discovery import _undecorate
-from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
-
-
-def _f(f):
-    if PY2:
-        return f.im_func
-    return f
 
 
 @pytest.fixture
@@ -95,7 +85,7 @@ def test_function_module_method(stuff_discovery):
 def test_function_instance_method(stuff_discovery):
     cls = stuff.Stuff
     (original_func,) = stuff_discovery.at_line(36)
-    assert _f(cls.instancestuff) is original_func
+    assert cls.instancestuff is original_func
 
 
 def test_function_decorated_method(stuff_discovery):
@@ -107,11 +97,11 @@ def test_function_decorated_method(stuff_discovery):
 def test_function_mangled(stuff_discovery):
     original_method = stuff.Stuff._Stuff__mangledstuff
     (original_func,) = stuff_discovery.at_line(75)
-    assert _f(original_method) is original_func
+    assert original_method is original_func
 
 
 def test_discovery_after_external_wrapping(stuff):
-    import wrapt as wrapt
+    import ddtrace.vendor.wrapt as wrapt
 
     def wrapper(wrapped, inst, args, kwargs):
         pass
@@ -129,31 +119,3 @@ def test_discovery_after_external_wrapping(stuff):
 def test_property_non_function_getter(stuff_discovery):
     with pytest.raises(ValueError):
         stuff_discovery.by_name("PropertyStuff.foo")
-
-
-def test_undecorate():
-    def d(f):
-        def wrapper(*args, **kwargs):
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    def f():
-        pass
-
-    df = d(f)
-    assert df is not f
-
-    ddf = d(df)
-    assert ddf is not df
-
-    dddf = d(ddf)
-    assert dddf is not ddf
-
-    name, path = f.__code__.co_name, abspath(__file__)
-    assert f is _undecorate(dddf, name, path)
-    assert f is _undecorate(ddf, name, path)
-    assert f is _undecorate(df, name, path)
-    assert f is _undecorate(f, name, path)
-
-    assert _undecorate(_undecorate, name, path) is _undecorate

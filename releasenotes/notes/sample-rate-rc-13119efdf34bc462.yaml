@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracer: Add support for remotely setting the trace sample rate from the Datadog UI. This functionality is enabled by default when using ``ddtrace-run`` and library injection. To enable it when using the library manually, use ``ddtrace.config.enable_remote_config()``.

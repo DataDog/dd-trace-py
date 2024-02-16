@@ -6,8 +6,7 @@ signals, and template rendering.
 
 To configure tracing manually::
 
-    from ddtrace import patch_all
-    patch_all()
+    import ddtrace.auto
 
     from flask import Flask
 

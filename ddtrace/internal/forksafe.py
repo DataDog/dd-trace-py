@@ -7,7 +7,7 @@ import threading
 import typing
 import weakref
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 
 log = logging.getLogger(__name__)
@@ -20,6 +20,20 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 # like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
 # to be executed after the actual fork, which seems to prevent the issue.
 _soft = True
+
+
+# Flag to determine, from the parent process, if fork has been called
+_forked = False
+
+
+def set_forked():
+    global _forked
+
+    _forked = True
+
+
+def has_forked():
+    return _forked
 
 
 def ddtrace_after_in_child():
@@ -57,7 +71,7 @@ def unregister(after_in_child):
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=ddtrace_after_in_child)
+    os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 elif hasattr(os, "fork"):
     # DEV: This "should" be the correct way of implementing this, but it doesn't
     # work if hooks create new threads.

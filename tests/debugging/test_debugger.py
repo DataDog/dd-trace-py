@@ -8,28 +8,38 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import SpanDecoration
+from ddtrace.debugging._probe.model import SpanDecorationTag
+from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.registry import _get_probe_location
+from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER as REDACTED
+from ddtrace.debugging._redaction import dd_compile_redacted as dd_compile
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.tracing import SPAN_NAME
+from ddtrace.debugging._signal.utils import redacted_value
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
+from tests.debugging.utils import create_span_decoration_function_probe
 from tests.debugging.utils import create_span_function_probe
+from tests.debugging.utils import ddexpr
+from tests.debugging.utils import ddstrtempl
 from tests.internal.remoteconfig import rcm_endpoint
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
+from tests.utils import flaky
 
 
 def good_probe():
@@ -128,7 +138,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         d.add_probes(probe)
 
         assert probe in d._probe_registry
-        assert _get_probe_location(probe) in sys.modules._locations
+        assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -137,7 +147,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         # Test that the probe was ejected
         assert probe not in d._probe_registry
 
-        assert _get_probe_location(probe) not in sys.modules._locations
+        assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
         trigger()
 
@@ -215,7 +225,7 @@ def test_debugger_function_probe_on_function_with_exception():
 
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
-    assert return_capture["locals"] == {}
+    assert return_capture["locals"] == {"@exception": {"fields": {}, "type": "Exception"}}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -415,7 +425,7 @@ def create_stuff_line_metric_probe(kind, value=None):
         line=36,
         kind=kind,
         name="test.counter",
-        tags={"foo": "bar"},
+        tags={"foo": "bar", "debugger.probeid": "metric-probe-test"},
         value=DDExpression(dsl="test", callable=dd_compile(value)) if value is not None else None,
     )
 
@@ -424,35 +434,50 @@ def test_debugger_metric_probe_simple_count(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
         Stuff().instancestuff()
-        assert call("probe.test.counter", 1.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+        assert (
+            call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
 
 
 def test_debugger_metric_probe_count_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         Stuff().instancestuff(40)
-        assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+        assert (
+            call("probe.test.counter", 40.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
 
 
 def test_debugger_metric_probe_guage_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         Stuff().instancestuff(41)
-        assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
+        assert (
+            call("probe.test.counter", 41.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.gauge.mock_calls
+        )
 
 
 def test_debugger_metric_probe_histogram_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         Stuff().instancestuff(42)
-        assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
+        assert (
+            call("probe.test.counter", 42.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.histogram.mock_calls
+        )
 
 
 def test_debugger_metric_probe_distribution_value(mock_metrics):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         Stuff().instancestuff(43)
-        assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
+        assert (
+            call("probe.test.counter", 43.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.distribution.mock_calls
+        )
 
 
 def test_debugger_multiple_function_probes_on_same_function():
@@ -512,8 +537,30 @@ def test_debugger_multiple_function_probes_on_same_function():
             Stuff.instancestuff.__dd_wrappers__
 
 
+def test_debugger_multiple_function_probes_on_same_lazy_module():
+    sys.modules.pop("tests.submod.stuff", None)
+
+    probes = [
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method-%d" % i,
+            module="tests.submod.stuff",
+            func_qname="Stuff.instancestuff",
+            rate=float("inf"),
+        )
+        for i in range(3)
+    ]
+
+    with debugger() as d:
+        d.add_probes(*probes)
+
+        import tests.submod.stuff  # noqa:F401
+
+        assert len(d._probe_registry) == len(probes)
+        assert all(_.error_type is None for _ in d._probe_registry.values())
+
+
 # DEV: The following tests are to ensure compatibility with the tracer
-import wrapt as wrapt  # noqa
+import ddtrace.vendor.wrapt as wrapt  # noqa:E402,F401
 
 
 def wrapper(wrapped, instance, args, kwargs):
@@ -591,7 +638,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-def test_probe_status_logging(remote_config_worker):
+def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
@@ -601,6 +648,7 @@ def test_probe_status_logging(remote_config_worker):
                 source_file="tests/submod/stuff.py",
                 line=36,
                 condition=None,
+                rate=float("inf"),
             ),
             create_snapshot_function_probe(
                 probe_id="line-probe-error",
@@ -610,18 +658,22 @@ def test_probe_status_logging(remote_config_worker):
             ),
         )
 
+        # Call the function multiple times to ensure that we emit only once.
+        for _ in range(10):
+            stuff.Stuff().instancestuff(42)
+
         logger = d.probe_status_logger
 
         def count_status(queue):
             return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
 
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1, "EMITTING": 1})
 
         d.log_probe_status()
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 2, "EMITTING": 2})
 
         d.log_probe_status()
-        logger.wait(lambda q: count_status(q) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3})
+        logger.wait(lambda q: count_status(q) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 3, "EMITTING": 3})
 
 
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
@@ -846,6 +898,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
+@flaky(1735812000)
 def test_debugger_log_live_probe_generate_messages():
     from tests.submod.stuff import Stuff
 
@@ -861,7 +914,7 @@ def test_debugger_log_live_probe_generate_messages():
                     " ",
                     {"dsl": "bar", "json": {"ref": "bar"}},
                     "!",
-                )
+                ),
             ),
         )
 
@@ -988,6 +1041,49 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.parent_id is root.span_id
 
+    def test_debugger_function_probe_ordering(self):
+        from tests.submod.stuff import mutator
+
+        with debugger() as d:
+            d.add_probes(
+                create_log_function_probe(
+                    probe_id="log-probe", module="tests.submod.stuff", func_qname="mutator", template="", segments=[]
+                ),
+                create_span_decoration_function_probe(
+                    probe_id="span-decoration",
+                    module="tests.submod.stuff",
+                    func_qname="mutator",
+                    evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                    target_span=SpanDecorationTargetSpan.ACTIVE,
+                    decorations=[
+                        SpanDecoration(
+                            when=ddexpr(True),
+                            tags=[SpanDecorationTag(name="test.tag", value=ddstrtempl(["test.value"]))],
+                        )
+                    ],
+                ),
+                create_span_function_probe(
+                    probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator", tags={"tag": "value"}
+                ),
+            )
+
+            with self.tracer.trace("outer"):
+                mutator(arg=[])
+
+            self.assert_span_count(2)
+            (outer, span) = self.get_spans()
+
+            (log,) = d.test_queue
+            assert log.trace_context.trace_id == span.trace_id
+            assert log.trace_context.span_id == span.span_id
+
+            assert outer.name == "outer"
+            assert outer.get_tag("test.tag") is None
+
+            assert span.name == SPAN_NAME
+            assert span.resource == "mutator"
+            assert span.get_tag("test.tag") == "test.value"
+
 
 def test_debugger_modified_probe():
     from tests.submod.stuff import Stuff
@@ -999,7 +1095,7 @@ def test_debugger_modified_probe():
                 version=1,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello world")
+                **compile_template("hello world"),
             )
         )
 
@@ -1015,7 +1111,7 @@ def test_debugger_modified_probe():
                 version=2,
                 source_file="tests/submod/stuff.py",
                 line=36,
-                **compile_template("hello brave new world")
+                **compile_template("hello brave new world"),
             )
         )
 
@@ -1045,3 +1141,90 @@ def test_debugger_continue_wrapping_after_first_failure():
 
         assert not d._probe_registry[probe_nok.probe_id].installed
         assert d._probe_registry[probe_ok.probe_id].installed
+
+
+def test_debugger_redacted_identifiers():
+    import tests.submod.stuff as stuff
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_snapshot_line_probe(
+                probe_id="foo",
+                version=1,
+                source_file="tests/submod/stuff.py",
+                line=164,
+                **compile_template(
+                    "token=",
+                    {"dsl": "token", "json": {"ref": "token"}},
+                    " answer=",
+                    {"dsl": "answer", "json": {"ref": "answer"}},
+                    " pii_dict=",
+                    {"dsl": "pii_dict", "json": {"ref": "pii_dict"}},
+                    " pii_dict['jwt']=",
+                    {"dsl": "pii_dict['jwt']", "json": {"index": [{"ref": "pii_dict"}, "jwt"]}},
+                ),
+            )
+        )
+
+        stuff.sensitive_stuff("top secret")
+
+        ((msg,),) = d.uploader.wait_for_payloads()
+
+        assert (
+            msg["message"] == f"token={REDACTED} answer=42 "
+            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
+            f"pii_dict['jwt']={REDACTED}"
+        )
+
+        assert msg["debugger.snapshot"]["captures"]["lines"]["164"] == {
+            "arguments": {"pwd": redacted_value(str())},
+            "locals": {
+                "token": redacted_value(str()),
+                "answer": {"type": "int", "value": "42"},
+                "pii_dict": {
+                    "type": "dict",
+                    "entries": [
+                        [{"type": "str", "value": "'jwt'"}, redacted_value(str())],
+                        [{"type": "str", "value": "'password'"}, redacted_value(str())],
+                        [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                    ],
+                    "size": 3,
+                },
+            },
+            "throwable": None,
+        }
+
+
+def test_debugger_exception_conditional_function_probe():
+    """
+    Test that we can have a condition on the exception on a function probe when
+    the condition is evaluated on exit.
+    """
+    from tests.submod import stuff
+
+    snapshots = simple_debugger_test(
+        create_snapshot_function_probe(
+            probe_id="probe-instance-method",
+            module="tests.submod.stuff",
+            func_qname="throwexcstuff",
+            evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            condition=DDExpression(
+                dsl="expr.__class__.__name__ == 'Exception'",
+                callable=dd_compile(
+                    {
+                        "eq": [
+                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                            "Exception",
+                        ]
+                    }
+                ),
+            ),
+        ),
+        lambda: stuff.throwexcstuff(),
+    )
+
+    (snapshot,) = snapshots
+    snapshot_data = snapshot["debugger.snapshot"]
+    return_capture = snapshot_data["captures"]["return"]
+    assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
+    assert return_capture["throwable"]["type"] == "Exception"

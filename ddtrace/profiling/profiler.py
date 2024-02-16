@@ -2,10 +2,10 @@
 import logging
 import os
 import typing
-from typing import List
-from typing import Optional
-from typing import Type
-from typing import Union
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Type  # noqa:F401
+from typing import Union  # noqa:F401
 
 import attr
 
@@ -19,7 +19,7 @@ from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
+from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -27,11 +27,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import file
-from ddtrace.profiling.exporter import http
 from ddtrace.settings.profiling import config
-
-from . import _asyncio
 
 
 LOG = logging.getLogger(__name__)
@@ -94,7 +90,8 @@ class Profiler(object):
         self._profiler.start()
 
     def __getattr__(
-        self, key  # type: str
+        self,
+        key,  # type: str
     ):
         # type: (...) -> typing.Any
         return getattr(self._profiler, key)
@@ -125,6 +122,7 @@ class _ProfilerInstance(service.Service):
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
+    _collectors_on_import = attr.ib(init=False, default=None, eq=False)
     _scheduler = attr.ib(init=False, default=None, type=Union[scheduler.Scheduler, scheduler.ServerlessScheduler])
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
@@ -138,6 +136,10 @@ class _ProfilerInstance(service.Service):
         # type: (...) -> List[exporter.Exporter]
         _OUTPUT_PPROF = config.output_pprof
         if _OUTPUT_PPROF:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import file
+
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
             ]
@@ -167,6 +169,24 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
+        # Build the list of enabled Profiling features and send along as a tag
+        configured_features = []
+        if self._stack_collector_enabled:
+            configured_features.append("stack")
+        if self._lock_collector_enabled:
+            configured_features.append("lock")
+        if self._memory_collector_enabled:
+            configured_features.append("mem")
+        if config.heap.sample_size > 0:
+            configured_features.append("heap")
+        if self._export_libdd_enabled:
+            configured_features.append("exp_dd")
+        if self._export_py_enabled:
+            configured_features.append("exp_py")
+        configured_features.append("CAP" + str(config.capture_pct))
+        configured_features.append("MAXF" + str(config.max_frames))
+        self.tags.update({"profiler_config": "_".join(configured_features)})
+
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
@@ -187,6 +207,10 @@ class _ProfilerInstance(service.Service):
             )
 
         if self._export_py_enabled:
+            # DEV: Import this only if needed to avoid importing protobuf
+            # unnecessarily
+            from ddtrace.profiling.exporter import http
+
             return [
                 http.PprofHTTPExporter(
                     service=self.service,
@@ -223,28 +247,31 @@ class _ProfilerInstance(service.Service):
         self._collectors = []
 
         if self._stack_collector_enabled:
-            self._collectors.append(
-                stack.StackCollector(
-                    r,
-                    tracer=self.tracer,
-                    endpoint_collection_enabled=self.endpoint_collection_enabled,
-                )  # type: ignore[call-arg]
-            )
+            LOG.debug("Profiling collector (stack) enabled")
+            try:
+                self._collectors.append(
+                    stack.StackCollector(
+                        r,
+                        tracer=self.tracer,
+                        endpoint_collection_enabled=self.endpoint_collection_enabled,
+                    )  # type: ignore[call-arg]
+                )
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
-            self._collectors.append(threading.ThreadingLockCollector(r, tracer=self.tracer))
-
-        if _asyncio.is_asyncio_available():
-
-            @ModuleWatchdog.after_module_imported("asyncio")
-            def _(_):
+            # These collectors require the import of modules, so we create them
+            # if their import is detected at runtime.
+            def start_collector(collector_class: Type) -> None:
                 with self._service_lock:
-                    col = asyncio.AsyncioLockCollector(r, tracer=self.tracer)
+                    col = collector_class(r, tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
+                            LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
@@ -253,6 +280,14 @@ class _ProfilerInstance(service.Service):
                             return
 
                     self._collectors.append(col)
+
+            self._collectors_on_import = [
+                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
@@ -315,6 +350,14 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
+        # Prevent doing more initialisation now that we are shutting down.
+        if self._lock_collector_enabled:
+            for module, hook in self._collectors_on_import:
+                try:
+                    ModuleWatchdog.unregister_module_hook(module, hook)
+                except ValueError:
+                    pass
+
         if self._scheduler is not None:
             self._scheduler.stop()
             # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop

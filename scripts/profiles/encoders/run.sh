@@ -20,7 +20,8 @@ function profile {
 
     PYTHONPATH="." python scripts/profiles/encoders/run.py ${ver} &
     sleep 2
-    sudo ${PREFIX}/austinp -bsi ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -o ${PREFIX}/artifacts/${ver/./_}.mojo -p $!
+    sudo `which austinp` -bsi ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -o ${PREFIX}/artifacts/${ver/./_}.mojo -p $!
+    LC_ALL=C sed -i 's|/home/runner/work/dd-trace-py/dd-trace-py/ddtrace/||g' ${PREFIX}/artifacts/${ver/./_}.mojo
     austinp-resolve ${PREFIX}/artifacts/${ver/./_}.mojo ${PREFIX}/artifacts/${ver/./_}.resolved.mojo || true
 }
 

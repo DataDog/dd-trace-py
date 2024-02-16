@@ -5,8 +5,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 
-from . import constants as c
-from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
@@ -15,6 +13,8 @@ from ...ext import SpanTypes
 from ...ext import net
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from .. import trace_utils
+from . import constants as c
 from .utils import attach_span
 from .utils import detach_span
 from .utils import retrieve_span
@@ -189,8 +189,16 @@ def trace_failure(*args, **kwargs):
         ex = kwargs.get("einfo")
         if ex is None:
             return
-        if hasattr(task, "throws") and isinstance(ex.exception, task.throws):
-            return
+
+        if hasattr(task, "throws"):
+            original_exception = ex.exception
+            if hasattr(original_exception, "exc"):
+                # Python 3.11+ support: The original exception is wrapped in an `exc` attribute
+                original_exception = original_exception.exc
+
+            if isinstance(original_exception, task.throws):
+                return
+
         span.set_exc_info(ex.type, ex.exception, ex.tb)
 
 

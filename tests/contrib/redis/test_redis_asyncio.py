@@ -1,14 +1,15 @@
 import typing
+from unittest import mock
 
 import pytest
 import redis
 import redis.asyncio
-from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -75,6 +76,18 @@ async def test_basic_request(redis_client):
 async def test_unicode_request(redis_client):
     val = await redis_client.get("😐")
     assert val is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
+async def test_connection_error(redis_client):
+    with mock.patch.object(
+        redis.asyncio.connection.ConnectionPool,
+        "get_connection",
+        side_effect=redis.exceptions.ConnectionError("whatever"),
+    ):
+        with pytest.raises(redis.exceptions.ConnectionError):
+            await redis_client.get("foo")
 
 
 @pytest.mark.asyncio
@@ -179,7 +192,6 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
-
     with tracer.trace("web-request", service="test"):
         if redis.VERSION >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)

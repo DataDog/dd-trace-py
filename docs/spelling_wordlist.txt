@@ -12,6 +12,7 @@ IPv
 MySQL
 OpenTracing
 Runtimes
+RuntimeErrors
 SpanContext
 aiobotocore
 aiohttp
@@ -78,6 +79,7 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dunder
 dsn
 elasticsearch
 elasticsearch1
@@ -127,6 +129,9 @@ LLM
 langchain
 lifecycle
 linters
+lockfiles
+logbook
+loguru
 lookups
 loopback
 macOS
@@ -158,19 +163,24 @@ opentracer
 opentracing
 otel
 ObjectProxy
+packfile
 packfiles
 parameterized
 parsers
+patcher
 perf
 pid
 plugin
 posix
 postgres
 pre
+preconfigured
+prepend
 prepended
 profiler
 protobuf
 proxying
+psutil
 psycopg
 py
 pyenv
@@ -188,6 +198,7 @@ quickstart
 ratelimit
 redis
 rediscluster
+renderer
 renderers
 resolvers
 repo
@@ -210,8 +221,10 @@ sqlite
 stacktrace
 starlette
 statsd
+stderr
 stdout
 stringable
+structlog
 subclass
 subdirectory
 subdomains
@@ -220,8 +233,10 @@ submodules
 substring
 testagent
 TestCase
+testrunner
 timestamp
 tokenizer
+tracecontext
 tracestate
 tweens
 uWSGI
@@ -245,6 +260,8 @@ vendored
 versioned
 vertica
 w3c
+websocket
+websockets
 whitelist
 whitespace
 workflow
@@ -266,3 +283,4 @@ Gitlab
 Enablement
 hotspot
 CMake
+libdatadog

@@ -2,7 +2,6 @@ import os
 
 # 3p
 import rediscluster
-import wrapt
 
 # project
 from ddtrace import config
@@ -22,7 +21,9 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
+from ...internal.utils.formats import asbool
 from .. import trace_utils
 
 
@@ -35,6 +36,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("rediscluster"),
         cmd_max_length=int(os.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(os.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 

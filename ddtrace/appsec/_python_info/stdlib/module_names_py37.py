@@ -1,5 +1,7 @@
 STDLIB_MODULE_NAMES = {
+    "__future__",
     "_ast",
+    "_compression",
     "_dummy_thread",
     "_thread",
     "abc",
@@ -108,6 +110,7 @@ STDLIB_MODULE_NAMES = {
     "nntplib",
     "ntpath",
     "numbers",
+    "opcode",
     "operator",
     "optparse",
     "os",

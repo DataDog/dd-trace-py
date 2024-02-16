@@ -4,31 +4,27 @@ This module contains utility functions for writing ddtrace integrations.
 from collections import deque
 import ipaddress
 import re
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Generator
-from typing import Iterator
-from typing import List
-from typing import Mapping
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Tuple
-from typing import Union
-from typing import cast
-
-import wrapt
+from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Generator  # noqa:F401
+from typing import Iterator  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Mapping  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
+from typing import cast  # noqa:F401
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
-from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -36,12 +32,14 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor import wrapt
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-    from ddtrace import Tracer
-    from ddtrace.settings import IntegrationConfig
+    from ddtrace import Span  # noqa:F401
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.settings import IntegrationConfig  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -92,7 +90,7 @@ def _get_header_value_case_insensitive(headers, keyname):
     if shortcut_value is not None:
         return shortcut_value
 
-    for key, value in six.iteritems(headers):
+    for key, value in headers.items():
         if key.lower().replace("_", "-") == keyname:
             return value
 
@@ -130,7 +128,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace.span.Span
+    :type span: ddtrace._trace.span.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -171,16 +169,8 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     return ""
 
 
-# Used to cache the last header used for the cache. From the same server/framework
-# usually the same header will be used on further requests, so we use this to check
-# only it.
-_USED_IP_HEADER = ""
-
-
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
-
-    global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -190,7 +180,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if not headers:
         try:
-            _ = ipaddress.ip_address(six.text_type(peer_ip))
+            _ = ipaddress.ip_address(str(peer_ip))
         except ValueError:
             return ""
         return peer_ip
@@ -199,29 +189,32 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     user_configured_ip_header = config.client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
-        ip_header_value = headers.get(user_configured_ip_header)
+        ip_header_value = get_header_value(
+            user_configured_ip_header.lower().replace("_", "-")
+            if headers_are_case_sensitive
+            else user_configured_ip_header
+        )
         if not ip_header_value:
             log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", user_configured_ip_header)
             return ""
 
         try:
-            _ = ipaddress.ip_address(six.text_type(ip_header_value))
+            _ = ipaddress.ip_address(str(ip_header_value))
         except ValueError:
             log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
             return ""
 
     else:
-        # No configured IP header, go through the IP_PATTERNS headers in order
-        if _USED_IP_HEADER:
-            # Check first the caught header that previously contained an IP
-            ip_header_value = get_header_value(_USED_IP_HEADER)
-
-        if not ip_header_value:
+        if headers_are_case_sensitive:
+            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
             for ip_header in IP_PATTERNS:
-                tmp_ip_header_value = get_header_value(ip_header)
-                if tmp_ip_header_value:
-                    ip_header_value = tmp_ip_header_value
-                    _USED_IP_HEADER = ip_header
+                if ip_header in new_headers:
+                    ip_header_value = new_headers[ip_header]
+                    break
+        else:
+            for ip_header in IP_PATTERNS:
+                if ip_header in headers:
+                    ip_header_value = headers[ip_header]
                     break
 
     private_ip_from_headers = ""
@@ -492,16 +485,19 @@ def set_http_meta(
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if config._appsec_enabled or config.retrieve_client_ip:
+        if asm_config._asm_enabled or config.retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
             request_ip = core.get_item("http.request.remote_ip", span=span)
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
-                request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+                request_ip = (
+                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+                )
 
-            span.set_tag_str(http.CLIENT_IP, request_ip)
-            span.set_tag_str("network.client.ip", request_ip)
+            if request_ip:
+                span.set_tag_str(http.CLIENT_IP, request_ip)
+                span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -515,43 +511,24 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if config._appsec_enabled:
-        from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-        if _is_iast_enabled():
-            from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
-
-            if request_cookies:
-                asm_check_cookies(request_cookies)
-
-            if response_cookies:
-                asm_check_cookies(response_cookies)
-
-        if span.span_type == SpanTypes.WEB:
-            from ddtrace.appsec._asm_request_context import set_waf_address
-            from ddtrace.appsec._constants import SPAN_DATA_NAMES
-
-            status_code = str(status_code) if status_code is not None else None
-
-            addresses = {
-                k: v
-                for k, v in [
-                    (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
-                    (SPAN_DATA_NAMES.REQUEST_METHOD, method),
-                    (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
-                    (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
-                    (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
-                    (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
-                    (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
-                    (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
-                    (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
-                    (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
-                ]
-                if v is not None
-            }
-            for k, v in addresses.items():
-                set_waf_address(k, v, span)
+    core.dispatch(
+        "set_http_meta_for_asm",
+        [
+            span,
+            request_ip,
+            raw_uri,
+            route,
+            method,
+            request_headers,
+            request_cookies,
+            parsed_query,
+            request_path_params,
+            request_body,
+            status_code,
+            response_headers,
+            response_cookies,
+        ],
+    )
 
     if route is not None:
         span.set_tag_str(http.ROUTE, route)
@@ -647,11 +624,11 @@ def set_user(
     if span is None:
         span = tracer.current_root_span()
     if span:
-        # Required unique identifier of the user
-        str_user_id = str(user_id)
-        span.set_tag_str(user.ID, str_user_id)
-        if propagate:
-            span.context.dd_user_id = str_user_id
+        if user_id:
+            str_user_id = str(user_id)
+            span.set_tag_str(user.ID, str_user_id)
+            if propagate:
+                span.context.dd_user_id = str_user_id
 
         # All other fields are optional
         if name:
@@ -665,10 +642,11 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if config._appsec_enabled:
-            from ddtrace.appsec.trace_utils import block_request_if_user_blocked
+        if asm_config._asm_enabled:
+            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
+            if exc:
+                raise exc
 
-            block_request_if_user_blocked(tracer, user_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
@@ -689,3 +667,7 @@ def extract_netloc_and_query_info_from_url(url):
     netloc = parse_result.netloc.split("@", 1)[-1]  # Discard auth info
     netloc = netloc.split(":", 1)[0]  # Discard port information
     return netloc, query
+
+
+class InterruptException(Exception):
+    pass

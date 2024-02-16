@@ -9,7 +9,7 @@ class WriterClientBase(object):
 
     def __init__(
         self,
-        encoder,  # type: BufferedEncoder
+        encoder: BufferedEncoder,
     ):
         self.encoder = encoder
 

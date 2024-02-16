@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    psycopg: This fix resolves an issue where a circular import of the psycopg library could
+    cause a crash during monkeypatching.

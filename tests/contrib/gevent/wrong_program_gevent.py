@@ -1,6 +1,6 @@
 from gevent import monkey
 
-import ddtrace  # noqa
+import ddtrace  # noqa:F401
 
 
 monkey.patch_all()

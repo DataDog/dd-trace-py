@@ -1,6 +1,6 @@
 """Instrument pylibmc to report Memcached queries.
 
-``patch_all`` will automatically patch your pylibmc client to make it work.
+``import ddtrace.auto`` will automatically patch your pylibmc client to make it work.
 ::
 
     # Be sure to import pylibmc and not pylibmc.Client directly,

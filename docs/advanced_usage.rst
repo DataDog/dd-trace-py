@@ -249,8 +249,6 @@ Supported web frameworks:
 +-------------------+---------+
 | :ref:`flask`      | True    |
 +-------------------+---------+
-| :ref:`pylons`     | True    |
-+-------------------+---------+
 | :ref:`pyramid`    | True    |
 +-------------------+---------+
 | :ref:`requests`   | True    |
@@ -406,7 +404,8 @@ For a selected set of integrations, it is possible to store http headers from bo
 
 The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
 
-Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
+This configuration can be provided both at the global level and at the integration level in your application code, or it
+can be set via the Datadog UI (UI functionality in beta as of version 2.5.0).
 
 Examples::
 
@@ -663,6 +662,7 @@ uWSGI
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
+- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
 Example with CLI arguments:
 
@@ -692,3 +692,34 @@ Example with uWSGI ini file:
 .. code-block:: bash
 
   uwsgi --ini uwsgi.ini
+
+Specifying Log Level
+--------------------
+
+``ddtrace`` uses a Python Logger instance called "ddtrace" to submit its log output. You can configure this
+logger instance independently from other loggers in your program's logger hierarchy. This is useful when you
+have configured your application's root logger to a verbose output level and you don't want to see verbose
+logs from ``ddtrace``.
+
+The following example illustrates how to reduce the verbosity of ``ddtrace`` log output when verbose logging is
+in use at the root level:
+
+.. code-block:: python
+
+    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+Duplicate Log Entries
+---------------------
+
+The ``ddtrace`` logger object is preconfigured with some log handlers that manage printing the logger's output to the console.
+If your app sets up its own log handling code on the root logger instance, you may observe duplicate log entries from the ``ddtrace``
+logger. This happens because the ``ddtrace`` logger is a child of the root logger and can inherit handlers set up for it.
+
+To avoid such duplicate log entries from ``ddtrace``, you can remove the automatically-configured log handlers from it:
+
+.. code-block:: python
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        ddtrace_logger.removeHandler(handler)

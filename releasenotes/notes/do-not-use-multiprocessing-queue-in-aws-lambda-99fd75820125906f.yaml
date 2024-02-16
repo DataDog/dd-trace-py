@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lambda: This change disables the use of ``multiprocessing.queue`` in Lambda, because it is not supported in Lambda

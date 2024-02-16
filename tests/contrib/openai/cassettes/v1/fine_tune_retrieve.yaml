@@ -1,0 +1,78 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: GET
+    uri: https://api.openai.com/v1/fine-tunes/ft-sADEaavxRFrjOQ65XkQKm0zM
+  response:
+    content: "{\n  \"object\": \"fine-tune\",\n  \"id\": \"ft-sADEaavxRFrjOQ65XkQKm0zM\",\n
+      \ \"hyperparams\": {\n    \"n_epochs\": 4,\n    \"batch_size\": 5,\n    \"prompt_loss_weight\":
+      0.01,\n    \"learning_rate_multiplier\": 0.05\n  },\n  \"organization_id\":
+      \"org-OS4zcsDN8sF8E8CdhxgMkBV4\",\n  \"model\": \"babbage\",\n  \"training_files\":
+      [\n    {\n      \"object\": \"file\",\n      \"id\": \"file-llDq0Q9la7EBTScAowIotxxc\",\n
+      \     \"purpose\": \"fine-tune\",\n      \"filename\": \"yun_file.jsonl\",\n
+      \     \"bytes\": 147697,\n      \"created_at\": 1685662960,\n      \"status\":
+      \"processed\",\n      \"status_details\": null\n    }\n  ],\n  \"validation_files\":
+      [],\n  \"result_files\": [],\n  \"created_at\": 1685662960,\n  \"updated_at\":
+      1685663003,\n  \"status\": \"cancelled\",\n  \"fine_tuned_model\": null,\n  \"events\":
+      [\n    {\n      \"object\": \"fine-tune-event\",\n      \"level\": \"info\",\n
+      \     \"message\": \"Created fine-tune: ft-sADEaavxRFrjOQ65XkQKm0zM\",\n      \"created_at\":
+      1685662960\n    },\n    {\n      \"object\": \"fine-tune-event\",\n      \"level\":
+      \"info\",\n      \"message\": \"Fine-tune cancelled\",\n      \"created_at\":
+      1685662960\n    }\n  ]\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81c6308edfd94270-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 26 Oct 2023 22:38:27 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-processing-ms:
+      - '41'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - 341b34c8d07352eb98682d0cb724d2f3
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

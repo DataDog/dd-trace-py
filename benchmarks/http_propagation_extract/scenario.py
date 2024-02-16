@@ -2,6 +2,7 @@ import json
 
 import bm
 
+from ddtrace import config
 from ddtrace.propagation import _utils as utils
 from ddtrace.propagation import http
 
@@ -10,6 +11,7 @@ class HTTPPropagationExtract(bm.Scenario):
     headers = bm.var(type=str)
     extra_headers = bm.var(type=int)
     wsgi_style = bm.var(type=bool)
+    styles = bm.var(type=str)
 
     def generate_headers(self):
         headers = json.loads(self.headers)
@@ -25,6 +27,9 @@ class HTTPPropagationExtract(bm.Scenario):
         return headers
 
     def run(self):
+        if self.styles:
+            config._propagation_style_extract = self.styles.split(",") if ("," in self.styles) else [self.styles]
+
         headers = self.generate_headers()
 
         def _(loops):

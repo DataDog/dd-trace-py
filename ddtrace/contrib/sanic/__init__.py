@@ -6,7 +6,7 @@ Enable Sanic tracing automatically via ``ddtrace-run``::
 
     ddtrace-run python app.py
 
-Sanic tracing can also be enabled manually::
+Sanic tracing can also be enabled explicitly::
 
     from ddtrace import patch_all
     patch_all(sanic=True)

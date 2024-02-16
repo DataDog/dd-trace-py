@@ -6,7 +6,6 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
-from ddtrace.internal.compat import PY2
 from tests.utils import TracerTestCase
 
 from ..config import REDIS_CONFIG
@@ -93,6 +92,4 @@ class CeleryBaseTestCase(TracerTestCase):
         super(CeleryBaseTestCase, self).tearDown()
 
     def assert_items_equal(self, a, b):
-        if PY2:
-            return self.assertItemsEqual(a, b)
         return self.assertCountEqual(a, b)

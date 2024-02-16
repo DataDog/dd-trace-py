@@ -1,16 +1,10 @@
 import mock
 import pytest
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.runtime.container import get_container_info
 
 from .utils import cgroup_line_valid_test_cases
-
-
-# Map expected Py2 exception to Py3 name
-if PY2:
-    FileNotFoundError = IOError  # noqa: A001
 
 
 def get_mock_open(read_data=None):
@@ -158,7 +152,7 @@ def test_cgroup_info_from_line(line, expected_info):
 
 
 @pytest.mark.parametrize(
-    "file_contents,container_id",
+    "file_contents,container_id,node_inode",
     (
         # Docker file
         (
@@ -178,6 +172,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:cpuset:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860
             """,
             "3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
+            None,
         ),
         # k8s file
         (
@@ -195,6 +190,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1
             """,
             "3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1",
+            None,
         ),
         # k8 format with additional characters before task ID
         (
@@ -202,6 +198,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2d3da189_6407_48e3_9ab6_78188d75e609.slice/docker-7b8952daecf4c0e44bbcefe1b5c5ebc7b4839d4eefeccefe694709d3809b6199.scope
             """,
             "7b8952daecf4c0e44bbcefe1b5c5ebc7b4839d4eefeccefe694709d3809b6199",
+            None,
         ),
         # ECS file
         (
@@ -217,6 +214,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:blkio:/ecs/test-ecs-classic/5a0d5ceddf6c44c1928d367a815d890f/38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce
             """,
             "38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce",
+            None,
         ),
         # Fargate file < 1.4.0
         (
@@ -234,6 +232,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
             """,
             "432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da",
+            None,
         ),
         # Fargate file >= 1.4.0
         (
@@ -251,6 +250,7 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
             """,
             "34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+            None,
         ),
         # PCF file
         (
@@ -268,7 +268,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:hugetlb:/garden/6f265890-5165-7fab-6b52-18d1
 1:name=systemd:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
             """,
-            "6f265890-5165-7fab-6b52-18d1",
+            None,
+            1234,
         ),
         # Linux non-containerized file
         (
@@ -286,20 +287,15 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/user.slice/user-0.slice/session-14.scope
             """,
             None,
+            1234,
         ),
         # Empty file
-        (
-            "",
-            None,
-        ),
+        ("", None, None),
         # Missing file
-        (
-            None,
-            None,
-        ),
+        (None, None, None),
     ),
 )
-def test_get_container_info(file_contents, container_id):
+def test_get_container_info(file_contents, container_id, node_inode):
     with get_mock_open(read_data=file_contents) as mock_open:
         # simulate the file not being found
         if file_contents is None:
@@ -307,10 +303,12 @@ def test_get_container_info(file_contents, container_id):
 
         info = get_container_info()
 
-        if container_id is None:
-            assert info is None
-        else:
+        if info is not None:
             assert info.container_id == container_id
+            if node_inode is None:
+                assert info.node_inode == node_inode
+            else:
+                assert isinstance(info.node_inode, int)
 
         mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 

@@ -1,6 +1,6 @@
 from bm.di_utils import BMDebugger
-from bm.flask_utils import post_fork  # noqag
-from bm.flask_utils import post_worker_init  # noqa
+from bm.flask_utils import post_fork  # noqa:F401
+from bm.flask_utils import post_worker_init  # noqa:F401
 
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE

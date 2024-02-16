@@ -98,7 +98,7 @@ def test_accuracy():
     assert almost_equal(total_time(time_spent_ns, "spend_7"), 7e9)
 
     try:
-        from time import monotonic_ns  # noqa
+        from time import monotonic_ns  # noqa:F401
     except ImportError:
         # If we don't have access to high resolution clocks, we can't really test accurately things as it's spread in
         # various Python implementation of monotonic, etc.

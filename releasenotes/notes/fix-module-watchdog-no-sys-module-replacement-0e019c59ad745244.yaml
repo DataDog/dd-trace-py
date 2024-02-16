@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Resolves issues with the import machinery that might have caused the
+    garbage collector to clean up weak references in an unexpected order.

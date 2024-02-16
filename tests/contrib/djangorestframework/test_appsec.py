@@ -9,8 +9,8 @@ from tests.utils import override_global_config
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        tracer._appsec_enabled = True
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer._asm_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
@@ -27,8 +27,8 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)):
-        tracer._appsec_enabled = True
+    with override_global_config(dict(_asm_enabled=True)):
+        tracer._asm_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload, content_type = (

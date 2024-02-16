@@ -35,9 +35,9 @@ class TraceBottleTest(TracerTestCase):
         # restore the tracer
         ddtrace.tracer = self._original_tracer
 
-    def _trace_app(self, tracer=None):
+    def _trace_app(self, tracer=None, extra_environ={}):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
-        self.app = webtest.TestApp(self.app)
+        self.app = webtest.TestApp(self.app, extra_environ=extra_environ)
 
     def test_200(self, query_string=""):
         if query_string:
@@ -55,7 +55,7 @@ class TraceBottleTest(TracerTestCase):
         # make a request
         resp = self.app.get("/hi/dougie" + fqs)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 1
@@ -70,6 +70,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("http.method") == "GET"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/hi/<name>"
         if ddtrace.config.bottle.trace_query_string:
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
@@ -79,6 +80,18 @@ class TraceBottleTest(TracerTestCase):
             assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie" + fqs
         else:
             assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
+
+    def test_app_root(self):
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        res = self.app.get("/hi/dougie", extra_environ={"SCRIPT_NAME": "/api/v1"})
+        assert res.status_code == 200
+        spans = self.pop_spans()
+        span = spans[0]
+        assert span.get_tag("http.route") == "/api/v1/hi/<name>"
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -144,6 +157,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag(http.URL) == "http://localhost:80/400_return"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/400_return"
         assert s.error == 0
 
     def test_400_raise(self):
@@ -172,6 +186,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag(http.URL) == "http://localhost:80/400_raise"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/400_raise"
         assert s.error == 1
 
     def test_500(self):
@@ -200,6 +215,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag(http.URL) == "http://localhost:80/hi"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/hi"
         assert s.error == 1
 
     def test_5XX_response(self):
@@ -273,6 +289,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag(http.URL) == "http://localhost:80/hi"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/hi"
 
     def test_bottle_global_tracer(self):
         # without providing a Tracer instance, it should work
@@ -297,6 +314,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag(http.URL) == "http://localhost:80/home/"
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
+        assert s.get_tag("http.route") == "/home/"
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -304,6 +322,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -314,7 +333,7 @@ class TraceBottleTest(TracerTestCase):
         with self.override_global_config(dict(analytics_enabled=True)):
             resp = self.app.get("/hi/dougie")
             assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == u"hi dougie"
+            assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -335,6 +354,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -346,7 +366,7 @@ class TraceBottleTest(TracerTestCase):
             with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get("/hi/dougie")
                 assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == u"hi dougie"
+                assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -367,6 +387,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -377,7 +398,7 @@ class TraceBottleTest(TracerTestCase):
         with self.override_global_config(dict(analytics_enabled=False)):
             resp = self.app.get("/hi/dougie")
             assert resp.status_int == 200
-            assert compat.to_unicode(resp.body) == u"hi dougie"
+            assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -393,6 +414,7 @@ class TraceBottleTest(TracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
+
         # setup our test app
         @self.app.route("/hi/<name>")
         def hi(name):
@@ -404,7 +426,7 @@ class TraceBottleTest(TracerTestCase):
             with self.override_config("bottle", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get("/hi/dougie")
                 assert resp.status_int == 200
-                assert compat.to_unicode(resp.body) == u"hi dougie"
+                assert compat.to_unicode(resp.body) == "hi dougie"
 
         root = self.get_root_span()
         root.assert_matches(
@@ -434,7 +456,7 @@ class TraceBottleTest(TracerTestCase):
             resp = self.app.get("/hi/dougie")
 
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == u"hi dougie"
+        assert compat.to_unicode(resp.body) == "hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 2
@@ -455,6 +477,7 @@ class TraceBottleTest(TracerTestCase):
         assert dd_span.get_tag(http.URL) == "http://localhost:80/hi/dougie"
         assert dd_span.get_tag("component") == "bottle"
         assert dd_span.get_tag("span.kind") == "server"
+        assert dd_span.get_tag("http.route") == "/hi/<name>"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default_schema(self):

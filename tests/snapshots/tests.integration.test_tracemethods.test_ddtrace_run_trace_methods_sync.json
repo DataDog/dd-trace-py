@@ -1,0 +1,155 @@
+[[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_test_method",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96564
+    },
+    "duration": 51000,
+    "start": 1695501451496806000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_test_method2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96564
+    },
+    "duration": 90000,
+    "start": 1695501451524783000
+  },
+     {
+       "name": "trace.annotation",
+       "service": "",
+       "resource": "_test_method",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "trace"
+       },
+       "duration": 10000,
+       "start": 1695501451524855000
+     }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_Class.test_method",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96564
+    },
+    "duration": 15000,
+    "start": 1695501451524913000
+  }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "_Class.test_method2",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96564
+    },
+    "duration": 26000,
+    "start": 1695501451524947000
+  },
+     {
+       "name": "trace.annotation",
+       "service": "",
+       "resource": "_Class.test_method",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "component": "trace"
+       },
+       "duration": 6000,
+       "start": 1695501451524963000
+     }],
+[
+  {
+    "name": "trace.annotation",
+    "service": "",
+    "resource": "NestedClass.test_method",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "trace",
+      "language": "python",
+      "runtime-id": "a4c8bddf09d34941a4c54f443e872ff5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96564
+    },
+    "duration": 12000,
+    "start": 1695501451524990000
+  }]]

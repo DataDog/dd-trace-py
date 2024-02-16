@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where ``confluent_kafka``'s ``SerializingProducer`` and ``DeserializingConsumer``
+    classes were incorrectly patched, causing crashes when these classes are in use with Datadog patching.

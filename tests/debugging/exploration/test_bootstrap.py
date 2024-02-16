@@ -1,32 +1,10 @@
 import os
-from os.path import dirname
+from pathlib import Path
 
 import pytest
 
-from ddtrace.internal.compat import PY2
 
-
-if PY2:
-    OUT = """Enabling debugging exploration testing
-========================== LineCoverage: probes stats ==========================
-
-Installed probes: 0/0
-
-================================ Line coverage =================================
-
-Source                                                       Lines Covered
-==========================================================================
-No lines found
-===================== DeterministicProfiler: probes stats ======================
-
-Installed probes: 0/0
-
-============================== Function coverage ===============================
-
-No functions called
-"""
-else:
-    OUT = """Enabling debugging exploration testing
+OUT = """Enabling debugging exploration testing
 ===================== DeterministicProfiler: probes stats ======================
 
 Installed probes: 0/0
@@ -46,11 +24,39 @@ No lines found
 """
 
 
-@pytest.mark.subprocess(
-    env={"PYTHONPATH": os.pathsep.join((dirname(__file__), os.getenv("PYTHONPATH", "")))},
-    out=OUT,
-)
+def expl_env(**kwargs):
+    return {
+        "PYTHONPATH": os.pathsep.join((str(Path(__file__).parent.resolve()), os.getenv("PYTHONPATH", ""))),
+        **kwargs,
+    }
+
+
+@pytest.mark.subprocess(env=expl_env(), out=OUT)
 def test_exploration_bootstrap():
     # We test that we get the expected output from the exploration debuggers
     # and no errors when running the sitecustomize.py script.
     pass
+
+
+def check_output_file(o):
+    assert not o
+
+    output_file = Path("expl.txt")
+    try:
+        assert output_file.read_text() == OUT
+        return True
+    finally:
+        if output_file.exists():
+            output_file.unlink()
+
+
+@pytest.mark.subprocess(
+    env=expl_env(DD_DEBUGGER_EXPL_OUTPUT_FILE="expl.txt"),
+    out=check_output_file,
+)
+def test_exploration_file_output():
+    from pathlib import Path
+
+    from tests.debugging.exploration._config import config
+
+    assert config.output_file == Path("expl.txt")

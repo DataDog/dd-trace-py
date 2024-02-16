@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: Resolves ``UnboundLocalError`` raised when a traced redis command raises an exception. 

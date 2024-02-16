@@ -165,3 +165,18 @@ def test_weak_cipher_rc4_unpatched(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert span_report is None
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_weak_cipher_deduplication(num_vuln_expected, iast_span_deduplication_enabled):
+    for _ in range(0, 5):
+        cryptography_algorithm("Blowfish")
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+
+    if num_vuln_expected == 0:
+        assert span_report is None
+    else:
+        assert span_report
+
+        assert len(span_report.vulnerabilities) == num_vuln_expected

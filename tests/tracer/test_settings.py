@@ -327,7 +327,7 @@ def test_environment_header_tags():
     (
         (dict(), (512, True)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="0"), (0, False)),
-        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="513"), (ValueError, "Invalid value 513")),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="1024"), (1024, True)),
         (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (ValueError, "Invalid value -1")),
     ),
 )

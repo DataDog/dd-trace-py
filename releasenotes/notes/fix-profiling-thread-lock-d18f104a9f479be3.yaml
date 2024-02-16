@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix a segmentation fault with CPython 3.12 when sampling thread
+    stacks.

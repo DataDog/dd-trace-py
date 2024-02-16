@@ -4,13 +4,15 @@ import json
 import mock
 import pytest
 
-from ddtrace import config
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal.compat import urlencode
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -39,8 +41,8 @@ def _aux_appsec_get_root_span(
 ):
     if cookies is None:
         cookies = {}
-    tracer._appsec_enabled = config._appsec_enabled
-    tracer._iast_enabled = config._iast_enabled
+    tracer._asm_enabled = asm_config._asm_enabled
+    tracer._iast_enabled = asm_config._iast_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     # Set cookies
@@ -60,7 +62,7 @@ def _aux_appsec_get_root_span(
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True, _iast_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)):
         oce.reconfigure()
         patch_iast({"weak_hash": True})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
@@ -142,7 +144,11 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_master", "source": 0}]
+            "valueParts": [
+                {"value": "SELECT ", "source": 0},
+                {"redacted": True},
+                {"value": " FROM sqlite_master", "source": 0},
+            ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
@@ -176,7 +182,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " FROM sqlite_"},
+                {"value": "master", "source": 0},
+            ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
@@ -235,7 +246,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " FROM sqlite_"},
+                {"value": "master", "source": 0},
+            ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
@@ -293,7 +309,12 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 from "}, {"value": "sqlite_master", "source": 0}]
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " from "},
+                {"value": "sqlite_master", "source": 0},
+            ]
         }
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
@@ -335,20 +356,32 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
             url="/appsec/sqli_http_request_cookie_name/",
             cookies={"master": "test/1.2.3"},
         )
-        vuln_type = "SQL_INJECTION"
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", vuln_type, filename=TEST_FILE)
+        line, hash_value = get_line_and_hash(
+            "iast_enabled_sqli_http_cookies_name", VULN_SQL_INJECTION, filename=TEST_FILE
+        )
+
+        vulnerability = False
+        for vuln in loaded["vulnerabilities"]:
+            if vuln["type"] == VULN_SQL_INJECTION:
+                vulnerability = vuln
+
+        assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
 
         assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+        assert vulnerability["hash"] == hash_value
+        assert vulnerability["evidence"] == {
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " FROM sqlite_"},
+                {"value": "master", "source": 0},
+            ]
         }
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE
+        assert vulnerability["location"]["line"] == line
 
         assert response.status_code == 200
         assert response.content == b"test/1.2.3"
@@ -392,14 +425,25 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
 
         line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", vuln_type, filename=TEST_FILE)
 
+        vulnerability = False
+        for vuln in loaded["vulnerabilities"]:
+            if vuln["type"] == VULN_SQL_INJECTION:
+                vulnerability = vuln
+
+        assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
         assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+        assert vulnerability["type"] == "SQL_INJECTION"
+        assert vulnerability["hash"] == hash_value
+        assert vulnerability["evidence"] == {
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " FROM sqlite_"},
+                {"value": "master", "source": 0},
+            ]
         }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE
 
         assert response.status_code == 200
         assert response.content == b"master"
@@ -435,9 +479,9 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
-    with override_global_config(dict(_iast_enabled=True)), mock.patch(
-        "ddtrace.contrib.dbapi._is_iast_enabled", return_value=True
-    ):
+    with override_global_config(dict(_iast_enabled=True)), override_env(
+        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")
+    ), mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True):
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -455,7 +499,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
         assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "SELECT 1 FROM sqlite_"}, {"source": 0, "value": "master"}]
+            "valueParts": [
+                {"value": "SELECT "},
+                {"redacted": True},
+                {"value": " FROM sqlite_"},
+                {"value": "master", "source": 0},
+            ]
         }
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE

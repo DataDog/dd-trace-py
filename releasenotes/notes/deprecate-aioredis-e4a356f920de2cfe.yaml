@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    aioredis: The aioredis integration is deprecated and will be removed in a future version.
+    As an alternative to the aioredis integration, you can use the redis integration with
+    redis>=4.2.0.

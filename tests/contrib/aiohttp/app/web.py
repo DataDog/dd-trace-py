@@ -88,6 +88,19 @@ async def delayed_handler(request):
     return web.Response(text="Done")
 
 
+async def stream_handler(request):
+    async def async_range(count):
+        for i in range(count):
+            yield i
+
+    response = web.StreamResponse()
+    await response.prepare(request)
+    await asyncio.sleep(0.5)
+    async for i in async_range(10):
+        await response.write(f"{i}".encode())
+    return response
+
+
 async def noop_middleware(app, handler):
     async def middleware_handler(request):
         # noop middleware
@@ -126,6 +139,7 @@ def setup_app(loop=None):
     )
     app.router.add_get("/", home)
     app.router.add_get("/delayed/", delayed_handler)
+    app.router.add_get("/stream/", stream_handler)
     app.router.add_get("/echo/{name}", name)
     app.router.add_get("/chaining/", coroutine_chaining)
     app.router.add_get("/exception", route_exception)

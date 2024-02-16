@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Application Security Management (ASM): fix a body read error when ``Transfer-Encoding: chunked`` header is sent

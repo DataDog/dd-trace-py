@@ -2,8 +2,6 @@ from collections import Counter
 import os
 
 import pytest
-import six
-from six.moves import _thread
 
 from ddtrace.internal import forksafe
 
@@ -33,22 +31,38 @@ def test_forksafe():
 
 
 def test_registry():
-    state = []
+    """This verifies that registered hooks are called after a fork.
+
+    forking is done because some of the automatically-registered hooks called in forksafe.ddtrace_after_in_child have
+    a destructive effect on the parent process' trace data.
+
+    The original state is checked to be unmodified in the parent after the fork.
+    """
+    state = ["before_fork"]
 
     @forksafe.register
     def after_in_child_1():
-        state.append(1)
+        state.append("after_in_child_1")
 
     @forksafe.register
     def after_in_child_2():
-        state.append(2)
+        state.append("after_in_child_2")
 
     @forksafe.register
     def after_in_child_3():
-        state.append(3)
+        state.append("after_in_child_3")
 
-    forksafe.ddtrace_after_in_child()
-    assert state == [1, 2, 3]
+    pid = os.fork()
+
+    if pid == 0:
+        assert state == ["before_fork", "after_in_child_1", "after_in_child_2", "after_in_child_3"]
+        os._exit(12)
+    else:
+        assert state == ["before_fork"]
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
 
 
 def test_duplicates():
@@ -144,10 +158,7 @@ def test_hook_exception():
     assert exit_code == 12
 
 
-if six.PY2:
-    lock_release_exc_type = _thread.error
-else:
-    lock_release_exc_type = RuntimeError
+lock_release_exc_type = RuntimeError
 
 
 def test_lock_basic():
@@ -333,11 +344,11 @@ def test_gevent_gunicorn_behaviour():
 
     # ---- Application code ----
 
-    import os  # noqa
-    import sys  # noqa
+    import os  # noqa:F401
+    import sys  # noqa:F401
 
-    import gevent.hub  # noqa
-    import gevent.monkey  # noqa
+    import gevent.hub  # noqa:F401
+    import gevent.monkey  # noqa:F401
 
     def run_child():
         # We mimic what gunicorn does in child processes

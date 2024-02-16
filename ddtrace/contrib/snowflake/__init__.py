@@ -7,7 +7,7 @@ Enabling
 ~~~~~~~~
 
 The integration is not enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
 Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 

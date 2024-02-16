@@ -62,19 +62,19 @@ remoteconfig_poller.register("DI_1_PRODUCT", di_callback)
 remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 """
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any
-    from typing import Optional
+    from typing import Any  # noqa:F401
+    from typing import Optional  # noqa:F401
 
-    from ddtrace import Tracer
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -87,8 +87,8 @@ class PubSub(object):
     def start_subscriber(self):
         self._subscriber.start()
 
-    def restart_subscriber(self):
-        self._subscriber.force_restart()
+    def restart_subscriber(self, join=False):
+        self._subscriber.force_restart(join)
 
     def _poll_data(self, test_tracer=None):
         # type: (Optional[Tracer]) -> None

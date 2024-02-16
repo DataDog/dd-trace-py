@@ -1,0 +1,91 @@
+interactions:
+- request:
+    body: "--57576cb8e1e5d729140d328c23c60a0c\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nfine-tune\r\n--57576cb8e1e5d729140d328c23c60a0c\r\nContent-Disposition:
+      form-data; name=\"file\"; filename=\"training_data.jsonl\"\r\nContent-Type:
+      application/octet-stream\r\n\r\n{\"prompt\":\"@united was that English? I'll
+      DM though I don't think you'll make a plane appear.\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n{\"prompt\":\"@united Thank you. Mention that before I boarded
+      she asked 1other person to measure their bag, and it was another woman. Men
+      not asked.\\n\\n###\\n\\n\",\"completion\":\" negative\"}\n{\"prompt\":\"@VirginAmerica
+      why must a traveler miss a flight to Late Flight check a bag?  I missed my morning
+      appointments and you lost my business. #sfo2lax\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n{\"prompt\":\"@VirginAmerica \u200B is flying from Love to Austin
+      now. That is most excellent news.\\n\\n###\\n\\n\",\"completion\":\" positive\"}\n{\"prompt\":\"@VirginAmerica
+      @ladygaga @carrieunderwood - Carrie!\\n\\n###\\n\\n\",\"completion\":\" neutral\"}\n{\"prompt\":\"@united
+      again I ask, who can I call to get this fixed? Tweeting me BS questions to stall
+      only makes things worse. Phone number please.\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n{\"prompt\":\"@VirginAmerica How about some free drinks on the
+      flight back for the free promo?\\n\\n###\\n\\n\",\"completion\":\" positive\"}\n{\"prompt\":\"@united
+      45+ min at EWR baggage claim #stillnobags #ridiculous\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n{\"prompt\":\"@VirginAmerica got it. All set - Thanks!\\n\\n###\\n\\n\",\"completion\":\"
+      positive\"}\n{\"prompt\":\"@united we would...how do I contact you to discuss?
+      A few poor experiences with customer service but would give it a shot!\\n\\n###\\n\\n\",\"completion\":\"
+      negative\"}\n\r\n--57576cb8e1e5d729140d328c23c60a0c--\r\n"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1723'
+      content-type:
+      - multipart/form-data; boundary=57576cb8e1e5d729140d328c23c60a0c
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.0.0-beta.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0-beta.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/files
+  response:
+    content: "{\n  \"object\": \"file\",\n  \"id\": \"file-l48KgWVF75Tz2HLqLrcUdBPi\",\n
+      \ \"purpose\": \"fine-tune\",\n  \"filename\": \"training_data.jsonl\",\n  \"bytes\":
+      1431,\n  \"created_at\": 1685649224,\n  \"status\": \"uploaded\",\n  \"status_details\":
+      null\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 81bcfa515a6c4270-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Oct 2023 19:48:35 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1260'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-request-id:
+      - a4a5d99dfab4fb511f1446d9b2188dd6
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

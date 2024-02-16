@@ -12,6 +12,14 @@ def index():
     return "OK", 200
 
 
+@app.route("/start_application")
+def starting_app_view():
+    # We must call app-started before telemetry events can be sent to the agent.
+    # This endpoint mocks the behavior of the agent writer.
+    telemetry_writer._app_started_event()
+    return "OK", 200
+
+
 @app.route("/count_metric")
 def metrics_view():
     telemetry_writer.add_count_metric(

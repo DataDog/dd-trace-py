@@ -36,4 +36,4 @@ def fnv1_64(data):
     """
     Returns the 64 bit FNV-1 hash value for the given data.
     """
-    return fnv(data, FNV1_64_INIT, FNV_64_PRIME, 2 ** 64)
+    return fnv(data, FNV1_64_INIT, FNV_64_PRIME, 2**64)

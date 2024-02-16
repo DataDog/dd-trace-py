@@ -1,13 +1,15 @@
-from gevent import monkey
-
 # Import from ddtrace before monkey patching to ensure that we grab all the
 # necessary references to the unpatched modules.
+import ddtrace.auto  # noqa: F401
+import ddtrace.profiling.auto  # noqa:F401
+
 from ddtrace.profiling import bootstrap
-import ddtrace.profiling.auto  # noqa
 from ddtrace.profiling.collector import stack_event
 
 
-monkey.patch_all()
+import gevent.monkey
+
+gevent.monkey.patch_all()
 
 import threading
 import time

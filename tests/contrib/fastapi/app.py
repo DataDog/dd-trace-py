@@ -1,12 +1,12 @@
 import asyncio
 from tempfile import NamedTemporaryFile
-import time
 from typing import Optional
 
 from fastapi import BackgroundTasks
 from fastapi import FastAPI
-from fastapi import HTTPException
 from fastapi import Header
+from fastapi import HTTPException
+from fastapi import WebSocket
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -34,13 +34,25 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
+    async_condition = asyncio.Condition()
+
+    @app.websocket("/ws")
+    async def websocket(websocket: WebSocket):
+        await websocket.accept()
+        await websocket.send_json({"test": "Hello WebSocket"})
+        await websocket.close()
 
     @app.get("/")
-    async def read_homepage(sleep: str = Header(...)):  # noqa: B008
-        if sleep == "True":
-            time.sleep(2)
-            return {"Homepage Read": "Sleep"}
-        return {"Homepage Read": "Success"}
+    async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
+        async with async_condition:
+            if sleep:
+                await async_condition.wait()
+                return {"Homepage Read": "Sleep"}
+            else:
+                try:
+                    return {"Homepage Read": "Success"}
+                finally:
+                    async_condition.notify_all()
 
     @app.get("/items/{item_id}", response_model=Item)
     async def read_item(item_id: str, x_token: str = Header(...)):  # noqa: B008
@@ -104,12 +116,12 @@ def get_app():
             fp.flush()
             return FileResponse(fp.name)
 
-    async def custom_task():
-        await asyncio.sleep(1)
+    async def custom_task(test_arg):
+        await asyncio.sleep(2)
 
     @app.get("/asynctask")
     async def asynctask(bg_tasks: BackgroundTasks):
-        bg_tasks.add_task(custom_task)
+        bg_tasks.add_task(custom_task, test_arg="test")
         return "task added"
 
     subapp = FastAPI()

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fix an issue with some integrations, such as OpenAI, that caused an
+    exception on start-up when using gevent.

@@ -9,6 +9,16 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
 
+def assert_stack(expected):
+    stack = []
+    frame = sys._getframe(1)
+    for _ in range(len(expected)):
+        stack.append(frame)
+        frame = frame.f_back
+
+    assert [f.f_code.co_name for f in stack] == expected
+
+
 async def async_func():
     return 42
 
@@ -92,6 +102,8 @@ def test_wrap_generator():
             yield _
 
     def g():
+        assert_stack(["g", "wrapper", "g"])
+
         for _ in range(10):
             yield _
         return
@@ -273,7 +285,6 @@ def test_wrap_args_kwarg():
     assert f(1, 2) == ((1, 2), None)
 
 
-@pytest.mark.skipif(sys.version_info[:2] > (3, 11), reason="dis is different in python >= 3.12")
 def test_wrap_arg_args_kwarg_kwargs():
     def f(posarg, *args, path=None, **kwargs):
         return (posarg, args, path, kwargs)
@@ -293,6 +304,7 @@ def test_wrap_arg_args_kwarg_kwargs():
 @pytest.mark.asyncio
 async def test_async_generator():
     async def stream():
+        assert_stack(["stream", "agwrapper", "stream", "body", "wrapper", "body"])
         yield b"hello"
         yield b""
         return
@@ -455,3 +467,27 @@ async def test_wrap_async_generator_throw_close():
     await gen.aclose()
 
     assert channel == [True] + [0, ValueError, 1] * 10 + ["GeneratorExit"]
+
+
+def test_wrap_closure():
+    channel = []
+
+    def wrapper(f, args, kwargs):
+        channel.append((args, kwargs))
+        retval = f(*args, **kwargs)
+        channel.append(retval)
+        return retval
+
+    def outer(answer=42):
+        def f(a, b, c=None):
+            return (a, b, c, answer)
+
+        return f
+
+    wrap(outer, wrapper)
+
+    closure = outer()
+    wrap(closure, wrapper)
+
+    assert closure(1, 2, 3) == (1, 2, 3, 42)
+    assert channel == [((42,), {}), closure, ((1, 2, 3), {}), (1, 2, 3, 42)]
