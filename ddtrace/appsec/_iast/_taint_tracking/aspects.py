@@ -19,7 +19,9 @@ from .._taint_tracking import copy_ranges_from_strings
 from .._taint_tracking import get_ranges
 from .._taint_tracking import get_tainted_ranges
 from .._taint_tracking import is_pyobject_tainted
+from .._taint_tracking import new_pyobject_id
 from .._taint_tracking import parse_params
+from .._taint_tracking import set_ranges
 from .._taint_tracking import shift_taint_range
 from .._taint_tracking import taint_pyobject_with_ranges
 from .._taint_tracking._native import aspects  # noqa: F401
@@ -30,6 +32,8 @@ if TYPE_CHECKING:
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
+    from typing import Sequence  # noqa:F401
+    from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
 
     TEXT_TYPE = Union[str, bytes, bytearray]
@@ -66,7 +70,9 @@ def str_aspect(orig_function, flag_added_args, *args, **kwargs):
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
-                check_offset = args[0].decode("utf-8")
+                encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
+                errors = parse_params(2, "errors", "strict", *args, **kwargs)
+                check_offset = args[0].decode(encoding, errors)
             else:
                 check_offset = args[0]
             offset = result.index(check_offset)
@@ -399,7 +405,9 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], Any, Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function is not None and not (
+        orig_function is repr or getattr(orig_function, "__name__", None) == "__repr__"
+    ):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -408,12 +416,18 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            if isinstance(args[0], (bytes, bytearray)):
-                check_offset = args[0].decode("utf-8")
+            if isinstance(args[0], bytes):
+                check_offset = ascii(args[0])[2:-1]
+            elif isinstance(args[0], bytearray):
+                check_offset = ascii(args[0])[12:-2]
             else:
                 check_offset = args[0]
-            offset = result.index(check_offset)
-            copy_and_shift_ranges_from_strings(args[0], result, offset)
+            try:
+                offset = result.index(check_offset)
+            except ValueError:
+                offset = 0
+
+            copy_and_shift_ranges_from_strings(args[0], result, offset, len(check_offset))
         except Exception as e:
             _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e))
     return result
@@ -584,6 +598,225 @@ def lower_aspect(
     except Exception as e:
         _set_iast_error_metric("IAST propagation error. lower_aspect. {}".format(e))
         return candidate_text.lower(*args, **kwargs)
+
+
+def _distribute_ranges_and_escape(
+    split_elements,  # type: List[Optional[TEXT_TYPE]]
+    len_separator,  # type: int
+    ranges,  # type: Tuple[TaintRange, ...]
+):  # type: (...) -> List[Optional[TEXT_TYPE]]
+    # FIXME: converts to set, and then to list again, probably to remove
+    # duplicates. This should be removed once the ranges values on the
+    # taint dictionary are stored in a set.
+    range_set = set(ranges)
+    range_set_remove = range_set.remove
+    formatted_elements = []  # type: List[Optional[TEXT_TYPE]]
+    formatted_elements_append = formatted_elements.append
+    element_start = 0
+    extra = 0
+
+    for element in split_elements:
+        if element is None:
+            extra += len_separator
+            continue
+        # DEV: If this if is True, it means that the element is part of bytes/bytearray
+        if isinstance(element, int):
+            len_element = 1
+        else:
+            len_element = len(element)
+        element_end = element_start + len_element
+        new_ranges = {}  # type: Dict[TaintRange, TaintRange]
+
+        for taint_range in ranges:
+            if (taint_range.start + taint_range.length) <= (element_start + extra):
+                try:
+                    range_set_remove(taint_range)
+                except KeyError:
+                    # If the range appears twice in ranges, it will be
+                    # iterated twice, but it's only once in range_set,
+                    # raising KeyError at remove, so it can be safely ignored
+                    pass
+                continue
+
+            if taint_range.start > element_end:
+                continue
+
+            start = max(taint_range.start, element_start)
+            end = min((taint_range.start + taint_range.length), element_end)
+            if end <= start:
+                continue
+
+            if end - element_start < 1:
+                continue
+
+            new_range = TaintRange(
+                start=start - element_start,
+                length=end - element_start,
+                source=taint_range.source,
+            )
+            new_ranges[new_range] = taint_range
+
+        element_ranges = tuple(new_ranges.keys())
+        # DEV: If this if is True, it means that the element is part of bytes/bytearray
+        if isinstance(element, int):
+            element_new_id = new_pyobject_id(bytes([element]))
+        else:
+            element_new_id = new_pyobject_id(element)
+        set_ranges(element_new_id, element_ranges)
+
+        formatted_elements_append(
+            as_formatted_evidence(
+                element_new_id,
+                element_ranges,
+                TagMappingMode.Mapper_Replace,
+                new_ranges,
+            )
+        )
+
+        element_start = element_end + len_separator
+    return formatted_elements
+
+
+def aspect_replace_api(
+    candidate_text, old_value, new_value, count, orig_result
+):  # type: (Any, Any, Any, int, Any) -> str
+    ranges_orig, candidate_text_ranges = are_all_text_all_ranges(candidate_text, (old_value, new_value))
+    if not ranges_orig:  # Ranges in args/kwargs are checked
+        return orig_result
+
+    empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""  # type: TEXT_TYPE
+
+    if old_value:
+        elements = candidate_text.split(old_value, count)  # type: Sequence[TEXT_TYPE]
+    else:
+        if count == -1:
+            elements = (
+                [
+                    empty,
+                ]
+                + (
+                    list(candidate_text) if isinstance(candidate_text, str) else [bytes([x]) for x in candidate_text]  # type: ignore
+                )
+                + [
+                    empty,
+                ]
+            )
+        else:
+            if isinstance(candidate_text, str):
+                elements = (
+                    [
+                        empty,
+                    ]
+                    + list(candidate_text[: count - 1])
+                    + [candidate_text[count - 1 :]]
+                )
+                if len(elements) == count and elements[-1] != "":
+                    elements.append(empty)
+            else:
+                elements = (
+                    [
+                        empty,
+                    ]
+                    + [bytes([x]) for x in candidate_text[: count - 1]]
+                    + [bytes([x for x in candidate_text[count - 1 :]])]
+                )
+                if len(elements) == count and elements[-1] != b"":
+                    elements.append(empty)
+    i = 0
+    new_elements = []  # type: List[Optional[TEXT_TYPE]]
+    new_elements_append = new_elements.append
+
+    # if new value is blank, _distribute_ranges_and_escape function doesn't
+    # understand what is the replacement to move the ranges.
+    # In the other hand, Split function splits a string and the occurrence is
+    # in the first or last position, split adds ''. IE:
+    # 'XabcX'.split('X') -> ['', 'abc', '']
+    # We add "None" in the old position and _distribute_ranges_and_escape
+    # knows that this is the position of a old value and move len(old_value)
+    # positions of the range
+    if new_value in ("", b""):
+        len_elements = len(elements)
+        for element in elements:
+            if i == 0 and element in ("", b""):
+                new_elements_append(None)
+                i += 1
+                continue
+            if i + 1 == len_elements and element in ("", b""):
+                new_elements_append(None)
+                continue
+
+            new_elements_append(element)
+
+            if count < 0 and i + 1 < len(elements):
+                new_elements_append(None)
+            elif i >= count and i + 1 < len(elements):
+                new_elements_append(old_value)
+            i += 1
+    else:
+        new_elements = elements  # type: ignore
+
+    if candidate_text_ranges:
+        new_elements = _distribute_ranges_and_escape(
+            new_elements,
+            len(old_value),
+            candidate_text_ranges,
+        )
+
+    result_formatted = as_formatted_evidence(new_value, tag_mapping_function=TagMappingMode.Mapper).join(new_elements)
+
+    result = _convert_escaped_text_to_tainted_text(
+        result_formatted,
+        ranges_orig=ranges_orig,
+    )
+
+    return result
+
+
+def replace_aspect(
+    orig_function, flag_added_args, *args, **kwargs
+):  # type: (Optional[Callable], int, Any, Any) -> TEXT_TYPE
+    if orig_function and (not isinstance(orig_function, BuiltinFunctionType) or not args):
+        if flag_added_args > 0:
+            args = args[flag_added_args:]
+        return orig_function(*args, **kwargs)
+
+    candidate_text = args[0]
+    args = args[flag_added_args:]
+    orig_result = candidate_text.replace(*args, **kwargs)
+    if not isinstance(candidate_text, TEXT_TYPES):
+        return orig_result
+
+    ###
+    # Optimization: if we're not going to replace, just return the original string
+    count = parse_params(2, "count", -1, *args, **kwargs)
+    if count == 0:
+        return candidate_text
+    ###
+    try:
+        old_value = parse_params(0, "old_value", None, *args, **kwargs)
+        new_value = parse_params(1, "new_value", None, *args, **kwargs)
+
+        if old_value is None or new_value is None:
+            return orig_result
+
+        if old_value not in candidate_text or old_value == new_value:
+            return candidate_text
+
+        if orig_result in ("", b"", bytearray(b"")):
+            return orig_result
+
+        if count < -1:
+            count = -1
+
+        aspect_result = aspect_replace_api(candidate_text, old_value, new_value, count, orig_result)
+
+        if aspect_result != orig_result:
+            return orig_result
+
+        return aspect_result
+    except Exception as e:
+        _set_iast_error_metric("IAST propagation error. replace_aspect. {}".format(e))
+        return orig_result
 
 
 def swapcase_aspect(

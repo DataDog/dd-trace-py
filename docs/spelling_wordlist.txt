@@ -12,6 +12,7 @@ IPv
 MySQL
 OpenTracing
 Runtimes
+RuntimeErrors
 SpanContext
 aiobotocore
 aiohttp
@@ -173,6 +174,7 @@ plugin
 posix
 postgres
 pre
+preconfigured
 prepend
 prepended
 profiler
@@ -258,6 +260,8 @@ vendored
 versioned
 vertica
 w3c
+websocket
+websockets
 whitelist
 whitespace
 workflow

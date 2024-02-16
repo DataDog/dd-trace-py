@@ -146,8 +146,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         - not func_run: The function is not `ReceiveMessage` and we need to run it
         - func_run and message_received: Received a message when polling
         - config.empty_poll_enabled: We want to trace empty poll operations
+        - func_run_err: There was an error when calling the `ReceiveMessage` function
     """
-    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
+    if (func_run and message_received) or config.botocore.empty_poll_enabled or not func_run or func_run_err:
         with pin.tracer.start_span(
             trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
@@ -218,3 +219,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                 if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
                     span._ignore_exception(botocore.exceptions.ClientError)
                 raise
+    # return results in the case that we ran the function, but no records were returned and empty
+    # poll spans are disabled
+    elif func_run:
+        if func_run_err:
+            raise func_run_err
+        return result

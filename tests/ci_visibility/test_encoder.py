@@ -1,10 +1,12 @@
 import json
 import os
+from unittest import mock
 
 import msgpack
 import pytest
 
 import ddtrace
+from ddtrace._trace.span import Span
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -12,8 +14,9 @@ from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.span import Span
+from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -239,7 +242,11 @@ class PytestEncodingTestCase(TracerTestCase):
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client(), mock.patch.object(
+            CIVisibility,
+            "_check_settings_api",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):

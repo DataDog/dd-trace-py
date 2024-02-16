@@ -2672,6 +2672,98 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
+    @mock_kinesis
+    def test_kinesis_get_records_empty_poll_disabled(self):
+        # Tests that no span is created when empty poll is disabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=False)):
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+
+            stream_name = "kinesis_get_records_empty_poll_disabled"
+            shard_id, _ = self._kinesis_create_stream(client, stream_name)
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            response = None
+            response = client.get_records(ShardIterator=shard_iterator)
+            records = response["Records"]
+
+            assert len(records) == 0
+
+            spans = self.get_spans()
+            assert len(spans) == 0
+
+    @mock_kinesis
+    def test_kinesis_get_records_empty_poll_enabled(self):
+        # Tests that a span is created when empty poll is enabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=True)):
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+
+            stream_name = "kinesis_get_records_empty_poll_enabled"
+            shard_id, _ = self._kinesis_create_stream(client, stream_name)
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            response = None
+            response = client.get_records(ShardIterator=shard_iterator)
+            records = response["Records"]
+
+            assert len(records) == 0
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+
+    @mock_sqs
+    def test_sqs_get_records_empty_poll_disabled(self):
+        # Tests that no span is created when empty poll is disabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=False)):
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            response = None
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            assert "Messages" not in response
+
+            spans = self.get_spans()
+            assert len(spans) == 0
+
+    @mock_sqs
+    def test_sqs_get_records_empty_poll_enabled(self):
+        # Tests that a span is created when empty poll is enabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=True)):
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            response = None
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            assert "Messages" not in response
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+
     def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")

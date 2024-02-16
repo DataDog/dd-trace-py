@@ -179,8 +179,9 @@ venv = Venv(
         Venv(
             name="appsec_iast_tdd_propagation",
             pys=select_pys(min_version="3.11", max_version="3.11"),
-            command="pytest --no-cov tests/appsec/iast_tdd_propagation/",
+            command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
+                "coverage": latest,
                 "flask": "~=3.0",
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
@@ -199,6 +200,7 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
+                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -325,7 +327,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/ && pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",  # noqa: E501
+            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
@@ -347,6 +349,42 @@ venv = Venv(
                 ),
                 Venv(
                     name="integration-snapshot",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                    },
+                    venvs=[
+                        Venv(pys=select_pys(min_version="3.7")),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="integration-civisibility",
+            # Enabling coverage for integration tests breaks certain tests in CI
+            # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
+            command="pytest --no-cov --no-ddtrace {cmdargs} tests/integration/test_integration_civisibility.py",
+            pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
+            venvs=[
+                Venv(
+                    name="integration-latest-civisibility",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "six": "==1.12.0",
+                            },
+                            venvs=[
+                                Venv(pys="3.7"),
+                            ],
+                        ),
+                        Venv(pys=select_pys(min_version="3.8")),
+                    ],
+                ),
+                Venv(
+                    name="integration-snapshot-civisibility",
                     env={
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
@@ -391,7 +429,6 @@ venv = Venv(
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-asyncio": "~=0.21.1",
-                "vcrpy": latest,
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
             },
@@ -1507,6 +1544,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_AGENT_PORT": "9126",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -2507,13 +2547,14 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
-            command="pytest {cmdargs} tests/contrib/aws_lambda",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.7", max_version="3.9"),
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=4.66.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+                "envier": "==0.5.1",
             },
         ),
         Venv(
@@ -2542,6 +2583,12 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             pys=select_pys(),
+        ),
+        Venv(
+            name="llmobs",
+            command="pytest {cmdargs} tests/llmobs",
+            pkgs={"vcrpy": latest},
+            pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
             name="profile",

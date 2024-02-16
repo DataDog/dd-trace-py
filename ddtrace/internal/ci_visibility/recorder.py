@@ -23,7 +23,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
-from ddtrace.provider import CIContextProvider
 
 from .. import agent
 from ..utils.http import verify_url
@@ -40,6 +39,8 @@ from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
 from .constants import SUITE
 from .constants import TEST
+from .constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
+from .context import CIContextProvider
 from .git_client import METADATA_UPLOAD_STATUS
 from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES
@@ -65,6 +66,10 @@ _CIVisibilitySettings = NamedTuple(
     "_CIVisibilitySettings",
     [("coverage_enabled", bool), ("skipping_enabled", bool), ("require_git", bool), ("itr_enabled", bool)],
 )
+
+
+class CIVisibilityAuthenticationException(Exception):
+    pass
 
 
 def _extract_repository_name_from_url(repository_url):
@@ -128,6 +133,10 @@ class CIVisibility(Service):
                 self.tracer = Tracer(context_provider=CIContextProvider())
             else:
                 self.tracer = Tracer()
+
+            # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
+            # assume that a tracer is already configured if it's been passed in.
+            self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
 
         self._configurations = ci._get_runtime_and_os_metadata()
         custom_configurations = _get_custom_configurations()
@@ -242,6 +251,8 @@ class CIVisibility(Service):
         if response.status >= 400:
             error_code = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
             record_settings(sw.elapsed() * 1000, error=error_code)
+            if response.status == 403:
+                raise CIVisibilityAuthenticationException()
             raise ValueError("API response status code: %d", response.status)
         try:
             if isinstance(response.body, bytes):
@@ -301,6 +312,9 @@ class CIVisibility(Service):
 
         try:
             settings = self._check_settings_api(url, _headers)
+        except CIVisibilityAuthenticationException:
+            # Authentication exception is handled during enable() to prevent the service from being used
+            raise
         except Exception:
             log.warning(
                 "Error checking Intelligent Test Runner API, disabling coverage collection and test skipping",
@@ -495,7 +509,13 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        cls._instance = cls(tracer=tracer, config=config, service=service)
+        try:
+            cls._instance = cls(tracer=tracer, config=config, service=service)
+        except CIVisibilityAuthenticationException:
+            log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
+            cls.enabled = False
+            return
+
         cls.enabled = True
 
         cls._instance.start()
