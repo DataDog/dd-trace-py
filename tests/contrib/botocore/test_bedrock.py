@@ -7,6 +7,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
+from ddtrace.llmobs import LLMObs
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
@@ -98,10 +99,7 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {
-        "_dd_api_key": "<not-a-real-api_key>",
-        "_dd_app_key": "<not-a-real-app-key>",
-    }
+    return {"_dd_api_key": "<not-a-real-api_key>"}
 
 
 @pytest.fixture
@@ -146,7 +144,7 @@ def bedrock_client(boto3, request_vcr):
 
 @pytest.fixture
 def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.LLMObsWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
     LLMObsWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsWriterMock.return_value = m
@@ -407,8 +405,6 @@ class TestLLMObsBedrock:
         completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
 
         expected_tags = [
-            "dd.trace_id:{:x}".format(span.trace_id),
-            "dd.span_id:%s" % str(span.span_id),
             "version:",
             "env:",
             "service:aws.bedrock-runtime",
@@ -418,31 +414,39 @@ class TestLLMObsBedrock:
             "error:0",
         ]
         expected_llmobs_writer_calls = [mock.call.start()]
-        for _ in range(n_output):
-            expected_llmobs_writer_calls += [
-                mock.call.enqueue(
-                    {
-                        "type": "completion",
-                        "id": span.get_tag("bedrock.response.id"),
-                        "timestamp": int(span.start * 1000),
-                        "model": span.get_tag("bedrock.request.model"),
+        expected_llmobs_writer_calls += [
+            mock.call.enqueue(
+                {
+                    "span_id": str(span.span_id),
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "parent_id": "",
+                    "session_id": "{:x}".format(span.trace_id),
+                    "name": span.name,
+                    "tags": expected_tags,
+                    "start_ns": span.start_ns,
+                    "duration": span.duration_ns,
+                    "error": 0,
+                    "meta": {
+                        "span.kind": "llm",
+                        "model_name": span.get_tag("bedrock.request.model"),
                         "model_provider": span.get_tag("bedrock.request.model_provider"),
                         "input": {
-                            "prompts": [mock.ANY],
-                            "temperature": float(span.get_tag("bedrock.request.temperature")),
-                            "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                            "prompt_tokens": [prompt_tokens],
+                            "messages": [{"content": mock.ANY}],
+                            "parameters": {
+                                "temperature": float(span.get_tag("bedrock.request.temperature")),
+                                "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                            },
                         },
-                        "output": {
-                            "completions": [{"content": mock.ANY}],
-                            "durations": [mock.ANY],
-                            "completion_tokens": [completion_tokens],
-                            "total_tokens": [prompt_tokens + completion_tokens],
-                        },
-                        "ddtags": expected_tags,
-                    }
-                )
-            ]
+                        "output": {"messages": [{"content": mock.ANY} for _ in range(n_output)]},
+                    },
+                    "metrics": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
+                    },
+                },
+            )
+        ]
         return expected_llmobs_writer_calls
 
     @classmethod
@@ -450,6 +454,9 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
+        # Need to disable and re-enable LLMObs service to use the mock tracer
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
 
         if cassette_name is None:
             cassette_name = "%s_invoke.yaml" % provider
@@ -472,7 +479,7 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
 
         expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, n_output)
-        assert mock_llmobs_writer.enqueue.call_count == n_output
+        assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
     @classmethod
@@ -480,6 +487,9 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
+        # Need to disable and re-enable LLMObs service to use the mock tracer
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
 
         if cassette_name is None:
             cassette_name = "%s_invoke_stream.yaml" % provider
@@ -503,7 +513,7 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
 
         expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, n_output)
-        assert mock_llmobs_writer.enqueue.call_count == n_output
+        assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
@@ -564,6 +574,9 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
+        # Need to disable and re-enable LLMObs service to use the mock tracer
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
         with pytest.raises(botocore.exceptions.ClientError):
             with request_vcr.use_cassette("meta_invoke_error.yaml"):
                 body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
@@ -572,14 +585,12 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
 
         expected_tags = [
-            "dd.trace_id:{:x}".format(span.trace_id),
-            "dd.span_id:%s" % str(span.span_id),
             "version:",
             "env:",
             "service:aws.bedrock-runtime",
             "source:integration",
-            "model_name:%s" % span.get_tag("bedrock.request.model"),
-            "model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
+            "model_name:{}".format(span.get_tag("bedrock.request.model")),
+            "model_provider:{}".format(span.get_tag("bedrock.request.model_provider")),
             "error:1",
             "error_type:%s" % span.get_tag("error.type"),
         ]
@@ -587,23 +598,31 @@ class TestLLMObsBedrock:
             mock.call.start(),
             mock.call.enqueue(
                 {
-                    "type": "completion",
-                    "id": mock.ANY,
-                    "timestamp": int(span.start * 1000),
-                    "model": span.get_tag("bedrock.request.model"),
-                    "model_provider": span.get_tag("bedrock.request.model_provider"),
-                    "input": {
-                        "prompts": [mock.ANY],
-                        "temperature": float(span.get_tag("bedrock.request.temperature")),
-                        "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                    "span_id": str(span.span_id),
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "parent_id": "",
+                    "session_id": "{:x}".format(span.trace_id),
+                    "name": span.name,
+                    "tags": expected_tags,
+                    "start_ns": span.start_ns,
+                    "duration": span.duration_ns,
+                    "error": 1,
+                    "meta": {
+                        "span.kind": "llm",
+                        "error.message": span.get_tag("error.message"),
+                        "model_name": span.get_tag("bedrock.request.model"),
+                        "model_provider": span.get_tag("bedrock.request.model_provider"),
+                        "input": {
+                            "messages": [{"content": mock.ANY}],
+                            "parameters": {
+                                "temperature": float(span.get_tag("bedrock.request.temperature")),
+                                "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                            },
+                        },
+                        "output": {"messages": [{"content": ""}]},
                     },
-                    "output": {
-                        "completions": [{"content": ""}],
-                        "durations": [mock.ANY],
-                        "errors": [span.get_tag("error.message")],
-                    },
-                    "ddtags": expected_tags,
-                }
+                    "metrics": {},
+                },
             ),
         ]
 

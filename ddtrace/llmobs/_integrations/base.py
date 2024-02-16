@@ -16,7 +16,6 @@ from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._log_writer import V2LogWriter
-from ddtrace.llmobs._writer import LLMObsWriter
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
 
@@ -30,7 +29,6 @@ class BaseLLMIntegration:
         # Ideally the metrics client should live on the tracer or some other core
         # object that is strongly linked with configuration.
         self._log_writer = None
-        self._llmobs_writer = None
         self._statsd = None
         self.integration_config = integration_config
         self._span_pc_sampler = RateSampler(sample_rate=integration_config.span_prompt_completion_sample_rate)
@@ -52,29 +50,8 @@ class BaseLLMIntegration:
             )
             self._log_pc_sampler = RateSampler(sample_rate=integration_config.log_prompt_completion_sample_rate)
             self.start_log_writer()
-
         if self.llmobs_enabled:
-            if not config._dd_api_key:
-                raise ValueError(
-                    f"DD_API_KEY is required for sending LLMObs data from the {self._integration_name} integration. "
-                    f"To use the {self._integration_name} integration without LLMObs, "
-                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
-                )
-            if not config._dd_app_key:
-                raise ValueError(
-                    f"DD_APP_KEY is required for sending LLMObs payloads from the {self._integration_name} integration."
-                    f" To use the {self._integration_name} integration without LLMObs, "
-                    f"set `DD_{self._integration_name.upper()}_LLMOBS_ENABLED=false`."
-                )
-            self._llmobs_writer = LLMObsWriter(
-                site=config._dd_site,
-                api_key=config._dd_api_key,
-                app_key=config._dd_app_key,
-                interval=float(os.getenv("_DD_%s_LLM_WRITER_INTERVAL" % self._integration_name.upper(), "1.0")),
-                timeout=float(os.getenv("_DD_%s_LLM_WRITER_TIMEOUT" % self._integration_name.upper(), "2.0")),
-            )
             self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
-            self.start_llm_writer()
 
     @property
     def metrics_enabled(self) -> bool:
@@ -115,11 +92,6 @@ class BaseLLMIntegration:
         if not self.logs_enabled or self._log_writer is None:
             return
         self._log_writer.start()
-
-    def start_llm_writer(self) -> None:
-        if not self.llmobs_enabled or self._llmobs_writer is None:
-            return
-        self._llmobs_writer.start()
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -202,24 +174,3 @@ class BaseLLMIntegration:
         if len(text) > self.integration_config.span_char_limit:
             text = text[: self.integration_config.span_char_limit] + "..."
         return text
-
-    @classmethod
-    @abc.abstractmethod
-    def _llmobs_tags(cls, span: Span) -> List[str]:
-        """Generate a list of llmobs tags from a given span."""
-        return []
-
-    def llm_record(self, span: Span, attrs: Dict[str, Any], tags: Optional[List[str]] = None) -> None:
-        """Create a LLM record to send to the LLM Obs intake."""
-        if not self.llmobs_enabled or self._llmobs_writer is None:
-            return
-        llmobs_tags = self._llmobs_tags(span)
-        if span is not None and span.sampled:
-            # FIXME: this is a temporary workaround until we figure out why 128 bit trace IDs are stored as decimals.
-            llmobs_tags.insert(0, "dd.trace_id:{:x}".format(span.trace_id))
-            # llmobs_tags.insert(0, "dd.trace_id:{}".format(span.trace_id))
-            llmobs_tags.insert(1, "dd.span_id:{}".format(span.span_id))
-        if tags:
-            llmobs_tags += tags
-        attrs["ddtags"] = llmobs_tags
-        self._llmobs_writer.enqueue(attrs)  # type: ignore[arg-type]

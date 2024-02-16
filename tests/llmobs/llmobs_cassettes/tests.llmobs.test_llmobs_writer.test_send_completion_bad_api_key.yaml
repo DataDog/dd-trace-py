@@ -1,32 +1,38 @@
 interactions:
 - request:
-    body: '{"data": {"type": "records", "attributes": {"tags": ["src:integration"],
-      "model": "ada", "model_provider": "openai", "records": [{"type":
-      "completion", "id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6", "timestamp": 1681852797000,
-      "input": {"prompts": ["who broke enigma?"], "temperature": 0, "max_tokens":
-      256}, "output": {"completions": [{"content": "\n\nThe Enigma code was broken
-      by a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]}}]}}}'
+    body: '{"ml_obs": {"stage": "raw", "type": "span", "spans": [{"span_id":
+      "12345678901", "trace_id": "98765432101", "parent_id": "", "session_id": "98765432101",
+      "name": "completion_span", "tags": ["version:", "env:", "service:", "source:integration"],
+      "start_ns": 1707763310981223236, "duration": 12345678900, "error": 0, "meta":
+      {"span.kind": "llm", "model_name": "ada", "model_provider": "openai", "input": {"messages":
+      [{"content": "who broke enigma?"}], "parameters": {"temperature": 0, "max_tokens":
+      256}}, "output": {"messages": [{"content": "\n\nThe Enigma code was broken by
+      a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]}},
+      "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192}}]}}'
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
-      DD-APPLICATION-KEY:
-      - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/records
+    uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
   response:
     body:
-      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+      string: '{"errors":[{"status":"403","title":"Forbidden","detail":"API key is
+        invalid"}]}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '169'
+      - '79'
       Content-Type:
       - application/json
       Date:
-      - Wed, 15 Nov 2023 19:33:19 GMT
+      - Mon, 12 Feb 2024 20:41:13 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       x-content-type-options:
