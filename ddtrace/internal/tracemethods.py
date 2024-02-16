@@ -1,9 +1,10 @@
 from typing import List
+from typing import Tuple
 
 import wrapt
 
 
-def _parse_trace_methods(raw_dd_trace_methods: str) -> List[(str, str)]:
+def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
     """Return a list of the module,methodname tuples to trace based on the
     specification of DD_TRACE_METHODS.
 
@@ -11,7 +12,7 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[(str, str)]:
     The square bracket notation will be deprecated in favor of this new syntax
 
     Note that support for wildcard methods ([*]) is not implemented.
-    """ 
+    """
     dd_trace_methods = []
     for qualified_methods in raw_dd_trace_methods.split(";"):
         # Validate that methods are specified
@@ -48,7 +49,7 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[(str, str)]:
                     )
                 )
             dd_trace_methods.append((qualified_method_prefix, method))
-    return dd_trace_methods    
+    return dd_trace_methods
 
 
 def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
@@ -124,8 +125,8 @@ def _install_trace_methods(raw_dd_trace_methods: str) -> None:
             trace_method(base_module_guess, method_name)
     else:
         # Using updated syntax, no need to try to import
-        for module, method_name in _parse_trace_methods(raw_dd_trace_methods):
-            trace_method(module, method_name)
+        for module_name, method_name in _parse_trace_methods(raw_dd_trace_methods):
+            trace_method(module_name, method_name)
 
 
 def trace_method(module, method_name):
