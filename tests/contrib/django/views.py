@@ -14,6 +14,7 @@ from django.utils.safestring import mark_safe
 from django.views.generic import ListView
 from django.views.generic import TemplateView
 from django.views.generic import View
+import time
 
 from ddtrace import tracer
 from ddtrace.contrib.trace_utils import set_user
@@ -65,6 +66,12 @@ def function_view(request):
 
 def error_500(request):
     raise Exception("Error 500")
+
+def timeout(request):
+    time.sleep(3)
+    # we should never get here due to timeout
+    return HttpResponse(status=200)
+
 
 
 class FeedView(Feed):
