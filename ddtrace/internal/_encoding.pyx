@@ -784,10 +784,17 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-                meta_struct_packed = packb(span._meta_struct)
-                ret = pack_bytes(&self.pk, <char *> meta_struct_packed, len(meta_struct_packed))
+                ret = msgpack_pack_map(&self.pk, len(span._meta_struct))
                 if ret != 0:
                     return ret
+                for k, v in span._meta_struct.items():
+                    ret = msgpack_pack_unicode(&self.pk, k, len(k))
+                    if ret != 0:
+                        return ret
+                    value_packed = packb(v)
+                    ret = pack_bytes(&self.pk, <char *> value_packed, len(value_packed))
+                    if ret != 0:
+                        return ret
 
             if has_metrics:
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
