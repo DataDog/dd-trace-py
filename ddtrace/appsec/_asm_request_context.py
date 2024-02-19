@@ -121,6 +121,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             new_json = {"triggers": env.waf_triggers}
         root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
+        root_span.set_struct_tag(APPSEC.JSON, new_json)
 
         env.waf_triggers = []
 
