@@ -10,7 +10,9 @@ from tests.utils import override_global_config
 
 @pytest.mark.skipif(sys.version_info[:2] > (3, 11), reason="IAST is not supported in Pys later than 3.11")
 def test_ddtrace_iast_flask_patch():
-    with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
+    with override_global_config(dict(_iast_enabled=True)), override_env(
+        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    ):
         import tests.appsec.iast.fixtures.entrypoint.app_patched as flask_entrypoint
 
         dis_output = io.StringIO()
@@ -24,7 +26,9 @@ def test_ddtrace_iast_flask_patch():
 
 
 def test_ddtrace_iast_flask_no_patch():
-    with override_global_config(dict(_iast_enabled=True)), override_env(dict(DD_IAST_ENABLED="true")):
+    with override_global_config(dict(_iast_enabled=True)), override_env(
+        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    ):
         import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
 
         dis_output = io.StringIO()
