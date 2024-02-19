@@ -90,8 +90,8 @@ class OverheadControl(object):
     The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
     """
 
+    _lock = threading.Lock()
     _request_quota = MAX_REQUESTS
-    _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
@@ -99,23 +99,29 @@ class OverheadControl(object):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span):
-        # type: (Span) -> None
+        # type: (Span) -> bool
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota > 0 and self._sampler.sample(span):
-            self._request_quota -= 1
-            self._enabled = True
+        if self._request_quota <= 0 or not self._sampler.sample(span):
+            return False
+
+        self._lock.acquire()
+        if self._request_quota <= 0:
+            self._lock.release()
+            return False
+
+        self._request_quota -= 1
+        self._lock.release()
+
+        return True
 
     def release_request(self):
-        """increment request's quota at end of the request.
-
-        TODO: figure out how to check maximum requests per thread
-        """
-        if self._request_quota < MAX_REQUESTS:
-            self._request_quota += 1
-            self._enabled = False
+        """increment request's quota at end of the request."""
+        self._lock.acquire()
+        self._request_quota += 1
+        self._lock.release()
         self.vulnerabilities_reset_quota()
 
     def register(self, klass):
@@ -127,7 +133,7 @@ class OverheadControl(object):
     @property
     def request_has_quota(self):
         # type: () -> bool
-        return self._enabled
+        return self._request_quota > 0
 
     def vulnerabilities_reset_quota(self):
         # type: () -> None

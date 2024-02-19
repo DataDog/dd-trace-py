@@ -31,10 +31,15 @@ class AppSecIastSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request(span)
-        from ._taint_tracking import create_context
 
-        create_context()
+        if not _is_iast_enabled():
+            return
+
+        if oce.acquire_request(span):
+            from ._taint_tracking import create_context
+
+            create_context()
+            core.set_item(IAST.REQUEST_IAST_ENABLED, True, span=span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -48,7 +53,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if not oce._enabled or not _is_iast_enabled():
+        if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
             span.set_metric(IAST.ENABLED, 0.0)
             return
 

@@ -120,3 +120,53 @@ def test_oce_max_requests_py3(tracer, iast_span_defaults):
     assert len(results) == num_requests * 3
     assert len(spans) == num_requests * 3
     assert total_vulnerabilities == MAX_REQUESTS
+
+
+def test_oce_no_race_conditions(tracer, iast_span_defaults):
+    from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
+
+    oc = OverheadControl()
+    oc.reconfigure()
+
+    assert oc._request_quota == MAX_REQUESTS
+
+    # Request 1 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should have quota
+    assert oc.request_has_quota is True
+
+    # Request 2 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should have quota
+    assert oc.request_has_quota is False
+
+    # Request 3 tries to acquire the lock and fails
+    assert oc.acquire_request(iast_span_defaults) is False
+
+    # oce should have quota
+    assert oc.request_has_quota is False
+
+    # Request 1 releases the lock
+    oc.release_request()
+
+    assert oc.request_has_quota is True
+
+    # Request 4 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should have quota
+    assert oc.request_has_quota is False
+
+    # Request 4 releases the lock
+    oc.release_request()
+
+    # oce should have quota again
+    assert oc.request_has_quota is True
+
+    # Request 5 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should not have quota
+    assert oc.request_has_quota is False
