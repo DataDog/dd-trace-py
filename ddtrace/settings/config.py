@@ -552,7 +552,6 @@ class Config(object):
         self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
         self._dd_api_key = os.getenv("DD_API_KEY")
-        self._dd_app_key = os.getenv("DD_APP_KEY")
         self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))

@@ -129,6 +129,7 @@ else:
     assert requests[1]["body"]["request_type"] == "app-started"
 
 
+@flaky(1735812000)
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
@@ -158,6 +159,7 @@ telemetry_writer.periodic(True)
 telemetry_writer.disable()
     """
 
+    initial_requests_count = len(test_agent_session.get_requests())
     stdout, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert stderr == b"", stderr
@@ -167,11 +169,10 @@ telemetry_writer.disable()
     requests = test_agent_session.get_requests()
 
     # We expect events from the parent process to get sent, but none from the child process
-    # flaky
-    # assert len(requests) == 1
-    # Validate that the runtime id sent for every event is the parent processes runtime id
-    assert requests[0]["body"]["runtime_id"] == runtime_id
-    assert requests[0]["body"]["request_type"] == "app-heartbeat"
+    assert len(requests) == initial_requests_count + 1
+    matching_requests = [r for r in requests if r["body"]["runtime_id"] == runtime_id]
+    assert len(matching_requests) == 1
+    assert matching_requests[0]["body"]["request_type"] == "app-heartbeat"
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
@@ -245,13 +246,14 @@ tracer.configure(
 # generate and encode span
 tracer.trace("hello").finish()
 """
+    initial_event_count = len(test_agent_session.get_events())
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
     events = test_agent_session.get_events()
 
-    assert len(events) == 3
+    assert len(events) == initial_event_count + 3
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
