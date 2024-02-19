@@ -1,300 +1,326 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0. This product includes software
-// developed at Datadog (https://www.datadoghq.com/). Copyright 2021-Present
-// Datadog, Inc.
-
 #include "interface.hpp"
-#include "exporter.hpp"
+#include "libdatadog_helpers.hpp"
+#include "profile.hpp"
+#include "sample.hpp"
+#include "sample_manager.hpp"
+#include "uploader.hpp"
+#include "uploader_builder.hpp"
 
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
 
 // State
-bool is_initialized = false;
-Datadog::Uploader* g_uploader;
-Datadog::Profile* g_profile;
-Datadog::Profile* g_profile_real[2];
-bool g_prof_flag = true;
+bool is_ddup_initialized = false;
 
-// State used only for one-time configuration
-Datadog::UploaderBuilder uploader_builder;
-Datadog::ProfileBuilder profile_builder;
+// When a fork is detected, we need to reinitialize this state.
+// This handler will be called in the single thread of the child process after the fork
+void
+ddup_postfork_child()
+{
+    Datadog::Uploader::postfork_child();
+    Datadog::SampleManager::postfork_child();
+}
+
+void
+ddup_postfork_parent()
+{
+    Datadog::Uploader::postfork_parent();
+}
+
+// Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
+// after a `fork()`, we just outright prevent uploads from happening during a `fork()` operation.  Since a
+// new upload may be scheduled _just_ as `fork()` is entered, we also need to prevent new uploads from happening.
+// This mutex is released in both the child and the parent.
+void
+ddup_prefork()
+{
+    Datadog::Uploader::prefork();
+}
 
 // Configuration
 void
-ddup_config_env(const char* env)
+ddup_config_env(const char* dd_env)
 {
-    if (!env || !*env)
-        return;
-    uploader_builder.set_env(env);
+    if (dd_env) {
+        Datadog::UploaderBuilder::set_env(dd_env);
+    }
 }
+
 void
 ddup_config_service(const char* service)
 {
-    if (!service || !*service) {
-        return;
+    if (service) {
+        Datadog::UploaderBuilder::set_service(service);
     }
-
-    uploader_builder.set_service(service);
 }
+
 void
 ddup_config_version(const char* version)
 {
-    if (!version || !*version)
-        return;
-    uploader_builder.set_version(version);
+    if (version) {
+        Datadog::UploaderBuilder::set_version(version);
+    }
 }
+
 void
 ddup_config_runtime(const char* runtime)
 {
-    uploader_builder.set_runtime(runtime);
+    if (runtime) {
+        Datadog::UploaderBuilder::set_runtime(runtime);
+    }
 }
+
 void
 ddup_config_runtime_version(const char* runtime_version)
 {
-    uploader_builder.set_runtime_version(runtime_version);
+    if (runtime_version) {
+        Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    }
 }
+
 void
 ddup_config_profiler_version(const char* profiler_version)
 {
-    uploader_builder.set_profiler_version(profiler_version);
+    if (profiler_version) {
+        Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    }
 }
+
 void
 ddup_config_url(const char* url)
 {
-    if (url && *url)
-        uploader_builder.set_url(url);
+    if (url) {
+        Datadog::UploaderBuilder::set_url(url);
+    }
 }
+
 void
 ddup_config_user_tag(const char* key, const char* val)
 {
-    uploader_builder.set_tag(key, val);
-}
-void
-ddup_config_sample_type(unsigned int type)
-{
-    profile_builder.add_type(type);
-}
-void
-ddup_config_max_nframes(int max_nframes)
-{
-    if (max_nframes > 0)
-        profile_builder.set_max_nframes(max_nframes);
-}
-
-#if DDUP_BACKTRACE_ENABLE
-#include <csignal>
-#include <cxxabi.h>
-#include <execinfo.h>
-
-inline static void
-print_backtrace()
-{
-    constexpr int max_frames = 128;
-    void* frames[max_frames];
-    int num_frames = backtrace(frames, max_frames);
-    char** symbols = backtrace_symbols(frames, num_frames);
-
-    std::cerr << "Backtrace:\n";
-    for (int i = 0; i < num_frames; ++i) {
-        std::string symbol(symbols[i]);
-        std::size_t start = symbol.find_first_of('_');
-        std::size_t end = symbol.find_first_of(' ', start);
-
-        if (start != std::string::npos && end != std::string::npos) {
-            std::string mangled_name = symbol.substr(start, end - start);
-            int status = -1;
-            char* demangled_name = abi::__cxa_demangle(mangled_name.c_str(), nullptr, nullptr, &status);
-            if (status == 0) {
-                symbol.replace(start, end - start, demangled_name);
-                free(demangled_name);
-            }
-        }
-        std::cerr << symbol << std::endl;
+    if (key && val) {
+        Datadog::UploaderBuilder::set_tag(key, val);
     }
-    std::cerr << std::endl;
-
-    free(symbols);
-}
-
-static void
-sigsegv_handler(int sig, siginfo_t* si, void* uc)
-{
-    (void)uc;
-    print_backtrace();
-    exit(-1);
-}
-
-#endif
-void
-ddup_init()
-{
-    if (!is_initialized) {
-#if DDUP_BACKTRACE_ENABLE
-        // Install segfault handler
-        struct sigaction sigaction_handlers = {};
-        sigaction_handlers.sa_sigaction = sigsegv_handler;
-        sigaction_handlers.sa_flags = SA_SIGINFO;
-        sigaction(SIGSEGV, &(sigaction_handlers), NULL);
-#endif
-
-        g_profile_real[0] = profile_builder.build_ptr();
-        g_profile_real[1] = profile_builder.build_ptr();
-        g_profile = g_profile_real[g_prof_flag];
-        g_uploader = uploader_builder.build_ptr();
-        is_initialized = true;
-    }
-}
-
-void
-ddup_start_sample()
-{
-    g_profile->start_sample();
-}
-
-void
-ddup_push_walltime(int64_t walltime, int64_t count)
-{
-    g_profile->push_walltime(walltime, count);
-}
-
-void
-ddup_push_cputime(int64_t cputime, int64_t count)
-{
-    g_profile->push_cputime(cputime, count);
-}
-
-void
-ddup_push_acquire(int64_t acquire_time, int64_t count)
-{
-    g_profile->push_acquire(acquire_time, count);
-}
-
-void
-ddup_push_release(int64_t release_time, int64_t count)
-{
-    g_profile->push_release(release_time, count);
-}
-
-void
-ddup_push_alloc(uint64_t size, uint64_t count)
-{
-    g_profile->push_alloc(size, count);
-}
-
-void
-ddup_push_heap(uint64_t size)
-{
-    g_profile->push_heap(size);
-}
-
-void
-ddup_push_lock_name(const char* lock_name)
-{
-    if (!lock_name)
-        return;
-    g_profile->push_lock_name(lock_name);
-}
-
-void
-ddup_push_threadinfo(int64_t thread_id, int64_t thread_native_id, const char* thread_name)
-{
-    g_profile->push_threadinfo(thread_id, thread_native_id, thread_name);
-}
-
-void
-ddup_push_task_id(int64_t task_id)
-{
-    if (task_id > 0)
-        g_profile->push_task_id(task_id);
-}
-
-void
-ddup_push_task_name(const char* task_name)
-{
-    if (task_name && *task_name)
-        g_profile->push_task_name(task_name);
-}
-
-void
-ddup_push_span_id(int64_t span_id)
-{
-    g_profile->push_span_id(span_id);
-}
-
-void
-ddup_push_local_root_span_id(int64_t local_root_span_id)
-{
-    g_profile->push_local_root_span_id(local_root_span_id);
-}
-
-void
-ddup_push_trace_type(const char* trace_type)
-{
-    if (!trace_type || !*trace_type)
-        return;
-    g_profile->push_trace_type(trace_type);
-}
-
-void
-ddup_push_trace_resource_container(const char* trace_resource_container)
-{
-    if (!trace_resource_container || !*trace_resource_container)
-        return;
-    g_profile->push_trace_resource_container(trace_resource_container);
-}
-
-void
-ddup_push_exceptioninfo(const char* exception_type, int64_t count)
-{
-    if (!exception_type || !count)
-        return;
-    g_profile->push_exceptioninfo(exception_type, count);
-}
-
-void
-ddup_push_class_name(const char* class_name)
-{
-    if (!class_name)
-        return;
-    g_profile->push_class_name(class_name);
-}
-
-void
-ddup_push_frame(const char* name, const char* fname, uint64_t address, int64_t line)
-{
-    g_profile->push_frame(name, fname, address, line);
-}
-
-void
-ddup_flush_sample()
-{
-    g_profile->flush_sample();
 }
 
 void
 ddup_set_runtime_id(const char* id, size_t sz)
 {
-    if (id && *id)
-        g_uploader->set_runtime_id(std::string_view(id, sz));
+    Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
+}
+
+void
+ddup_config_sample_type(unsigned int _type)
+{
+    Datadog::SampleManager::add_type(_type);
+}
+void
+ddup_config_max_nframes(int max_nframes)
+{
+    Datadog::SampleManager::set_max_nframes(max_nframes);
+}
+
+bool
+ddup_is_initialized()
+{
+    return is_ddup_initialized;
+}
+
+std::atomic<int> initialized_count{ 0 };
+void
+ddup_init()
+{
+    const static bool initialized = []() {
+        // Perform any one-time startup operations
+        Datadog::SampleManager::init();
+
+        // install the ddup_fork_handler for pthread_atfork
+        // Right now, only do things in the child _after_ fork
+        pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+
+        // Set the global initialization flag
+        is_ddup_initialized = true;
+        return true;
+    }();
+
+    initialized_count.fetch_add(static_cast<int>(initialized));
+    if (initialized_count > 1) {
+        std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
+    }
+}
+
+Datadog::Sample*
+ddup_start_sample()
+{
+    return Datadog::SampleManager::start_sample();
+}
+
+void
+ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count)
+{
+
+    sample->push_walltime(walltime, count);
+}
+
+void
+ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count)
+{
+    sample->push_cputime(cputime, count);
+}
+
+void
+ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count)
+{
+    sample->push_acquire(acquire_time, count);
+}
+
+void
+ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count)
+{
+    sample->push_release(release_time, count);
+}
+
+void
+ddup_push_alloc(Datadog::Sample* sample, uint64_t size, uint64_t count)
+{
+    sample->push_alloc(size, count);
+}
+
+void
+ddup_push_heap(Datadog::Sample* sample, uint64_t size)
+{
+    sample->push_heap(size);
+}
+
+void
+ddup_push_lock_name(Datadog::Sample* sample, const char* lock_name)
+{
+    if (lock_name) {
+        sample->push_lock_name(lock_name);
+    }
+}
+
+void
+ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
+{
+    if (thread_name) {
+        sample->push_threadinfo(thread_id, thread_native_id, thread_name);
+    } else {
+        sample->push_threadinfo(thread_id, thread_native_id, "");
+    }
+}
+
+void
+ddup_push_task_id(Datadog::Sample* sample, int64_t task_id)
+{
+    sample->push_task_id(task_id);
+}
+
+void
+ddup_push_task_name(Datadog::Sample* sample, const char* task_name)
+{
+    if (task_name) {
+        sample->push_task_name(task_name);
+    }
+}
+
+void
+ddup_push_span_id(Datadog::Sample* sample, int64_t span_id)
+{
+    sample->push_span_id(span_id);
+}
+
+void
+ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id)
+{
+    sample->push_local_root_span_id(local_root_span_id);
+}
+
+void
+ddup_push_trace_type(Datadog::Sample* sample, const char* trace_type)
+{
+    if (trace_type) {
+        sample->push_trace_type(trace_type);
+    }
+}
+
+void
+ddup_push_trace_resource_container(Datadog::Sample* sample, const char* trace_resource_container)
+{
+    if (trace_resource_container) {
+        sample->push_trace_resource_container(trace_resource_container);
+    }
+}
+
+void
+ddup_push_exceptioninfo(Datadog::Sample* sample, const char* exception_type, int64_t count)
+{
+    if (exception_type) {
+        sample->push_exceptioninfo(exception_type, count);
+    }
+}
+
+void
+ddup_push_class_name(Datadog::Sample* sample, const char* class_name)
+{
+    if (class_name) {
+        sample->push_class_name(class_name);
+    }
+}
+
+void
+ddup_push_frame(Datadog::Sample* sample, const char* _name, const char* _filename, uint64_t address, int64_t line)
+{
+    if (_name && _filename) {
+        sample->push_frame(_name, _filename, address, line);
+    }
+}
+
+void
+ddup_flush_sample(Datadog::Sample* sample)
+{
+    sample->flush_sample();
+}
+
+void
+ddup_drop_sample(Datadog::Sample* sample)
+{
+    // After a sample is dropped, the user should no longer use it
+    delete sample;
 }
 
 bool
 ddup_upload()
 {
-    if (!is_initialized) {
-        // Rationalize return for interface
-        std::cerr << "libdd uploader called before initialization" << std::endl;
+    if (!is_ddup_initialized) {
+        std::cerr << "ddup_upload() called before ddup_init()" << std::endl;
         return false;
     }
 
-    // NB., this function strongly assumes single-threaded access in the
-    // caller; otherwise the collection will be serialized as it is being
-    // written to, which is undefined behavior for libdatadog.
-    auto upload_profile = g_profile;
-    g_prof_flag ^= true;
-    g_profile = g_profile_real[g_prof_flag];
-    g_profile->reset();
-    return g_uploader->upload(upload_profile);
+    bool success = false;
+    {
+        // The borrow operation takes a reference, then locks the areas where
+        // the ddog_prof_Profile might be modified.  We need to return it
+        ddog_prof_Profile upload_profile = Datadog::Sample::profile_borrow();
+
+        // We create a new uploader just for this operation
+        try {
+            auto uploader = Datadog::UploaderBuilder::build();
+
+            // NB, upload() cancels any inflight uploads in order to ensure only
+            // one is active at a time.  This simplifies the fork/thread logic.
+            // This is usually fine, but when the user specifies a profiling
+            // upload interval less than the upload timeout, we have a potential
+            // backlog situation which isn't handled.  This is against recommended
+            // practice, but it wouldn't be crazy to add a small backlog queue.
+            success = uploader.upload(upload_profile);
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to create uploader: " << e.what() << std::endl;
+        }
+
+        // We're done with the profile
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
+    }
+    return success;
 }
