@@ -788,7 +788,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
                 for k, v in span._meta_struct.items():
-                    ret = msgpack_pack_unicode(&self.pk, k, len(k))
+                    ret = pack_text(&self.pk, k)
                     if ret != 0:
                         return ret
                     value_packed = packb(v)
