@@ -27,6 +27,18 @@ log = get_logger(__name__)
 
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
+    @staticmethod
+    def is_span_analyzed(span=None):
+        # type: (Optional[Span]) -> bool
+        if span is None:
+            from ddtrace import tracer
+
+            span = tracer.current_root_span()
+
+        if span and span.span_type == SpanTypes.WEB and core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+            return True
+        return False
+
     def on_span_start(self, span):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:

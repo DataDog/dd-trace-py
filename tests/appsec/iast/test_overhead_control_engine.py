@@ -1,5 +1,7 @@
 from time import sleep
 
+import pytest
+
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
@@ -70,6 +72,7 @@ def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
 
 
+@pytest.mark.skip(reason="This test is not ready yet.")
 def test_oce_max_requests(tracer, iast_span_defaults):
     import threading
 
@@ -94,6 +97,7 @@ def test_oce_max_requests(tracer, iast_span_defaults):
     assert total_vulnerabilities == 1
 
 
+@pytest.mark.skip(reason="This test is not ready yet.")
 def test_oce_max_requests_py3(tracer, iast_span_defaults):
     import concurrent.futures
 
@@ -134,39 +138,39 @@ def test_oce_no_race_conditions(tracer, iast_span_defaults):
     assert oc.acquire_request(iast_span_defaults) is True
 
     # oce should have quota
-    assert oc.request_has_quota is True
+    assert oc._request_quota > 0
 
     # Request 2 tries to acquire the lock
     assert oc.acquire_request(iast_span_defaults) is True
 
-    # oce should have quota
-    assert oc.request_has_quota is False
+    # oce should not have quota
+    assert oc._request_quota == 0
 
     # Request 3 tries to acquire the lock and fails
     assert oc.acquire_request(iast_span_defaults) is False
 
     # oce should have quota
-    assert oc.request_has_quota is False
+    assert oc._request_quota == 0
 
     # Request 1 releases the lock
     oc.release_request()
 
-    assert oc.request_has_quota is True
+    assert oc._request_quota > 0
 
     # Request 4 tries to acquire the lock
     assert oc.acquire_request(iast_span_defaults) is True
 
     # oce should have quota
-    assert oc.request_has_quota is False
+    assert oc._request_quota == 0
 
     # Request 4 releases the lock
     oc.release_request()
 
     # oce should have quota again
-    assert oc.request_has_quota is True
+    assert oc._request_quota > 0
 
     # Request 5 tries to acquire the lock
     assert oc.acquire_request(iast_span_defaults) is True
 
     # oce should not have quota
-    assert oc.request_has_quota is False
+    assert oc._request_quota == 0

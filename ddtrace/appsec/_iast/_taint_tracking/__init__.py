@@ -88,9 +88,7 @@ __all__ = [
 
 def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     # type: (Any, Any, Any, OriginType) -> Any
-    # Request is not analyzed
-    if not oce.request_has_quota:
-        return pyobject
+
     # Pyobject must be Text with len > 1
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
         return pyobject

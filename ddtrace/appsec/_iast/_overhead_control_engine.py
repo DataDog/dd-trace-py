@@ -130,11 +130,6 @@ class OverheadControl(object):
         self._vulnerabilities.add(klass)
         return klass
 
-    @property
-    def request_has_quota(self):
-        # type: () -> bool
-        return self._request_quota > 0
-
     def vulnerabilities_reset_quota(self):
         # type: () -> None
         for k in self._vulnerabilities:

@@ -4,6 +4,7 @@ from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from ..processor import AppSecIastSpanProcessor
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
@@ -49,7 +50,7 @@ def patch():
 
 
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
-    if oce.request_has_quota and PathTraversal.has_quota():
+    if AppSecIastSpanProcessor.is_span_analyzed() and PathTraversal.has_quota():
         try:
             from .._metrics import _set_metric_iast_executed_sink
             from .._taint_tracking import is_pyobject_tainted

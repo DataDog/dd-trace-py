@@ -11,7 +11,7 @@ from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings.asm import config as asm_config
 
 from ..._deduplications import deduplication
-from .. import oce
+from ..processor import AppSecIastSpanProcessor
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
 from .._utils import _has_to_scrub
@@ -83,7 +83,7 @@ class VulnerabilityBase(Operation):
             """Get the current root Span and attach it to the wrapped function. We need the span to report the
             vulnerability and update the context with the report information.
             """
-            if oce.request_has_quota and cls.has_quota():
+            if AppSecIastSpanProcessor.is_span_analyzed() and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
             else:
                 log.debug("IAST: no vulnerability quota to analyze more sink points")
