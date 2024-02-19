@@ -1,3 +1,4 @@
+import os
 import os.path
 from platform import machine
 from platform import system
@@ -37,6 +38,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
+    _asm_can_be_enabled = (APPSEC_ENV not in os.environ) or _asm_enabled
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
@@ -105,4 +107,5 @@ config = ASMConfig()
 
 if not config._asm_libddwaf_available:
     config._asm_enabled = False
+    config._asm_can_be_enabled = False
     config._iast_enabled = False
