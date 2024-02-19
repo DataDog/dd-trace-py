@@ -792,7 +792,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     if ret != 0:
                         return ret
                     value_packed = packb(v)
-                    ret = pack_bytes(&self.pk, <char *> value_packed, len(value_packed))
+                    ret = msgpack_pack_bin(&self.pk, len(value_packed))
+                    if ret == 0:
+                        ret = msgpack_pack_raw_body(&self.pk, <char *> value_packed, len(value_packed))
                     if ret != 0:
                         return ret
 

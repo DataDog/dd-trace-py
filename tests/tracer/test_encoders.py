@@ -264,7 +264,7 @@ def test_encode_meta_struct(version):
     # test encoding for MsgPack format
     encoder = MSGPACK_ENCODERS[version](2 << 10, 2 << 10)
     super_span = Span(name="client.testing", trace_id=1)
-    payload = {"t": {"iu": [{"a": 1, "b": True}, {}]}, "z": b"\x93\x01\x02\x03"}
+    payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
 
     super_span.set_struct_tag("payload", payload)
     super_span.set_tag("payload", "meta_payload")
@@ -276,6 +276,7 @@ def test_encode_meta_struct(version):
     )
 
     spans = encoder.encode()
+    print(spans)
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
@@ -283,7 +284,7 @@ def test_encode_meta_struct(version):
     assert items[0][0][b"trace_id"] == items[0][1][b"trace_id"]
     for j in range(2):
         assert b"client.testing" == items[0][j][b"name"]
-    items[0][0][b"meta_struct"] == payload
+    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload
 
 
 def decode(obj, reconstruct=True):
