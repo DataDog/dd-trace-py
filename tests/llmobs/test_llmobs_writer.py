@@ -3,38 +3,13 @@ import time
 
 import mock
 import pytest
-import vcr
 
 from ddtrace.llmobs._writer import LLMObsWriter
-from tests.utils import request_token
 
 
 INTAKE_ENDPOINT = "https://llmobs-intake.datad0g.com/api/v2/llmobs"
 DD_SITE = "datad0g.com"
 dd_api_key = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
-
-
-logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX")],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
-
-
-@pytest.fixture(autouse=True)
-def vcr_logs(request):
-    marks = [m for m in request.node.iter_markers(name="vcr_logs")]
-    assert len(marks) < 2
-    if marks:
-        mark = marks[0]
-        cass = mark.kwargs.get("cassette", request_token(request).replace(" ", "_").replace(os.path.sep, "_"))
-        with logs_vcr.use_cassette("%s.yaml" % cass):
-            yield
-    else:
-        yield
 
 
 @pytest.fixture
@@ -193,7 +168,7 @@ import time
 
 from ddtrace.llmobs._writer import LLMObsWriter
 from tests.llmobs.test_llmobs_writer import _completion_event
-from tests.llmobs.test_llmobs_writer import logs_vcr
+from tests.llmobs.utils import logs_vcr
 
 ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_writer.test_send_on_exit.yaml")
 ctx.__enter__()
