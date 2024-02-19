@@ -118,8 +118,9 @@ def test_ci_visibility_service_settings_timeout(_do_request):
         CIVisibility.disable()
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True))
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=socket.timeout)
-def test_ci_visibility_service_settings_socket_timeout(_do_request):
+def test_ci_visibility_service_settings_socket_timeout(_do_request, _check_enabled_features):
     with override_env(
         dict(
             DD_API_KEY="foobar.baz",
@@ -129,11 +130,11 @@ def test_ci_visibility_service_settings_socket_timeout(_do_request):
     ):
         ddtrace.internal.ci_visibility.recorder.ddconfig = ddtrace.settings.Config()
         CIVisibility.enable(service="test-service")
-        assert CIVisibility._instance._api_settings.coverage_enabled is False
-        assert CIVisibility._instance._api_settings.skipping_enabled is False
+        assert CIVisibility._instance._test_suites_to_skip == []
         CIVisibility.disable()
 
 
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True))
 @mock.patch("ddtrace.internal.ci_visibility.recorder._do_request", side_effect=TimeoutError)
 def test_ci_visibility_service_skippable_timeout(_do_request, _check_enabled_features):
     with override_env(
