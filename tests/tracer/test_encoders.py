@@ -258,28 +258,30 @@ class TestEncoders(TestCase):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
-    def test_encode_meta_struct_v03(self):
-        # test encoding for MsgPack format
-        encoder = MsgpackEncoderV03(2 << 10, 2 << 10)
-        super_span = Span(name="client.testing")
-        payload = {"t": {"iu": [{"a": 1, "b": True}, {}]}}
 
-        super_span.set_struct_tag("payload", payload)
-        encoder.put(
-            [
-                super_span,
-                Span(name="client.testing"),
-            ]
-        )
+@pytest.mark.parametrize("version", ["v0.3", "v0.4"])
+def test_encode_meta_struct(version):
+    # test encoding for MsgPack format
+    encoder = MSGPACK_ENCODERS[version](2 << 10, 2 << 10)
+    super_span = Span(name="client.testing")
+    payload = {"t": {"iu": [{"a": 1, "b": True}, {}]}}
 
-        spans = encoder.encode()
-        items = encoder._decode(spans)
-        assert isinstance(spans, bytes)
-        assert len(items) == 1
-        assert len(items[0]) == 2
-        for j in range(2):
-            assert b"client.testing" == items[0][j][b"name"]
-        items[0][0][b"meta_struct"] == payload
+    super_span.set_struct_tag("payload", payload)
+    encoder.put(
+        [
+            super_span,
+            Span(name="client.testing"),
+        ]
+    )
+
+    spans = encoder.encode()
+    items = encoder._decode(spans)
+    assert isinstance(spans, bytes)
+    assert len(items) == 1
+    assert len(items[0]) == 2
+    for j in range(2):
+        assert b"client.testing" == items[0][j][b"name"]
+    items[0][0][b"meta_struct"] == payload
 
 
 def decode(obj, reconstruct=True):
