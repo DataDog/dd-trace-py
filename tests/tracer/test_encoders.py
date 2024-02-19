@@ -267,6 +267,7 @@ def test_encode_meta_struct(version):
     payload = {"t": {"iu": [{"a": 1, "b": True}, {}]}}
 
     super_span.set_struct_tag("payload", payload)
+    super_span.set_tag("payload", "meta_payload")
     encoder.put(
         [
             super_span,
@@ -275,7 +276,7 @@ def test_encode_meta_struct(version):
     )
 
     spans = encoder.encode()
-    items = encoder._decode(spans)
+    items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
     assert len(items[0]) == 2

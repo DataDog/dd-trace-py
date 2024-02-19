@@ -785,10 +785,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     return ret
 
                 meta_struct_packed = packb(span._meta_struct)
-                L = len(meta_struct_packed)
-                ret = msgpack_pack_raw(&self.pk, L)
-                if ret == 0:
-                    ret = msgpack_pack_raw_body(&self.pk, <char *> meta_struct_packed, L)
+                ret = pack_bytes(&self.pk, <char *> meta_struct_packed, len(meta_struct_packed))
                 if ret != 0:
                     return ret
 
