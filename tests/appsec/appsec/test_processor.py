@@ -175,6 +175,7 @@ def test_headers_collection(tracer_appsec):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -199,6 +200,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -312,6 +314,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -332,6 +335,7 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta._dd.appsec.event_rules.errors",
     ],
 )
@@ -681,3 +685,56 @@ def test_asm_context_registration(tracer_appsec):
         span.span_type = SpanTypes.HTTP
         assert core.get_item("asm_env") is not None
     assert core.get_item("asm_env") is None
+
+
+def test_required_addresses():
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        processor = AppSecSpanProcessor()
+
+    assert processor._addresses_to_keep == {
+        "grpc.server.request.message",
+        "http.client_ip",
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.headers.no_cookies",
+        "server.request.path_params",
+        "server.request.query",
+        "server.response.headers.no_cookies",
+        "usr.id",
+    }
+
+    processor._update_rules(
+        {
+            "custom_rules": [
+                {
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "server.request.method"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-adf4-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                }
+            ]
+        }
+    )
+
+    assert processor._addresses_to_keep == {
+        "grpc.server.request.message",
+        "http.client_ip",
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.headers.no_cookies",
+        "server.request.method",  # New required address
+        "server.request.path_params",
+        "server.request.query",
+        "server.response.headers.no_cookies",
+        "usr.id",
+    }

@@ -67,6 +67,7 @@ def daphne_client(django_asgi, additional_env=None):
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ]
 )
 def test_appsec_enabled():
@@ -85,6 +86,7 @@ def test_appsec_enabled():
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
     ]
 )
 def test_appsec_enabled_attack():
@@ -101,6 +103,7 @@ def test_appsec_enabled_attack():
         "meta.http.useragent",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "metrics._dd.appsec.event_rules.loaded",
     ]
 )
@@ -123,6 +126,7 @@ def test_request_ipblock_nomatch_200():
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
@@ -156,6 +160,7 @@ def test_request_ipblock_match_403():
     ignores=[
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.json",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
