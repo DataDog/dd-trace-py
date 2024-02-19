@@ -111,6 +111,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -143,6 +144,7 @@ def test_flask_ipblock_match_403(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -175,6 +177,7 @@ def test_flask_ipblock_match_403_json(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -206,6 +209,7 @@ def test_flask_userblock_match_403_json(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -233,6 +237,7 @@ def test_flask_userblock_match_200_json(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -261,6 +266,7 @@ def test_flask_processexec_ossystem(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -290,6 +296,7 @@ def test_flask_processexec_osspawn(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -318,6 +325,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
 @pytest.mark.snapshot(
     ignores=[
         "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
