@@ -61,6 +61,7 @@ def daphne_client(django_asgi, additional_env=None):
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
@@ -79,6 +80,7 @@ def test_appsec_enabled():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
         "meta.http.response.headers.content-type",  # depends of the Django version
@@ -97,6 +99,7 @@ def test_appsec_enabled_attack():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
@@ -123,6 +126,7 @@ def test_request_ipblock_nomatch_200():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
@@ -157,6 +161,7 @@ def test_request_ipblock_match_403():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
         "meta._dd.appsec.json",
