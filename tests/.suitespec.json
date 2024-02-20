@@ -38,7 +38,6 @@
             "ddtrace/internal/hostname.py",
             "ddtrace/internal/http.py",
             "ddtrace/internal/injection.py",
-            "ddtrace/internal/log_writer.py",
             "ddtrace/internal/logger.py",
             "ddtrace/internal/metrics.py",
             "ddtrace/internal/module.py",
@@ -79,6 +78,7 @@
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
+            "ddtrace/settings/exceptions.py",
             "ddtrace/settings/integration.py",
             "ddtrace/internal/_encoding.py*",
             "ddtrace/internal/_tagset.py*",
@@ -97,8 +97,7 @@
             "ddtrace/internal/sma.py",
             "ddtrace/internal/tracemethods.py",
             "ddtrace/internal/sysdep.h",
-            "ddtrace/internal/writer/*",
-            "ddtrace/internal/exceptions.py"
+            "ddtrace/internal/writer/*"
         ],
         "runtime": [
             "ddtrace/runtime/*"
@@ -138,7 +137,8 @@
             "ddtrace/contrib/psycopg2/*"
         ],
         "datastreams": [
-            "ddtrace/internal/datastreams/*"
+            "ddtrace/internal/datastreams/*",
+            "ddtrace/data_streams.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -396,9 +396,6 @@
         ],
         "remoteconfig": [
             "ddtrace/internal/remoteconfig/*"
-        ],
-        "llmobs": [
-            "ddtrace/internal/llmobs/*"
         ],
         "codeowners": [
             "ddtrace/internal/codeowners.py"
