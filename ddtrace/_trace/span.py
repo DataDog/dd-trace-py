@@ -263,9 +263,7 @@ class Span(object):
     @property
     def sampled(self):
         # type: () -> bool
-        if not self.context.sampling_priority:
-            return False
-        return self.context.sampling_priority > 0
+        return self.context.sampling_priority != None and self.context.sampling_priority > 0
 
     @sampled.setter
     def sampled(self, value):
