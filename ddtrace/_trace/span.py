@@ -82,8 +82,6 @@ class Span(object):
         "span_type",
         "start_ns",
         "duration_ns",
-        # Sampler attributes
-        "sampled",
         # Internal attributes
         "_context",
         "_local_root",
@@ -168,10 +166,11 @@ class Span(object):
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
+        self._context = context._with_span(self) if context else None  # type: Optional[Context]
+
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context._with_span(self) if context else None  # type: Optional[Context]
         self._links = {}  # type: Dict[int, SpanLink]
         if links:
             self._links = {link.span_id: link for link in links}
@@ -263,14 +262,14 @@ class Span(object):
     @property
     def sampled(self):
         # type: () -> bool
-        return self.context.sampling_priority != None and self.context.sampling_priority > 0
+        return self.context.sampling_priority is not None and self.context.sampling_priority > 0
 
     @sampled.setter
     def sampled(self, value):
         # type: (bool) -> None
-        # only use sampled to set this there isn't a parent
+        # only use sampled to set this if there isn't a parent
         if self.context.sampling_priority is None:
-            self.context.sampling_priority = int(value) # int(True) == 1, int(False) == 0
+            self.context.sampling_priority = int(value)  # int(True) == 1, int(False) == 0
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
