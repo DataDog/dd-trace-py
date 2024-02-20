@@ -291,10 +291,7 @@ class Tracer(object):
             self.SHUTDOWN_TIMEOUT,
             key,
         )
-        try:
-            self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
-        except ValueError:  # hook cleanup can sometimes raise this
-            pass
+        self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
