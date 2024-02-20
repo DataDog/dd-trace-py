@@ -9,6 +9,7 @@ from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 
+from ddtrace import tracer
 from ddtrace._trace.span import Span  # noqa:F401
 
 
@@ -893,8 +894,8 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers, sampler=None, span=None):
-        # type: (Context, Dict[str, str], Any, Optional[Span]) -> None
+    def inject(span_context, headers, span=None):
+        # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -921,10 +922,9 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-
-        if sampler and span:
+        if tracer._sampler and span:
             if not span.context.sampling_priority:
-                sampler.sample(span._local_root)
+                tracer._sampler.sample(span._local_root)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)

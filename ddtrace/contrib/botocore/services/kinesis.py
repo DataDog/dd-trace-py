@@ -36,12 +36,11 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def inject_trace_to_kinesis_stream_data(record, span, tracer):
-    # type: (Dict[str, Any], Span, Any) -> None
+def inject_trace_to_kinesis_stream_data(record, span):
+    # type: (Dict[str, Any], Span) -> None
     """
     :record: contains args for the current botocore action, Kinesis record is at index 1
     :span: the span which provides the trace context to be propagated
-    :tracer: the tracer which provices the sampler for sampling
     Inject trace headers into the Kinesis record's Data field in addition to the existing
     data. Only possible if the existing data is JSON string or base64 encoded JSON string
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
@@ -54,7 +53,7 @@ def inject_trace_to_kinesis_stream_data(record, span, tracer):
     line_break, data_obj = get_kinesis_data_object(data)
     if data_obj is not None:
         data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"], sampler=tracer._sampler, span=span)
+        HTTPPropagator.inject(span.context, data_obj["_datadog"])
         data_json = json.dumps(data_obj)
 
         # if original string had a line break, add it back
@@ -71,12 +70,11 @@ def inject_trace_to_kinesis_stream_data(record, span, tracer):
         record["Data"] = data_json
 
 
-def inject_trace_to_kinesis_stream(params, span, tracer):
-    # type: (List[Any], Span, Any) -> None
+def inject_trace_to_kinesis_stream(params, span):
+    # type: (List[Any], Span) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
-    :tracer: the tracer which provices the sampler for sampling
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
     core.dispatch("botocore.kinesis.start", [params])
@@ -85,9 +83,9 @@ def inject_trace_to_kinesis_stream(params, span, tracer):
 
         if records:
             record = records[0]
-            inject_trace_to_kinesis_stream_data(record, span, tracer)
+            inject_trace_to_kinesis_stream_data(record, span)
     elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(params, span, tracer)
+        inject_trace_to_kinesis_stream_data(params, span)
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
@@ -143,7 +141,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                        inject_trace_to_kinesis_stream(params, span, pin.tracer)
+                        inject_trace_to_kinesis_stream(params, span)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",

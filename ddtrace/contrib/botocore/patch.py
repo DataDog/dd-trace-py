@@ -209,12 +209,12 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             if config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
-                        inject_trace_to_client_context(params, span, pin.tracer)
+                        inject_trace_to_client_context(params, span)
                         span.name = schematize_cloud_faas_operation(
                             trace_operation, cloud_provider="aws", cloud_service="lambda"
                         )
                     if endpoint_name == "events" and operation == "PutEvents":
-                        inject_trace_to_eventbridge_detail(params, span, pin.tracer)
+                        inject_trace_to_eventbridge_detail(params, span)
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",
@@ -225,7 +225,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                         inject_trace_to_sqs_or_sns_message(
                             params,
                             span,
-                            pin.tracer,
                             endpoint_service=endpoint_name,
                         )
                         span.name = schematize_cloud_messaging_operation(

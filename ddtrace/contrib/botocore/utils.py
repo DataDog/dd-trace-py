@@ -74,8 +74,8 @@ def get_kinesis_data_object(data):
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(params, span, tracer):
-    # type: (Any, Span, Any) -> None
+def inject_trace_to_eventbridge_detail(params, span):
+    # type: (Any, Span) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -96,7 +96,7 @@ def inject_trace_to_eventbridge_detail(params, span, tracer):
                 continue
 
         detail["_datadog"] = {}
-        HTTPPropagator.inject(span.context, detail["_datadog"], sampler=tracer._sampler, span=span)
+        HTTPPropagator.inject(span.context, detail["_datadog"])
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -118,9 +118,9 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def inject_trace_to_client_context(params, span, tracer):
+def inject_trace_to_client_context(params, span):
     trace_headers = {}
-    HTTPPropagator.inject(span.context, trace_headers, sampler=tracer._sampler, span=span)
+    HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
     if "ClientContext" in params:
         try:

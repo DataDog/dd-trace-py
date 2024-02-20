@@ -151,7 +151,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:
-            HTTPPropagator.inject(span.context, job.meta, pin.tracer._sampler, span)
+            HTTPPropagator.inject(span.context, job.meta)
         return func(*args, **kwargs)
 
 
