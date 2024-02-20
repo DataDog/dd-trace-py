@@ -84,12 +84,12 @@ def _get_service_name(pin, request):
     return ext_service(pin, config.httpx)
 
 
-def _init_span(span, request):
-    # type: (Span, httpx.Request) -> None
+def _init_span(span, request, tracer):
+    # type: (Span, httpx.Request, Any) -> None
     span.set_tag(SPAN_MEASURED_KEY)
 
     if distributed_tracing_enabled(config.httpx):
-        HTTPPropagator.inject(span.context, request.headers)
+        HTTPPropagator.inject(span.context, request.headers, sampler=tracer._sampler, span=span)
 
     sample_rate = config.httpx.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
@@ -131,7 +131,7 @@ async def _wrapped_async_send(
         # set span.kind to the operation type being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        _init_span(span, req)
+        _init_span(span, req, pin.tracer)
         resp = None
         try:
             resp = await wrapped(*args, **kwargs)
@@ -160,7 +160,7 @@ def _wrapped_sync_send(
         # set span.kind to the operation type being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        _init_span(span, req)
+        _init_span(span, req, pin.tracer)
         resp = None
         try:
             resp = wrapped(*args, **kwargs)

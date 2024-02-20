@@ -137,7 +137,7 @@ def trace_before_publish(*args, **kwargs):
 
     if config.celery["distributed_tracing"]:
         trace_headers = {}
-        propagator.inject(span.context, trace_headers)
+        propagator.inject(span.context, trace_headers, sampler=pin.tracer._sampler, span=span)
 
         # put distributed trace headers where celery will propagate them
         task_headers = kwargs.get("headers") or {}

@@ -21,11 +21,12 @@ from ..utils import set_response_metadata_tags
 log = get_logger(__name__)
 
 
-def inject_trace_to_stepfunction_input(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_stepfunction_input(params, span, tracer):
+    # type: (Any, Span, Any) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :tracer: the tracer which provices the sampler for sampling
 
     Inject the trace headers into the StepFunction input if the input is a JSON string
     """
@@ -42,7 +43,7 @@ def inject_trace_to_stepfunction_input(params, span):
             log.warning("Input already has trace context.")
             return
         params["input"]["_datadog"] = {}
-        HTTPPropagator.inject(span.context, params["input"]["_datadog"])
+        HTTPPropagator.inject(span.context, params["input"]["_datadog"], tracer._sampler, span=span)
         return
 
     elif isinstance(params["input"], str):
@@ -54,7 +55,7 @@ def inject_trace_to_stepfunction_input(params, span):
 
         if isinstance(input_obj, dict):
             input_obj["_datadog"] = {}
-            HTTPPropagator.inject(span.context, input_obj["_datadog"])
+            HTTPPropagator.inject(span.context, input_obj["_datadog"], tracer._sampler, span=span)
             input_json = json.dumps(input_obj)
 
             params["input"] = input_json

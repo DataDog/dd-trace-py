@@ -64,7 +64,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -113,13 +112,17 @@ def _default_span_processors_factory(
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
+    trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
-    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    trace_processors += [PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
+    trace_processors += [
+        TraceSamplingProcessor(compute_stats_enabled, trace_sampler),
+        TraceTagsProcessor(),
+    ]
     trace_processors += trace_filters
 
     span_processors: List[SpanProcessor] = []
@@ -262,6 +265,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
@@ -497,6 +501,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self._sampler,
                 self._endpoint_call_counter_span_processor,
             )
 
@@ -562,6 +567,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
 
@@ -746,9 +752,6 @@ class Tracer(object):
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
-
-        if not trace_id:
-            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
@@ -1075,8 +1078,20 @@ class Tracer(object):
                 sample_rate = cfg._trace_sample_rate
             else:
                 sample_rate = None
+
             sampler = DatadogSampler(default_sample_rate=sample_rate)
+
             self._sampler = sampler
+            # we need to update the processor that uses the span
+            # alternatively we could re-run tracer.configure()
+            for aggregator in self._deferred_processors:
+                if type(aggregator) == SpanAggregator:
+                    for processor in aggregator._trace_processors:
+                        if type(processor) == TraceSamplingProcessor:
+                            processor.sampler = self._sampler
+                            break
+            else:
+                log.debug("No TraceSamplingProcessor available to update sampling rate from remote config")
 
         if "tags" in items:
             self._tags = cfg.tags.copy()

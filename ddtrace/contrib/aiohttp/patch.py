@@ -88,7 +88,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             span.service = url.host
 
         if pin._config["distributed_tracing"]:
-            HTTPPropagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers, sampler=pin.tracer._sampler, span=span)
             kwargs["headers"] = headers
 
         span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
