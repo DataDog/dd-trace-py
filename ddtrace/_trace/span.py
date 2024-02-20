@@ -75,6 +75,7 @@ class Span(object):
         "trace_id",
         "parent_id",
         "_meta",
+        "_meta_struct",
         "error",
         "_metrics",
         "_store",
@@ -149,6 +150,8 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
+
+        self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
@@ -371,6 +374,17 @@ class Span(object):
                 del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V3/V4 encoding
+        """
+        self._meta_struct[key] = value
+
+    def get_struct_tag(self, key: str) -> Dict[str, Any]:
+        """Set a tag key/value pair on the span meta_struct"""
+        return self._meta_struct[key]
 
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
