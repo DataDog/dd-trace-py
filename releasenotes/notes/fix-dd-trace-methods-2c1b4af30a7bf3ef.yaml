@@ -1,5 +1,5 @@
 ---
 deprecations:
   - |
-    tracing: Using [] for DD_TRACE_METHODS ("mymod.mysubmod.myclass[myfunc,otherfunc];...") is deprecated and will be removed in 3.0.0.
-    You can use the new notation with : instead ("mymod.mysubmod:myclass.myfunc,myclass.otherfunc;...")
+    tracing: Using ``[]`` for DD_TRACE_METHODS (``mymod.mysubmod.myclass[myfunc,otherfunc];...``) is deprecated and will be removed in 3.0.0.
+    You can use the new notation with ``:`` instead (``mymod.mysubmod:myclass.myfunc,myclass.otherfunc;...``)
