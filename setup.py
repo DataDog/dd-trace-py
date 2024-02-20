@@ -668,5 +668,4 @@ setup(
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil")
-    + get_ddup_ext(),
 )
