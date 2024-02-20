@@ -295,7 +295,9 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)
+        sampling_priority = _extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=str(USER_KEEP)
+        )
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -306,7 +308,7 @@ class _DatadogMultiHeader:
         if sampling_priority == USER_KEEP:
             if not meta:
                 meta = {}
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = "-%d" % SamplingMechanism.TRACE_SAMPLING_RULE
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"  # type: ignore[index]
 
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
