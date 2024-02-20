@@ -6,6 +6,7 @@ import functools
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import ipaddress
+import multiprocessing
 import os
 import platform
 import re
@@ -473,3 +474,7 @@ else:
             return False
 
     Path.is_relative_to = is_relative_to  # type: ignore[assignment]
+
+
+def get_mp_context():
+    return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
