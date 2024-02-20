@@ -8,6 +8,7 @@ import pytest
 import six
 
 from ddtrace import Pin
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -17,7 +18,6 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -757,8 +757,8 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 
 def test_handle_response_future_like():
+    from ddtrace._trace.span import Span
     from ddtrace.contrib.grpc.client_interceptor import _handle_response
-    from ddtrace.span import Span
 
     span = Span(None)
 

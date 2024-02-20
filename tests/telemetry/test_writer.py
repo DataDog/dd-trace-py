@@ -44,6 +44,7 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
+    initial_event_count = len(test_agent_session.get_requests())
     telemetry_writer.disable()
 
     payload = {"test": "123"}
@@ -53,7 +54,7 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
     # ensure no request were sent
     telemetry_writer.periodic()
-    assert len(test_agent_session.get_requests()) == 0
+    assert len(test_agent_session.get_requests()) == initial_event_count
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
@@ -466,12 +467,13 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
+    initial_event_count = len(test_agent_session.get_requests())
     telemetry_writer.disable()
 
     telemetry_writer.add_integration("integration-name", True, False, "")
     telemetry_writer.periodic()
 
-    assert len(test_agent_session.get_requests()) == 0
+    assert len(test_agent_session.get_requests()) == initial_event_count
 
 
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
@@ -516,6 +518,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
+    initial_event_count = len(test_agent_session.get_events())
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # Ensure telemetry writer is initialized to send periodic events
         telemetry_writer._is_periodic = True
@@ -528,7 +531,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         # Assert next flush contains app-heartbeat event
         for _ in range(telemetry_writer._periodic_threshold):
             telemetry_writer.periodic()
-            assert len(test_agent_session.get_events()) == 0
+            assert len(test_agent_session.get_events()) == initial_event_count
 
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
@@ -541,15 +544,13 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
 
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        # Assert clean slate
-        events = test_agent_session.get_events()
-        assert len(events) == 0
+        initial_event_count = len(test_agent_session.get_events())
 
         # Assert a maximum of one heartbeat is queued per flush
         telemetry_writer._app_heartbeat_event()
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
-        assert len(events) == 1
+        assert len(events) == initial_event_count + 1
 
 
 def _get_request_body(payload, payload_type, seq_id=1):

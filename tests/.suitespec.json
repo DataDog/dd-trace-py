@@ -40,6 +40,7 @@
             "ddtrace/pin.py",
             "ddtrace/provider.py",
             "ddtrace/sampler.py",
+            "ddtrace/sampling_rule.py",
             "ddtrace/span.py",
             "ddtrace/tracer.py",
             "ddtrace/tracing/*",
@@ -94,9 +95,18 @@
             "ddtrace/settings/dynamic_instrumentation.py",
             "ddtrace/settings/exception_debugging.py"
         ],
+        "ci": [
+            "ddtrace/ext/ci.py"
+        ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
             "ddtrace/ext/test.py"
+        ],
+        "coverage": [
+            "ddtrace/contrib/coverage/*"
+        ],
+        "llmobs": [
+            "ddtrace/llmobs/*"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -126,6 +136,9 @@
         ],
         "gevent": [
             "ddtrace/contrib/gevent/*"
+        ],
+        "git": [
+            "ddtrace/ext/git.py"
         ],
         "graphene": [
             "ddtrace/contrib/graphene/*"
@@ -310,7 +323,8 @@
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
-            "ddtrace/contrib/pytest_bdd/*"
+            "ddtrace/contrib/pytest_bdd/*",
+            "ddtrace/contrib/pytest_benchmark/*"
         ],
         "unittest": [
             "ddtrace/contrib/unittest/*"
@@ -502,8 +516,18 @@
             "@core",
             "@tracing",
             "@ci_visibility",
+            "@ci",
+            "@coverage",
+            "@git",
             "@pytest",
             "tests/ci_visibility/*"
+        ],
+        "llmobs": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@llmobs",
+            "tests/llmobs/*"
         ],
         "sourcecode": [
             "@bootstrap",
@@ -526,6 +550,7 @@
             "@contrib",
             "@openai",
             "@requests",
+            "@llmobs",
             "tests/contrib/openai/*",
             "tests/snapshots/tests.contrib.openai.*"
         ],
@@ -559,6 +584,7 @@
             "@core",
             "@contrib",
             "@tracing",
+            "@llmobs",
             "@botocore",
             "tests/contrib/botocore/*"
         ],
@@ -912,13 +938,19 @@
             "@tracing",
             "@pytest",
             "@ci_visibility",
-            "tests/contrib/pytest/*"
+            "@coverage",
+            "tests/contrib/pytest/*",
+            "tests/contrib/pytest_benchmark/*",
+            "tests/contrib/pytest_bdd/*",
+            "tests/snapshots/tests.contrib.pytest.*"
         ],
         "unittest": [
             "@contrib",
             "@unittest",
             "@ci_visibility",
-            "tests/contrib/unittest_plugin/*"
+            "@coverage",
+            "tests/contrib/unittest/*",
+            "tests/snapshots/tests.contrib.unittest.*"
         ],
         "asynctest": [
             "@bootstrap",
@@ -927,14 +959,6 @@
             "@tracing",
             "@asynctest",
             "tests/contrib/asynctest/*"
-        ],
-        "pytestbdd": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@pytest",
-            "tests/contrib/pytest_bdd/*"
         ],
         "pymemcache": [
             "@bootstrap",
@@ -1216,6 +1240,7 @@
             "@contrib",
             "@langchain",
             "@requests",
+            "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ]

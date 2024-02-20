@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    tracing: Tags provided in span and trace sampling rules now attempt to match against ``span._metrics``
+    in addition to ``span._meta``, which was previously the only supported field.
