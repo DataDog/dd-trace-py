@@ -667,5 +667,5 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil")
+    + get_exts_for("psutil"),
 )
