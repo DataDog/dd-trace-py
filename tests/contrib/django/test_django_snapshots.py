@@ -317,16 +317,14 @@ def test_django_resource_handler():
         # Request a class based view
         assert client.get("simple/").status_code == 200
 
+
 @pytest.mark.parametrize(
     "dd_trace_methods,error_expected",
     [("django_q.tasks[async_task]", True), ("django_q.tasks:async_task", False)],  # legacy syntax, updated syntax
 )
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
-    with daphne_client(
-        "application",
-        additional_env={"DD_TRACE_METHODS": dd_trace_methods}
-    ) as (client, proc):
+    with daphne_client("application", additional_env={"DD_TRACE_METHODS": dd_trace_methods}) as (client, proc):
         assert client.get("simple/").status_code == 200
 
     _, stderr = proc.communicate(timeout=5)
