@@ -260,6 +260,23 @@ class Span(object):
         # type: (float) -> None
         self.duration_ns = int(value * 1e9)
 
+    @property
+    def sampled(self):
+        # type: () -> bool
+        if not self.context.sampling_priority:
+            return False
+        return self.context.sampling_priority > 0
+
+    @sampled.setter
+    def sampled(self, value):
+        # type: (bool) -> None
+        # only use sampled to set this there isn't a parent
+        if self.context.sampling_priority is None:
+            if value is True:
+                self.context.sampling_priority = 1
+            elif value is False:
+                self.context.sampling_priority = 0
+
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
         """Mark the end time of the span and submit it to the tracer.
