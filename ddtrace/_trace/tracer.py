@@ -408,6 +408,15 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             self._asm_enabled = asm_config._asm_enabled = appsec_enabled
+            if api_version is None:
+                # If appsec is enabled, we need to use the v0.4 API
+                api_version = "v0.4"
+            elif api_version != "v0.4":
+                log.warning(
+                    "ASM is enabled, but the API version is set to %s. "
+                    "ASM does not support API versions other than v0.4.",
+                    api_version,
+                )
 
         if iast_enabled is not None:
             self._iast_enabled = asm_config._iast_enabled = iast_enabled

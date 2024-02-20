@@ -223,7 +223,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
 
             if rc_asm_enabled:
                 if not tracer._asm_enabled:
-                    tracer.configure(appsec_enabled=True)
+                    tracer.configure(appsec_enabled=True, api_version="v0.4")
                 else:
                     asm_config._asm_enabled = True
             else:
