@@ -276,7 +276,6 @@ def test_encode_meta_struct(version):
     )
 
     spans = encoder.encode()
-    print(spans)
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
