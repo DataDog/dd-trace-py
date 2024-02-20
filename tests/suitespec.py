@@ -14,9 +14,9 @@ def get_patterns(suite: str) -> t.Set[str]:
 
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
     ['.circleci/*', 'ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py',
-    'ddtrace/_tracing/*', 'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py',
-    'ddtrace/context.py', 'ddtrace/debugging/*', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py',
-    'ddtrace/provider.py', 'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/sampling_rule.py',
+    'ddtrace/_tracer/*', 'ddtrace/_tracing/*', 'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*',
+    'ddtrace/constants.py', 'ddtrace/context.py', 'ddtrace/debugging/*', 'ddtrace/filters.py', 'ddtrace/internal/*',
+    'ddtrace/pin.py', 'ddtrace/provider.py', 'ddtrace/py.typed', 'ddtrace/sampler.py', 'ddtrace/sampling_rule.py',
     'ddtrace/settings/__init__.py', 'ddtrace/settings/config.py', 'ddtrace/settings/dynamic_instrumentation.py',
     'ddtrace/settings/exception_debugging.py', 'ddtrace/settings/http.py', 'ddtrace/settings/integration.py',
     'ddtrace/span.py', 'ddtrace/tracer.py', 'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml',
@@ -26,8 +26,8 @@ def get_patterns(suite: str) -> t.Set[str]:
     set()
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
     ['.circleci/*', 'ddtrace/__init__.py', 'ddtrace/_hooks.py', 'ddtrace/_logger.py', 'ddtrace/_monkey.py',
-    'ddtrace/_tracing/*', 'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*', 'ddtrace/constants.py',
-    'ddtrace/context.py', 'ddtrace/contrib/__init__.py',
+    'ddtrace/_tracer/*', 'ddtrace/_tracing/*', 'ddtrace/auto.py', 'ddtrace/bootstrap/*', 'ddtrace/commands/*',
+    'ddtrace/constants.py', 'ddtrace/context.py', 'ddtrace/contrib/__init__.py',
     'ddtrace/contrib/trace_utils.py', 'ddtrace/contrib/trace_utils_async.py', 'ddtrace/contrib/urllib3/*',
     'ddtrace/ext/__init__.py', 'ddtrace/ext/http.py', 'ddtrace/ext/net.py', 'ddtrace/ext/sql.py',
     'ddtrace/ext/test.py', 'ddtrace/ext/user.py', 'ddtrace/filters.py', 'ddtrace/internal/*', 'ddtrace/pin.py',
