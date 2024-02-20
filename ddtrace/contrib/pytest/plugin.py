@@ -38,6 +38,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
@@ -700,6 +701,16 @@ def pytest_runtest_protocol(item, nextitem):
                     parameters["arguments"][param_name] = "Could not encode"
                     log.warning("Failed to encode %r", param_name, exc_info=True)
             span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
+
+        if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:
+            if _CIVisibility._instance._suite_skipping_mode:
+                test_suite_span.set_tag_str(
+                    ITR_CORRELATION_ID_TAG_NAME, _CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME]
+                )
+            else:
+                span.set_tag_str(
+                    ITR_CORRELATION_ID_TAG_NAME, _CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME]
+                )
 
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
