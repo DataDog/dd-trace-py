@@ -267,7 +267,7 @@ class Span(object):
     @sampled.setter
     def sampled(self, value):
         # type: (bool) -> None
-        # only use sampled to set this if there isn't a parent
+        # only use sampled to set this if there isn't a parent or sampling hasn't already ran
         if self.context.sampling_priority is None:
             self.context.sampling_priority = int(value)  # int(True) == 1, int(False) == 0
 
