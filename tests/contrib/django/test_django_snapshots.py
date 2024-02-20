@@ -19,7 +19,7 @@ SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
 
 
 @contextmanager
-def daphne_client(django_asgi, additional_env=None, django_settings_module="tests.contrib.django.django_app.settings"):
+def daphne_client(django_asgi, additional_env=None):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -34,7 +34,7 @@ def daphne_client(django_asgi, additional_env=None, django_settings_module="test
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
-            "DJANGO_SETTINGS_MODULE": django_settings_module,
+            "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
         }
     )
 
@@ -316,3 +316,18 @@ def test_django_resource_handler():
     with daphne_client("application", additional_env={"DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": "true"}) as (client, _):
         # Request a class based view
         assert client.get("simple/").status_code == 200
+
+@pytest.mark.parametrize(
+    "dd_trace_methods,error_expected",
+    [("django_q.tasks[async_task]", True), ("django_q.tasks:async_task", False)],  # legacy syntax, updated syntax
+)
+@snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
+def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
+    with daphne_client(
+        "application",
+        additional_env={"DD_TRACE_METHODS": dd_trace_methods}
+    ) as (client, proc):
+        assert client.get("simple/").status_code == 200
+
+    _, stderr = proc.communicate(timeout=5)
+    assert (b"error configuring Datadog tracing" in stderr) == error_expected

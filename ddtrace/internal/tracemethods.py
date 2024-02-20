@@ -12,7 +12,6 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
     specification of DD_TRACE_METHODS.
 
     DD_TRACE_METHODS is specified to be FullyQualifiedModuleName:comma-separated-methods;...
-    The square bracket notation will be deprecated in favor of this new syntax
 
     Note that support for wildcard methods ([*]) is not implemented.
     """
@@ -38,7 +37,8 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
             # __main__ cannot be used since the __main__ that exists now is not the same as the __main__ that the user
             # application will have. __main__ when sitecustomize module is run is the builtin __main__.
             raise ValueError(
-                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module." % qualified_methods
+                "Invalid DD_TRACE_METHODS: %s. Methods cannot be traced on the __main__ module. __main__ when "
+                "sitecustomize module is run is the builtin __main__." % qualified_methods
             )
 
         # Add the methods to the list of methods to trace
@@ -59,6 +59,10 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
 
 def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
     """
+    Return a list of method names to trace based on the specification of
+    DD_TRACE_METHODS.
+
+    This square bracket notation will be deprecated in favor of the new ':' notation
     TODO: This method can be deleted once the legacy syntax is officially deprecated
     """
     if not raw_dd_trace_methods:
