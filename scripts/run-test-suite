@@ -5,6 +5,8 @@ RIOT_PATTERN=${1}
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
 COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
+# temporary workaround for pytest issues in CI jobs
+DDTRACE_FLAG=$([[ "${4:-false}" == true ]] && echo '--no-ddtrace')
 
 RIOT_HASHES=( $(riot list --hash-only $RIOT_PATTERN | sort) )
 echo "Found ${#RIOT_HASHES[@]} riot hashes: ${RIOT_HASHES[@]}"
