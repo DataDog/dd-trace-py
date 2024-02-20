@@ -225,6 +225,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                         inject_trace_to_sqs_or_sns_message(
                             params,
                             span,
+                            pin.tracer,
                             endpoint_service=endpoint_name,
                         )
                         span.name = schematize_cloud_messaging_operation(

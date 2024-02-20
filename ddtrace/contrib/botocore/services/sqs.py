@@ -92,7 +92,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, tracer, endpoint_serv
 
 
 def inject_trace_to_sqs_or_sns_message(params, span, tracer, endpoint_service=None):
-    # type: (Any, Span, Optional[str], Any) -> None
+    # type: (Any, Span, Any, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
