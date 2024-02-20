@@ -270,10 +270,7 @@ class Span(object):
         # type: (bool) -> None
         # only use sampled to set this there isn't a parent
         if self.context.sampling_priority is None:
-            if value is True:
-                self.context.sampling_priority = 1
-            elif value is False:
-                self.context.sampling_priority = 0
+            self.context.sampling_priority = int(value) # int(True) == 1, int(False) == 0
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
