@@ -1,0 +1,2 @@
+class CIVisibilityModule:
+    pass

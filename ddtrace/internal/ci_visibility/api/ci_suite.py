@@ -1,0 +1,2 @@
+class CIVisibilitySuite:
+    pass
