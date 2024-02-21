@@ -77,6 +77,7 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         print("Downloading %s %s %s wheel" % (python_version, arch, platform))
         abi = "cp%s" % python_version.replace(".", "")
         # Have to special-case these versions of Python for some reason.
+        if python_version in ["2.7", "3.5", "3.6", "3.7"]:
         if python_version == "3.7":
             abi += "m"
 
