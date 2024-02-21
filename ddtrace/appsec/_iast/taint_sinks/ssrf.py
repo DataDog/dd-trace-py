@@ -8,7 +8,7 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
-from .._iast.processors import AppSecIastSpanProcessor
+from ..processors import AppSecIastSpanProcessor
 from .._metrics import increment_iast_span_metric
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
