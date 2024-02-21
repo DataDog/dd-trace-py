@@ -168,9 +168,6 @@ class Span(object):
 
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
 
-        # sampling
-        self.sampled = True  # type: bool
-
         self._links = {}  # type: Dict[int, SpanLink]
         if links:
             self._links = {link.span_id: link for link in links}
@@ -261,15 +258,10 @@ class Span(object):
 
     @property
     def sampled(self):
-        # type: () -> bool
-        return self.context.sampling_priority is not None and self.context.sampling_priority > 0
-
-    @sampled.setter
-    def sampled(self, value):
-        # type: (bool) -> None
-        # only use sampled to set this if there isn't a parent or sampling hasn't already ran
+        # type: () -> Optional[bool]
         if self.context.sampling_priority is None:
-            self.context.sampling_priority = int(value)  # int(True) == 1, int(False) == 0
+            return None
+        return self.context.sampling_priority > 0
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
