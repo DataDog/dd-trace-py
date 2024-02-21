@@ -11,6 +11,9 @@ from typing import Union  # noqa:F401
 import attr
 
 from ddtrace import config
+from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
+from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
@@ -21,9 +24,6 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.span import Span  # noqa:F401
-from ddtrace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.span import _is_top_level
 
 
 if config._telemetry_enabled:
@@ -158,11 +158,9 @@ class TraceSamplingProcessor(TraceProcessor):
 
                     return single_spans or None
 
-            for span in trace:
-                if span.sampled:
-                    return trace
+            return trace
 
-            log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
+        log.debug("dropping trace %d with %d spans", trace[0].trace_id, len(trace))
 
         return None
 
@@ -334,10 +332,10 @@ class SpanAggregator(SpanProcessor):
             telemetry.telemetry_writer._enabled = True
             # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
             # before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_created", "integration_name", None)
+            self._queue_span_count_metrics("spans_created", "integration_name", 1)
             # on_span_finish(...) queues span finish metrics in batches of 100.
             # This ensures all remaining counts are sent before the tracer is shutdown.
-            self._queue_span_count_metrics("spans_finished", "integration_name", None)
+            self._queue_span_count_metrics("spans_finished", "integration_name", 1)
             telemetry.telemetry_writer.periodic(True)
 
         try:
@@ -347,11 +345,11 @@ class SpanAggregator(SpanProcessor):
             pass
 
     def _queue_span_count_metrics(self, metric_name, tag_name, min_count=100):
-        # type: (str, str, Optional[int]) -> None
+        # type: (str, str, int) -> None
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
-        if min_count is None or sum(self._span_metrics[metric_name].values()) >= min_count:
+        if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)

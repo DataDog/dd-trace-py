@@ -114,7 +114,7 @@ def collect(tracer):
 
     pip_version = packages_available.get("pip", "N/A")
 
-    from ddtrace.tracer import log
+    from ddtrace._trace.tracer import log
 
     return dict(
         # Timestamp UTC ISO 8601

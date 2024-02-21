@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where previously some traces that were not sampled were not sent to the trace-agent, possibly affecting metrics.
+    With this fix, all traces are sent to the agent.
+    
