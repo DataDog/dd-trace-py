@@ -456,7 +456,9 @@ class Tracer(object):
 
         if writer is not None:
             self._writer = writer
-        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
+        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
+            if self._asm_enabled:
+                api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,

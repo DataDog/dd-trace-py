@@ -370,7 +370,6 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
-                _set_waf_request_metrics()
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
