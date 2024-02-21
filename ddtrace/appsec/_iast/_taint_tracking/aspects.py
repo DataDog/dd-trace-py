@@ -465,6 +465,10 @@ def incremental_translation(self, incr_coder, funcode, empty):
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
+    tainted_new_length = 0
+    in_tainted = False
+    tainted_start = 0
+    bytes_iterated = 0
     try:
         for i in range(len(self)):
             if tainted_range is None:
@@ -474,23 +478,28 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 break
             if i == tainted_range.start:
                 # start new tainted range
-                new_ranges.append(TaintRange(start=i, length=result_length, source=tainted_range.source))
+                tainted_start = bytes_iterated
+                new_ranges.append(TaintRange(start=tainted_start, length=result_length, source=tainted_range.source))
+                tainted_new_length = 0
+                in_tainted = True
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
+            if in_tainted:
+                tainted_new_length += len(new_prod)
+            else:
+                bytes_iterated += len(new_prod)
+
+
             if i + 1 == tainted_range.start + tainted_range.length:
                 # end range. Do no taint partial multi-bytes character that comes next.
-                # new_ranges[-1].append(result_length - new_ranges[-1].length)
                 new_ranges[-1] = TaintRange(
-                    start=new_ranges[-1].length,
-                    length=(result_length - new_ranges[-1].length),
+                    start=tainted_start,
+                    length=tainted_new_length,
                     source=new_ranges[-1].source,
                 )
-
-                if (result_length - new_ranges[-1].length) == 0:
-                    new_ranges.pop()
 
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))

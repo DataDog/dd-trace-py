@@ -121,7 +121,6 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     if should_be_tainted and ok:
         list_ranges = get_tainted_ranges(res)
         assert len(list_ranges) == 1
-
         assert list_ranges[0].start == len(prefix.encode(*args, **kwargs))
         len_infix = len(infix.encode(*args, **kwargs))
         assert list_ranges[0].length == len_infix
