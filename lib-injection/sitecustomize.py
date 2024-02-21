@@ -8,6 +8,8 @@ import time
 
 
 debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
+# Python versions that are supported by the current ddtrace release
+installable_py_versions = ("3.7", "3.8", "3.9", "3.10", "3.11", "3.12")
 
 
 def _get_clib():
@@ -35,7 +37,6 @@ def _log(msg, *args, level="info"):
         print(msg, file=sys.stderr)
 
 
-
 def _inject():
     try:
         import ddtrace
@@ -51,8 +52,12 @@ def _inject():
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
         python_version = ".".join(str(i) for i in sys.version_info[:2])
-        if python_version not in ("3.7", "3.8", "3.9", "3.10", "3.11"):
-            _log("unsupported Python version %r, aborting" % python_version, level="error")
+        if python_version not in installable_py_versions:
+            _log(
+                f"Single Step Instrumentation does support python version {python_version} "
+                f"(supported versions: {installable_py_versions}), aborting",
+                level="error",
+            )
             return
 
         site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, platform))
@@ -93,7 +98,7 @@ def _inject():
             sys.path.insert(0, bootstrap_dir)
             _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
     else:
-        _log("user-installed ddtrace found, aborting", level="warning")
+        _log(f"user-installed ddtrace found: {ddtrace.__version__}, aborting site-packages injection", level="warning")
 
 
 _inject()
