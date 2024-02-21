@@ -9,9 +9,9 @@ from ddsketch.pb.proto import DDSketchProto
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.span import _is_top_level
 
 from ...constants import SPAN_MEASURED_KEY
 from .._encoding import packb
@@ -21,6 +21,7 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ..runtime import container
 from ..writer import _human_size
 
 
@@ -109,6 +110,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
         self._hostname = ""
         if config.report_hostname:
             self._hostname = get_hostname()

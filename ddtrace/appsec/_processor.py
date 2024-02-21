@@ -14,6 +14,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -35,7 +36,6 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
@@ -168,12 +168,16 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
             raise
+        self._update_required()
+
+    def _update_required(self):
+        self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
-            self._mark_needed(address)
+            self._addresses_to_keep.add(address)
         # we always need the request headers
-        self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
-        self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_actions(self, rules: Dict[str, Any]) -> None:
         new_actions = rules.get("actions", [])
@@ -199,6 +203,7 @@ class AppSecSpanProcessor(SpanProcessor):
             error_msg = "Error updating ASM rules. Invalid rules"
             log.debug(error_msg)
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        self._update_required()
         return result
 
     def on_span_start(self, span: Span) -> None:
@@ -365,7 +370,6 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
-                _set_waf_request_metrics()
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
@@ -382,9 +386,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results.derivatives
-
-    def _mark_needed(self, address: str) -> None:
-        self._addresses_to_keep.add(address)
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep

@@ -3,7 +3,7 @@ import typing as t
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace.span import Span
+from ddtrace._trace.span import Span
 
 
 ContextTypeValue = t.Optional[t.Union[Context, Span]]
