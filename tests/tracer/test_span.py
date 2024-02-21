@@ -7,6 +7,7 @@ from unittest.case import SkipTest
 import mock
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -17,7 +18,6 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
