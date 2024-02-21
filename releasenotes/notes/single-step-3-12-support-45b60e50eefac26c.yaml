@@ -1,5 +1,4 @@
 ---
-
 features:
   - |
     lib-injection: Single step instrumentation now supports Python 3.12
