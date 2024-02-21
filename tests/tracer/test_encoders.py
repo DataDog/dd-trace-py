@@ -15,6 +15,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
@@ -30,7 +31,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
 
