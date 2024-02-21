@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fix an issue that caused the instrumented
+    application to fail to start if a non-standard module was imported.
