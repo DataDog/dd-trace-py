@@ -1,7 +1,5 @@
 from time import sleep
 
-import pytest
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
@@ -70,60 +68,6 @@ def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
-
-
-@pytest.mark.skip(reason="This test is not ready yet.")
-def test_oce_max_requests(tracer, iast_span_defaults):
-    import threading
-
-    results = []
-    num_requests = 5
-    total_vulnerabilities = 0
-
-    threads = [threading.Thread(target=function_with_vulnerabilities_1, args=(tracer,)) for _ in range(0, num_requests)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        results.append(thread.join())
-
-    spans = tracer.pop()
-    for span in spans:
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        if span_report:
-            total_vulnerabilities += len(span_report.vulnerabilities)
-
-    assert len(results) == num_requests
-    assert len(spans) == num_requests
-    assert total_vulnerabilities == 1
-
-
-@pytest.mark.skip(reason="This test is not ready yet.")
-def test_oce_max_requests_py3(tracer, iast_span_defaults):
-    import concurrent.futures
-
-    results = []
-    num_requests = 5
-    total_vulnerabilities = 0
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = []
-        for _ in range(0, num_requests):
-            futures.append(executor.submit(function_with_vulnerabilities_1, tracer))
-            futures.append(executor.submit(function_with_vulnerabilities_2, tracer))
-            futures.append(executor.submit(function_with_vulnerabilities_3, tracer))
-
-        for future in concurrent.futures.as_completed(futures):
-            results.append(future.result())
-
-    spans = tracer.pop()
-    for span in spans:
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        if span_report:
-            total_vulnerabilities += len(span_report.vulnerabilities)
-
-    assert len(results) == num_requests * 3
-    assert len(spans) == num_requests * 3
-    assert total_vulnerabilities == MAX_REQUESTS
 
 
 def test_oce_no_race_conditions(tracer, iast_span_defaults):
