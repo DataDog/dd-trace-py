@@ -54,7 +54,7 @@ def _inject():
         python_version = ".".join(str(i) for i in sys.version_info[:2])
         if python_version not in installable_py_versions:
             _log(
-                f"Single Step Instrumentation does support python version {python_version} "
+                f"This version of ddtrace does not support single step instrumentation with python {python_version} "
                 f"(supported versions: {installable_py_versions}), aborting",
                 level="error",
             )
