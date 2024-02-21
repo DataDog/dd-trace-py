@@ -33,6 +33,7 @@
             "ddtrace/_hooks.py",
             "ddtrace/_logger.py",
             "ddtrace/_monkey.py",
+            "ddtrace/_tracer/*",
             "ddtrace/_tracing/*",
             "ddtrace/constants.py",
             "ddtrace/context.py",
