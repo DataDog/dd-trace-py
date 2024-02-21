@@ -3,7 +3,7 @@ from .utils import sanitize_string  # noqa: F401
 
 try:
     from ._ddup import *  # noqa: F403, F401
-except ImportError:
+except Exception:
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
@@ -26,65 +26,62 @@ except ImportError:
         pass
 
     @not_implemented
-    def start_sample(nframes):  # type: (int) -> None
-        pass
-
-    @not_implemented
-    def push_cputime(value, count):  # type: (int, int) -> None
-        pass
-
-    @not_implemented
-    def push_walltime(value, count):  # type: (int, int) -> None
-        pass
-
-    @not_implemented
-    def push_acquire(value, count):  # type: (int, int) -> None
-        pass
-
-    @not_implemented
-    def push_release(value, count):  # type: (int, int) -> None
-        pass
-
-    @not_implemented
-    def push_alloc(value, count):  # type: (int, int) -> None
-        pass
-
-    @not_implemented
-    def push_heap(value):  # type: (int) -> None
-        pass
-
-    @not_implemented
-    def push_lock_name(lock_name):  # type: (str) -> None
-        pass
-
-    @not_implemented
-    def push_frame(name, filename, address, line):  # type: (str, str, int, int) -> None
-        pass
-
-    @not_implemented
-    def push_threadinfo(thread_id, thread_native_id, thread_name):  # type: (int, int, Optional[str]) -> None
-        pass
-
-    @not_implemented
-    def push_taskinfo(task_id, task_name):  # type: (int, str) -> None
-        pass
-
-    @not_implemented
-    def push_exceptioninfo(exc_type, count):  # type: (type, int) -> None
-        pass
-
-    @not_implemented
-    def push_class_name(class_name):  # type: (str) -> None
-        pass
-
-    @not_implemented
-    def push_span(span, endpoint_collection_enabled):  # type: (Optional[Span], bool) -> None
-        pass
-
-    @not_implemented
-    def flush_sample():  # type: () -> None
-        pass
-
-    @not_implemented
     def upload():  # type: () -> None
         pass
+
+    class SampleHandle:
+        @not_implemented
+        def push_cputime(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_walltime(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_acquire(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_release(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_alloc(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_heap(self, value):  # type: (int) -> None
+            pass
+
+        @not_implemented
+        def push_lock_name(self, lock_name):  # type: (str) -> None
+            pass
+
+        @not_implemented
+        def push_frame(self, name, filename, address, line):  # type: (str, str, int, int) -> None
+            pass
+
+        @not_implemented
+        def push_threadinfo(self, thread_id, thread_native_id, thread_name):  # type: (int, int, Optional[str]) -> None
+            pass
+
+        @not_implemented
+        def push_taskinfo(self, task_id, task_name):  # type: (int, str) -> None
+            pass
+
+        @not_implemented
+        def push_exceptioninfo(self, exc_type, count):  # type: (type, int) -> None
+            pass
+
+        @not_implemented
+        def push_class_name(self, class_name):  # type: (str) -> None
+            pass
+
+        @not_implemented
+        def push_span(self, span, endpoint_collection_enabled):  # type: (Optional[Span], bool) -> None
+            pass
+
+        @not_implemented
+        def flush_sample(self):  # type: () -> None
+            pass
