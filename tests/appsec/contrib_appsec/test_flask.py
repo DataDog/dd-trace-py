@@ -52,7 +52,7 @@ class BaseFlaskTestCase(TracerTestCase):
 
 class Test_Flask(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self):
+    def interface(self, printer):
         bftc = BaseFlaskTestCase()
 
         bftc.setUp()
@@ -73,8 +73,23 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
         bftc.client.get = patch_get
 
+        initial_post = bftc.client.post
+
+        def patch_post(*args, **kwargs):
+            if "cookies" in kwargs:
+                for k, v in kwargs["cookies"].items():
+                    if FLASK_VERSION < (2, 3, 0):
+                        bftc.client.set_cookie(bftc.app.config["SERVER_NAME"], k, v)
+                    else:
+                        bftc.client.set_cookie(k, v)
+                kwargs.pop("cookies")
+            return initial_post(*args, **kwargs)
+
+        bftc.client.post = patch_post
+
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
+            interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
 
@@ -88,3 +103,6 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
     def body(self, response):
         return response.data.decode("utf-8")
+
+    def location(self, response):
+        return response.location

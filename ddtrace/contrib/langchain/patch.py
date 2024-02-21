@@ -29,13 +29,12 @@ from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.agent import get_stats_url
-from ddtrace.internal.llmobs.integrations import LangChainIntegration
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
@@ -60,7 +59,6 @@ config._add(
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
-        "_api_key": os.getenv("DD_API_KEY"),
     },
 )
 
@@ -674,10 +672,7 @@ def patch():
     langchain._datadog_patch = True
 
     Pin().onto(langchain)
-    integration = LangChainIntegration(
-        config=config.langchain,
-        stats_url=get_stats_url(),
-    )
+    integration = LangChainIntegration(integration_config=config.langchain)
     langchain._datadog_integration = integration
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.

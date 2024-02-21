@@ -13,6 +13,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace._trace.processor import SpanProcessor
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -32,7 +33,6 @@ from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.span import Span
@@ -284,7 +284,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     value = custom_data.get(key)
                 elif key in SPAN_DATA_NAMES:
                     value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
-                if value is not None:
+                # if value is a callable, it's a lazy value for api security that should not be sent now
+                if value is not None and not hasattr(value, "__call__"):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))

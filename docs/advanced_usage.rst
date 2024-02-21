@@ -662,7 +662,7 @@ uWSGI
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
-- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>` option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
+- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
 Example with CLI arguments:
 
@@ -708,3 +708,18 @@ in use at the root level:
 
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+Duplicate Log Entries
+---------------------
+
+The ``ddtrace`` logger object is preconfigured with some log handlers that manage printing the logger's output to the console.
+If your app sets up its own log handling code on the root logger instance, you may observe duplicate log entries from the ``ddtrace``
+logger. This happens because the ``ddtrace`` logger is a child of the root logger and can inherit handlers set up for it.
+
+To avoid such duplicate log entries from ``ddtrace``, you can remove the automatically-configured log handlers from it:
+
+.. code-block:: python
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        ddtrace_logger.removeHandler(handler)

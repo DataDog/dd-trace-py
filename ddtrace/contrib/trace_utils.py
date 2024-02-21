@@ -169,16 +169,8 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     return ""
 
 
-# Used to cache the last header used for the cache. From the same server/framework
-# usually the same header will be used on further requests, so we use this to check
-# only it.
-_USED_IP_HEADER = ""
-
-
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
-
-    global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -197,7 +189,11 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     user_configured_ip_header = config.client_ip_header
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
-        ip_header_value = headers.get(user_configured_ip_header)
+        ip_header_value = get_header_value(
+            user_configured_ip_header.lower().replace("_", "-")
+            if headers_are_case_sensitive
+            else user_configured_ip_header
+        )
         if not ip_header_value:
             log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", user_configured_ip_header)
             return ""
@@ -209,17 +205,16 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             return ""
 
     else:
-        # No configured IP header, go through the IP_PATTERNS headers in order
-        if _USED_IP_HEADER:
-            # Check first the caught header that previously contained an IP
-            ip_header_value = get_header_value(_USED_IP_HEADER)
-
-        if not ip_header_value:
+        if headers_are_case_sensitive:
+            new_headers = {k.lower().replace("_", "-"): v for k, v in headers.items()}
             for ip_header in IP_PATTERNS:
-                tmp_ip_header_value = get_header_value(ip_header)
-                if tmp_ip_header_value:
-                    ip_header_value = tmp_ip_header_value
-                    _USED_IP_HEADER = ip_header
+                if ip_header in new_headers:
+                    ip_header_value = new_headers[ip_header]
+                    break
+        else:
+            for ip_header in IP_PATTERNS:
+                if ip_header in headers:
+                    ip_header_value = headers[ip_header]
                     break
 
     private_ip_from_headers = ""

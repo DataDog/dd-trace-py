@@ -3,10 +3,11 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 
 from ddtrace import Span
-from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
@@ -34,7 +35,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
     This means that if the stream is not consumed, there is a small risk of memory leak due to unfinished spans.
     """
 
-    def __init__(self, wrapped, span, integration):
+    def __init__(self, wrapped, span, integration, prompt=None):
         """
         The TracedBotocoreStreamingBody wrapper stores a reference to the
         underlying Span object, BedrockIntegration object, and the response body that will saved and tagged.
@@ -43,6 +44,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         self._datadog_span = span
         self._datadog_integration = integration
         self._body = []
+        self._prompt = prompt
 
     def read(self, amt=None):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
@@ -55,8 +57,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 self._datadog_span.finish()
             return body
         except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
-            self._datadog_span.finish()
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
             raise
 
     def readlines(self):
@@ -67,12 +68,11 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 self._body.append(json.loads(line))
             formatted_response = _extract_response(self._datadog_span, self._body[0])
             self._process_response(formatted_response)
+            self._datadog_span.finish()
             return lines
         except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
             raise
-        finally:
-            self._datadog_span.finish()
 
     def __iter__(self):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
@@ -83,15 +83,15 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             metadata = _extract_streamed_response_metadata(self._datadog_span, self._body)
             formatted_response = _extract_streamed_response(self._datadog_span, self._body)
             self._process_response(formatted_response, metadata=metadata)
-        except Exception:
-            self._datadog_span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
             self._datadog_span.finish()
+        except Exception:
+            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
+            raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
         """
         Sets the response tags on the span given the formatted response body and any metadata.
+        Also generates an LLM record if enabled.
         """
         if metadata is not None:
             for k, v in metadata.items():
@@ -105,6 +105,18 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.set_tag_str(
                 "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
             )
+        if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
+            self._datadog_integration.generate_llm_record(
+                self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
+            )
+
+
+def _handle_exception(span, integration, prompt, exc_info):
+    """Helper method to finish the span on stream read error."""
+    span.set_exc_info(*exc_info)
+    span.finish()
+    if integration.is_pc_sampled_llmobs(span):
+        integration.generate_llm_record(span, formatted_response=None, prompt=prompt, err=1)
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -277,23 +289,30 @@ def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: 
 
     span.set_tag_str("bedrock.request.model_provider", model_provider)
     span.set_tag_str("bedrock.request.model", model_name)
+    prompt = None
     for k, v in request_params.items():
         if k == "prompt" and integration.is_pc_sampled_span(span):
             v = integration.trunc(str(v))
+        if k == "prompt" and integration.is_pc_sampled_llmobs(span):
+            prompt = v
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
+    return prompt
 
 
-def handle_bedrock_response(span: Span, integration: BedrockIntegration, result: Dict[str, Any]) -> Dict[str, Any]:
+def handle_bedrock_response(
+    span: Span, integration: BedrockIntegration, result: Dict[str, Any], prompt: Optional[str] = None
+) -> Dict[str, Any]:
     """Perform response param extraction and tagging."""
-    metadata = result.get("ResponseMetadata", {})
+    metadata = result["ResponseMetadata"]
+    http_headers = metadata["HTTPHeaders"]
     span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))
-    span.set_tag_str("bedrock.response.duration", str(metadata.get("x-amzn-bedrock-invocation-latency", "")))
-    span.set_tag_str("bedrock.usage.prompt_tokens", str(metadata.get("x-amzn-bedrock-input-token-count", "")))
-    span.set_tag_str("bedrock.usage.completion_tokens", str(metadata.get("HTTPStatusCode", "")))
+    span.set_tag_str("bedrock.response.duration", str(http_headers.get("x-amzn-bedrock-invocation-latency", "")))
+    span.set_tag_str("bedrock.usage.prompt_tokens", str(http_headers.get("x-amzn-bedrock-input-token-count", "")))
+    span.set_tag_str("bedrock.usage.completion_tokens", str(http_headers.get("x-amzn-bedrock-output-token-count", "")))
 
     # Wrap the StreamingResponse in a traced object so that we can tag response data as the user consumes it.
     body = result["body"]
-    result["body"] = TracedBotocoreStreamingBody(body, span, integration)
+    result["body"] = TracedBotocoreStreamingBody(body, span, integration, prompt=prompt)
     return result
 
 
@@ -311,12 +330,12 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         resource=operation,
         activate=False,
     )
+    prompt = None
     try:
-        handle_bedrock_request(bedrock_span, integration, params)
+        prompt = handle_bedrock_request(bedrock_span, integration, params)
         result = original_func(*args, **kwargs)
-        result = handle_bedrock_response(bedrock_span, integration, result)
+        result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
         return result
     except Exception:
-        bedrock_span.set_exc_info(*sys.exc_info())
-        bedrock_span.finish()
+        _handle_exception(bedrock_span, integration, prompt, sys.exc_info())
         raise

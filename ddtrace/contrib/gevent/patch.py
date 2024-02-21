@@ -2,8 +2,8 @@ import gevent
 import gevent.pool
 
 import ddtrace
+from ddtrace._trace.provider import DefaultContextProvider
 
-from ...provider import DefaultContextProvider
 from .greenlet import GEVENT_VERSION
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap

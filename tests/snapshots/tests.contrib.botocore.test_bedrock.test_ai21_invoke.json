@@ -21,10 +21,10 @@
       "bedrock.request.top_p": "1.0",
       "bedrock.response.choices.0.finish_reason": "{'reason': 'length', 'length': 10}",
       "bedrock.response.choices.0.text": "\\nA neural network is like a secret recipe that a computer uses to learn how to",
-      "bedrock.response.duration": "",
+      "bedrock.response.duration": "319",
       "bedrock.response.id": "1de3312e-48d1-4d7f-8694-733c1c1ea20f",
-      "bedrock.usage.completion_tokens": "200",
-      "bedrock.usage.prompt_tokens": "",
+      "bedrock.usage.completion_tokens": "10",
+      "bedrock.usage.prompt_tokens": "10",
       "language": "python",
       "runtime-id": "3dd17f1c810946349e47a84acb56402a"
     },
