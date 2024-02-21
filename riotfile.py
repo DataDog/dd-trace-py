@@ -1568,7 +1568,7 @@ venv = Venv(
                         ),
                         Venv(
                             pkgs={
-                                "pytest": [latest],
+                                "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
                         ),
@@ -1578,7 +1578,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest": [
-                            ">=6.0,<7.0",
+                            "~=6.0",
+                            "~=7.0",
                             latest,
                         ],
                         "msgpack": latest,
@@ -1808,23 +1809,35 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4"]},
+                    # Support added for Python 3.7 in 1.25.0
+                    # Support removed for Python 3.7 after 1.26.0
+                    pys="3.7",
+                    pkgs={"urllib3": ["==1.25.0", "~=1.26.0"]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.9 in 1.25.8
+                    # Support added for Python 3.8 in 1.25.0
+                    pys="3.8",
+                    pkgs={"urllib3": ["==1.25.0", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
+                    pkgs={"urllib3": ["==1.25.8", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.10 in 1.26.6
+                    # Support added for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6"]},
+                    pkgs={"urllib3": ["==1.26.6", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.11 in 1.26.8
+                    # Support added for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8"]},
+                    pkgs={"urllib3": ["==1.26.8", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.12 in 2.0.0
+                    pys="3.12",
+                    pkgs={"urllib3": ["==2.0.0", latest]},
                 ),
             ],
         ),

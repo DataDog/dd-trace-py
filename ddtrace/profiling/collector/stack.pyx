@@ -328,15 +328,15 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
             if use_libdd and nframes:
-                ddup.start_sample(nframes)
-                ddup.push_walltime(wall_time, 1)
-                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_task_id(task_id)
-                ddup.push_task_name(task_name)
-                ddup.push_class_name(frames[0].class_name)
+                handle = ddup.SampleHandle()
+                handle.push_walltime(wall_time, 1)
+                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                handle.push_task_id(task_id)
+                handle.push_task_name(task_name)
+                handle.push_class_name(frames[0].class_name)
                 for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.flush_sample()
+                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                handle.flush_sample()
 
             if use_py and nframes:
                 stack_events.append(
@@ -355,15 +355,15 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
         if use_libdd and nframes:
-            ddup.start_sample(nframes)
-            ddup.push_cputime(cpu_time, 1)
-            ddup.push_walltime(wall_time, 1)
-            ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-            ddup.push_class_name(frames[0].class_name)
+            handle = ddup.SampleHandle()
+            handle.push_cputime( cpu_time, 1)
+            handle.push_walltime( wall_time, 1)
+            handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+            handle.push_class_name(frames[0].class_name)
             for frame in frames:
-                ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-            ddup.push_span(span, collect_endpoint)
-            ddup.flush_sample()
+                handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+            handle.push_span(span, collect_endpoint)
+            handle.flush_sample()
 
         if use_py and nframes:
             event = stack_event.StackSampleEvent(
@@ -387,14 +387,14 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
             if use_libdd and nframes:
-                ddup.start_sample(nframes)
-                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_exceptioninfo(exc_type, 1)
-                ddup.push_class_name(frames[0].class_name)
+                handle = ddup.SampleHandle()
+                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                handle.push_exceptioninfo(exc_type, 1)
+                handle.push_class_name(frames[0].class_name)
                 for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.push_span(span, collect_endpoint)
-                ddup.flush_sample()
+                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                handle.push_span(span, collect_endpoint)
+                handle.flush_sample()
 
             if use_py and nframes:
                 exc_event = stack_event.StackExceptionSampleEvent(
