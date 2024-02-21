@@ -13,6 +13,7 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -474,6 +475,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -490,6 +492,9 @@ class StackCollector(collector.PeriodicCollector):
         set_use_libdd(config.export.libdd_enabled)
         set_use_py(config.export.py_enabled)
 
+        if self._stack_collector_v2_enabled and use_libdd:
+            stack_v2.start(max_frames=self.nframes, min_interval=self.min_interval_time)
+
     def _start_service(self):
         # type: (...) -> None
         # This is split in its own function to ease testing
@@ -505,6 +510,10 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
         LOG.debug("Profiling StackCollector stopped")
+
+        # Also tell the native thread running the v2 sampler to stop, if needed
+        if self._stack_collector_v2_enabled and use_libdd:
+            stack_v2.stop()
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
