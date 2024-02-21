@@ -506,7 +506,6 @@ def incremental_translation(self, incr_coder, funcode, empty):
             else:
                 bytes_iterated += len(new_prod)
 
-
             if i + 1 == tainted_range.start + tainted_range.length:
                 # end range. Do no taint partial multi-bytes character that comes next.
                 new_ranges[-1] = TaintRange(
