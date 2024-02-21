@@ -716,7 +716,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
 
             # Get last datadog parent id, this field is used to reconnect traces with missing spans
-            lpid = dd.get("lp.id", "0000000000000000")
+            lpid = dd.get("p", "0000000000000000")
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
@@ -799,7 +799,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
                     if lpid:
-                        meta["_dd.lp.id"] = lpid
+                        meta["_dd.parent_id"] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
                 else:
@@ -823,9 +823,9 @@ class _TraceContext:
             ts = span_context._tracestate
             # Adds last datadog parent_id to tracestate. This tag is used to reconnect a traces with missing spans
             if "dd=" in ts:
-                ts = ts.replace("dd=", "dd=lp.id:{:016x};".format(span_context.span_id or 0))
+                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
             else:
-                ts = "dd=lp.id:{:016x}".format(span_context.span_id or 0)
+                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
 
             headers[_HTTP_HEADER_TRACESTATE] = ts
 
