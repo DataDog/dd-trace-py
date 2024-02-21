@@ -478,7 +478,7 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function_consumption_plan():
+        if is_windows or in_gcp_function() or in_azure_function_consumption_plan() or asm_config._asm_can_be_enabled:
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
