@@ -13,7 +13,7 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
 
     DD_TRACE_METHODS is specified to be FullyQualifiedModuleName:comma-separated-methods;...
 
-    Note that support for wildcard methods ([*]) is not implemented.
+    Note that support for wildcard methods with * is not implemented.
     """
     if not raw_dd_trace_methods:
         return []
@@ -61,6 +61,8 @@ def _parse_legacy_trace_methods(raw_dd_trace_methods: str) -> List[str]:
     """
     Return a list of method names to trace based on the specification of
     DD_TRACE_METHODS.
+
+    Note that support for wildcard methods with [*] is not implemented.
 
     This square bracket notation will be deprecated in favor of the new ':' notation
     TODO: This method can be deleted once the legacy syntax is officially deprecated
