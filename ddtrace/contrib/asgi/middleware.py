@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Any
 from typing import Mapping
@@ -5,8 +6,8 @@ from typing import Optional
 from urllib import parse
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -28,7 +29,12 @@ log = get_logger(__name__)
 
 config._add(
     "asgi",
-    dict(service_name=config._get_service(default="asgi"), request_span_name="asgi.request", distributed_tracing=True),
+    dict(
+        service_name=config._get_service(default="asgi"),
+        request_span_name="asgi.request",
+        distributed_tracing=True,
+        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+    ),
 )
 
 ASGI_VERSION = "asgi.version"
@@ -109,7 +115,11 @@ class TraceMiddleware:
         self.span_modifier = span_modifier
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
+        if scope["type"] == "http":
+            method = scope["method"]
+        elif scope["type"] == "websocket" and self.integration_config._trace_asgi_websocket:
+            method = "WEBSOCKET"
+        else:
             return await self.app(scope, receive, send)
         try:
             headers = _extract_headers(scope)
@@ -120,9 +130,13 @@ class TraceMiddleware:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
-        resource = " ".join((scope["method"], scope["path"]))
+        resource = " ".join([method, scope["path"]])
+
+        # in the case of websockets we don't currently schematize the operation names
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
-        operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+        if scope["type"] == "http":
+            operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+
         pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
         with pin.tracer.trace(
             name=operation_name,

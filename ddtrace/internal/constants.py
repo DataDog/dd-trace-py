@@ -73,6 +73,9 @@ HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
+ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
+CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
+
 MESSAGING_SYSTEM = "messaging.system"
 
 FLASK_ENDPOINT = "flask.endpoint"

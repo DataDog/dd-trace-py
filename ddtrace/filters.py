@@ -10,7 +10,7 @@ from ddtrace.ext import http
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 class TraceFilter(TraceProcessor):

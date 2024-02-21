@@ -1,3 +1,5 @@
+from ddtrace.ext import SpanTypes
+
 from .utils import _compute_prompt_token_count
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
@@ -203,6 +205,7 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
+        span.span_type = SpanTypes.LLM
         if integration.is_pc_sampled_span(span):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
@@ -225,7 +228,7 @@ class _CompletionHook(_BaseCompletionHook):
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         if integration.is_pc_sampled_llmobs(span):
-            integration.generate_completion_llm_records(resp, error, span, kwargs)
+            integration.llmobs_set_tags("completion", resp, error, span, kwargs)
         if not resp:
             return
         for choice in resp.choices:
@@ -258,6 +261,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
+        span.span_type = SpanTypes.LLM
         for idx, m in enumerate(kwargs.get("messages", [])):
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str(
@@ -279,7 +283,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         if integration.is_pc_sampled_llmobs(span):
-            integration.generate_chat_llm_records(resp, error, span, kwargs)
+            integration.llmobs_set_tags("chat", resp, error, span, kwargs)
         if not resp:
             return
         for choice in resp.choices:

@@ -70,6 +70,12 @@ log = get_logger(__name__)
 _global_skipped_elements = 0
 
 
+def _is_pytest_8_or_later():
+    if hasattr(pytest, "version_tuple"):
+        return pytest.version_tuple >= (8, 0, 0)
+    return False
+
+
 def encode_test_parameter(parameter):
     param_repr = repr(parameter)
     # if the representation includes an id() we'll remove it
@@ -115,7 +121,7 @@ def _extract_ancestor_module_span(item):
         module_span = _extract_module_span(item) or _extract_span(item)
         if module_span is not None and module_span.name == "pytest.test_module":
             return module_span
-        item = item.parent
+        item = _get_parent(item)
 
 
 def _extract_ancestor_suite_span(item):
@@ -124,7 +130,7 @@ def _extract_ancestor_suite_span(item):
         suite_span = _extract_span(item)
         if suite_span is not None and suite_span.name == "pytest.test_suite":
             return suite_span
-        item = item.parent
+        item = _get_parent(item)
 
 
 def _store_module_span(item, span):
@@ -134,8 +140,9 @@ def _store_module_span(item, span):
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
-    if item.parent:
-        _mark_failed(item.parent)
+    item_parent = _get_parent(item)
+    if item_parent:
+        _mark_failed(item_parent)
     item._failed = True
 
 
@@ -146,9 +153,42 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
-    if item.parent:
-        _mark_not_skipped(item.parent)
+    item_parent = _get_parent(item)
+    if item_parent:
+        _mark_not_skipped(item_parent)
     item._fully_skipped = False
+
+
+def _mark_not_skipped(item):
+    """Mark test suite/module/session `pytest.Item` as not skipped."""
+
+    item_parent = _get_parent(item)
+
+    if item_parent:
+        _mark_not_skipped(item_parent)
+    item._fully_skipped = False
+
+
+def _get_parent(item):
+    """Fetches the nearest parent that is not a directory.
+
+    This is introduced as a workaround for pytest 8.0's introduction pytest.Dir objects.
+    """
+    if item is None or item.parent is None:
+        return None
+
+    if _is_pytest_8_or_later():
+        # In pytest 8.0, the parent of a Package can be another Package. In previous versions, the parent was always
+        # a session.
+        if isinstance(item, pytest.Package):
+            while item.parent is not None and not isinstance(item.parent, pytest.Session):
+                item = item.parent
+            return item.parent
+
+        while item.parent is not None and isinstance(item.parent, pytest.Dir):
+            item = item.parent
+
+    return item.parent
 
 
 def _mark_test_forced(test_item):
@@ -190,19 +230,21 @@ def _mark_test_status(item, span):
     """
     Given a `pytest.Item`, determine and set the test status of the corresponding span.
     """
+    item_parent = _get_parent(item)
+
     # If any child has failed, mark span as failed.
     if _check_failed(item):
         status = test.Status.FAIL.value
-        if item.parent:
-            _mark_failed(item.parent)
-            _mark_not_skipped(item.parent)
+        if item_parent:
+            _mark_failed(item_parent)
+            _mark_not_skipped(item_parent)
     # If all children have been skipped, mark span as skipped.
     elif _check_fully_skipped(item):
         status = test.Status.SKIP.value
     else:
         status = test.Status.PASS.value
-        if item.parent:
-            _mark_not_skipped(item.parent)
+        if item_parent:
+            _mark_not_skipped(item_parent)
     span.set_tag_str(test.STATUS, status)
 
 
@@ -224,15 +266,14 @@ def _get_module_path(item):
     # type (pytest.Item) -> str
     if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
-    return item.nodeid.rpartition("/")[0]
 
+    if _is_pytest_8_or_later() and isinstance(item, pytest.Package):
+        module_path = item.nodeid
 
-def _get_module_name(item, is_package=True):
-    """Extract module name (fully qualified) from a `pytest.Item` instance."""
-    # type (pytest.Item) -> str
-    if is_package:
-        return item.module.__name__
-    return item.nodeid.rpartition("/")[0].replace("/", ".")
+    else:
+        module_path = item.nodeid.rpartition("/")[0]
+
+    return module_path
 
 
 def _is_test_unskippable(item):
@@ -248,6 +289,10 @@ def _is_test_unskippable(item):
 
 
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
+    # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
+    if _is_pytest_8_or_later():
+        return isinstance(pytest_module_item.parent, pytest.Package)
+
     if pytest_package_item is None and pytest_module_item is not None:
         return False
     return True
@@ -471,7 +516,7 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    """Return the :class:`ddtrace.span.Span` instance associated with the
+    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     if _CIVisibility.enabled:
@@ -506,7 +551,7 @@ def _find_pytest_item(item, pytest_item_type):
         return None
     if pytest_item_type not in [pytest.Package, pytest.Module]:
         return None
-    parent = item.parent
+    parent = _get_parent(item)
     while not isinstance(parent, pytest_item_type) and parent is not None:
         parent = parent.parent
     return parent
@@ -517,7 +562,7 @@ def _get_test_class_hierarchy(item):
     Given a `pytest.Item` function item, traverse upwards to collect and return a string listing the
     test class hierarchy, or an empty string if there are no test classes.
     """
-    parent = item.parent
+    parent = _get_parent(item)
     test_class_hierarchy = []
     while parent is not None:
         if isinstance(parent, pytest.Class):
@@ -793,7 +838,7 @@ def pytest_runtest_makereport(item, call):
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
-            _mark_not_skipped(item.parent)
+            _mark_not_skipped(_get_parent(item))
             if not item.config.option.runxfail:
                 span.set_tag_str(test.RESULT, test.Status.XFAIL.value)
                 span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
@@ -809,7 +854,7 @@ def pytest_runtest_makereport(item, call):
                         suite_span.set_tag_str(test.ITR_SKIPPED, "true")
                 span.set_tag_str(test.ITR_SKIPPED, "true")
     elif result.passed:
-        _mark_not_skipped(item.parent)
+        _mark_not_skipped(_get_parent(item))
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
@@ -817,8 +862,8 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
     else:
         # Store failure in test suite `pytest.Item` to propagate to test suite spans
-        _mark_failed(item.parent)
-        _mark_not_skipped(item.parent)
+        _mark_failed(_get_parent(item))
+        _mark_not_skipped(_get_parent(item))
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
@@ -841,7 +886,20 @@ def pytest_ddtrace_get_item_module_name(item):
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     if _module_is_package(pytest_package_item, pytest_module_item):
+        if _is_pytest_8_or_later():
+            # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by concatenating
+            # parent package names in reverse until we hit a non-Package-type item
+            # https://github.com/pytest-dev/pytest/issues/11137
+            package_names = []
+            current_package = pytest_package_item
+            while isinstance(current_package, pytest.Package):
+                package_names.append(str(current_package.name))
+                current_package = current_package.parent
+
+            return ".".join(package_names[::-1])
+
         return pytest_package_item.module.__name__
+
     return pytest_module_item.nodeid.rpartition("/")[0].replace("/", ".")
 
 
@@ -851,7 +909,6 @@ def pytest_ddtrace_get_item_suite_name(item):
     Extract suite name from a `pytest.Item` instance.
     If the module path doesn't exist, the suite path will be reported in full.
     """
-    # breakpoint()
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     test_module_path = _get_module_path(pytest_module_item)
     if test_module_path:

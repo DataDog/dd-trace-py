@@ -25,6 +25,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.service import ServiceStatus
@@ -39,17 +40,30 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import MutableMapping  # noqa:F401
     from typing import Tuple  # noqa:F401
-    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
 
 
+REQUIRE_SKIP_SHUTDOWN = frozenset({"django-q"})
+
+
+def derive_skip_shutdown(c: "RemoteConfigClientConfig") -> bool:
+    return (
+        c._skip_shutdown
+        if c._skip_shutdown is not None
+        else any(is_distribution_available(_) for _ in REQUIRE_SKIP_SHUTDOWN)
+    )
+
+
 class RemoteConfigClientConfig(En):
     __prefix__ = "_dd.remote_configuration"
 
     log_payloads = En.v(bool, "log_payloads", default=False)
+
+    _skip_shutdown = En.v(Optional[bool], "skip_shutdown", default=None)
+    skip_shutdown = En.d(bool, derive_skip_shutdown)
 
 
 config = RemoteConfigClientConfig()
@@ -181,11 +195,7 @@ class RemoteConfigClient(object):
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         tags = ddtrace.config.tags.copy()
 
