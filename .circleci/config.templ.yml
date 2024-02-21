@@ -971,7 +971,7 @@ jobs:
 
   pytest:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 10
     steps:
       - run_test:
           pattern: 'pytest'
