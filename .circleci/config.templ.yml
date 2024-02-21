@@ -126,9 +126,6 @@ commands:
       run_agent_checks:
         type: boolean
         default: true
-      no_ddtrace:
-        type: boolean
-        default: false
     steps:
       - checkout
       - attach_workspace:
@@ -149,7 +146,7 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
-                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1 <<parameters.no_ddtrace>>
+                  ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
       - unless:
           condition:
               << parameters.snapshot >>
@@ -824,7 +821,6 @@ jobs:
           pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
-          no_ddtrace: true
 
   django_hosts:
     <<: *machine_executor
