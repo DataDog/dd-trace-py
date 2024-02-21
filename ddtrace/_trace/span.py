@@ -382,9 +382,9 @@ class Span(object):
         """
         self._meta_struct[key] = value
 
-    def get_struct_tag(self, key: str) -> Dict[str, Any]:
-        """Set a tag key/value pair on the span meta_struct"""
-        return self._meta_struct[key]
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """Return the given struct or None if it doesn't exist."""
+        return self._meta_struct.get(key, None)
 
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
