@@ -682,8 +682,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
+        has_meta_struct = <bint> (len(span._meta_struct) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -777,6 +778,25 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0:
                     return ret
+
+            if has_meta_struct:
+                ret = pack_bytes(&self.pk, <char *> b"meta_struct", 11)
+                if ret != 0:
+                    return ret
+
+                ret = msgpack_pack_map(&self.pk, len(span._meta_struct))
+                if ret != 0:
+                    return ret
+                for k, v in span._meta_struct.items():
+                    ret = pack_text(&self.pk, k)
+                    if ret != 0:
+                        return ret
+                    value_packed = packb(v)
+                    ret = msgpack_pack_bin(&self.pk, len(value_packed))
+                    if ret == 0:
+                        ret = msgpack_pack_raw_body(&self.pk, <char *> value_packed, len(value_packed))
+                    if ret != 0:
+                        return ret
 
             if has_metrics:
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
