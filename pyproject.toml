@@ -131,6 +131,8 @@ exclude-modules = '''
   | ddtrace.bootstrap.sitecustomize
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
+  # also ignore preload module to avoid exception after moving ddtrace.tracing module
+  | ddtrace.bootstrap.preload
   # protobuf file fails to import
   | ddtrace.profiling.exporter.pprof_3_pb2
   | ddtrace.profiling.exporter.pprof_312_pb2

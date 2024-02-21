@@ -1,9 +1,3 @@
-# Unless explicitly stated otherwise all files in this repository are licensed under the Apache
-# License Version 2.0. This product includes software developed at Datadog
-# (https://www.datadoghq.com/). Copyright 2021-Present Datadog, Inc.
-
-# libdatadog : common profiler imported libraries
-# https://github.com/DataDog/libdatadog/releases/tag/v0.8.0
 set(TAG_LIBDATADOG
     "v5.0.0"
     CACHE STRING "libdatadog github tag")
