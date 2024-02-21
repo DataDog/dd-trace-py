@@ -11,6 +11,7 @@ from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -41,7 +42,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.tracing._span_link import SpanLink
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
