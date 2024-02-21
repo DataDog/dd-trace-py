@@ -45,14 +45,10 @@ struct TaintRange
       , length(length)
       , source(std::move(source))
     {
-        if (length <= 0)
-            throw std::invalid_argument("Error: Length cannot be set to 0.");
     }
 
     inline void set_values(RANGE_START start_, RANGE_LENGTH length_, Source source_)
     {
-        if (length_ <= 0)
-            throw std::invalid_argument("Error: Length cannot be set to 0.");
         start = start_;
         length = length_;
         source = std::move(source_);
