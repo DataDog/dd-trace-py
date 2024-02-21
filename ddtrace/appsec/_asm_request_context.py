@@ -457,11 +457,12 @@ def _on_set_request_tags(request, span, flask_config):
         from ddtrace.appsec._iast._taint_utils import taint_structure
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+
         if not AppSecIastSpanProcessor.is_span_analyzed():
             return
 
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,
