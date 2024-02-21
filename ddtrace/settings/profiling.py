@@ -166,15 +166,15 @@ class ProfilingConfig(En):
         )
 
         class V2(En):
-          __item__ = __prefix__ = "v2"
+            __item__ = __prefix__ = "v2"
 
-          enabled = En.v(
-              bool,
-              "enabled",
-              default=False,
-              help_type="Boolean",
-              help="Whether to enable the v2 stack profiler",
-          )
+            enabled = En.v(
+                bool,
+                "enabled",
+                default=False,
+                help_type="Boolean",
+                help="Whether to enable the v2 stack profiler",
+            )
 
     class Lock(En):
         __item__ = __prefix__ = "lock"
