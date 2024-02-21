@@ -63,11 +63,10 @@ def register(after_in_child):
 
 def unregister(after_in_child):
     # type: (typing.Callable[[], None]) -> None
-    """Unregister a function to be called after fork in the child process.
-
-    Raises `ValueError` if the function was not registered.
-    """
-    _registry.remove(after_in_child)
+    try:
+        _registry.remove(after_in_child)
+    except ValueError:
+        log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
 
 if hasattr(os, "register_at_fork"):
