@@ -1,6 +1,5 @@
 import contextlib
 import functools
-import json
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -109,18 +108,17 @@ def unregister(span: Span) -> None:
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
         root_span = env.span._local_root or env.span
-        old_tags = root_span.get_tag(APPSEC.JSON)
-        if old_tags is not None:
+        report = root_span.get_struct_tag(APPSEC.JSON)
+        if report is not None:
             try:
-                new_json = json.loads(old_tags)
-                if "triggers" not in new_json:
-                    new_json["triggers"] = []
-                new_json["triggers"].extend(env.waf_triggers)
+                if "triggers" not in report:
+                    report["triggers"] = []
+                report["triggers"].extend(env.waf_triggers)
             except BaseException:
-                new_json = {"triggers": env.waf_triggers}
+                report = {"triggers": env.waf_triggers}
         else:
-            new_json = {"triggers": env.waf_triggers}
-        root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
+            report = {"triggers": env.waf_triggers}
+        root_span.set_struct_tag(APPSEC.JSON, report)
 
         env.waf_triggers = []
 
