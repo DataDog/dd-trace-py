@@ -102,6 +102,8 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
+    if LLMObs.enabled:
+        LLMObs.disable()
 
 
 def patch_submodules(submodules):

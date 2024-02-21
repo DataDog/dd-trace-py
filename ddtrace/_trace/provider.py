@@ -7,8 +7,8 @@ from typing import Union  # noqa:F401
 
 from ddtrace import _hooks
 from ddtrace._trace.context import Context  # noqa:F401
+from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
