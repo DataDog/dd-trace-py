@@ -4,13 +4,13 @@ from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
-from ..processor import AppSecIastSpanProcessor
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from ..constants import EVIDENCE_PATH_TRAVERSAL
 from ..constants import VULN_PATH_TRAVERSAL
+from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
 
 

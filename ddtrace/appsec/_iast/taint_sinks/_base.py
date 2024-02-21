@@ -11,12 +11,12 @@ from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings.asm import config as asm_config
 
 from ..._deduplications import deduplication
-from ..processor import AppSecIastSpanProcessor
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
 from .._utils import _has_to_scrub
 from .._utils import _is_evidence_value_parts
 from .._utils import _scrub
+from ..processor import AppSecIastSpanProcessor
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
