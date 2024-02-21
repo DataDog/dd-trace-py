@@ -143,9 +143,9 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
     if _is_iast_enabled():
         try:
-            from ..processor import AppSecIastSpanProcessor
             from ._taint_tracking import is_pyobject_tainted
             from ._taint_tracking import taint_pyobject
+            from .processor import AppSecIastSpanProcessor
 
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return value
@@ -160,8 +160,8 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
     if _is_iast_enabled():
-        from ..processor import AppSecIastSpanProcessor
         from ._taint_tracking import taint_pyobject
+        from .processor import AppSecIastSpanProcessor
 
         if not AppSecIastSpanProcessor.is_span_analyzed():
             for key, value in wrapped(*args, **kwargs):

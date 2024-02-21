@@ -17,7 +17,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
-from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
@@ -434,9 +433,13 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    if _is_iast_enabled() and AppSecIastSpanProcessor.is_span_analyzed() and kwargs:
+    if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return return_value
 
         _kwargs = {}
         for k, v in kwargs.items():
@@ -448,10 +451,14 @@ def _on_wrapped_view(kwargs):
 
 
 def _on_set_request_tags(request, span, flask_config):
-    if _is_iast_enabled() and AppSecIastSpanProcessor.is_span_analyzed():
+    if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
