@@ -461,7 +461,7 @@ if not IS_PYSTON:
     if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
-                "ddtrace.internal.datadog.profiling._ddup",
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=True,
                 cmake_args=[
