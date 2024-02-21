@@ -134,6 +134,9 @@ class Pin(object):
         if not obj:
             return
 
+        if not isinstance(tags, dict):
+            raise ValueError("tags must be a dictionary")
+
         pin = cls.get_from(obj)
         if pin is None:
             Pin(service=service, tags=tags, tracer=tracer).onto(obj)
