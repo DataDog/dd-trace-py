@@ -8,7 +8,6 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
-from ..processors import AppSecIastSpanProcessor
 from .._metrics import increment_iast_span_metric
 from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
@@ -17,6 +16,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
+from ..processors import AppSecIastSpanProcessor
 from ..reporter import IastSpanReporter  # noqa:F401
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
