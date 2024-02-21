@@ -21,6 +21,7 @@ from ._utils import _is_iast_enabled
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
+    from typing import Optional  # noqa:F401
 
 log = get_logger(__name__)
 
