@@ -15,6 +15,7 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
@@ -30,7 +31,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
 
@@ -78,7 +78,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 span.span_type = "web"
 
             for _ in range(0, nmetrics):
-                span.set_tag(rands(key_size), random.randint(0, 2**16))
+                span.set_tag(rands(key_size), random.randint(0, 2 ** 16))
 
             trace.append(span)
 
@@ -532,8 +532,8 @@ def test_span_link_v05_encoding():
         links=[
             SpanLink(trace_id=16, span_id=17),
             SpanLink(
-                trace_id=(2**127) - 1,
-                span_id=(2**64) - 1,
+                trace_id=(2 ** 127) - 1,
+                span_id=(2 ** 64) - 1,
                 tracestate="congo=t61rcWkgMzE",
                 flags=0,
                 attributes={
@@ -549,7 +549,7 @@ def test_span_link_v05_encoding():
 
     assert len(span._links) == 2
     # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    span._links.get((2**64) - 1)._drop_attribute("drop_me")
+    span._links.get((2 ** 64) - 1)._drop_attribute("drop_me")
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -601,13 +601,13 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 
 @allencodings
 @given(
-    trace_id=integers(min_value=1, max_value=2**128 - 1),
+    trace_id=integers(min_value=1, max_value=2 ** 128 - 1),
     name=text(),
     service=text(),
     resource=text(),
     meta=dictionaries(text(), text()),
     metrics=dictionaries(text(), floats()),
-    error=integers(min_value=-(2**31), max_value=2**31 - 1),
+    error=integers(min_value=-(2 ** 31), max_value=2 ** 31 - 1),
     span_type=text(),
 )
 @settings(max_examples=200)

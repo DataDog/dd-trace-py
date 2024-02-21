@@ -6,6 +6,7 @@ import pickle
 
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
@@ -29,7 +30,6 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.tracing._span_link import SpanLink
 from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
@@ -79,7 +79,7 @@ def test_inject_128bit_trace_id_datadog():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         # Get the hex representation of the 64 most signicant bits
         trace_id_hob_hex = "{:032x}".format(trace_id)[:16]
         ctx = Context(trace_id=trace_id, meta={"_dd.t.tid": trace_id_hob_hex})
@@ -105,7 +105,7 @@ def test_inject_128bit_trace_id_b3multi():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -127,7 +127,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -149,7 +149,7 @@ def test_inject_128bit_trace_id_tracecontext():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         ctx = Context(trace_id=trace_id)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -326,11 +326,11 @@ def test_extract_128bit_trace_ids_datadog():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         # Get the hex representation of the 64 most signicant bits
-        trace_id_64bit = trace_id & 2**64 - 1
+        trace_id_64bit = trace_id & 2 ** 64 - 1
         headers = {
             "x-datadog-trace-id": str(trace_id_64bit),
             "x-datadog-parent-id": str(span_id),
@@ -360,7 +360,7 @@ def test_extract_128bit_trace_ids_b3multi():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)
@@ -387,7 +387,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)
@@ -413,7 +413,7 @@ def test_extract_128bit_trace_ids_tracecontext():
 
     tracer = DummyTracer()  # noqa: F811
 
-    for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
+    for trace_id in [2 ** 128 - 1, 2 ** 127 + 1, 2 ** 65 - 1, 2 ** 64 + 1, 2 ** 127 + 2 ** 63]:
         trace_id_hex = "{:032x}".format(trace_id)
         span_id = 1
         span_id_hex = "{:016x}".format(span_id)

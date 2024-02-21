@@ -7,6 +7,7 @@ from unittest.case import SkipTest
 import mock
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
@@ -17,7 +18,6 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -40,8 +40,8 @@ class SpanTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
     def test_128bit_trace_ids(self):
         s = Span(name="test.span")
-        assert s.trace_id >= 2**64
-        assert s._trace_id_64bits < 2**64
+        assert s.trace_id >= 2 ** 64
+        assert s._trace_id_64bits < 2 ** 64
 
         trace_id_binary = format(s.trace_id, "b")
         trace_id64_binary = format(s._trace_id_64bits, "b")
@@ -61,29 +61,29 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("negative", -1)
         s.set_tag("zero", 0)
         s.set_tag("positive", 1)
-        s.set_tag("large_int", 2**53)
-        s.set_tag("really_large_int", (2**53) + 1)
-        s.set_tag("large_negative_int", -(2**53))
-        s.set_tag("really_large_negative_int", -((2**53) + 1))
+        s.set_tag("large_int", 2 ** 53)
+        s.set_tag("really_large_int", (2 ** 53) + 1)
+        s.set_tag("large_negative_int", -(2 ** 53))
+        s.set_tag("really_large_negative_int", -((2 ** 53) + 1))
         s.set_tag("float", 12.3456789)
         s.set_tag("negative_float", -12.3456789)
-        s.set_tag("large_float", 2.0**53)
-        s.set_tag("really_large_float", (2.0**53) + 1)
+        s.set_tag("large_float", 2.0 ** 53)
+        s.set_tag("really_large_float", (2.0 ** 53) + 1)
 
         assert s.get_tags() == dict(
-            really_large_int=str(((2**53) + 1)),
-            really_large_negative_int=str(-((2**53) + 1)),
+            really_large_int=str(((2 ** 53) + 1)),
+            really_large_negative_int=str(-((2 ** 53) + 1)),
         )
         assert s.get_metrics() == {
             "negative": -1,
             "zero": 0,
             "positive": 1,
-            "large_int": 2**53,
-            "large_negative_int": -(2**53),
+            "large_int": 2 ** 53,
+            "large_negative_int": -(2 ** 53),
             "float": 12.3456789,
             "negative_float": -12.3456789,
-            "large_float": 2.0**53,
-            "really_large_float": (2.0**53) + 1,
+            "large_float": 2.0 ** 53,
+            "really_large_float": (2.0 ** 53) + 1,
         }
 
     def test_set_tag_bool(self):
