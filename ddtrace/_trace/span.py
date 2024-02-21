@@ -383,7 +383,7 @@ class Span(object):
         self._meta_struct[key] = value
 
     def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
-        """Set a tag key/value pair on the span meta_struct"""
+        """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
