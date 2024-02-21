@@ -8,16 +8,17 @@ cmake_minimum_required(VERSION 3.19)
 set(EXTENSION_NAME "ddup" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 
+# Get the cmake modules for this project
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
+
 # Includes
 include(FetchContent)
 include(ExternalProject)
 include(FindPython3)
+include(FindLibdatadog)
+include(AnalysisFunc)
 
-# Build the dd_wrapper
-# Need to specify that we're calling it via add_subdirectory, so that it knows to
-# propagate the right variables to its parent scope
-set(DD_WRAPPER_IS_SUBPROJECT ON)
-add_subdirectory(dd_wrapper "${LIB_INSTALL_DIR}")
+add_subdirectory(../dd_wrapper "${LIB_INSTALL_DIR}")
 
 # Find the Python interpreter
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -42,7 +43,7 @@ add_library(${EXTENSION_NAME} SHARED
     _ddup.cpp
 )
 
-target_compile_features(dd_wrapper PUBLIC cxx_std_17)
+target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries).
 # This suppresses that behavior, which is required to ensure all paths can be inferred
@@ -56,7 +57,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 
 target_include_directories(${EXTENSION_NAME} PRIVATE
     include
-    dd_wrapper/include
+    ../dd_wrapper/include
     ${Datadog_INCLUDE_DIRS}
     ${Python3_INCLUDE_DIRS}
 )

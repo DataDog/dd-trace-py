@@ -14,8 +14,8 @@ upload_in_thread()
 [[noreturn]] void
 profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic<bool>& done)
 {
-    // Assumes setup has been called. Launch some samplers, wait, upload, exit.
-    // Managing interleaved execution is tricky, so the fork exits--rather than returns--when it is done.
+    // Assumes setup has been called. Launch some samplers, wait, upload, return.
+    // Exit because we don't want this process to exit
     std::vector<unsigned int> ids;
     for (unsigned int i = 0; i < num_threads; i++) {
         ids.push_back(i);

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# This script is used to build the library independently of the setup.py
-# build system.  This is mostly used to integrate different analysis tools
-# which I haven't promoted into our normal builds yet.
-
+### Useful globals
+MY_DIR=$(dirname $(realpath $0))
+MY_NAME="$0"
+BUILD_DIR="build"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
@@ -40,22 +40,33 @@ find_highest_compiler_version clang highest_clang
 find_highest_compiler_version clang++ highest_clangxx
 
 ### Build setup
-SANITIZE_OPTIONS="" # passed directly to cmake
-SAFETY_OPTIONS="address,leak,undefined"
-THREAD_OPTIONS="thread"
-NUMERICAL_OPTIONS="integer,nullability,signed-integer-overflow,bounds,float-divide-by-zero"
-DATAFLOW_OPTIONS="dataflow"
-MEMORY_OPTIONS="memory"
-ANALYZE_OPTIONS="-fanalyzer"
+# Targets to target dirs
+declare -A target_dirs
+target_dirs["ddup"]="ddup"
+target_dirs["stack_v2"]="stack_v2"
+target_dirs["dd_wrapper"]="dd_wrapper"
 
-# helper function for setting the compiler
-# Final cmake args
+# Compiler options
+declare -A compiler_args
+compiler_args["safety"]="-DSANITIZE_OPTIONS=address,leak,undefined"
+compiler_args["thread"]="-DSANITIZE_OPTIONS=thread"
+compiler_args["numerical"]="-DSANITIZE_OPTIONS=integer,nullability,signed-integer-overflow,bounds,float-divide-by-zero"
+compiler_args["dataflow"]="-DSANITIZE_OPTIONS=dataflow"
+compiler_args["memory"]="-DSANITIZE_OPTIONS=memory"
+compiler_args["fanalyzer"]="-DDO_FANALYZE=ON"
+compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
+
+# Initial cmake args
 cmake_args=(
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_VERBOSE_MAKEFILE=ON
-  -DBUILD_TESTING=ON
+  -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
 )
 
+# Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built
+targets=("dd_wrapper")
+
+# Helper functions for finding the compiler(s)
 set_clang() {
   export CC=$highest_clang
   export CXX=$highest_clangxx
@@ -74,68 +85,110 @@ set_gcc() {
   )
 }
 
+### Build runners
+run_cmake() {
+  target=$1
+  dir=${target_dirs[$target]}
+  if [ -z "$dir" ]; then
+    echo "No directory specified for cmake"
+    exit 1
+  fi
 
+  # Enter the directory and create the build directory
+  pushd $dir || { echo "Failed to change to $dir"; exit 1; }
+  mkdir -p $BUILD_DIR && cd $BUILD_DIR || { echo "Failed to create build directory for $dir"; exit 1; }
 
-# Check input
-if [ -n "$1" ]; then
+  # Run cmake
+  cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }
+  cmake --build . || { echo "build failed"; exit 1; }
+  if [[ " ${cmake_args[*]} " =~ " -DDO_CPPCHECK=ON " ]]; then
+    echo "--------------------------------------------------------------------- Running CPPCHECK"
+    make cppcheck || { echo "cppcheck failed"; exit 1; }
+  fi
+  if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
+    echo "--------------------------------------------------------------------- Running Tests"
+#    make test || { echo "tests failed"; exit 1; }
+    ctest --output-on-failure || { echo "tests failed!"; exit 1; }
+  fi
+
+  # OK, the build or whatever went fine I guess.
+  popd
+}
+
+### Print help
+print_help() {
+  echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
+  echo "Options (one of)"
+  echo "  -h, --help        Show this help message and exit"
+  echo "  -s, --safety      Clang + " compile_args["safety"]
+  echo "  -t, --thread      Clang + " compile_args["thread"]
+  echo "  -n, --numerical   Clang + " compile_args["numerical"]
+  echo "  -d, --dataflow    Clang + " compile_args["dataflow"]
+  echo "  -m  --memory      Clang + " compile_args["memory"]
+  echo "  -C  --cppcheck    Clang + " compile_args["cppcheck"]
+  echo "  -f, --fanalyze    GCC + " compile_args["fanalyzer"]
+  echo "  -c, --clang       Clang (alone)"
+  echo "  -g, --gcc         GCC (alone)"
+  echo "  --                Don't do anything special"
+  echo ""
+  echo "Build Modes:"
+  echo "  Debug (default)"
+  echo "  Release"
+  echo "  RelWithDebInfo"
+  echo ""
+  echo "(any possible others, depending on what cmake supports for"
+  echo "BUILD_TYPE out of the box)"
+  echo ""
+  echo "Targets:"
+  echo "  all"
+  echo "  all_test (default)"
+  echo "  dd_wrapper"
+  echo "  dd_wrapper_test"
+  echo "  stack_v2 (also builds dd_wrapper)"
+  echo "  stack_v2_test (also builds dd_wrapper_test)"
+  echo "  ddup (also builds dd_wrapper)"
+  echo "  ddup_test (also builds dd_wrapper_test)"
+}
+
+print_cmake_args() {
+  echo "CMake Args: ${cmake_args[*]}"
+  echo "Targets: ${targets[*]}"
+}
+
+### Check input
+# Check the first slot, options
+add_compiler_args() {
   case "$1" in
     -h|--help)
-      echo "Usage: $0 [options] [build_mode]"
-      echo "Options (one of)"
-      echo "  -h, --help        Show this help message and exit"
-      echo "  -s, --safety      Clang + fsanitize=$SAFETY_OPTIONS"
-      echo "  -t, --thread      Clang + fsanitize=$THREAD_OPTIONS"
-      echo "  -n, --numerical   Clang + fsanitize=$NUMERICAL_OPTIONS"
-      echo "  -d, --dataflow    Clang + fsanitize=$DATAFLOW_OPTIONS"
-      echo "  -m  --memory      Clang + fsanitize=$MEMORY_OPTIONS"
-      echo "  -C  --cppcheck    Clang + cppcheck"
-      echo "  -f, --fanalyze    GCC + -fanalyzer"
-      echo "  -c, --clang       Clang (alone)"
-      echo "  -g, --gcc         GCC (alone)"
-      echo "  --                Don't do anything special"
-      echo ""
-      echo "Build Modes:"
-      echo "  Debug (default)"
-      echo "  Release"
-      echo "  RelWithDebInfo"
-      echo ""
-      echo "(any possible others, depending on what cmake supports for"
-      echo "BUILD_TYPE out of the box)"
-      echo ""
-      echo "-------------------------------------------------"
-      echo "Diagnostic parameters"
-      echo "Highest gcc: $highest_gcc"
-      echo "Highest g++: $highest_gxx"
-      echo "Highest Clang: $highest_clang"
-      echo "Highest Clang++: $highest_clangxx"
+      print_help
       exit 0
       ;;
     -s|--safety)
-      cmake_args+=(-DSANITIZE_OPTIONS=$SAFETY_OPTIONS)
+      cmake_args+=compiler_args["safety"]
       set_clang
       ;;
     -t|--thread)
-      cmake_args+=(-DSANITIZE_OPTIONS=$THREAD_OPTIONS)
+      cmake_args+=compiler_args["thread"]
       set_clang
       ;;
     -n|--numerical)
-      cmake_args+=(-DSANITIZE_OPTIONS=$NUMERICAL_OPTIONS)
+      cmake_args+=compiler_args["numerical"]
       set_clang
       ;;
     -d|--dataflow)
-      cmake_args+=(-DSANITIZE_OPTIONS=$DATAFLOW_OPTIONS)
+      cmake_args+=compiler_args["dataflow"]
       set_clang
       ;;
     -m|--memory)
-      cmake_args+=(-DSANITIZE_OPTIONS=$MEMORY_OPTIONS)
+      cmake_args+=compiler_args["memory"]
       set_clang
       ;;
     -C|--cppcheck)
-      cmake_args+=(-DDO_CPPCHECK=ON)
+      cmake_args+=compiler_args["cppcheck"]
       set_clang
       ;;
     -f|--fanalyze)
-      cmake_args+=(-DDO_FANALYZE=ON)
+      cmake_args+=compiler_args["fanalyzer"]
       set_gcc
       ;;
     -c|--clang)
@@ -145,28 +198,77 @@ if [ -n "$1" ]; then
       set_gcc
       ;;
     --)
+      set_gcc # Default to GCC, since this is what will happen in the official build
       ;;
     *)
       echo "Unknown option: $1"
       exit 1
       ;;
   esac
-else
-  set_gcc
+}
+
+# Check the second slot, build mode
+add_build_mode() {
+  case "$1" in
+    Debug|Release|RelWithDebInfo)
+      cmake_args+=(-DCMAKE_BUILD_TYPE=$1)
+      ;;
+    ""|--)
+      cmake_args+=(-DCMAKE_BUILD_TYPE=Debug)
+      ;;
+    *)
+      echo "Unknown build mode: $1"
+      exit 1
+      ;;
+  esac
+}
+
+# Check the third slot, target
+add_target() {
+  arg=${1:-"all_test"}
+  if [[ "${arg}" =~ _test$ ]]; then
+    cmake_args+=(-DBUILD_TESTING=ON)
+  fi
+  target=${arg%_test}
+
+  case "${target}" in
+    all|--)
+      targets+=("stack_v2")
+      targets+=("ddup")
+      ;;
+    dd_wrapper)
+      # We always build dd_wrapper, so no need to add it to the list
+      ;;
+    stack_v2)
+      targets+=("stack_v2")
+      ;;
+    ddup)
+      targets+=("ddup")
+      ;;
+    *)
+      echo "Unknown target: $1"
+      exit 1
+      ;;
+  esac
+}
+
+
+### ENTRYPOINT
+# Check for basic input validity
+if [ $# -eq 0 ]; then
+  echo "No arguments given.  At least one is needed, otherwise I'd (a m b i g u o u s l y) do a lot of work!"
+  print_help
+  exit 1
 fi
 
-# If there are two arguments, override build mode
-BUILD_MODE=${2:-Debug}
-cmake_args+=(-DCMAKE_BUILD_TYPE=$BUILD_MODE)
+add_compiler_args "$1"
+add_build_mode "$2"
+add_target "$3"
 
-# Setup cmake stuff
-BUILD_DIR="build"
-mkdir -p $BUILD_DIR && cd $BUILD_DIR || { echo "Failed to create build directory"; exit 1; }
+# Print cmake args
+print_cmake_args
 
 # Run cmake
-cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }
-cmake --build . || { echo "build failed"; exit 1; }
-if [[ "$SANITIZE_OPTIONS" == "cppcheck" ]]; then
-  make cppcheck_run || { echo "cppcheck failed"; exit 1; }
-fi
-ctest --output-on-failure || { echo "tests failed!"; exit 1; }
+for target in "${targets[@]}"; do
+  run_cmake $target
+done

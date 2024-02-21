@@ -1,7 +1,14 @@
+# Only add this project if Datadog::Profiling is not already defined
+if(TARGET Datadog::Profiling)
+    return()
+endif()
+
+include(ExternalProject)
 set(TAG_LIBDATADOG
     "v5.0.0"
     CACHE STRING "libdatadog github tag")
 
+set(Datadog_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/libdatadog)
 set(Datadog_ROOT ${Datadog_BUILD_DIR}/libdatadog-${TAG_LIBDATADOG})
 
 message(STATUS "${CMAKE_CURRENT_LIST_DIR}/tools/fetch_libdatadog.sh ${TAG_LIBDATADOG} ${Datadog_ROOT}")
