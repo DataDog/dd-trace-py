@@ -968,6 +968,7 @@ venv = Venv(
                 "werkzeug": "~=2.0",
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
+                "importlib_metadata": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -1014,7 +1015,6 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2.0",  # latest 2.2
                         ],
-                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
@@ -1029,7 +1029,6 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.2.0",  # latest 2.2
                         ],
-                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
@@ -1039,7 +1038,6 @@ venv = Venv(
                             "~=2.0.0",
                             "~=2.3.0",
                         ],
-                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
@@ -1066,7 +1064,6 @@ venv = Venv(
                         ],
                         # Flask 3.0 requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
-                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
