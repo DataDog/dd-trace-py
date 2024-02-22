@@ -460,7 +460,7 @@ def _on_set_request_tags(request, span, flask_config):
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
-        if not AppSecIastSpanProcessor.is_span_analyzed(span):
+        if not AppSecIastSpanProcessor.is_span_analyzed():
             return
 
         request.cookies = taint_structure(
