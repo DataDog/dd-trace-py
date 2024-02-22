@@ -133,8 +133,7 @@
         "pg": [
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
-            "ddtrace/contrib/psycopg/*",
-            "ddtrace/contrib/psycopg2/*"
+            "ddtrace/contrib/psycopg/*"
         ],
         "datastreams": [
             "ddtrace/internal/datastreams/*",
@@ -189,9 +188,6 @@
         ],
         "git": [
             "ddtrace/ext/git.py"
-        ],
-        "graphene": [
-            "ddtrace/contrib/graphene/*"
         ],
         "starlette": [
             "ddtrace/contrib/starlette/*"
@@ -296,16 +292,11 @@
         "mysql": [
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
-            "ddtrace/contrib/mysqlconnector/*",
-            "ddtrace/contrib/mysqlpython/*",
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/aiomysql/*"
         ],
         "pylibmc": [
             "ddtrace/contrib/pylibmc/*"
-        ],
-        "asynctest": [
-            "ddtrace/contrib/asynctest/*"
         ],
         "logbook": [
             "ddtrace/contrib/logbook/*"
@@ -369,9 +360,7 @@
             "ddtrace/ext/consul.py"
         ],
         "django": [
-            "ddtrace/contrib/django/*",
-            "ddtrace/contrib/django_hosts/*",
-            "ddtrace/contrib/djangorestframework/*"
+            "ddtrace/contrib/django/*"
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
@@ -406,7 +395,6 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
-            "tests/test_module/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -849,7 +837,6 @@
             "@tracing",
             "@appsec",
             "@django",
-            "tests/contrib/django_hosts/*",
             "tests/snapshots/tests.contrib.{suite}.*"
         ],
         "djangorestframework": [
@@ -858,8 +845,7 @@
             "@contrib",
             "@tracing",
             "@appsec",
-            "@django",
-            "tests/contrib/djangorestframework/*"
+            "@django"
         ],
         "fastapi": [
             "@bootstrap",
@@ -902,10 +888,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
-            "@tracing",
-            "@graphene",
-            "tests/contrib/graphene/*",
-            "tests/snapshots/tests.contrib.graphene.*"
+            "@tracing"
         ],
         "graphql": [
             "@bootstrap",
@@ -979,22 +962,6 @@
             "@mysql",
             "tests/contrib/mysqldb/*"
         ],
-        "mysqlconnector": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@mysql",
-            "tests/contrib/mysqlconnector/*"
-        ],
-        "mysqlpython": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@mysql",
-            "tests/contrib/mysqlpython/*"
-        ],
         "pymysql": [
             "@bootstrap",
             "@core",
@@ -1038,9 +1005,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
-            "@tracing",
-            "@asynctest",
-            "tests/contrib/asynctest/*"
+            "@tracing"
         ],
         "pymemcache": [
             "@bootstrap",
