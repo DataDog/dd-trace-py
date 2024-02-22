@@ -1402,41 +1402,27 @@ venv = Venv(
                     # botocore added support for Python 3.7 in 1.10.69
                     # botocore dropped support for Python 3.7 in 1.33.13
                     pys="3.7",
-                    pkgs={
-                        "botocore": ["==1.10.69", "==1.33.13"]
-                    },
+                    pkgs={"botocore": ["==1.10.69", "==1.33.13"]},
                 ),
                 Venv(
                     # botocore added support for Python 3.8 in 1.13.45
                     pys="3.8",
-                    pkgs={
-                        "botocore": ["==1.13.45", latest],
-                        "vcrpy": latest
-                    },
+                    pkgs={"botocore": ["==1.13.45", latest], "vcrpy": latest},
                 ),
                 Venv(
                     # botocore added support for Python 3.9 and 3.10 in 1.21.49
                     pys=select_pys(min_version="3.9", max_version="3.10"),
-                    pkgs={
-                        "botocore": ["==1.21.49", latest],
-                        "vcrpy": latest
-                    },
+                    pkgs={"botocore": ["==1.21.49", latest], "vcrpy": latest},
                 ),
                 Venv(
                     # botocore added support for Python 3.11 in 1.27.13
                     pys="3.11",
-                    pkgs={
-                        "botocore": ["==1.27.13", latest],
-                        "vcrpy": latest
-                    },
+                    pkgs={"botocore": ["==1.27.13", latest], "vcrpy": latest},
                 ),
                 Venv(
                     # botocore added support for Python 3.12 in 1.31.27
                     pys="3.12",
-                    pkgs={
-                        "botocore": ["==1.31.27", latest],
-                        "vcrpy": latest
-                    },
+                    pkgs={"botocore": ["==1.31.27", latest], "vcrpy": latest},
                 ),
             ],
         ),
