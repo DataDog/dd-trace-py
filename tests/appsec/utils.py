@@ -1,5 +1,7 @@
 import sys
 
+from ddtrace.appsec._constants import APPSEC
+
 
 class Either:
     def __init__(self, *possibilities):
@@ -13,4 +15,4 @@ class Either:
 
 
 def get_triggers(span):
-    return (span.get_struct_tag("appsec") or {}).get("triggers", None)
+    return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
