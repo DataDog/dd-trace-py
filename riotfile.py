@@ -1734,18 +1734,23 @@ venv = Venv(
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.34.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.42.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.49.0", latest]},
+                ),
+                Venv(
+                    # grpcio added support for Python 3.12 in 1.59
+                    pys="3.12",
+                    pkgs={"grpcio": ["~=1.59.0", latest]},
                 ),
             ],
         ),
