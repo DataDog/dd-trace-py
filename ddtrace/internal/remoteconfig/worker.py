@@ -8,6 +8,7 @@ from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
@@ -84,7 +85,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             self.start()
             forksafe.register(self.reset_at_fork)
-            atexit.register(self.disable)
+            if not rc_config.skip_shutdown:
+                atexit.register(self.disable)
             return True
         return False
 
@@ -161,6 +163,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
             log.debug("error starting the RCM client", exc_info=True)
 
     def unregister(self, product):
+        if rc_config.skip_shutdown:
+            # If we are asked to skip shutdown, then we likely don't want to
+            # unregister any of the products, because this is generally done
+            # when the application is shutting down.
+            return
+
         try:
             self._client.unregister_product(product)
         except Exception:

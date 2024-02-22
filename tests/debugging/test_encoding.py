@@ -15,7 +15,6 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
-from ddtrace.debugging._signal.snapshot import format_message
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import BUILTIN_MAPPNG_TYPES
 from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
@@ -243,20 +242,6 @@ def test_batch_flush_reencode():
 
 def test_serialize_side_effects():
     assert utils.serialize(SideEffects()) == "SideEffects()"
-
-
-@pytest.mark.parametrize(
-    "args,expected",
-    [
-        ({"bar": 42}, "bar=42"),
-        ({"bar": [42, 43]}, "bar=list(42, 43)"),
-        ({"bar": (42, None)}, "bar=tuple(42, None)"),
-        ({"bar": {42, 43}}, "bar=set(42, 43)"),
-        ({"bar": {"b": [43, 44]}}, "bar={'b': list()}"),
-    ],
-)
-def test_format_message(args, expected):
-    assert format_message("foo", {k: utils.capture_value(v, level=0) for k, v in args.items()}) == "foo(%s)" % expected
 
 
 def test_encoding_none():

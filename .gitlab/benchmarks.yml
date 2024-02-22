@@ -38,13 +38,11 @@ benchmarks-pr-comment:
   when: on_success
   tags: ["arch:amd64"]
   image: $BASE_CI_IMAGE
-  rules:
-    - if: '$CI_COMMIT_BRANCH == main'
-      when: never
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    - "(for i in {1..2}; do ./steps/upload-results-to-benchmarking-api.sh && break; done) || :"
     - "./steps/post-pr-comment.sh || :"
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.

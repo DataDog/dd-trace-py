@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    IAST: fix potentially empty ranges after executing the decode aspect.
