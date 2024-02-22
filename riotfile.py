@@ -1066,6 +1066,7 @@ venv = Venv(
                         ],
                         # Flask 3.0 requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
+                        "importlib_metadata": "<=6.0",
                     },
                 ),
                 Venv(
