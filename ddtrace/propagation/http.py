@@ -728,8 +728,7 @@ class _TraceContext:
             return None, {}, None
 
     @staticmethod
-    def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
-        # type: (int, Optional[int]) -> int
+    def _get_sampling_priority(traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: str):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
@@ -799,7 +798,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin = tracestate_values
                     meta.update(other_propagated_tags.items())
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
