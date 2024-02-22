@@ -3,7 +3,8 @@ import typing as t
 import attr
 
 import ddtrace
-from ddtrace import Span
+from ddtrace._trace.span import Span
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
@@ -55,7 +56,8 @@ class DynamicSpan(Signal):
         span = self._span_cm.__enter__()
 
         span.set_tags(probe.tags)
-        span.set_tag(PROBE_ID_TAG_NAME, probe.probe_id)
+        span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
+        span.set_tag_str(ORIGIN_KEY, "di")
 
         self.state = SignalState.DONE
 

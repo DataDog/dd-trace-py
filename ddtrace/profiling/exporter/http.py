@@ -174,8 +174,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         else:
             headers = {}
 
-        if self._container_info and self._container_info.container_id:
-            headers["Datadog-Container-Id"] = self._container_info.container_id
+        container.update_headers_with_container_info(headers, self._container_info)
 
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         pprof = io.BytesIO()

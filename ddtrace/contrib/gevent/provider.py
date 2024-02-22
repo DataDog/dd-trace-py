@@ -2,8 +2,7 @@ import gevent
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DatadogContextMixin
-
-from ...span import Span
+from ddtrace._trace.span import Span
 
 
 class GeventContextProvider(BaseContextProvider, DatadogContextMixin):
