@@ -433,7 +433,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ):
 
-            self.client.set_cookie("localhost", key="sqlite_master", value="sqlite_master2")
+            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
 
