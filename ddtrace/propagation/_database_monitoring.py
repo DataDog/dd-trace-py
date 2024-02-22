@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace import tracer
+import ddtrace
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -53,7 +53,7 @@ class _DBM_Propagator(object):
 
     def inject(self, dbspan, args, kwargs):
         dbm_comment = self._get_dbm_comment(dbspan)
-        tracer.sample(dbspan._local_root)
+        ddtrace.tracer._sampler.sample(dbspan._local_root)
         if dbm_comment is None:
             # injection_mode is disabled
             return args, kwargs
