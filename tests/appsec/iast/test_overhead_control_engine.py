@@ -118,3 +118,46 @@ def test_oce_no_race_conditions(tracer, iast_span_defaults):
 
     # oce should not have quota
     assert oc._request_quota == 0
+
+
+def acquire_and_release_quota(oc, iast_span_defaults):
+    """
+    Just acquires the request quota and releases it with some
+    random sleeps
+    """
+    import random
+    import time
+
+    random_int = random.randint(1, 10)
+    time.sleep(0.01 * random_int)
+    if oc.acquire_request(iast_span_defaults):
+        time.sleep(0.01 * random_int)
+        oc.release_request()
+
+
+def test_oce_concurrent_requests(tracer, iast_span_defaults):
+    """
+    Ensures quota is always within bounds after multithreading scenario
+    """
+    import threading
+
+    from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
+    from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
+
+    oc = OverheadControl()
+    oc.reconfigure()
+
+    results = []
+    num_requests = 5000
+
+    threads = [
+        threading.Thread(target=acquire_and_release_quota, args=(oc, iast_span_defaults))
+        for _ in range(0, num_requests)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        results.append(thread.join())
+
+    # Ensures quota is always within bounds after multithreading scenario
+    assert 0 <= oc._request_quota <= MAX_REQUESTS
