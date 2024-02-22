@@ -901,11 +901,10 @@ jobs:
           pattern: 'pylibmc'
 
   pytest:
-    <<: *machine_executor
-    parallelism: 10
-    steps:
-      - run_test:
-          pattern: 'pytest'
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
 
   unittest:
     <<: *machine_executor
