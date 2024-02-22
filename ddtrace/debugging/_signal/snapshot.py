@@ -64,40 +64,6 @@ def _capture_context(
 _EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
 
 
-def format_captured_value(value: Any) -> str:
-    v = value.get("value")
-    if v is not None:
-        return v
-    elif value.get("isNull"):
-        return "None"
-
-    es = value.get("elements")
-    if es is not None:
-        return "%s(%s)" % (value["type"], ", ".join(format_captured_value(e) for e in es))
-
-    es = value.get("entries")
-    if es is not None:
-        return "{%s}" % ", ".join(format_captured_value(k) + ": " + format_captured_value(v) for k, v in es)
-
-    fs = value.get("fields")
-    if fs is not None:
-        return "%s(%s)" % (value["type"], ", ".join("%s=%s" % (k, format_captured_value(v)) for k, v in fs.items()))
-
-    return "%s()" % value["type"]
-
-
-def format_message(function: str, args: Dict[str, Any], retval: Optional[Any] = None) -> str:
-    message = "%s(%s)" % (
-        function,
-        ", ".join(("=".join((n, format_captured_value(a))) for n, a in args.items())),
-    )
-
-    if retval is not None:
-        return "\n".join((message, "=".join(("@return", format_captured_value(retval)))))
-
-    return message
-
-
 @attr.s
 class Snapshot(LogSignal):
     """Raw snapshot.
