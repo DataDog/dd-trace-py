@@ -137,6 +137,13 @@ def _on_request_init(wrapped, instance, args, kwargs):
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -151,8 +158,6 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -216,6 +221,10 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return
 
         http_req = fn_args[0]
 
@@ -265,6 +274,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -276,6 +286,9 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
         _set_metric_iast_instrumented_source(OriginType.BODY)
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return wrapped(*args, **kwargs)
 
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
