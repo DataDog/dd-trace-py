@@ -7,6 +7,8 @@ from unittest.case import SkipTest
 import mock
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -16,8 +18,6 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.span import Span
-from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -262,7 +262,7 @@ class SpanTestCase(TracerTestCase):
 
         assert s.span_type == "web"
 
-    @mock.patch("ddtrace.span.log")
+    @mock.patch("ddtrace._trace.span.log")
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
@@ -404,7 +404,7 @@ class SpanTestCase(TracerTestCase):
         s.set_link(trace_id=1, span_id=20)
         s.set_link(trace_id=2, span_id=30, flags=0)
 
-        with mock.patch("ddtrace.span.log") as log:
+        with mock.patch("ddtrace._trace.span.log") as log:
             s.set_link(trace_id=2, span_id=30, flags=1)
         log.debug.assert_called_once_with(
             "Span %d already linked to span %d. Overwriting existing link: %s",
@@ -475,7 +475,7 @@ def test_set_tag_measured_change_value():
     assert_is_measured(s)
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_key(span_log):
     # Span tag keys must be strings
     s = Span(name="test.span")
@@ -523,7 +523,7 @@ def test_span_unicode_set_tag():
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_binary_unicode_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", "🤔")
@@ -535,7 +535,7 @@ def test_span_binary_unicode_set_tag(span_log):
 
 
 @pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
@@ -545,7 +545,7 @@ def test_span_bytes_string_set_tag(span_log):
     span_log.warning.assert_not_called()
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
     span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
@@ -560,7 +560,7 @@ def test_span_nonstring_set_str_tag_exc():
     assert "foo" not in span.get_tags()
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_nonstring_set_str_tag_warning(span_log):
     with override_global_config(dict(_raise=False)):
         span = Span(None)

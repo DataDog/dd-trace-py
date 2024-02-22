@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: fix a potential crash for Python<3.10 when a socket.timeout error was raised instead of the expected TimeoutError during CI Visibility API requests

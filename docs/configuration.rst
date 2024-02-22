@@ -76,6 +76,14 @@ The following environment variables for the tracer are supported:
          to the following :mod:`docs <ddtrace.opentelemetry>`.
      version_added:
        v1.12.0:
+    
+   DD_RUNTIME_METRICS_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
+         These metrics track the memory management and concurrency of the python runtime. 
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
@@ -390,6 +398,15 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Prevents large payloads being sent to APM.
+    
+   DD_ASGI_TRACE_WEBSOCKET:
+     default: False
+     description: |
+         Enables tracing ASGI websockets. Please note that the websocket span duration will last until the 
+         connection is closed, which can result in long running spans.
+
+     version_added:
+       v2.7.0:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
@@ -448,7 +465,7 @@ The following environment variables for the tracer are supported:
      type: String
      default: ""
      description: |
-        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Specify methods to trace. For example: ``mod.submod:method1,method2;mod.submod:Class.method1``.
         Note that this setting is only compatible with ``ddtrace-run``, and that it doesn't work for methods implemented
         by libraries for which there's an integration in ``ddtrace/contrib``.
      version_added:
