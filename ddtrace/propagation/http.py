@@ -728,7 +728,9 @@ class _TraceContext:
             return None, {}, None
 
     @staticmethod
-    def _get_sampling_priority(traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: str):
+    def _get_sampling_priority(
+        traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str]
+    ):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
