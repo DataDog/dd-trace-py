@@ -406,6 +406,7 @@
             "@core",
             "@remoteconfig",
             "@symbol_db",
+            "tests/test_module/*",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
