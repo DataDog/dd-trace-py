@@ -303,11 +303,6 @@ class _DatadogMultiHeader:
 
         meta = None
 
-        if sampling_priority == USER_KEEP:
-            if not meta:
-                meta = {}
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"  # type: ignore[index]
-
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
@@ -324,6 +319,11 @@ class _DatadogMultiHeader:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+
+        if sampling_priority == USER_KEEP:
+            if not meta:
+                meta = {}
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"  # type: ignore[index]
 
         # Try to parse values into their expected types
         try:
