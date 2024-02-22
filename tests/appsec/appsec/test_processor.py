@@ -179,7 +179,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
                 request_cookies={"cookie1": "im the cookie1"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert "triggers" in span.get_tag(APPSEC.JSON)
 
 
 @snapshot(
@@ -203,7 +203,7 @@ def test_appsec_body_no_collection_snapshot(tracer):
                 request_body={"somekey": "somekey value"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert "triggers" in span.get_tag(APPSEC.JSON)
 
 
 def test_ip_block(tracer):
@@ -308,7 +308,7 @@ def test_appsec_span_tags_snapshot(tracer):
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert "triggers" in span.get_struct_tag(APPSEC.JSON)
 
 
 @flaky(1735812000)
