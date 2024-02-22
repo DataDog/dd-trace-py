@@ -30,7 +30,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 
-APPSEC_JSON_TAG = "meta_struct._dd.appsec.json"
+APPSEC_JSON_TAG = "meta._dd.appsec.json"
 
 
 @pytest.fixture
@@ -159,6 +159,7 @@ def test_headers_collection(tracer_appsec):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -184,6 +185,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -291,6 +293,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -312,6 +315,7 @@ def test_appsec_span_tags_snapshot(tracer):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,

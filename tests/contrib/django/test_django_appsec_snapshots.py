@@ -12,7 +12,7 @@ from tests.webclient import Client
 
 
 SERVER_PORT = 8000
-APPSEC_JSON_TAG = "meta_struct._dd.appsec.json"
+APPSEC_JSON_TAG = "meta._dd.appsec.json"
 
 
 @contextmanager
@@ -67,6 +67,7 @@ def daphne_client(django_asgi, additional_env=None):
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -88,6 +89,7 @@ def test_appsec_enabled():
         "meta.http.request.headers.user-agent",
         "meta.http.response.headers.content-type",  # depends of the Django version
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -107,6 +109,7 @@ def test_appsec_enabled_attack():
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
@@ -138,6 +141,7 @@ def test_request_ipblock_nomatch_200():
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",
@@ -174,6 +178,7 @@ def test_request_ipblock_match_403():
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",

@@ -25,7 +25,7 @@ DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
-APPSEC_JSON_TAG = "meta_struct._dd.appsec.json"
+APPSEC_JSON_TAG = "meta._dd.appsec.json"
 
 
 @pytest.fixture
@@ -122,6 +122,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -155,6 +156,7 @@ def test_flask_ipblock_match_403(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -188,6 +190,7 @@ def test_flask_ipblock_match_403_json(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -220,6 +223,7 @@ def test_flask_userblock_match_403_json(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -248,6 +252,7 @@ def test_flask_userblock_match_200_json(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -277,6 +282,7 @@ def test_flask_processexec_ossystem(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -307,6 +313,7 @@ def test_flask_processexec_osspawn(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -336,6 +343,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
