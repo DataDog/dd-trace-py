@@ -224,6 +224,7 @@ statsd
 stderr
 stdout
 stringable
+struct
 structlog
 subclass
 subdirectory

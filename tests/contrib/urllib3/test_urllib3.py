@@ -495,9 +495,31 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "traceparent": s.context._traceparent,
                 "tracestate": s.context._tracestate,
             }
-            m_make_request.assert_called_with(
-                mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers=expected_headers, timeout=mock.ANY
-            )
+
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                )
 
     def test_distributed_tracing_disabled(self):
         """Test with distributed tracing disabled does not propagate the headers"""
@@ -508,9 +530,30 @@ class TestUrllib3(BaseUrllib3TestCase):
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
-            m_make_request.assert_called_with(
-                mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers={}, timeout=mock.ANY
-            )
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                )
 
 
 @pytest.fixture()
