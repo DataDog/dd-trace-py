@@ -97,11 +97,11 @@ class _DBM_Propagator(object):
             DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
 
-        peer_db_name = db_span.get_tags().get(self.peer_db_name_tag)
+        peer_db_name = db_span.get_tag(self.peer_db_name_tag)
         if peer_db_name:
             dbm_tags[DBM_PEER_DB_NAME_KEY] = peer_db_name
 
-        peer_hostname = db_span.get_tags().get(self.peer_hostname_tag)
+        peer_hostname = db_span.get_tag(self.peer_hostname_tag)
         if peer_hostname:
             dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
 
