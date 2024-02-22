@@ -82,6 +82,7 @@ class IAST(metaclass=Constant_Class):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
+    REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):

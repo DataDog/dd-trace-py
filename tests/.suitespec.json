@@ -532,7 +532,6 @@
             "@appsec_iast",
             "@remoteconfig",
             "tests/appsec/*",
-            "tests/appsec/iast_integrations/*",
             "tests/snapshots/tests.appsec.*"
         ],
         "appsec_threats_django": [
