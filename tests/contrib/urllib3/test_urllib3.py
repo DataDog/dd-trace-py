@@ -495,7 +495,6 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "traceparent": s.context._traceparent,
                 "tracestate": s.context._tracestate,
             }
-
             if int(urllib3.__version__.split(".")[0]) >= 2:
                 m_make_request.assert_called_with(
                     mock.ANY,

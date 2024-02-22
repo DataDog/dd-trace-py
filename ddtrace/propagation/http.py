@@ -897,6 +897,7 @@ class HTTPPropagator(object):
         primary_context._span_links = links
         return primary_context
 
+    # DEV: Change method signature to just take span and pull out context for next major version 3.0
     @staticmethod
     def inject(span_context, headers, span=None):
         # type: (Context, Dict[str, str], Optional[Span]) -> None
@@ -929,7 +930,6 @@ class HTTPPropagator(object):
         if ddtrace.tracer._sampler and span:
             if not span.context.sampling_priority:
                 ddtrace.tracer._sampler.sample(span._local_root)
-
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
