@@ -57,13 +57,13 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def check_single_rule_triggered(self, rule_id: str, get_struct_tag):
-        loaded = get_struct_tag(APPSEC.JSON)
+        loaded = get_struct_tag(APPSEC.STRUCT)
         assert loaded is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in loaded["triggers"]]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
     def check_rules_triggered(self, rule_id: List[str], get_struct_tag):
-        loaded = get_struct_tag(APPSEC.JSON)
+        loaded = get_struct_tag(APPSEC.STRUCT)
         assert loaded is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in loaded["triggers"]])
         assert result == rule_id, f"result={result}, expected={rule_id}"
@@ -104,7 +104,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert response.status_code == 404
-            json = get_struct_tag(APPSEC.JSON)
+            json = get_struct_tag(APPSEC.STRUCT)
             assert json is not None, "no appsec struct in root span"
             assert "triggers" in json
             assert core.get_item("http.request.uri", span=root_span()) == "http://localhost:8000/.git?q=1"
@@ -148,7 +148,7 @@ class Contrib_TestClass_For_Threats:
                 assert cookies_parsed == cookies
             else:
                 assert core.get_item("http.request.cookies", span=root_span()) is None
-            payload = get_struct_tag(APPSEC.JSON)
+            payload = get_struct_tag(APPSEC.STRUCT)
             if asm_enabled and attack:
                 assert payload is not None, "no appsec struct in root span"
                 assert len(payload["triggers"]) == 1
@@ -196,7 +196,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert not body  # DEV: Flask send {} for text/plain with asm
 
-            payload = get_struct_tag(APPSEC.JSON)
+            payload = get_struct_tag(APPSEC.STRUCT)
 
             if asm_enabled and attack and content_type != "text/plain":
                 assert payload is not None, "no appsec struct in root span"
@@ -377,7 +377,7 @@ class Contrib_TestClass_For_Threats:
                 else:
                     self.check_rules_triggered([rule], get_struct_tag)
             else:
-                assert get_struct_tag(APPSEC.JSON) is None, f"asm struct in root span {get_struct_tag(APPSEC.JSON)}"
+                assert get_struct_tag(APPSEC.STRUCT) is None, f"asm struct in root span {get_struct_tag(APPSEC.STRUCT)}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
@@ -406,7 +406,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
@@ -435,7 +435,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 404
                 assert get_tag(http.STATUS_CODE) == "404"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -473,7 +473,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -513,7 +513,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -548,7 +548,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -583,7 +583,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -620,7 +620,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == status
                 assert get_tag(http.STATUS_CODE) == str(status)
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -657,7 +657,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -712,7 +712,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -779,7 +779,7 @@ class Contrib_TestClass_For_Threats:
                 else:
                     assert self.status(response) == 200
                     assert get_tag(http.STATUS_CODE) == "200"
-                    assert get_struct_tag(APPSEC.JSON) is None
+                    assert get_struct_tag(APPSEC.STRUCT) is None
         finally:
             # remove cache to avoid using custom templates in other tests
             http_cache._HTML_BLOCKED_TEMPLATE_CACHE = None
@@ -806,7 +806,7 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled:
                 self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], get_struct_tag)
             else:
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -910,9 +910,9 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 403 if blocked else 200
             assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
             if event:
-                assert get_struct_tag(APPSEC.JSON) is not None
+                assert get_struct_tag(APPSEC.STRUCT) is not None
             else:
-                assert get_struct_tag(APPSEC.JSON) is None
+                assert get_struct_tag(APPSEC.STRUCT) is None
             value = get_tag(name)
             if apisec_enabled and sample_rate:
                 assert value, name

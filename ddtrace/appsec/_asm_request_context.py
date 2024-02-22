@@ -108,7 +108,7 @@ def unregister(span: Span) -> None:
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
         root_span = env.span._local_root or env.span
-        report = root_span.get_struct_tag(APPSEC.JSON)
+        report = root_span.get_struct_tag(APPSEC.STRUCT)
         if report is not None:
             try:
                 if "triggers" not in report:
@@ -118,7 +118,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
                 report = {"triggers": env.waf_triggers}
         else:
             report = {"triggers": env.waf_triggers}
-        root_span.set_struct_tag(APPSEC.JSON, report)
+        root_span.set_struct_tag(APPSEC.STRUCT, report)
 
         env.waf_triggers = []
 
