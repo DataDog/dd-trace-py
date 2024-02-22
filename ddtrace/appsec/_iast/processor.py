@@ -20,6 +20,8 @@ from ._utils import _is_iast_enabled
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Optional  # noqa:F401
+
     from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
@@ -27,14 +29,34 @@ log = get_logger(__name__)
 
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
+    @staticmethod
+    def is_span_analyzed(span=None):
+        # type: (Optional[Span]) -> bool
+        if span is None:
+            from ddtrace import tracer
+
+            span = tracer.current_root_span()
+
+        if span and span.span_type == SpanTypes.WEB and core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+            return True
+        return False
+
     def on_span_start(self, span):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        oce.acquire_request(span)
-        from ._taint_tracking import create_context
 
-        create_context()
+        if not _is_iast_enabled():
+            return
+
+        request_iast_enabled = False
+        if oce.acquire_request(span):
+            from ._taint_tracking import create_context
+
+            request_iast_enabled = True
+            create_context()
+
+        core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -48,7 +70,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
 
-        if not oce._enabled or not _is_iast_enabled():
+        if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
             span.set_metric(IAST.ENABLED, 0.0)
             return
 

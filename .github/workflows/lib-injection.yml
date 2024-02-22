@@ -15,7 +15,7 @@ jobs:
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
     with:
-      ddtrace-version: v1.16.1
+      ddtrace-version: v2.6.3
       image-tag: ${{ github.sha }}
 
   test-runner-test:
@@ -70,7 +70,7 @@ jobs:
         run: |
           SRC="$(pwd)"
           cd lib-injection
-          export DDTRACE_PYTHON_VERSION="v1.16.1"
+          export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
