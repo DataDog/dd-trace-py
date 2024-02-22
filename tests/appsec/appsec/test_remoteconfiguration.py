@@ -30,6 +30,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
+from tests.appsec.utils import get_triggers
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -43,7 +44,7 @@ def _set_and_get_appsec_tags(tracer):
             status_code="404",
             request_cookies={"cookie1": "im the cookie1"},
         )
-    return span.get_struct_tag(APPSEC.STRUCT)
+    return get_triggers(span)
 
 
 @pytest.mark.xfail(
@@ -63,7 +64,7 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
         assert result is None
         rc_config = {"config": {"asm": {"enabled": True}}}
         _appsec_callback(rc_config, tracer)
-        assert "triggers" in _set_and_get_appsec_tags(tracer)
+        assert _set_and_get_appsec_tags(tracer)
 
 
 @pytest.mark.parametrize(
@@ -87,7 +88,6 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
         _appsec_callback(rc_config, tracer)
         result = _set_and_get_appsec_tags(tracer)
         assert result
-        assert "triggers" in result
 
 
 @pytest.mark.parametrize(
@@ -906,7 +906,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                     span,
                     rules.Config(),
                 )
-            assert "triggers" in span.get_struct_tag(APPSEC.STRUCT)
+            assert "triggers" in span.get_struct_tag(APPSEC.JSON)
             assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
@@ -967,7 +967,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                     span,
                     rules.Config(),
                 )
-            assert "triggers" in span.get_struct_tag(APPSEC.STRUCT)
+            assert "triggers" in span.get_struct_tag(APPSEC.JSON)
             assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
 
 
