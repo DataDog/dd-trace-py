@@ -69,6 +69,8 @@ class _AccuPathProcessor(PeriodicService):
                     if hasattr(stats, metric_name):
                         log.debug("Added bucket entry: %s", metric_value)
                         getattr(stats, metric_name).add(metric_value)
+                    else:
+                        log.debug(f"unable to add bucket entry for metric name: {metric_name}")
         except Exception as e:
             log.debug("accupath - error", exc_info=True)
         log.debug("Added bucket data")
@@ -95,6 +97,7 @@ class _AccuPathProcessor(PeriodicService):
                 for path_info_key, actual_bucket in bucket.pathway_stats.items():
                     payload=None
                     try:
+                        log.debug("Trying payload for {path_info_key.node_hash}")
                         payload = _generate_payload_v0(
                             bucket_start_time=bucket_time,
                             bucket_duration=ACCUPATH_COLLECTION_DURATION,
@@ -197,6 +200,9 @@ def _generate_payload_v0(
     error_latency_sketch = pathway_stat_bucket.root_to_request_out_latency_errors
     error_latency_proto = DDSketchProto.to_proto(error_latency_sketch)
 
+    log.debug(f"OK count: {ok_latency_sketch._count}")
+    log.debug(f"ER count: {error_latency_sketch._count}")
+
     latencies.ok_latency = ok_latency_proto.SerializeToString()
     latencies.error_latency = error_latency_proto.SerializeToString()
 
@@ -247,6 +253,7 @@ class PathKey:
         return hash((
             self.request_pathway_id,
             ))
+
 
 def submit_metrics(*_args, **_kwargs):
     from ddtrace.internal.accupath.pathway_context import _get_current_pathway_context

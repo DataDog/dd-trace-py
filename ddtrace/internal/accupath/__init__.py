@@ -30,6 +30,7 @@ def handle_request_out(headers, *args, **kwargs):
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
 
+
 def handle_response_in(status_code, *args, **kwargs):
     try:
         current_pathway_context = _get_current_pathway_context()
@@ -44,20 +45,30 @@ def handle_response_out(headers, resource_name, operation_name, status_code, *ar
     try:
         current_pathway_context = _get_current_pathway_context()
         current_pathway_context.checkpoint("response_out", time.time_ns())
+        current_pathway_context.operation_name = operation_name
+        current_pathway_context.resource_name = resource_name
         log.debug(f"AccuPath - response_out {current_pathway_context.uid}")
         if current_pathway_context.success is None:
-            current_pathway_context.success = (status_code < 400)
+            current_pathway_context.success = (status_code < 400)  # TODO: Not sure this lines up with spans return code
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
+
 
 def handle_request_start(resource, operation, *args, **kwargs):
     try:
         current_pathway_context = _get_current_pathway_context()
-        current_pathway_context.resource_name = resource
-        current_pathway_context.operation_name = operation
+
+        if current_pathway_context.operation_name == "undefined":
+            # Handle load generators; shouldn't be called for other services
+            current_pathway_context.operation_name = operation
+        if current_pathway_context.resource_name == "undefined":
+            # Handle load generators; shouldn't be called for other services
+            current_pathway_context.resource_name = resource
+
         log.debug(f"AccuPath - request_start {current_pathway_context.uid}")
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
+
 
 if _enabled():
     core.on("http.request.header.extraction", handle_request_in)
@@ -65,15 +76,3 @@ if _enabled():
     core.on("http.response.header.extraction", handle_response_in)
     core.on("http.response.header.injection", handle_response_out)
     core.on("http.request.start", handle_request_start)
-
-
-"""
-Status code logic:
-- If i have an HTTP.client span, report on that. (response_in)
-e Else report on the HTTP.server span (response_out)
-
-Load generators do (1)
-Middle nodes do (1)
-End services do (2)
-
-"""
