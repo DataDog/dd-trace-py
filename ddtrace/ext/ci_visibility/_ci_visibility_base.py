@@ -5,6 +5,7 @@ from typing import List, Any, Optional
 
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityItemIdBase:
+    """This class exists for the ABC class below"""
     pass
 
 class _CIVisibilityAPIBase(abc.ABC):

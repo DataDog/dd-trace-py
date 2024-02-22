@@ -6,31 +6,33 @@ rely on this API are not expected to keep CI Visibility-related state for each s
 
 Stable values of module, suite, test names, and parameters, are a necessity for this API to function properly.
 
-All methods for interacting with the API are provided and documented in this file.
+All types and methods for interacting with the API are provided and documented in this file.
 """
-import abc
-from collections import namedtuple
+import dataclasses
 from typing import Dict
 
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase, _CIVisibilityItemIdBase
 from ddtrace.ext.ci_visibility.util import _catch_and_log_exceptions
 
-
+@dataclasses.dataclass(frozen=True)
 class CISessionId(_CIVisibilityItemIdBase):
     session_id: str
 
+@dataclasses.dataclass(frozen=True)
 class CIModuleId(_CIVisibilityItemIdBase):
     module_name: str
-
+@dataclasses.dataclass(frozen=True)
 class CISuiteId(_CIVisibilityItemIdBase):
     module_name: str
     suite_name: str
 
+@dataclasses.dataclass(frozen=True)
 class CITestId(_CIVisibilityItemIdBase):
     module_name: str
     suite_name: str
     test_name: str
     test_parameters: Dict[str, any]
+    retry_number: int = 0
 
 class CISession(_CIVisibilityAPIBase):
 
@@ -158,7 +160,10 @@ class CITestSuite(_CIVisibilityAPIBase):
     def get_tag(item_id: CISuiteId, tag_name: str):
         pass
 
-
+    @staticmethod
+    @_catch_and_log_exceptions
+    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, any]):
+        pass
 
 
 class CITest(_CIVisibilityAPIBase):
@@ -180,5 +185,10 @@ class CITest(_CIVisibilityAPIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(item_id: CITestId):
+    def finish(item_id: CITestId, status: str):
+        pass
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, any]):
         pass
