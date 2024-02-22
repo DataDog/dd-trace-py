@@ -20,6 +20,7 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
         query = dict(core.get_item("http.request.body", span=root_span))
 
         assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_struct_tag("_dd.appsec.json") is None
         assert root_span.get_tag("component") == "django"
         assert root_span.get_tag("span.kind") == "server"
         assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -46,6 +47,7 @@ def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
         assert_span_http_status_code(root_span, 200)
 
         assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_struct_tag("_dd.appsec.json") is None
         assert root_span.get_tag("component") == "django"
         assert root_span.get_tag("span.kind") == "server"
         # check that the custom parser was used to parse the body

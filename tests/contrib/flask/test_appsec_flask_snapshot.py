@@ -25,6 +25,8 @@ DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
+APPSEC_JSON_TAG = "meta_struct._dd.appsec.json"
+
 
 @pytest.fixture
 def flask_port():
@@ -114,7 +116,7 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -147,7 +149,7 @@ def test_flask_ipblock_match_403(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -180,7 +182,7 @@ def test_flask_ipblock_match_403_json(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -212,7 +214,7 @@ def test_flask_userblock_match_403_json(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -240,7 +242,7 @@ def test_flask_userblock_match_200_json(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -269,7 +271,7 @@ def test_flask_processexec_ossystem(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -299,7 +301,7 @@ def test_flask_processexec_osspawn(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
@@ -328,7 +330,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
         "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",

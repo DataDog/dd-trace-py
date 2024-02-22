@@ -30,6 +30,9 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 
+APPSEC_JSON_TAG = "meta_struct._dd.appsec.json"
+
+
 @pytest.fixture
 def tracer_appsec(tracer):
     with override_global_config(dict(_asm_enabled=True)):
@@ -158,7 +161,7 @@ def test_headers_collection(tracer_appsec):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -183,7 +186,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -290,7 +293,7 @@ def test_ip_update_rules_expired_no_block(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -311,7 +314,7 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta._dd.appsec.event_rules.errors",
     ],
 )
