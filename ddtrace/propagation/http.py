@@ -9,7 +9,7 @@ from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 
-from ddtrace import tracer
+import ddtrace
 from ddtrace._trace.span import Span  # noqa:F401
 
 
@@ -926,9 +926,9 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-        if tracer._sampler and span:
+        if ddtrace.tracer._sampler and span:
             if not span.context.sampling_priority:
-                tracer._sampler.sample(span._local_root)
+                ddtrace.tracer._sampler.sample(span._local_root)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
