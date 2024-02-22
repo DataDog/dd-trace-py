@@ -143,7 +143,7 @@ def _get_perform_request_coro(transport):
             span.set_tag(SPAN_MEASURED_KEY)
 
             # Don't instrument if the trace is not sampled
-            if span.sampled is not False:
+            if span.sampled is False:
                 yield func(*args, **kwargs)
                 return
 

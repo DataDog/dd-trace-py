@@ -126,7 +126,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
         span.set_tag(SPAN_MEASURED_KEY)
 
-        if span.sampled is not False:
+        if span.sampled is False:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:

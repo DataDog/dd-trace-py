@@ -73,12 +73,12 @@ class BaseLLMIntegration:
         return config._llmobs_enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.sampled is not False:
+        if span.sampled is False:
             return False
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        if not self.logs_enabled or span.sampled is not False:
+        if not self.logs_enabled or span.sampled is False:
             return False
         return self._log_pc_sampler.sample(span)
 
