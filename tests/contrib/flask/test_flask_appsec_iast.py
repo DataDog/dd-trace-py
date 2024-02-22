@@ -1,7 +1,7 @@
-import importlib.metadata
 import json
 
 from flask import request
+from importlib_metadata import version
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -19,7 +19,7 @@ TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
 IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
-werkzeug_version = importlib.metadata.version("werkzeug")
+werkzeug_version = version("werkzeug")
 
 
 @pytest.fixture(autouse=True)
