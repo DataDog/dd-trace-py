@@ -16,11 +16,11 @@ else:
 
 
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
-from ddtrace.tracing._span_link import SpanLink
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
