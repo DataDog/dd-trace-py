@@ -1255,7 +1255,7 @@ class PytestTestCase(TracerTestCase):
         assert test_module_span.get_tag("type") == "test_module_end"
         assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
         assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_module_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace"
+        assert test_module_span.get_tag("test.command") == "pytest --ddtrace"
         assert test_module_span.get_tag("test.module") == "test_package_a"
         assert test_module_span.get_tag("test.module_path") == "test_package_a"
 
