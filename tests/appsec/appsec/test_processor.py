@@ -107,7 +107,7 @@ def test_valid_json(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+    assert "triggers" in span.get_struct_tag(APPSEC.JSON)
 
 
 def test_header_attack(tracer_appsec):
@@ -125,7 +125,7 @@ def test_header_attack(tracer_appsec):
                 },
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert "triggers" in span.get_struct_tag(APPSEC.JSON)
         assert span.get_tag("actor.ip") == "8.8.8.8"
 
 
@@ -216,7 +216,7 @@ def test_ip_block(tracer):
                     rules.Config(),
                 )
 
-            assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+            assert "triggers" in span.get_struct_tag(APPSEC.JSON)
             assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
             assert core.get_item("http.request.blocked", span)
 
@@ -349,9 +349,9 @@ def test_appsec_span_rate_limit(tracer):
             set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 2
 
-        assert span1.get_tag(APPSEC.JSON) is not None
-        assert span2.get_tag(APPSEC.JSON) is None
-        assert span3.get_tag(APPSEC.JSON) is None
+        assert span1.get_struct_tag(APPSEC.JSON) is not None
+        assert span2.get_struct_tag(APPSEC.JSON) is None
+        assert span3.get_struct_tag(APPSEC.JSON) is None
 
 
 def test_ddwaf_not_raises_exception():
@@ -416,11 +416,16 @@ def test_obfuscation_parameter_value_unconfigured_not_matching(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-    assert "hello" in span.get_tag("_dd.appsec.json")
-    assert "goodbye" in span.get_tag("_dd.appsec.json")
-    assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+    assert "triggers" in span.get_struct_tag("_dd.appsec.json")
+    values = [
+        value.get("value")
+        for rule in span.get_struct_tag("_dd.appsec.json")["triggers"]
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert any("hello" in value for value in values)
+    assert any("goodbye" in value for value in values)
+    assert all("<Redacted>" not in value for value in values)
 
 
 def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
@@ -429,11 +434,16 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-    assert "password" not in span.get_tag("_dd.appsec.json")
-    assert "goodbye" not in span.get_tag("_dd.appsec.json")
-    assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+    assert "triggers" in span.get_struct_tag("_dd.appsec.json")
+    values = [
+        value.get("value")
+        for rule in span.get_struct_tag("_dd.appsec.json")["triggers"]
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert all("password" not in value for value in values)
+    assert all("goodbye" not in value for value in values)
+    assert any("<Redacted>" in value for value in values)
 
 
 def test_obfuscation_parameter_value_configured_not_matching(tracer):
@@ -445,11 +455,16 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-        assert "password" in span.get_tag("_dd.appsec.json")
-        assert "goodbye" in span.get_tag("_dd.appsec.json")
-        assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+    assert "triggers" in span.get_struct_tag("_dd.appsec.json")
+    values = [
+        value.get("value")
+        for rule in span.get_struct_tag("_dd.appsec.json")["triggers"]
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert any("password" in value for value in values)
+    assert any("goodbye" in value for value in values)
+    assert all("<Redacted>" not in value for value in values)
 
 
 def test_obfuscation_parameter_value_configured_matching(tracer):
@@ -461,11 +476,16 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-        assert "token" not in span.get_tag("_dd.appsec.json")
-        assert "goodbye" not in span.get_tag("_dd.appsec.json")
-        assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+    assert "triggers" in span.get_struct_tag("_dd.appsec.json")
+    values = [
+        value.get("value")
+        for rule in span.get_struct_tag("_dd.appsec.json")["triggers"]
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert all("token" not in value for value in values)
+    assert all("goodbye" not in value for value in values)
+    assert any("<Redacted>" in value for value in values)
 
 
 def test_ddwaf_run():

@@ -43,7 +43,7 @@ def _set_and_get_appsec_tags(tracer):
             status_code="404",
             request_cookies={"cookie1": "im the cookie1"},
         )
-    return span.get_tag(APPSEC.JSON)
+    return span.get_struct_tag(APPSEC.JSON)
 
 
 @pytest.mark.xfail(
