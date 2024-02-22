@@ -1054,6 +1054,11 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
 }
+DATADOG_HEADERS_VALID_NO_PRIORITY = {
+    HTTP_HEADER_TRACE_ID: "13088165645273925489",
+    HTTP_HEADER_PARENT_ID: "5678",
+    HTTP_HEADER_ORIGIN: "synthetics",
+}
 DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
     HTTP_HEADER_TRACE_ID: str(_get_64_lowest_order_bits_as_int(TRACE_ID)),
     HTTP_HEADER_PARENT_ID: "5678",
@@ -1135,6 +1140,18 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+        },
+    ),
+    (
+        "valid_datadog_no_priority",
+        None,
+        DATADOG_HEADERS_VALID_NO_PRIORITY,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 2,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
