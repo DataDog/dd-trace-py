@@ -1347,13 +1347,35 @@ venv = Venv(
                 "urllib3": "~=1.0",
             },
             venvs=[
+                # requests added support for Python 3.7 in 2.20
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys="3.7",
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
-                            "~=2.20",
-                            "~=2.26",
+                            "~=2.20.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.8 in 2.23
+                    pys="3.8",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.23.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.9 in 2.25
+                    pys="3.9",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.25.0",
                             latest,
                         ],
                     },
@@ -1375,6 +1397,7 @@ venv = Venv(
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
+                            "~=2.28.0",
                             latest,
                         ],
                     },
