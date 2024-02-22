@@ -16,7 +16,20 @@
             "tests/__init__.py",
             "tests/.suitespec.json",
             "tests/suitespec.py",
-            ".circleci/*"
+            ".circleci/*",
+            "tests/meta/*",
+            "tests/smoke_test.py",
+            "tests/subprocesstest.py",
+            "tests/wait-for-services.py",
+            "tests/webclient.py",
+            "tests/test_module/*",
+            "tests/lib-injection/dd-lib-python-init-test-django/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn-alpine/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
             "ddtrace/internal/__init__.py",
@@ -115,6 +128,7 @@
             "ddtrace/propagation/*",
             "ddtrace/settings/_database_monitoring.py",
             "tests/contrib/patch.py",
+            "tests/contrib/config.py",
             "tests/contrib/__init__.py"
         ],
         "redis": [
@@ -287,6 +301,7 @@
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
+            "ddtrace/contrib/boto/*",
             "ddtrace/contrib/aiobotocore/*"
         ],
         "mysql": [
@@ -305,7 +320,8 @@
             "ddtrace/contrib/logging/*"
         ],
         "loguru": [
-            "ddtrace/contrib/logging/*"
+            "ddtrace/contrib/logging/*",
+            "ddtrace/contrib/loguru/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
@@ -371,7 +387,8 @@
             "ddtrace/contrib/unittest/*"
         ],
         "appsec": [
-            "ddtrace/appsec/*"
+            "ddtrace/appsec/*",
+            "ddtrace/settings/asm.py"
         ],
         "appsec_iast": [
             "ddtrace/appsec/iast/*"
@@ -430,7 +447,8 @@
             "@contrib",
             "@serverless",
             "@remoteconfig",
-            "tests/tracer/*"
+            "tests/tracer/*",
+            "tests/snapshots/test_*"
         ],
         "integration_agent": [
             "@tracing",
@@ -655,7 +673,9 @@
             "@llmobs",
             "@botocore",
             "@llmobs",
-            "tests/contrib/botocore/*"
+            "tests/contrib/botocore/*",
+            "tests/contrib/boto/*",
+            "tests/snapshots/tests.contrib.botocore*"
         ],
         "test_logging": [
             "@bootstrap",
@@ -837,7 +857,9 @@
             "@tracing",
             "@appsec",
             "@django",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "tests/snapshots/tests.contrib.{suite}.*",
+            "tests/contrib/django_hosts/*",
+            "tests/contrib/django_hosts/django_app/*"
         ],
         "djangorestframework": [
             "@bootstrap",
@@ -845,7 +867,9 @@
             "@contrib",
             "@tracing",
             "@appsec",
-            "@django"
+            "@django",
+            "tests/contrib/djangorestframework/*",
+            "tests/contrib/djangorestframework/app/*"
         ],
         "fastapi": [
             "@bootstrap",
@@ -888,7 +912,9 @@
             "@bootstrap",
             "@core",
             "@contrib",
-            "@tracing"
+            "@tracing",
+            "tests/contrib/graphene/*",
+            "tests/snapshots/tests.contrib.graphene*"
         ],
         "graphql": [
             "@bootstrap",
@@ -960,7 +986,8 @@
             "@contrib",
             "@dbapi",
             "@mysql",
-            "tests/contrib/mysqldb/*"
+            "tests/contrib/mysqldb/*",
+            "tests/contrib/mysql/*"
         ],
         "pymysql": [
             "@bootstrap",
@@ -969,7 +996,8 @@
             "@tracing",
             "@dbapi",
             "@mysql",
-            "tests/contrib/pymysql/*"
+            "tests/contrib/pymysql/*",
+            "tests/contrib/mysql/*"
         ],
         "pylibmc": [
             "@bootstrap",
@@ -1005,7 +1033,8 @@
             "@bootstrap",
             "@core",
             "@contrib",
-            "@tracing"
+            "@tracing",
+            "tests/contrib/asynctest/*"
         ],
         "pymemcache": [
             "@bootstrap",
