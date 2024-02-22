@@ -1,4 +1,3 @@
-import logging
 import os
 
 from django.http import HttpResponse
@@ -11,19 +10,18 @@ DEBUG = False
 SECRET_KEY = "fdsfdasfa"
 ALLOWED_HOSTS = ["*"]
 
-logging.basicConfig(level=logging.DEBUG)
-
 
 def index(request):
     import ddtrace
 
-    if ddtrace.__version__ != "2.6.3":
+    if ddtrace.__version__ != "1.12.0":
         print(
-            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '2.6.3'"
+            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '1.12.0'"
             % ddtrace.__version__
         )
-        # Hard exit so traces aren't flushed.
+        # Hard exit so traces aren't flushed and the test will fail.
         os._exit(1)
+
     return HttpResponse("test")
 
 
