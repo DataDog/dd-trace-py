@@ -206,13 +206,11 @@ def _generate_payload_v0(
     latencies.ok_latency = ok_latency_proto.SerializeToString()
     latencies.error_latency = error_latency_proto.SerializeToString()
 
-
     # PATHWAY STATS
     request_pathway_stats = PathwayStats()
     request_pathway_stats.edge.CopyFrom(edge)
     request_pathway_stats.info.CopyFrom(pathway)
     request_pathway_stats.latencies.CopyFrom(latencies)
-
 
     # PATHS info
     log.debug("Bucket start time: %s" % bucket_start_time)
@@ -263,12 +261,12 @@ def submit_metrics(*_args, **_kwargs):
             return
 
         path_key = PathKey(
-            request_pathway_id = current_pathway_context.parent_hash,
-            node_hash = current_pathway_context.node_hash,
-            request_id = current_pathway_context.uid,
-            resource_name = current_pathway_context.resource_name,
-            operation_name = current_pathway_context.operation_name,
-            root_hash = current_pathway_context.root_hash,
+            request_pathway_id=current_pathway_context.parent_hash,
+            node_hash=current_pathway_context.node_hash,
+            request_id=current_pathway_context.uid,
+            resource_name=current_pathway_context.resource_name,
+            operation_name=current_pathway_context.operation_name,
+            root_hash=current_pathway_context.root_hash,
         )
 
         response_in_time = current_pathway_context.checkpoint_times.get("response_in")
@@ -278,13 +276,10 @@ def submit_metrics(*_args, **_kwargs):
         root_request_out_time = current_pathway_context.root_checkpoint_time
         response_in_status = current_pathway_context.success
 
-
-
         bucket_time = request_in_time if request_in_time > 0 else request_out_time
         time_from_root = max(0, (bucket_time - root_request_out_time))
         log.debug("submit metrics: %s", current_pathway_context)
         log.debug("Metrics are: %s :: %s :: %s :: %s", root_request_out_time, bucket_time, response_in_status, time_from_root)
-
 
         to_submit = []
         if response_in_status:

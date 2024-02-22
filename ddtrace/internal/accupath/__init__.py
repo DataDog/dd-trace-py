@@ -36,7 +36,9 @@ def handle_response_in(status_code, *args, **kwargs):
         current_pathway_context = _get_current_pathway_context()
         current_pathway_context.checkpoint("response_in", time.time_ns())
         log.debug(f"AccuPath - response_in {current_pathway_context.uid}")
-        current_pathway_context.success = (status_code < 400)
+        if current_pathway_context.success is None:
+            # Handles for load generators which have no response out
+            current_pathway_context.success = (status_code < 400)
     except Exception as e:
         log.debug("Error in handle_request_in", exc_info=True)
 
@@ -47,6 +49,7 @@ def handle_response_out(headers, resource_name, operation_name, status_code, *ar
         current_pathway_context.checkpoint("response_out", time.time_ns())
         current_pathway_context.operation_name = operation_name
         current_pathway_context.resource_name = resource_name
+        current_pathway_context.success = (status_code < 400)
         log.debug(f"AccuPath - response_out {current_pathway_context.uid}")
         if current_pathway_context.success is None:
             current_pathway_context.success = (status_code < 400)  # TODO: Not sure this lines up with spans return code
