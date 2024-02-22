@@ -30,7 +30,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 
-APPSEC_JSON_TAG = "meta._dd.appsec.json"
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @pytest.fixture

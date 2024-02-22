@@ -11,6 +11,7 @@ from typing import List  # noqa:F401
 import pytest
 import six
 
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
@@ -25,7 +26,7 @@ DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
-APPSEC_JSON_TAG = "meta._dd.appsec.json"
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @pytest.fixture

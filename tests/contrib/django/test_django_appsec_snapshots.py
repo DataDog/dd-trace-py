@@ -5,6 +5,7 @@ import subprocess
 import django
 import pytest
 
+from ddtrace.appsec._constants import APPSEC
 import ddtrace.internal.constants as constants
 import tests.appsec.rules as rules
 from tests.utils import snapshot
@@ -12,7 +13,7 @@ from tests.webclient import Client
 
 
 SERVER_PORT = 8000
-APPSEC_JSON_TAG = "meta._dd.appsec.json"
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @contextmanager
