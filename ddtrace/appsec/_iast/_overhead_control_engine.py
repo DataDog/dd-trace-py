@@ -107,21 +107,18 @@ class OverheadControl(object):
         if self._request_quota <= 0 or not self._sampler.sample(span):
             return False
 
-        self._lock.acquire()
-        if self._request_quota <= 0:
-            self._lock.release()
-            return False
+        with self._lock:
+            if self._request_quota <= 0:
+                return False
 
-        self._request_quota -= 1
-        self._lock.release()
+            self._request_quota -= 1
 
         return True
 
     def release_request(self):
         """increment request's quota at end of the request."""
-        self._lock.acquire()
-        self._request_quota += 1
-        self._lock.release()
+        with self._lock:
+            self._request_quota += 1
         self.vulnerabilities_reset_quota()
 
     def register(self, klass):
