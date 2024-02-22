@@ -104,3 +104,6 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
 .github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+
+# Security
+/.gitlab/software_composition_analysis.yaml  @DataDog/software-integrity-and-trust
