@@ -2444,6 +2444,43 @@ Major changes to context management. See the upgrade section for the specifics. 
 
 ---
 
+## v0.49.4
+
+### Bug Fixes
+
+- Fixes an issue when trying to manually start the runtime metrics worker:
+
+      AttributeError: module 'ddtrace.internal.runtime' has no attribute 'runtime_metrics'
+
+- Fixes an issue with enabling the runtime worker introduced in v0.49.0 where no runtime metrics were sent to the agent.
+
+---
+
+## v0.49.3
+
+### Bug Fixes
+
+- django: fix a bug where multiple database backends would not be instrumented.
+- django: fix a bug when postgres query is composable sql object.
+
+---
+
+## v0.49.2
+
+### Bug Fixes
+
+- Fix double patching of `pymongo` client topology.
+
+---
+
+## v0.49.1
+
+### New Features
+
+- Add support for Flask 2
+
+---
+
 ## v0.49.0
 
 ### Prelude
