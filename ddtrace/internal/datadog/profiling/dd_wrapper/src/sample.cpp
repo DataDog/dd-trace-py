@@ -54,8 +54,9 @@ Sample::push_frame(std::string_view name, std::string_view filename, uint64_t ad
 
     if (locations.size() <= max_nframes) {
         push_frame_impl(name, filename, address, line);
+    } else {
+        ++dropped_frames;
     }
-    ++dropped_frames;
 }
 
 bool
