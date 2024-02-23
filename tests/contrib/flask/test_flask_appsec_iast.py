@@ -376,10 +376,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         ), override_env(IAST_ENV):
             oce.reconfigure()
 
-            if werkzeug_version.startswith("3."):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
-                self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+                self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")
 
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
@@ -440,10 +440,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _asm_enabled=True,
             )
         ):
-            if werkzeug_version.startswith("3."):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master2")
             else:
-                self.client.set_cookie("localhost", "sqlite_master", "sqlite_master2")
+                self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master2")
 
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
@@ -617,10 +617,10 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             return "OK", 200
 
-        if werkzeug_version.startswith("3."):
+        if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
             self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
         else:
-            self.client.set_cookie("localhost", "sqlite_master", "sqlite_master3")
+            self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
 
         resp = self.client.post("/sqli/cookies/")
         assert resp.status_code == 200
@@ -774,10 +774,10 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
-            if werkzeug_version.startswith("3."):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
-                self.client.set_cookie("localhost", "test-cookie1", "sqlite_master")
+                self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")
 
             resp = self.client.post("/sqli/cookies/")
             assert resp.status_code == 200
