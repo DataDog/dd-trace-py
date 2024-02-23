@@ -7,6 +7,8 @@ import pytest
 import vcr
 
 from ddtrace import Pin
+from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
+from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
@@ -75,6 +77,23 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
             import langchain
 
             yield langchain
+            unpatch()
+
+@pytest.fixture
+def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
+    global_config = default_global_config()
+    global_config.update(ddtrace_global_config)
+    with override_global_config(global_config):
+        with override_config("langchain", ddtrace_config_langchain):
+            # ensure that mock OpenAI API key is passed in
+            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
+            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
+            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
+            patch()
+            import langchain_community
+
+            yield langchain_community
             unpatch()
 
 
@@ -177,7 +196,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
@@ -193,7 +212,7 @@ def test_openai_llm_sync_39(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
@@ -219,7 +238,7 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_openai_llm_async(langchain, request_vcr):
     llm = langchain.llms.OpenAI()
     if sys.version_info >= (3, 10, 0):
@@ -230,7 +249,10 @@ async def test_openai_llm_async(langchain, request_vcr):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain.test_openai_llm_stream",
+    ignores=["resource"]
+)
 def test_openai_llm_sync_stream(langchain, request_vcr):
     llm = langchain.llms.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
@@ -248,7 +270,7 @@ async def test_openai_llm_async_stream(langchain, request_vcr):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
@@ -263,14 +285,14 @@ def test_openai_llm_error(langchain, request_vcr):
             llm.generate([12345, 123456])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_cohere_llm_sync(langchain, request_vcr):
     llm = langchain.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("cohere_completion_sync.yaml"):
         llm("What is the secret Krabby Patty recipe?")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_huggingfacehub_llm_sync(langchain, request_vcr):
     llm = langchain.llms.HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
@@ -281,7 +303,7 @@ def test_huggingfacehub_llm_sync(langchain, request_vcr):
         llm("Why does Mr. Krabs have a whale daughter?")
 
 
-@pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text"])
+@pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
 def test_ai21_llm_sync(langchain, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     if sys.version_info >= (3, 10, 0):
@@ -388,7 +410,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -407,7 +429,7 @@ def test_openai_chat_model_sync_call_39(langchain, request_vcr):
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_chat_model_sync_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -452,7 +474,7 @@ def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 async def test_openai_chat_model_async_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -463,7 +485,7 @@ async def test_openai_chat_model_async_call(langchain, request_vcr):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 async def test_openai_chat_model_async_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -633,13 +655,13 @@ def test_openai_embedding_document(langchain, request_vcr):
         embeddings.embed_documents(["this is", "a test document."])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_fake_embedding_query(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
@@ -720,7 +742,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
 
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_math_chain_sync(langchain, request_vcr):
     """
@@ -767,7 +789,7 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_sequential_chain(langchain, request_vcr):
     """
@@ -822,7 +844,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["langchain.tokens.total_cost", "resource"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
     template = """Paraphrase this text:
 
@@ -860,7 +882,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_openai_sequential_chain_with_multiple_llm_async(langchain, request_vcr):
     template = """Paraphrase this text:
 
@@ -1031,13 +1053,15 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
-def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
+def test_chat_prompt_template_does_not_parse_template(langchain, langchain_community, mock_tracer):
     """
     Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
     as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
     but instead contain multiple messages each with their own prompt template and are not trivial to tag.
     """
-    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    import langchain.prompts.chat # noqa: F401
+    # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
+    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
             template = "You are a helpful assistant that translates english to pirate."
@@ -1242,7 +1266,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -1258,8 +1282,8 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         }
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
-from langchain.llms import OpenAI
+        f"""
+from langchain_community.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
 llm = OpenAI()
@@ -1268,13 +1292,14 @@ with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
 """,
         env=env,
     )
+    print("FULL ERR IS", err)
     assert status == 0, err
     assert out == b""
     assert err == b""
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_openai_service_name(
@@ -1321,7 +1346,7 @@ def test_llm_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             llm = langchain.llms.OpenAI()
             llm("Can you please not return an error?")
@@ -1336,7 +1361,7 @@ def test_llm_logs_when_response_not_completed(
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": "sampled langchain.llms.openai.OpenAI",
+                    "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
@@ -1360,7 +1385,7 @@ def test_chat_model_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
             chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
@@ -1408,7 +1433,7 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -1447,7 +1472,7 @@ def test_chain_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
             chain.run("Can you please not return an error?")
@@ -1487,7 +1512,7 @@ def test_chain_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
             import pinecone
