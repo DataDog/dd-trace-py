@@ -2353,6 +2353,40 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.50.4
+
+### Bug Fixes
+
+- Fixes a bug in the pytest plugin where xfail test cases in a test file with a module-wide skip raises attribute errors and are marked as xfail rather than skipped.
+
+---
+
+## v0.50.3
+
+### Bug Fixes
+
+- Fixed the handling of sanic endpoint paths with non-string arguments.
+
+---
+
+## v0.50.2
+
+### Bug Fixes
+
+- Fixed JSON encoding errors in the pytest plugin for parameterized tests with dictionary parameters with tuple keys. The pytest plugin now always JSON encodes the string representations of test parameters.
+
+---
+
+## v0.50.1
+
+### Bug Fixes
+
+- Fixed JSON encoding errors in the pytest plugin for parameterized tests with complex Python object parameters. The pytest plugin now defaults to encoding the string representations of non-JSON serializable test parameters.
+- Fix pymongo 3.12.0+ spans not being generated.
+- Fix a possible NoneType error in the WSGI middleware start_response method.
+
+---
+
 ## v0.50.0
 
 ### Prelude
