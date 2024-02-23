@@ -2209,6 +2209,15 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.54.1
+
+### Bug Fixes
+
+- Fixed an issue with gevent worker processes that caused them to crash and stop.
+- Fixes exceptions raised when logging during tracer initialization when `DD_LOGS_INJECTION` is enabled.
+
+---
+
 ## v0.54.0
 
 ### Deprecation Notes
