@@ -821,7 +821,7 @@ class _TraceContext:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
             ts = span_context._tracestate
-            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a traces with missing spans
+            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
             if "dd=" in ts:
                 ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
             else:

@@ -780,7 +780,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     [
         (
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;p:a0000000000000ff,congo=t61rcWkgMzE,mako=s:2;o:rum",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -795,7 +795,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:0;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 0,
                 {
@@ -810,7 +810,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -825,7 +825,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 None,
                 {
@@ -840,7 +840,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:-1;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 -1,
                 {
@@ -855,7 +855,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=p:a0000000000000ff;s:2;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -870,7 +870,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -886,14 +886,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (None, {}, None, None),
             None,
             None,
         ),
         (
             "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -920,7 +920,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz6~~~4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -935,7 +935,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz:6:4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
