@@ -2321,6 +2321,32 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.51.3
+
+### Bug Fixes
+
+- Pin `setup_requires` dependency `setuptools_scm[toml]>=4,<6.1` to avoid breaking changes.
+
+---
+
+## v0.51.2
+
+### New Features
+
+- ASGI: store the ASGI span in the scope. The span can be retrieved with the
+  `ddtrace.contrib.asgi.span_from_scope` function.
+
+### Bug Fixes
+
+- ASGI: handle decoding errors when extracting headers for trace propagation.
+- Corrected some typing annotations for PEP 484 compliance
+- Django: add support for version 3.1+ ASGI applications. A different codepath is taken for requests starting in Django 3.1 which led to the top level span not being generated for requests. The fix introduces automatic installation of the ASGI middleware to trace Django requests.
+- Fixes error with tagging non-string Flask view args.
+- Fixes type hinting for `**patch_modules` parameter for `patch`/`patch_all` functions.
+- Fixes a bug in the pytest plugin where xfail test cases in a test file with a module-wide skip raises attribute errors and are marked as xfail rather than skipped.
+
+---
+
 ## v0.51.0
 
 ### Upgrade Notes
