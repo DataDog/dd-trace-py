@@ -190,9 +190,9 @@ IF UNAME_SYSNAME == "Linux":
             if span._local_root.span_id:
                 ddup_push_local_root_span_id(self.ptr, span._local_root.span_id)
             if span._local_root.span_type:
-                ddup_push_trace_type(self.ptr, span._local_root.span_type)
+                ddup_push_trace_type(self.ptr, ensure_binary(span._local_root.span_type))
             if endpoint_collection_enabled:
-                ddup_push_trace_resource_container(self.ptr, span._local_root._resource)
+                ddup_push_trace_resource_container(self.ptr, ensure_binary(span._local_root.service))
 
         def flush_sample(self) -> None:
             # Flushing the sample consumes it.  The user will no longer be able to use
