@@ -2107,6 +2107,46 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.57.4
+
+### Bug Fixes
+
+- Fix an issue in the heap profiler where it would iterate on the wrong heap allocation tracker.
+
+---
+
+## v0.57.3
+
+### Bug Fixes
+
+- Fix JSON encoding error when a `bytes` string is used for span metadata.
+- Fix a bug in the heap profiler that could be triggered if more than 2^16 memory items were freed during heap data collection.
+- Fix a possible bug in the heap memory profiler that could trigger an overflow when too many allocations were being tracked.
+- Pymongo instrumentation raises an AttributeError when `tracer.enabled == False`
+
+---
+
+## v0.57.2
+
+### Bug Fixes
+
+- Fix application crash on startup when using `channels >= 3.0`.
+- Fix parenting of Redis command spans when using aioredis 1.3. Redis spans should now be correctly attributed as child of any active parent spans.
+- Fixes issue with aioredis when empty pool is not available and execute returns a coroutine instead of a future. When patch tries to add callback for the span using add_done_callback function it crashes because this function is only for futures.
+- Profiler raises a typing error when `Span.resource` is unicode on Python 2.7.
+
+---
+
+## v0.57.1
+
+### Bug Fixes
+
+- Fixes incompatibility of wrapped aioredis pipelines in `async with` statements.
+- Escape non-Unicode bytes when decoding aioredis args. This fixes a `UnicodeDecodeError` that can be thrown from the aioredis integration when interacting with binary-encoded data, as is done in channels-redis.
+- grpc: ensure grpc.intercept_channel is unpatched properly
+
+---
+
 ## v0.57.0
 
 ### Deprecation Notes
