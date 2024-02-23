@@ -90,7 +90,7 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         if config_content is False:
             # Remove old config from the configs dict. _remove_previously_applied_configurations function should
             # call to this method
-            del self._configs[target]
+            self._configs[target].clear()
         elif config_content is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method
