@@ -108,6 +108,7 @@ def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] 
 def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer]) -> bool:
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
+    print("\n>>> features _appsec_rules_data", features, "\n")
     if test_tracer is None:
         from ddtrace import tracer
     else:
