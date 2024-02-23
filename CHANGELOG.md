@@ -2136,6 +2136,14 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.56.1
+
+### Bug Fixes
+
+- Fix error when calling `concurrent.futures.ThreadPoolExecutor.submit` with `fn` keyword argument.
+
+---
+
 ## v0.56.0
 
 ### Upgrade Notes
