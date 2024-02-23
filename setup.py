@@ -354,7 +354,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        optional=False,
+        optional=True,  # By default, extensions are optional for now
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -456,7 +456,7 @@ if not IS_PYSTON:
         )
 
         ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=True)
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR)
         )
 
     if platform.system() == "Linux" and is_64_bit_python():
@@ -464,7 +464,6 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                optional=False,  # Change to True for release
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
@@ -477,7 +476,6 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2",
                 source_dir=STACK_V2_DIR,
-                optional=False,  # Change to True for release
                 cmake_args=[
                     "-DPLATFORM={}".format(CURRENT_OS),
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
