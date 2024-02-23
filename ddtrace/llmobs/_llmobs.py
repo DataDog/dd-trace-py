@@ -10,11 +10,24 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 
 
 log = get_logger(__name__)
@@ -76,33 +89,42 @@ class LLMObs(Service):
         cls.enabled = False
         log.debug("%s disabled", cls.__name__)
 
-    def _start_span(self, operation_kind: str, name: str = None, **kwargs) -> Span:
+    def _start_span(
+            self,
+            operation_kind: str,
+            name: Optional[str] = None,
+            session_id: Optional[str] = None,
+            model_name: Optional[str] = None,
+            model_provider: Optional[str] = None,
+    ) -> Span:
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
-        span_meta = {}
-        for k, v in kwargs.items():
-            span_meta.update({k: v})
-        span_meta["span.kind"] = operation_kind
-        span.set_tag_str("ml_obs.meta", json.dumps(span_meta))
+        span.set_tag_str(SPAN_KIND, operation_kind)
+        if session_id is not None:
+            span.set_tag_str(SESSION_ID, session_id)
+        if model_name is not None:
+            span.set_tag_str(MODEL_NAME, model_name)
+        if model_provider is not None:
+            span.set_tag_str(MODEL_PROVIDER, model_provider)
         return span
 
     @classmethod
     def llm(
         cls,
-        model: str,
+        model_name: str,
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> Span:
         if cls.enabled is False:
             raise Exception("LLMObs.llm() cannot be used while LLMObs is disabled.")
-        if not model:
-            raise ValueError("model must be the specified name of the invoked model.")
+        if not model_name:
+            raise ValueError("model_name must be the specified name of the invoked model.")
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
-            "llm", name, model_name=model, model_provider=model_provider, session_id=session_id
+            "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id
         )
 
     @classmethod
@@ -130,12 +152,13 @@ class LLMObs(Service):
         return cls._instance._start_span("workflow", name=name, session_id=session_id)
 
     @classmethod
-    def tag(
+    def annotate(
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
-        input_tags: Optional[Union[List[Dict[str, Any]], str]] = None,
-        output_tags: Optional[Union[List[Dict[str, Any]], str]] = None,
+        input_data: Optional[Union[List[Dict[str, Any]], str]] = None,
+        output_data: Optional[Union[List[Dict[str, Any]], str]] = None,
+        tags: Optional[Dict[str, Any]] = None,
     ):
         """
         Sets the parameter, input, and output tags for a given LLMObs span.
@@ -143,15 +166,16 @@ class LLMObs(Service):
          Must be an LLMObs-type span.
         parameters: Dictionary of input parameter key-value pairs such as max_tokens/temperature.
          Will be mapped to span's meta.input.parameters.* fields.
-        input_tags: A single input string, or a list of dictionaries following {"content": "...", "role": "..."}.
+        input_data: A single input string, or a list of dictionaries following {"content": "...", "role": "..."}.
          Will be mapped to `meta.input.value` or `meta.input.messages.*`, respectively.
          For llm span types, string inputs will be wrapped in a message dictionary.
-        output_tags: A single output string, or a list of dictionaries following {"content": "...", "role": "..."}.
+        output_data: A single output string, or a list of dictionaries following {"content": "...", "role": "..."}.
          Will be mapped to `meta.output.value` or `meta.output.messages.*`, respectively.
          For llm span types, string outputs will be wrapped in a message dictionary.
+        tags: Dictionary of key-value pairs to tag the LLMObs span with.
         """
         if cls.enabled is False:
-            raise Exception("LLMObs.tag() cannot be used while LLMObs is disabled.")
+            raise Exception("LLMObs.annotate() cannot be used while LLMObs is disabled.")
         if span is None:
             span = cls._instance.tracer.current_span()
             if span is None:
@@ -161,72 +185,72 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
-        try:
-            span_meta = json.loads(span.get_tag("ml_obs.meta") or "{}")
-        except json.JSONDecodeError:
-            raise ValueError("Failed to deserialize existing ml_obs.meta tag.")
         if parameters is not None:
-            span_meta = cls._tag_params(span_meta, parameters)
-        if input_tags is not None:
-            span_meta = cls._tag_span_input_output("input", span_meta, input_tags)
-        if output_tags is not None:
-            span_meta = cls._tag_span_input_output("output", span_meta, output_tags)
-        try:
-            span.set_tag_str("ml_obs.meta", json.dumps(span_meta))
-        except json.JSONDecodeError:
-            raise ValueError("Failed to serialize span meta.")
+            cls._tag_params(span, parameters)
+        if input_data is not None:
+            cls._tag_span_input_output("input", span, input_data)
+        if output_data is not None:
+            cls._tag_span_input_output("output", span, output_data)
+        if tags is not None:
+            cls._tag_span_tags(span, tags)
 
     @staticmethod
-    def _tag_params(meta: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    def _tag_params(span: Span, params: Dict[str, Any]) -> None:
         if not isinstance(params, dict):
             raise ValueError("parameters must be a dictionary of key-value pairs.")
-        if "input" not in meta:
-            meta["input"] = {"parameters": params}
-        elif "parameters" not in meta["input"]:
-            meta["input"]["parameters"] = params
-        elif "parameters" in meta["input"]:
-            meta["input"]["parameters"].update(params)
-        return meta
+        if not span.get_tag(INPUT_PARAMETERS):
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
+        else:
+            existing_params = json.loads(span.get_tag(INPUT_PARAMETERS))
+            existing_params.update(params)
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(existing_params))
 
     @staticmethod
-    def _tag_span_input_output(
-        io_type: str, meta: Dict[str, Any], io_tags: Union[List[Dict[str, Any]], str]
-    ) -> Dict[str, Any]:
+    def _tag_span_input_output(io_type: str, span: Span, data: Union[List[Dict[str, Any]], str]) -> None:
         """
         Tags input/output for a given LLMObs span.
         io_type: "input" or "output".
         meta: Span's meta dictionary.
-        io_value: Input or output dictionary of key-value pairs to tag.
+        data: String or dictionary of key-value pairs to tag as the input or output.
         """
         if io_type not in ("input", "output"):
             raise ValueError("io_type must be either 'input' or 'output'.")
-        if not isinstance(io_tags, (str, list)):
+        if not isinstance(data, (str, list)):
             raise TypeError(
                 "Invalid type, must be either a raw string or list of dictionaries with the format {'content': '...'}."
             )
-        if isinstance(io_tags, list) and not all(isinstance(item, dict) for item in io_tags):
+        if isinstance(data, list) and not all(isinstance(item, dict) for item in data):
             raise TypeError(
                 "Invalid list item type, must be a list of dictionaries with the format {'content': '...'}."
             )
-        span_kind = meta.get("span.kind")
+        span_kind = span.get_tag(SPAN_KIND)
         tags = {}
         if not span_kind:
             raise ValueError("Cannot tag input/output without a span.kind tag.")
-        if span_kind == "llm":
-            if isinstance(io_tags, str):
-                tags = {"messages": [{"content": io_tags}]}
-            elif isinstance(io_tags, list) and io_tags and isinstance(io_tags[0], dict):
-                tags = {"messages": io_tags}
+        if span_kind in ("llm", "agent"):
+            if isinstance(data, str):
+                tags = [{"content": data}]
+            elif isinstance(data, list) and data and isinstance(data[0], dict):
+                tags = data
+            if io_type == "input":
+                span.set_tag_str(INPUT_MESSAGES, json.dumps(tags))
+            else:
+                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(tags))
         else:
-            if isinstance(io_tags, str):
-                tags = {"value": io_tags}
+            if isinstance(data, str):
+                if io_type == "input":
+                    span.set_tag_str(INPUT_VALUE, data)
+                else:
+                    span.set_tag_str(OUTPUT_VALUE, data)
             else:
                 raise ValueError("Invalid input/output type for non-llm span. Must be a raw string.")
-        if io_type not in meta:
-            meta[io_type] = tags
-        else:
-            meta[io_type].update(tags)
-        return meta
+
+    @staticmethod
+    def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
+        """Tags a given LLMObs span with a dictionary of key-value pairs."""
+        if not isinstance(span_tags, dict):
+            raise ValueError("span_tags must be a dictionary of string key - primitive value pairs.")
+        span.set_tag_str(TAGS, json.dumps(span_tags))
 
 
 class LLMObsTraceProcessor(TraceProcessor):
@@ -245,50 +269,69 @@ class LLMObsTraceProcessor(TraceProcessor):
                 self.submit_llmobs_span(span)
         return trace
 
-    @staticmethod
-    def _llmobs_tags(span: Span, meta: Dict[str, Any]) -> List[str]:
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "source:integration",
-            "model_name:{}".format(meta.get("model_name", "")),
-            "model_provider:{}".format(meta.get("model_provider", "custom")),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
-
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
-        meta = json.loads(span._meta.pop("ml_obs.meta", "{}"))
-        if "span.kind" not in meta:
-            meta["span.kind"] = span.resource
-        if span.error:
-            meta["error.message"] = span.get_tag("error.message")
-        metrics = json.loads(span._meta.pop("ml_obs.metrics", "{}"))
-        span_event = self._llmobs_span_event(span, meta, metrics)
-        log.debug("Submitting span to LLMObs: %s", span)
+        span_event = self._llmobs_span_event(span)
         self._writer.enqueue(span_event)
 
-    def _llmobs_span_event(self, span: Span, meta: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
-        session_id = meta.pop("session_id") or "{:x}".format(span.trace_id)
+        tags = self._llmobs_tags(span)
+        meta = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
+        session_id = span._meta.pop(SESSION_ID, None) or "{:x}".format(span.trace_id)
+        if span.get_tag(MODEL_NAME):
+            meta["model_name"] = span._meta.pop(MODEL_NAME)
+            meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom")
+        if span.get_tag(INPUT_PARAMETERS):
+            meta["input"]["parameters"] = json.loads(span._meta.pop(INPUT_PARAMETERS))
+        if span.get_tag(INPUT_MESSAGES):
+            meta["input"]["messages"] = json.loads(span._meta.pop(INPUT_MESSAGES))
+        if span.get_tag(INPUT_VALUE):
+            meta["input"]["value"] = span._meta.pop(INPUT_VALUE)
+        if span.get_tag(OUTPUT_MESSAGES):
+            meta["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
+        if span.get_tag(OUTPUT_VALUE):
+            meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
+        if span.error:
+            meta["error.message"] = span.get_tag(ERROR_MSG)
+        if not meta["input"]:
+            meta.pop("input")
+        if not meta["output"]:
+            meta.pop("output")
+        metrics = json.loads(span._meta.pop(METRICS, "{}"))
+
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": str(self._get_llmobs_parent_id(span) or ""),
             "session_id": session_id,
-            "tags": self._llmobs_tags(span, meta),
             "name": span.name,
-            "error": span.error,
+            "tags": tags,
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
+            "error": span.error,
             "meta": meta,
             "metrics": metrics,
         }
+
+    @staticmethod
+    def _llmobs_tags(span: Span) -> List[str]:
+        tags = [
+            "version:%s" % (config.version or ""),
+            "env:%s" % (config.env or ""),
+            "service:%s" % (span.service or ""),
+            "source:integration",
+            "model_name:{}".format(span.get_tag(MODEL_NAME) or ""),
+            "model_provider:{}".format(span.get_tag(MODEL_PROVIDER) or "custom"),
+            "error:%d" % span.error,
+        ]
+        err_type = span.get_tag(ERROR_TYPE)
+        if err_type:
+            tags.append("error_type:%s" % err_type)
+        if span.get_tag(TAGS):
+            span_tags = json.loads(span.get_tag(TAGS))
+            tags.extend(["{}:{}".format(k, v) for k, v in span_tags.items()])
+        return tags
 
     @staticmethod
     def _get_llmobs_parent_id(span: Span) -> Optional[int]:
