@@ -2727,6 +2727,14 @@ Build and deploy Python 3.9 wheels for releases
 
 ---
 
+## v0.44.1
+
+### Bug Fixes
+
+- Fixes span id tagging in lock profiling.
+
+---
+
 ## v0.44.0
 
 ### Prelude
