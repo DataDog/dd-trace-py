@@ -108,22 +108,22 @@ class LLMObsTraceProcessor(TraceProcessor):
             tags.append("error_type:%s" % err_type)
         return tags
 
-    def submit_llmobs_span(self, span):
+    def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
-        meta = json.loads(span._meta.pop("ml_obs.meta", {}))
+        meta = json.loads(span._meta.pop("ml_obs.meta", "{}"))
         if span.error:
             meta["error.message"] = span.get_tag("error.message")
-        metrics = json.loads(span._meta.pop("ml_obs.metrics", {}))
+        metrics = json.loads(span._meta.pop("ml_obs.metrics", "{}"))
         span_event = self._llmobs_span_event(span, meta, metrics)
         log.debug("Submitting span to LLMObs: %s", span)
         self._writer.enqueue(span_event)
 
-    def _llmobs_span_event(self, span, meta, metrics):
+    def _llmobs_span_event(self, span: Span, meta: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Span event object structure."""
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(span.parent_id or ""),
+            "parent_id": str(self._get_llmobs_parent_id(span) or ""),
             "session_id": "{:x}".format(span.trace_id),
             "tags": self._llmobs_tags(span, meta),
             "name": span.name,
@@ -133,3 +133,15 @@ class LLMObsTraceProcessor(TraceProcessor):
             "meta": meta,
             "metrics": metrics,
         }
+
+    @staticmethod
+    def _get_llmobs_parent_id(span: Span) -> Optional[int]:
+        """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree."""
+        if span.span_type != SpanTypes.LLM:
+            return None
+        parent = span._parent
+        while parent:
+            if parent.span_type == SpanTypes.LLM:
+                return parent.span_id
+            parent = parent._parent
+        return None

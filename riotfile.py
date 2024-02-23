@@ -784,6 +784,7 @@ venv = Venv(
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
+                "django-q": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -1319,13 +1320,35 @@ venv = Venv(
                 "urllib3": "~=1.0",
             },
             venvs=[
+                # requests added support for Python 3.7 in 2.20
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys="3.7",
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
-                            "~=2.20",
-                            "~=2.26",
+                            "~=2.20.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.8 in 2.23
+                    pys="3.8",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.23.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.9 in 2.25
+                    pys="3.9",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.25.0",
                             latest,
                         ],
                     },
@@ -1347,6 +1370,7 @@ venv = Venv(
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
+                            "~=2.28.0",
                             latest,
                         ],
                     },
@@ -1568,7 +1592,7 @@ venv = Venv(
                         ),
                         Venv(
                             pkgs={
-                                "pytest": [latest],
+                                "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
                         ),
@@ -1578,7 +1602,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest": [
-                            ">=6.0,<7.0",
+                            "~=6.0",
+                            "~=7.0",
                             latest,
                         ],
                         "msgpack": latest,
@@ -1684,18 +1709,23 @@ venv = Venv(
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.34.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.42.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.49.0", latest]},
+                ),
+                Venv(
+                    # grpcio added support for Python 3.12 in 1.59
+                    pys="3.12",
+                    pkgs={"grpcio": ["~=1.59.0", latest]},
                 ),
             ],
         ),
@@ -1808,23 +1838,35 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4"]},
+                    # Support added for Python 3.7 in 1.25.0
+                    # Support removed for Python 3.7 after 1.26.0
+                    pys="3.7",
+                    pkgs={"urllib3": ["==1.25.0", "~=1.26.0"]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.9 in 1.25.8
+                    # Support added for Python 3.8 in 1.25.0
+                    pys="3.8",
+                    pkgs={"urllib3": ["==1.25.0", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
+                    pkgs={"urllib3": ["==1.25.8", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.10 in 1.26.6
+                    # Support added for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6"]},
+                    pkgs={"urllib3": ["==1.26.6", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.11 in 1.26.8
+                    # Support added for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8"]},
+                    pkgs={"urllib3": ["==1.26.8", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.12 in 2.0.0
+                    pys="3.12",
+                    pkgs={"urllib3": ["==2.0.0", latest]},
                 ),
             ],
         ),

@@ -8,14 +8,15 @@ cmake_minimum_required(VERSION 3.19)
 set(EXTENSION_NAME "ddup" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 
-# Set C++17 as required standard for the whole project.
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 # Includes
 include(FetchContent)
 include(ExternalProject)
 include(FindPython3)
+
+# Build the dd_wrapper
+# Need to specify that we're calling it via add_subdirectory, so that it knows to
+# propagate the right variables to its parent scope
+set(DD_WRAPPER_IS_SUBPROJECT ON)
 add_subdirectory(dd_wrapper "${LIB_INSTALL_DIR}")
 
 # Find the Python interpreter
@@ -40,6 +41,8 @@ add_custom_command(
 add_library(${EXTENSION_NAME} SHARED
     _ddup.cpp
 )
+
+target_compile_features(dd_wrapper PUBLIC cxx_std_17)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries).
 # This suppresses that behavior, which is required to ensure all paths can be inferred

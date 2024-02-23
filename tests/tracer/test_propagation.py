@@ -6,6 +6,7 @@ import pickle
 
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
@@ -29,7 +30,6 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.tracing._span_link import SpanLink
 from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
@@ -1054,6 +1054,11 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
     HTTP_HEADER_ORIGIN: "synthetics",
 }
+DATADOG_HEADERS_VALID_NO_PRIORITY = {
+    HTTP_HEADER_TRACE_ID: "13088165645273925489",
+    HTTP_HEADER_PARENT_ID: "5678",
+    HTTP_HEADER_ORIGIN: "synthetics",
+}
 DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
     HTTP_HEADER_TRACE_ID: str(_get_64_lowest_order_bits_as_int(TRACE_ID)),
     HTTP_HEADER_PARENT_ID: "5678",
@@ -1135,6 +1140,18 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+        },
+    ),
+    (
+        "valid_datadog_no_priority",
+        None,
+        DATADOG_HEADERS_VALID_NO_PRIORITY,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 2,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
