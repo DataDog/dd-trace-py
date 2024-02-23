@@ -1479,6 +1479,611 @@ Dynamic instrumentation allows instrumenting a running service dynamically to ex
 
 ---
 
+## v1.1.4
+
+### Bug Fixes
+
+- pin protobuf to version `>=3,<4` due to incompatibility with version `4.21`.
+
+---
+
+## v1.1.3
+
+### Bug Fixes
+
+- tracing: fix issue with `ddtrace-run` having the wrong priority order of tracer host/port/url env variable configuration.
+- sanic: Don't send non-500s error traces.
+- Fixes a performance issue with the profiler when used in an asyncio application.
+
+---
+
+## v1.1.2
+
+### Bug Fixes
+
+- profiling: implement `__aenter__` and `__aexit__` methods on `asyncio.Lock` wrapper.
+
+---
+
+## v1.1.1
+
+### Bug Fixes
+
+- internal: normalize header names in ASM
+
+- Set required header to indicate top level span computation is done in the client to the Datadog agent. This fixes an issue where spans were erroneously being marked as top level when partial flushing or in certain asynchronous applications.
+
+  The impact of this bug is the unintended computation of stats for non-top level spans.
+
+---
+
+## v1.1.0
+
+### Prelude
+
+The Datadog APM Python team is happy to announce the release of v1.0.0 of ddtrace. This release introduces a formal `versioning policy<versioning>` that simplifies the public `interface<versioning_interfaces>` and defines a `release version policy<versioning_release>` for backwards compatible and incompatible changes to the public interface.
+
+The v1.0.0 release is an important milestone for the library as it has grown substantially in scope. The first commit to the library was made on June 20, 2016. Nearly sixty minor releases later, the library now includes over sixty integrations for libraries. And the library has expanded from Tracing to support the Continuous Profiler and CI Visibility.
+
+<div class="important">
+
+<div class="title">
+
+Important
+
+</div>
+
+Before upgrading to v1.0.0, we recommend users install `ddtrace>=0.60.0,<1.0.0` and enable deprecation warnings. All removals to the library interface and environment variables were deprecated on 0.x branch. Consult `Upgrade 0.x<upgrade-0.x>` for recommendations on migrating from the 0.x release branch.
+
+</div>
+
+<div class="note">
+
+<div class="title">
+
+Note
+
+</div>
+
+The changes to environment variables apply only to the configuration of the ddtrace library and not the Datadog Agent.
+
+</div>
+
+#### Upgrading summary
+
+##### Functionality changes
+
+The default logging configuration functionality of `ddtrace-run` has changed to address conflicts with application logging configuration. See `note on the new default behavior<disable-basic-config-call-by-default>` and `note on deprecation<deprecate-basic-config-call>` for future removal.
+
+##### Removed legacy environment variables
+
+These environment variables have been removed. In all cases the same functionality is provided by other environment variables and replacements are provided as recommended actions for upgrading.
+
+| Variable                            | Replacement                        | Note                                   |
+|-------------------------------------|------------------------------------|----------------------------------------|
+| `DATADOG_` prefix                   | `DD_` prefix                       | `📝<remove-datadog-envs>`              |
+| `DATADOG_SERVICE_NAME`              | `DD_SERVICE`                       | `📝<remove-legacy-service-name-envs>`  |
+| `DD_LOGGING_RATE_LIMIT`             | `DD_TRACE_LOGGING_RATE`            | `📝<remove-logging-env>`               |
+| `DD_TRACER_PARTIAL_FLUSH_ENABLED`   | `DD_TRACE_PARTIAL_FLUSH_ENABLED`   | `📝<remove-partial-flush-enabled-env>` |
+| `DD_TRACER_PARTIAL_FLUSH_MIN_SPANS` | `DD_TRACE_PARTIAL_FLUSH_MIN_SPANS` | `📝<remove-partial-flush-min-envs>`    |
+
+##### Removed legacy tracing interfaces
+
+These methods and module attributes have been removed. Where the same functionality is provided by a different public method or module attribute, a recommended action is provided for upgrading. In a few limited cases, because the interface was no longer used or had been moved to the internal interface, it was removed and so no action is provided for upgrading.
+
+| Module             | Method/Attribute           | Note                                  |
+|--------------------|----------------------------|---------------------------------------|
+| `ddtrace.context`  | `Context.clone`            | `📝<remove-clone-context>`            |
+| `ddtrace.pin`      | `Pin.app`                  | `📝<remove-pin-app>`                  |
+|                    | `Pin.app_type`             | `📝<remove-pin-apptype>`              |
+| `ddtrace.sampler`  | `Sampler.default_sampler`  | `📝<remove-default-sampler>`          |
+| `ddtrace.span`     | `Span.tracer`              | `📝<remove-span-tracer>`              |
+|                    | `Span.__init__(tracer=)`   | `📝<remove-span-init-tracer>`         |
+|                    | `Span.meta`                | `📝<remove-span-meta>`                |
+|                    | `Span.metrics`             | `📝<remove-span-metrics>`             |
+|                    | `Span.set_meta`            | `📝<remove-span-set-meta>`            |
+|                    | `Span.set_metas`           | `📝<remove-span-set-metas>`           |
+|                    | `Span.pprint`              | `📝<remove-span-pprint>`              |
+| `ddtrace.tracer`   | `Tracer.debug_logging`     | `📝<remove-tracer-debug-logging>`     |
+|                    | `Tracer.get_call_context`  | `📝<remove-tracer-get-call-context>`  |
+|                    | `Tracer.tags`              | `📝<remove-tracer-tags>`              |
+|                    | `Tracer.writer`            | `📝<remove-tracer-writer>`            |
+|                    | `Tracer.__call__`          | `📝<remove-tracer-call>`              |
+|                    | `Tracer.global_excepthook` | `📝<remove-tracer-global-excepthook>` |
+|                    | `Tracer.log`               | `📝<remove-tracer-log>`               |
+|                    | `Tracer.priority_sampler`  | `📝<remove-tracer-priority-sampler>`  |
+|                    | `Tracer.sampler`           | `📝<remove-tracer-sampler>`           |
+|                    | `Tracer.set_service_info`  | `📝<remove-tracer-set-service-info>`  |
+| `ddtrace.ext`      | `SpanTypes`                | `📝<remove-span-types-enum>`          |
+| `ddtrace.helpers`  | `get_correlation_ids`      | `📝<remove-helpers>`                  |
+| `ddtrace.settings` | `Config.HTTPServerConfig`  | `📝<remove-config-httpserver>`        |
+
+##### Removed legacy integration tracing
+
+These tracing functions in integrations were no longer used for automatic instrumentation so have been removed. Any manual instrumentation code in an application will need to be replaced with `ddtrace.patch_all` or `ddtrace.patch` when upgrading.
+
+| Module                        | Function/Class                          |                                          |
+|-------------------------------|-----------------------------------------|------------------------------------------|
+| `ddtrace.contrib.cassandra`   | `get_traced_cassandra`                  | `📝<remove-cassandra-traced>`            |
+| `ddtrace.contrib.celery`      | `patch_task`                            | `📝<remove-celery-patch-task>`           |
+| `ddtrace.contrib.celery`      | `unpatch_task`                          | `📝<remove-celery-unpatch-task>`         |
+| `ddtrace.contrib.flask`       | `middleware.TraceMiddleware`            | `📝<remove-flask-middleware>`            |
+| `ddtrace.contrib.mongoengine` | `trace_mongoengine`                     | `📝<remove-mongoengine-traced>`          |
+| `ddtrace.contrib.mysql`       | `get_traced_mysql_connection`           | `📝<remove-mysql-legacy>`                |
+| `ddtrace.contrib.psycopg`     | `connection_factory`                    | `📝<remove-psycopg-legacy>`              |
+| `ddtrace.contrib.pymongo`     | `patch.trace_mongo_client`              | `📝<remove-pymongo-client>`              |
+| `ddtrace.contrib.pymysql`     | `tracers.get_traced_pymysql_connection` | `📝<remove-pymysql-connection>`          |
+| `ddtrace.contrib.requests`    | `legacy`                                | `📝<remove-requests-legacy-distributed>` |
+| `ddtrace.contrib.redis`       | `tracers.get_traced_redis`              | `📝<remove-redis-traced>`                |
+| `ddtrace.contrib.redis`       | `tracers.get_traced_redis_from`         | `📝<remove-redis-traced-from>`           |
+| `ddtrace.contrib.sqlite3`     | `connection_factory`                    | `📝<remove-sqlite3-legacy>`              |
+
+##### Removed deprecated modules
+
+These modules have been removed. Many were moved to the internal interface as they were not intended to be used as part of the public interface. In these cases, no action is provided for upgrading. In a few cases, other modules are provided as alternatives to maintain functionality. See the notes for more information.
+
+| Module                      | Note                                   |
+|-----------------------------|----------------------------------------|
+| `ddtrace.compat`            | `📝<remove-ddtrace-compat>`            |
+| `ddtrace.contrib.util`      | `📝<remove-contrib-util>`              |
+| `ddtrace.encoding`          | `📝<remove-ddtrace-encoding>`          |
+| `ddtrace.ext.errors`        | `📝<remove-ext-errors>`                |
+| `ddtrace.ext.priority`      | `📝<remove-ext-priority>`              |
+| `ddtrace.ext.system`        | `📝<remove-ext-system>`                |
+| `ddtrace.http`              | `📝<remove-http>`                      |
+| `ddtrace.monkey`            | `📝<remove-ddtrace-monkey>`            |
+| `ddtrace.propagation.utils` | `📝<remove-ddtrace-propagation-utils>` |
+| `ddtrace.util`              | `📝<remove-ddtrace-util>`              |
+| `ddtrace.utils`             | `📝<remove-ddtrace-utils>`             |
+
+### New Features
+
+- Add `Span.get_tags` and `Span.get_metrics`.
+
+- aiohttp: add client integration. This integration traces requests made using the aiohttp client and includes support for distributed tracing. See [the documentation](https://ddtrace.readthedocs.io/en/stable/integrations.html#aiohttp) for more information.
+
+- aiohttp_jinja2: move into new integration. Formerly the aiohttp_jinja2 instrumentation was enabled using the aiohttp integration. Use `patch(aiohttp_jinja2=True)` instead of `patch(aiohttp=True)`. To support legacy behavior `patch(aiohttp=True)` will still enable aiohttp_jinja2.
+
+- asyncpg: add integration supporting v0.18.0 and above. See `the docs<asyncpg>` for more information.
+
+- fastapi: add support for tracing `fastapi.routing.serialize_response`.
+
+  This will give an insight into how much time is spent calling `jsonable_encoder` within a given request. This does not provide visibility into how long it takes for `Response.render`/`json.dumps`.
+
+- Add support to reuse HTTP connections when sending trace payloads to the agent. This feature is disabled by default. Set `DD_TRACE_WRITER_REUSE_CONNECTIONS=true` to enable this feature.
+
+- MySQLdb: Added optional tracing for MySQLdb.connect, using the configuration option `here<mysqldb_config_trace_connect>`.
+
+- The profiler now supports profiling `asyncio.Lock` objects.
+
+- psycopg2: add option to enable tracing `psycopg2.connect` method.
+
+  See our `psycopg2` documentation for more information.
+
+- Add support for injecting and extracting B3 propagation headers.
+
+  See `DD_TRACE_PROPAGATION_STYLE_EXTRACT <dd-trace-propagation-style-extract>` and `DD_TRACE_PROPAGATION_STYLE_INJECT <dd-trace-propagation-style-inject>` configuration documentation to enable.
+
+### Upgrade Notes
+
+- <div id="remove-default-sampler">
+
+  The deprecated attribute `ddtrace.Sampler.default_sampler` is removed.
+
+  </div>
+
+- Spans started after `Tracer.shutdown()` has been called will no longer be sent to the Datadog Agent.
+
+- <div id="disable-basic-config-call-by-default">
+
+  Default value of `DD_CALL_BASIC_CONFIG` was updated from `True` to `False`. Call `logging.basicConfig()` to configure logging in your application.
+
+  </div>
+
+- aiohttp_jinja2: use `patch(aiohttp_jinja2=True)` instead of `patch(aiohttp=True)` for enabling/disabling the integration.
+
+- <div id="remove-config-httpserver">
+
+  `ddtrace.settings.Config.HTTPServerConfig` is removed.
+
+  </div>
+
+- <div id="remove-cassandra-traced">
+
+  cassandra: `get_traced_cassandra` is removed. Use `ddtrace.patch(cassandra=True)` or `ddtrace.patch_all()` instead.
+
+  </div>
+
+- <div id="remove-celery-patch-task">
+
+  celery: `ddtrace.contrib.celery.patch_task` is removed. Use `ddtrace.patch(celery=True)` or `ddtrace.patch_all()` instead.
+
+  </div>
+
+- <div id="remove-celery-unpatch-task">
+
+  celery: `ddtrace.contrib.celery.unpatch_task` is removed. Use `ddtrace.contrib.celery.unpatch()` instead.
+
+  </div>
+
+- <div id="remove-clone-context">
+
+  `ddrace.context.Context.clone` is removed. This is no longer needed since the tracer now supports asynchronous frameworks out of the box.
+
+  </div>
+
+- `ddtrace.constants.FILTERS_KEY` is removed.
+
+- `ddtrace.constants.NUMERIC_TAGS` is removed.
+
+- `ddtrace.constants.LOG_SPAN_KEY` is removed.
+
+- <div id="remove-contrib-util">
+
+  The deprecated module `ddtrace.contrib.util` is removed.
+
+  </div>
+
+- <div id="remove-ddtrace-compat">
+
+  The deprecated module `ddtrace.compat` is removed.
+
+  </div>
+
+- <div id="remove-ddtrace-encoding">
+
+  The deprecated module `ddtrace.encoding` is removed.
+
+  </div>
+
+- <div id="remove-http">
+
+  The deprecated modules `ddtrace.http` and `ddtrace.http.headers` are removed. Use `ddtrace.contrib.trace_utils.set_http_meta` to store request and response headers on a span.
+
+  </div>
+
+- <div id="remove-ddtrace-install-excepthooks">
+
+  Remove deprecated `ddtrace.install_excepthook`.
+
+  </div>
+
+- <div id="remove-ddtrace-uninstall-excepthooks">
+
+  Remove deprecated `ddtrace.uninstall_excepthook`.
+
+  </div>
+
+- <div id="remove-ddtrace-monkey">
+
+  The deprecated module `ddtrace.monkey` is removed. Use `ddtrace.patch <ddtrace.patch>` or `ddtrace.patch_all <ddtrace.patch_all>` instead.
+
+  </div>
+
+- <div id="remove-ddtrace-propagation-utils">
+
+  The deprecated module `ddtrace.propagation.utils` is removed.
+
+  </div>
+
+- <div id="remove-ddtrace-utils">
+
+  The deprecated module `ddtrace.utils` and its submodules are removed:
+  - `ddtrace.utils.attr`
+  - `ddtrace.utils.attrdict`
+  - `ddtrace.utils.cache`
+  - `ddtrace.utils.config`
+  - `ddtrace.utils.deprecation`
+  - `ddtrace.utils.formats`
+  - `ddtrace.utils.http`
+  - `ddtrace.utils.importlib`
+  - `ddtrace.utils.time`
+  - `ddtrace.utils.version`
+  - `ddtrace.utils.wrappers`
+
+  </div>
+
+- <div id="remove-tracer-sampler">
+
+  `ddtrace.Tracer.sampler` is removed.
+
+  </div>
+
+- <div id="remove-tracer-priority-sampler">
+
+  `ddtrace.Tracer.priority_sampler` is removed.
+
+  </div>
+
+- <div id="remove-tracer-tags">
+
+  `ddtrace.Tracer.tags` is removed. Use the environment variable `DD_TAGS<dd-tags>` to set the global tags instead.
+
+  </div>
+
+- <div id="remove-tracer-log">
+
+  `ddtrace.Tracer.log` was removed.
+
+  </div>
+
+- <div id="remove-ext-errors">
+
+  The deprecated module `ddtrace.ext.errors` is removed. Use the `ddtrace.constants` module instead:
+
+      from ddtrace.constants import ERROR_MSG
+      from ddtrace.constants import ERROR_STACK
+      from ddtrace.constants import ERROR_TYPE
+
+  </div>
+
+- <div id="remove-ext-priority">
+
+  The deprecated module `ddtrace.ext.priority` is removed. Use the `ddtrace.constants` module instead for setting sampling priority tags:
+
+      from ddtrace.constants import USER_KEEP
+      from ddtrace.constants import USER_REJECT
+
+  </div>
+
+- <div id="remove-ext-system">
+
+  The deprecated module `ddtrace.ext.system` is removed. Use `ddtrace.constants.PID` instead.
+
+  </div>
+
+- <div id="remove-helpers">
+
+  The deprecated method `ddtrace.helpers.get_correlation_ids` is removed. Use `ddtrace.Tracer.get_log_correlation_context` instead.
+
+  </div>
+
+- <div id="remove-legacy-service-name-envs">
+
+  The legacy environment variables `DD_SERVICE_NAME` and `DATADOG_SERVICE_NAME` are removed. Use `DD_SERVICE` instead.
+
+  </div>
+
+- <div id="remove-mongoengine-traced">
+
+  mongoengine: The deprecated method `ddtrace.contrib.mongoengine.trace_mongoengine` is removed. Use `ddtrace.patch(mongoengine=True)` or `ddtrace.patch()` instead.
+
+  </div>
+
+- <div id="remove-mysql-legacy">
+
+  mysql: The deprecated method `ddtrace.contrib.mysql.get_traced_mysql_connection` is removed. Use `ddtrace.patch(mysql=True)` or `ddtrace.patch_all()` instead.
+
+  </div>
+
+- <div id="remove-pin-app">
+
+  `Pin.app` is removed.
+
+  </div>
+
+- <div id="remove-pin-apptype">
+
+  `Pin.app_type` is removed.
+
+  </div>
+
+- <div id="remove-psycopg-legacy">
+
+  psycopg: `ddtrace.contrib.psycopg.connection_factory` is removed. Use `ddtrace.patch(psycopg=True)` or `ddtrace.patch_all()` instead.
+
+  </div>
+
+- <div id="remove-requests-legacy-distributed">
+
+  requests: The legacy distributed tracing configuration is removed. Use `ddtrace.config.requests['distributed_tracing']<requests-config-distributed-tracing>` instead.
+
+  </div>
+
+- <div id="remove-span-meta">
+
+  `ddtrace.Span.meta` is removed. Use `ddtrace.Span.get_tag` and `ddtrace.Span.set_tag` instead.
+
+  </div>
+
+- <div id="remove-span-metrics">
+
+  `ddtrace.Span.metrics` is removed. Use `ddtrace.Span.get_metric` and `ddtrace.Span.set_metric` instead.
+
+  </div>
+
+- <div id="remove-span-pprint">
+
+  `ddtrace.Span.pprint` is removed.
+
+  </div>
+
+- <div id="remove-span-set-meta">
+
+  `ddtrace.Span.set_meta` is removed. Use `ddtrace.Span.set_tag` instead.
+
+  </div>
+
+- <div id="remove-span-set-metas">
+
+  `ddtrace.Span.set_metas` is removed. Use `ddtrace.Span.set_tags` instead.
+
+  </div>
+
+- `Span.to_dict` is removed.
+
+- <div id="remove-span-tracer">
+
+  `Span.tracer` is removed.
+
+  </div>
+
+- <div id="remove-span-init-tracer">
+
+  The deprecated <span class="title-ref">tracer</span> argument is removed from `ddtrace.Span.__init__`.
+
+  </div>
+
+- <div id="remove-sqlite3-legacy">
+
+  sqlite3: `ddtrace.contrib.sqlite3.connection_factory` is removed. Use `ddtrace.patch(sqlite3=True)` or `ddtrace.patch_all()` instead.
+
+  </div>
+
+- <div id="remove-tracer-debug-logging">
+
+  Remove deprecated attribute `ddtrace.Tracer.debug_logging`. Set the logging level for the `ddtrace.tracer` logger instead:
+
+      import logging
+      log = logging.getLogger("ddtrace.tracer")
+      log.setLevel(logging.DEBUG)
+
+  </div>
+
+- <div id="remove-tracer-call">
+
+  `ddtrace.Tracer.__call__` is removed.
+
+  </div>
+
+- <div id="remove-tracer-global-excepthook">
+
+  `ddtrace.Tracer.global_excepthook` is removed.
+
+  </div>
+
+- <div id="remove-tracer-get-call-context">
+
+  `ddtrace.Tracer.get_call_context` is removed. Use `ddtrace.Tracer.current_trace_context` instead.
+
+  </div>
+
+- <div id="remove-tracer-set-service-info">
+
+  `ddtrace.Tracer.set_service_info` is removed.
+
+  </div>
+
+- <div id="remove-tracer-writer">
+
+  `ddtrace.Tracer.writer` is removed. To force flushing of buffered traces to the agent, use `ddtrace.Tracer.flush` instead.
+
+  </div>
+
+- `ddtrace.warnings.DDTraceDeprecationWarning` is removed.
+
+- `DD_TRACE_RAISE_DEPRECATIONWARNING` environment variable is removed.
+
+- <div id="remove-datadog-envs">
+
+  The environment variables prefixed with `DATADOG_` are removed. Use environment variables prefixed with `DD_` instead.
+
+  </div>
+
+- <div id="remove-logging-env">
+
+  The environment variable `DD_LOGGING_RATE_LIMIT` is removed. Use `DD_TRACE_LOGGING_RATE` instead.
+
+  </div>
+
+- <div id="remove-partial-flush-enabled-env">
+
+  The environment variable `DD_TRACER_PARTIAL_FLUSH_ENABLED` is removed. Use `DD_TRACE_PARTIAL_FLUSH_ENABLED` instead.
+
+  </div>
+
+- <div id="remove-partial-flush-min-envs">
+
+  The environment variable `DD_TRACER_PARTIAL_FLUSH_MIN_SPANS` is removed. Use `DD_TRACE_PARTIAL_FLUSH_MIN_SPANS` instead.
+
+  </div>
+
+- <div id="remove-ddtrace-util">
+
+  `ddtrace.util` is removed.
+
+  </div>
+
+- <div id="remove-span-types-enum">
+
+  `ddtrace.ext.SpanTypes` is no longer an `Enum`. Use `SpanTypes.<TYPE>` instead of `SpanTypes.<TYPE>.value`.
+
+  </div>
+
+- `Tracer.write` has been removed.
+
+- <div id="remove-flask-middleware">
+
+  Removed deprecated middleware `ddtrace.contrib.flask.middleware.py:TraceMiddleware`. Use `ddtrace.patch_all` or `ddtrace.patch` instead.
+
+  </div>
+
+- <div id="remove-pymongo-client">
+
+  Removed deprecated function `ddtrace.contrib.pymongo.patch.py:trace_mongo_client`. Use `ddtrace.patch_all` or `ddtrace.patch` instead.
+
+  </div>
+
+- <div id="remove-pymysql-connection">
+
+  Removed deprecated function `ddtrace.contrib.pymysql.tracers.py:get_traced_pymysql_connection`. Use `ddtrace.patch_all` or `ddtrace.patch` instead.
+
+  </div>
+
+- <div id="remove-redis-traced">
+
+  Removed deprecated function `ddtrace.contrib.redis.tracers.py:get_traced_redis`. Use `ddtrace.patch_all` or `ddtrace.patch` instead.
+
+  </div>
+
+- <div id="remove-redis-traced-from">
+
+  Removed deprecated function `ddtrace.contrib.redis.tracers.py:get_traced_redis_from`. Use `ddtrace.patch_all` or `ddtrace.patch` instead.
+
+  </div>
+
+### Deprecation Notes
+
+- <div id="deprecate-basic-config-call">
+
+  `DD_CALL_BASIC_CONFIG` is deprecated.
+
+  </div>
+
+### Bug Fixes
+
+- Fixes deprecation warning for `asyncio.coroutine` decorator.
+
+- botocore: fix incorrect context propagation message attribute types for SNS. This addresses [Datadog/serverless-plugin-datadog#232](https://github.com/DataDog/serverless-plugin-datadog/issues/232)
+
+- aiohttp: fix issue causing `ddtrace.contrib.aiohttp_jinja2.patch` module to be imported instead of the `patch()` function.
+
+- botocore: omit `SecretBinary` and `SecretString` from span metadata for calls to Secrets Manager.
+
+- tracing/internal: fix encoding of propagated internal tags.
+
+- Fix issue building `ddtrace` from source on macOS 12.
+
+- Fix issue building `ddtrace` for the Pyston Python implementation by not building the `_memalloc` extension anymore when using Pyston.
+
+- `tracer.get_log_correlation_context()`: use active context in addition to
+  active span. Formerly just the span was used and this would break cross execution log correlation as a context object is used for the propagation.
+
+- opentracer: update `set_tag` and `set_operation_name` to return a
+  reference to the span to match the OpenTracing spec.
+
+- The CPU profiler now reports the main thread CPU usage even when asyncio tasks are running.
+
+- Fixes wrong numbers of memory allocation being reported in the memory profiler.
+
+- pymongo: fix `write_command` being patched with the wrong method signature.
+
+### Other Notes
+
+- tracing/internal: disable Datadog internal tag propagation
+
+---
+
 ## v1.0.3
 
 ### Bug Fixes
