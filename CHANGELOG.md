@@ -2238,6 +2238,32 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.53.3
+
+### Bug Fixes
+
+- Fixes an issue where all Django function middleware will share the same resource name.
+
+---
+
+## v0.53.2
+
+### Bug Fixes
+
+- Fix the reporting of the allocated memory and the number of allocations in the profiler.
+
+---
+
+## v0.53.1
+
+### Bug Fixes
+
+- Fixed the support for Celery workers that fork sub-processes with Python 3.6 and earlier versions.
+- Fixes cases in which the `test.status` tag of a test span from `pytest` would be missing because `pytest_runtest_makereport` hook is not run, like when `pytest` has an internal error.
+- Pin `protobuf` version to `<3.18` for Python \<=3.5 due to support being dropped.
+
+---
+
 ## v0.53.0
 
 ### Upgrade Notes
