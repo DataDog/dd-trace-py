@@ -2554,6 +2554,52 @@ Several deprecations have been made to `Context` as we prepare to move active sp
 
 ---
 
+## v0.48.5
+
+### Bug Fixes
+
+- django: fix a bug where multiple database backends would not be instrumented.
+- django: fix a bug when postgres query is composable sql object.
+
+---
+
+## v0.48.4
+
+### Bug Fixes
+
+- grpc: handle None values for span tags.
+- grpc: Add done callback in streaming response to avoid unfinished spans if a <span class="title-ref">StopIteration</span> is never raised, as is found in the Google Cloud libraries.
+
+## v0.48.3
+
+---
+
+### Bug Fixes
+
+- grpc: handle no package in fully qualified method
+- grpc: handle IPv6 addresses and no port in target.
+- gRPC client spans are now marked as measured by default.
+- Fixes issue of unfinished spans when response is not a <span class="title-ref">grpc.Future</span> but has the same interface, as is the case with the base future class in <span class="title-ref">google-api-core</span>.
+
+## v0.48.2
+
+---
+
+### Bug Fixes
+
+- The default agent timeout for profiling has been restored from 2 to 10 seconds to avoid too many profiles from being dropped.
+
+---
+
+## v0.48.1
+
+### Bug Fixes
+
+- Fix `urllib3` patching not properly activating the integration.
+- In certain circumstances, the profiles generated in a uWSGI application could have been empty. This is now fixed and the profiler records correctly the generated events.
+
+---
+
 ## v0.48.0
 
 ### Upgrade Notes
