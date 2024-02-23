@@ -104,7 +104,11 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
             # non sampled spans do not have sample rate applied
-            sampled_spans = [s for s in samples if s.sampled]
+            sampled_spans = [s for s in samples if s.get_metric(SAMPLE_RATE_METRIC_KEY)]
+            if sample_rate != 1:
+                assert len(sampled_spans) != len(samples)
+            else:
+                assert len(sampled_spans) == len(samples)
             assert (
                 sampled_spans[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
             ), "Sampled span should have sample rate properly assigned"
@@ -131,7 +135,8 @@ class RateSamplerTest(unittest.TestCase):
             assert (
                 len(samples) <= 1
             ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
-            sampled = 1 == len([sample for sample in samples if sample.sampled is True])
+            # sample rate metric is only set on sampled spans
+            sampled = 1 == len([sample for sample in samples if sample.get_metric(SAMPLE_RATE_METRIC_KEY) is not None])
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
@@ -916,10 +921,11 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
     dummy_tracer.configure(sampler=sampler)
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
-
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
     span = spans[0]
-    assert span.sampled, "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
+    assert (
+        span.sampled is not None
+    ), "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
     assert_sampling_decision_tags(
         span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag
