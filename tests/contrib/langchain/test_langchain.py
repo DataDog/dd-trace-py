@@ -79,6 +79,7 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
             yield langchain
             unpatch()
 
+
 @pytest.fixture
 def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
     global_config = default_global_config()
@@ -249,10 +250,7 @@ async def test_openai_llm_async(langchain, request_vcr):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain.test_openai_llm_stream",
-    ignores=["resource"]
-)
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream", ignores=["resource"])
 def test_openai_llm_sync_stream(langchain, request_vcr):
     llm = langchain.llms.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
@@ -1059,9 +1057,12 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_commu
     as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
     but instead contain multiple messages each with their own prompt template and are not trivial to tag.
     """
-    import langchain.prompts.chat # noqa: F401
+    import langchain.prompts.chat  # noqa: F401
+
     # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
-    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
             template = "You are a helpful assistant that translates english to pirate."
@@ -1346,7 +1347,9 @@ def test_llm_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             llm = langchain.llms.OpenAI()
             llm("Can you please not return an error?")
@@ -1385,7 +1388,9 @@ def test_chat_model_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
             chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
@@ -1433,7 +1438,8 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -1472,7 +1478,9 @@ def test_chain_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
             chain.run("Can you please not return an error?")
@@ -1512,7 +1520,8 @@ def test_chain_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             import pinecone

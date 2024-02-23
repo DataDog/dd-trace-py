@@ -58,8 +58,7 @@ def get_version():
 # ref: https://github.com/DataDog/dd-trace-py/issues/8212
 LANGCHAIN_VERSION = parse_version(get_version())
 SHOULD_USE_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
-BASE_LANGCHAIN_MODULE_NAME = "langchain_community" if SHOULD_USE_LANGCHAIN_COMMUNITY \
-    else "langchain"
+BASE_LANGCHAIN_MODULE_NAME = "langchain_community" if SHOULD_USE_LANGCHAIN_COMMUNITY else "langchain"
 
 
 config._add(
@@ -712,11 +711,19 @@ def patch():
             if not isinstance(
                 deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
             ):
-                wrap(BASE_LANGCHAIN_MODULE_NAME, "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
+                wrap(
+                    BASE_LANGCHAIN_MODULE_NAME,
+                    "embeddings.%s.embed_query" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
             if not isinstance(
                 deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
             ):
-                wrap(BASE_LANGCHAIN_MODULE_NAME, "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
+                wrap(
+                    BASE_LANGCHAIN_MODULE_NAME,
+                    "embeddings.%s.embed_documents" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
                 # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstore_classes:
@@ -726,7 +733,9 @@ def patch():
                 deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
             ):
                 wrap(
-                    BASE_LANGCHAIN_MODULE_NAME, "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
+                    BASE_LANGCHAIN_MODULE_NAME,
+                    "vectorstores.%s.similarity_search" % vectorstore,
+                    traced_similarity_search(langchain),
                 )
 
     if _is_iast_enabled():
