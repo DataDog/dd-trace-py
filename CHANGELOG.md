@@ -2074,6 +2074,48 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.58.5
+
+### Bug Fixes
+
+- tracing/internal: fix encoding of propagated internal tags.
+
+---
+
+## v0.58.4
+
+### Bug Fixes
+
+- Set correct service in logs correlation attributes when a span override the service.
+
+---
+
+## v0.58.3
+
+### Bug Fixes
+
+- Fixes build issues on older MacOS versions by updating `libddwaf` to 1.0.18
+
+---
+
+## v0.58.2
+
+### Bug Fixes
+
+- flask: fix resource naming of request span when errors occur in middleware.
+- pytest: fix unsafe access to xfail reason.
+
+---
+
+## v0.58.1
+
+### Bug Fixes
+
+- Fix internal import of deprecated `ddtrace.utils` module.
+- Fixes import path to not reference `__init__`. This could otherwise be a problem for `mypy`.
+
+---
+
 ## v0.58.0
 
 ### Deprecation Notes
