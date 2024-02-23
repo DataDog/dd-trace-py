@@ -2164,6 +2164,39 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.55.4
+
+### Bug Fixes
+
+- Fixes parsing of `botocore` env variables to ensure they are parsed as booleans.
+- Ensure tornado spans are marked as an error if the response status code is 500 \<= x \< 600.
+
+---
+
+## v0.55.3
+
+### Bug Fixes
+
+- Fix memory leak caused when the tracer is disabled.
+
+---
+
+## v0.55.2
+
+### Bug Fixes
+
+- Set the correct package name in the Pyramid instrumentation. This should fix an issue where the incorrect package name was being used which would crash the application when trying to do relative imports within Pyramid (e.g. when including routes from a relative path).
+
+---
+
+## v0.55.1
+
+### Bug Fixes
+
+- Fix Pyramid caller_package level issue which resulted in crashes when starting Pyramid applications. Level now left at default (2).
+
+---
+
 ## v0.55.0
 
 ### Upgrade Notes
