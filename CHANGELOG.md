@@ -2040,6 +2040,24 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.59.2
+
+### Bug Fixes
+
+- botocore: fix incorrect context propagation message attribute types for SNS. This addresses [Datadog/serverless-plugin-datadog#232](https://github.com/DataDog/serverless-plugin-datadog/issues/232)
+
+---
+
+## v0.59.1
+
+### Bug Fixes
+
+- Fix issue building `ddtrace` from source on macOS 12.
+- Fixes wrong numbers of memory allocation being reported in the memory profiler.
+- pymongo: fix `write_command` being patched with the wrong method signature.
+
+---
+
 ## v0.59.0
 
 ### Deprecation Notes
