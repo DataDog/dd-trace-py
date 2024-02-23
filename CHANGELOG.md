@@ -1,6 +1,6 @@
 # Changelog
 
-Changelogs beyond this version can be found at https://github.com/DataDog/dd-trace-py/releases
+Changelogs for versions not listed here can be found at https://github.com/DataDog/dd-trace-py/releases
 
 ---
 
