@@ -24,6 +24,8 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
+# The aioredis integration is deprecated and untested
+IGNORE_PATTERNS.add("ddtrace/contrib/aioredis/*")
 
 
 def owners(path: str) -> str:
