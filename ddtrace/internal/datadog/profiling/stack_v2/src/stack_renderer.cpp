@@ -22,6 +22,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (sample == nullptr) {
         return;
     }
+
+//#warning stack_v2 should use a C++ interface instead of re-converting intermediates
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name.data());
     ddup_push_walltime(sample, 1000 * wall_time_us, 1);
 }

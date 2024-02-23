@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euox pipefail
 
 ### Useful globals
 MY_DIR=$(dirname $(realpath $0))

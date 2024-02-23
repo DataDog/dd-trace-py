@@ -51,7 +51,6 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
 # Includes; echion and python are marked "system" to suppress warnings,
 # but note in MSVC we'll have to #pragma warning(push, 0 then pop for the same effect.
-message(ERROR "echion_SOURCE_DIR: ${echion_SOURCE_DIR}")
 target_include_directories(${EXTENSION_NAME} PRIVATE
     ..
     include
@@ -92,4 +91,6 @@ set_target_properties(${EXTENSION_NAME}
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
-install(TARGETS ${EXTENSION_NAME} DESTINATION ${LIB_INSTALL_DIR})
+if (LIB_INSTALL_DIR)
+    install(TARGETS ${EXTENSION_NAME} DESTINATION ${LIB_INSTALL_DIR})
+endif()

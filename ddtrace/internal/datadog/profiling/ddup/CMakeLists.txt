@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.19)
 # setup.py to build the wheel. Otherwise, we have to propagate a lot of state all around.
 # Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
 # ddup is used by a default for standalone/test builds.
-set(EXTENSION_NAME "ddup" CACHE STRING "Name of the extension")
+set(EXTENSION_NAME "ddtrace.internal.datadog.profiling.ddup._ddup" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 
 # Get the cmake modules for this project
@@ -75,4 +75,7 @@ set_target_properties(${EXTENSION_NAME}
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
-install(TARGETS ${EXTENSION_NAME} DESTINATION ${LIB_INSTALL_DIR})
+# This installs the .so back into the source tree
+if (LIB_INSTALL_DIR)
+    install(TARGETS ${EXTENSION_NAME} DESTINATION ${LIB_INSTALL_DIR})
+endif()
