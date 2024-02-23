@@ -7,6 +7,7 @@ from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
+import langchain_community
 
 from ddtrace.appsec._iast import _is_iast_enabled
 
@@ -34,6 +35,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -49,6 +51,15 @@ log = get_logger(__name__)
 def get_version():
     # type: () -> str
     return getattr(langchain, "__version__", "")
+
+
+# After langchain 0.1.0, implementation was split up from langchain to langchain, langchain_community, and langchain_core.
+# We need to check the version to determine which module to wrap, to avoid deprecation warnings
+# ref: https://github.com/DataDog/dd-trace-py/issues/8212
+LANGCHAIN_VERSION = parse_version(get_version())
+SHOULD_USE_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
+BASE_LANGCHAIN_MODULE_NAME = "langchain_community" if SHOULD_USE_LANGCHAIN_COMMUNITY \
+    else "langchain"
 
 
 config._add(
@@ -677,6 +688,10 @@ def patch():
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
+    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        from langchain_community import embeddings  # noqa:F401
+        from langchain_community import vectorstores  # noqa:F401
+    # Still import from langchain anyways, for purposes of wrapping
     from langchain import embeddings  # noqa:F401
     from langchain import vectorstores  # noqa:F401
     from langchain.chains.base import Chain  # noqa:F401
@@ -697,11 +712,11 @@ def patch():
             if not isinstance(
                 deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
             ):
-                wrap("langchain", "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
+                wrap(BASE_LANGCHAIN_MODULE_NAME, "embeddings.%s.embed_query" % text_embedding_model, traced_embedding(langchain))
             if not isinstance(
                 deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
             ):
-                wrap("langchain", "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
+                wrap(BASE_LANGCHAIN_MODULE_NAME, "embeddings.%s.embed_documents" % text_embedding_model, traced_embedding(langchain))
                 # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstore_classes:
@@ -711,7 +726,7 @@ def patch():
                 deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
             ):
                 wrap(
-                    "langchain", "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
+                    BASE_LANGCHAIN_MODULE_NAME, "vectorstores.%s.similarity_search" % vectorstore, traced_similarity_search(langchain)
                 )
 
     if _is_iast_enabled():
