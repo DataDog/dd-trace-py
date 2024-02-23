@@ -2261,6 +2261,22 @@ These modules have been removed. Many were moved to the internal interface as th
 
 ---
 
+## v0.52.2
+
+### Bug Fixes
+
+- Pin `protobuf` version to `<3.18` for Python \<=3.5 due to support being dropped.
+
+---
+
+## v0.52.1
+
+### Bug Fixes
+
+- Pin `setup_requires` dependency `setuptools_scm[toml]>=4,<6.1` to avoid breaking changes.
+
+---
+
 ## v0.52.0
 
 ### Deprecation Notes
