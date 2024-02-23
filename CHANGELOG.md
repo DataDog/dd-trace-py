@@ -1479,7 +1479,38 @@ Dynamic instrumentation allows instrumenting a running service dynamically to ex
 
 ---
 
-## v1.1.0
+## v1.0.3
+
+### Bug Fixes
+
+- Set required header to indicate top level span computation is done in the client to the Datadog agent. This fixes an issue where spans were erroneously being marked as top level when partial flushing or in certain asynchronous applications.
+
+  The impact of this bug is the unintended computation of stats for non-top level spans.
+
+---
+
+## v1.0.2
+
+### Bug Fixes
+
+- Fixes deprecation warning for `asyncio.coroutine` decorator.
+
+---
+
+## v1.0.1
+
+### Bug Fixes
+
+- Fix issue building `ddtrace` for the Pyston Python implementation by not building the `_memalloc` extension anymore when using Pyston.
+
+- `tracer.get_log_correlation_context()`: use active context in addition to
+  active span. Formerly just the span was used and this would break cross execution log correlation as a context object is used for the propagation.
+
+- The CPU profiler now reports the main thread CPU usage even when asyncio tasks are running.
+
+---
+
+## v1.0.0
 
 ### Prelude
 
@@ -1597,6 +1628,13 @@ These modules have been removed. Many were moved to the internal interface as th
 | `ddtrace.propagation.utils` | `📝<remove-ddtrace-propagation-utils>` |
 | `ddtrace.util`              | `📝<remove-ddtrace-util>`              |
 | `ddtrace.utils`             | `📝<remove-ddtrace-utils>`             |
+
+### New Features
+
+- Add `Span.get_tags` and `Span.get_metrics`.
+- aiohttp: add client integration. This integration traces requests made using the aiohttp client and includes support for distributed tracing. See [the documentation](https://ddtrace.readthedocs.io/en/stable/integrations.html#aiohttp) for more information.
+- aiohttp_jinja2: move into new integration. Formerly the aiohttp_jinja2 instrumentation was enabled using the aiohttp integration. Use `patch(aiohttp_jinja2=True)` instead of `patch(aiohttp=True)`. To support legacy behavior `patch(aiohttp=True)` will still enable aiohttp_jinja2.
+- asyncpg: add integration supporting v0.18.0 and above. See `the docs<asyncpg>` for more information.
 
 ### Upgrade Notes
 
@@ -1984,57 +2022,16 @@ These modules have been removed. Many were moved to the internal interface as th
 
   </div>
 
-### New Features
-
-- Add `Span.get_tags` and `Span.get_metrics`.
-
-- aiohttp: add client integration. This integration traces requests made using the aiohttp client and includes support for distributed tracing. See [the documentation](https://ddtrace.readthedocs.io/en/stable/integrations.html#aiohttp) for more information.
-
-- aiohttp_jinja2: move into new integration. Formerly the aiohttp_jinja2 instrumentation was enabled using the aiohttp integration. Use `patch(aiohttp_jinja2=True)` instead of `patch(aiohttp=True)`. To support legacy behavior `patch(aiohttp=True)` will still enable aiohttp_jinja2.
-
-- asyncpg: add integration supporting v0.18.0 and above. See `the docs<asyncpg>` for more information.
-
-- fastapi: add support for tracing `fastapi.routing.serialize_response`.
-
-  This will give an insight into how much time is spent calling `jsonable_encoder` within a given request. This does not provide visibility into how long it takes for `Response.render`/`json.dumps`.
-
-- Add support to reuse HTTP connections when sending trace payloads to the agent. This feature is disabled by default. Set `DD_TRACE_WRITER_REUSE_CONNECTIONS=true` to enable this feature.
-
-- MySQLdb: Added optional tracing for MySQLdb.connect, using the configuration option `here<mysqldb_config_trace_connect>`.
-
-- The profiler now supports profiling `asyncio.Lock` objects.
-
-- Add support for injecting and extracting B3 propagation headers.
-
-  See `DD_TRACE_PROPAGATION_STYLE_EXTRACT <dd-trace-propagation-style-extract>` and `DD_TRACE_PROPAGATION_STYLE_INJECT <dd-trace-propagation-style-inject>` configuration documentation to enable.
-
 ### Bug Fixes
 
 - botocore: fix incorrect context propagation message attribute types for SNS. This addresses [Datadog/serverless-plugin-datadog#232](https://github.com/DataDog/serverless-plugin-datadog/issues/232)
-
 - aiohttp: fix issue causing `ddtrace.contrib.aiohttp_jinja2.patch` module to be imported instead of the `patch()` function.
-
-- botocore: omit `SecretBinary` and `SecretString` from span metadata for calls to Secrets Manager.
-
 - tracing/internal: fix encoding of propagated internal tags.
-
 - Fix issue building `ddtrace` from source on macOS 12.
-
-- Fix issue building `ddtrace` for the Pyston Python implementation by not building the `_memalloc` extension anymore when using Pyston.
-
-- `tracer.get_log_correlation_context()`: use active context in addition to
-  active span. Formerly just the span was used and this would break cross execution log correlation as a context object is used for the propagation.
-
-- opentracer: update `set_tag` and `set_operation_name` to return a
-  reference to the span to match the OpenTracing spec.
-
-- The CPU profiler now reports the main thread CPU usage even when asyncio tasks are running.
-
 - Fixes wrong numbers of memory allocation being reported in the memory profiler.
-
 - pymongo: fix `write_command` being patched with the wrong method signature.
 
-### Other Changes
+### Other Notes
 
 - tracing/internal: disable Datadog internal tag propagation
 
