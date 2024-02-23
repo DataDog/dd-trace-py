@@ -1713,11 +1713,11 @@ def test_context_priority(tracer, test_spans):
 
 def test_spans_sampled_out(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1727,11 +1727,11 @@ def test_spans_sampled_out(tracer, test_spans):
 
 def test_spans_sampled_one(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1739,11 +1739,11 @@ def test_spans_sampled_one(tracer, test_spans):
 
 def test_spans_sampled_all(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = True
+        span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
