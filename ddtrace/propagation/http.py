@@ -42,6 +42,8 @@ from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
+from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
+from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ._utils import get_wsgi_header
 
@@ -293,10 +295,7 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(
-            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
-            headers,
-        )
+        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -320,6 +319,11 @@ class _DatadogMultiHeader:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+
+        if sampling_priority == USER_KEEP:
+            if not meta:
+                meta = {}
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
