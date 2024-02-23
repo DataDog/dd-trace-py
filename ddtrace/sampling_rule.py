@@ -147,28 +147,34 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        glob_match = self.glob_matches(span)
-        return glob_match and self._matches((span.service, span.name, span.resource))
+        tags_match = self.tags_match(span)
+        return tags_match and self._matches((span.service, span.name, span.resource))
 
-    def glob_matches(self, span):
+    def tags_match(self, span):
         # type: (Span) -> bool
         tag_match = True
         if self._tag_value_matchers:
-            tag_match = self.tag_match(span.get_tags())
+            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
         return tag_match
 
-    def tag_match(self, tags):
-        if tags is None:
+    def check_tags(self, meta, metrics):
+        if meta is None and metrics is None:
             return False
 
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
-            value = tags.get(tag_key)
-            if value is not None:
-                tag_match = self._tag_value_matchers[tag_key].match(value)
+            value = meta.get(tag_key)
+            tag_match = self._tag_value_matchers[tag_key].match(str(value))
+            # If the value doesn't match in meta, check the metrics
+            if tag_match is False:
+                value = metrics.get(tag_key)
+                tag_match = self._tag_value_matchers[tag_key].match(str(value))
             else:
-                # if we don't match with all specified tags for a rule, it's not a match
+                continue
+            # if we don't match with all specified tags for a rule, it's not a match
+            if tag_match is False:
                 return False
+
         return tag_match
 
     def sample(self, span, allow_false=True):
