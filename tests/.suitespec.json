@@ -15,10 +15,54 @@
             "tests/utils.py",
             "tests/__init__.py",
             "tests/.suitespec.json",
-            ".circleci/*"
+            "tests/suitespec.py",
+            ".circleci/*",
+            "tests/meta/*",
+            "tests/smoke_test.py",
+            "tests/subprocesstest.py",
+            "tests/wait-for-services.py",
+            "tests/webclient.py",
+            "tests/test_module/*",
+            "tests/lib-injection/dd-lib-python-init-test-django/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-gunicorn-alpine/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
-            "ddtrace/internal/*",
+            "ddtrace/internal/__init__.py",
+            "ddtrace/internal/_rand.pyi",
+            "ddtrace/internal/_rand.pyx",
+            "ddtrace/internal/_stdint.h",
+            "ddtrace/internal/agent.py",
+            "ddtrace/internal/assembly.py",
+            "ddtrace/internal/atexit.py",
+            "ddtrace/internal/compat.py",
+            "ddtrace/internal/core/*",
+            "ddtrace/internal/datadog/__init__.py",
+            "ddtrace/internal/debug.py",
+            "ddtrace/internal/dogstatsd.py",
+            "ddtrace/internal/forksafe.py",
+            "ddtrace/internal/gitmetadata.py",
+            "ddtrace/internal/glob_matching.py",
+            "ddtrace/internal/logger.py",
+            "ddtrace/internal/hostname.py",
+            "ddtrace/internal/http.py",
+            "ddtrace/internal/injection.py",
+            "ddtrace/internal/logger.py",
+            "ddtrace/internal/metrics.py",
+            "ddtrace/internal/module.py",
+            "ddtrace/internal/packages.py",
+            "ddtrace/internal/periodic.py",
+            "ddtrace/internal/rate_limiter.py",
+            "ddtrace/internal/safety.py",
+            "ddtrace/internal/service.py",
+            "ddtrace/internal/uds.py",
+            "ddtrace/internal/utils/*",
+            "ddtrace/internal/uwsgi.py",
+            "ddtrace/internal/wrapping/*",
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
@@ -33,23 +77,43 @@
             "ddtrace/_hooks.py",
             "ddtrace/_logger.py",
             "ddtrace/_monkey.py",
-            "ddtrace/_tracing/*",
+            "ddtrace/_trace/*",
             "ddtrace/constants.py",
             "ddtrace/context.py",
             "ddtrace/filters.py",
             "ddtrace/pin.py",
             "ddtrace/provider.py",
             "ddtrace/sampler.py",
+            "ddtrace/sampling_rule.py",
             "ddtrace/span.py",
             "ddtrace/tracer.py",
             "ddtrace/tracing/*",
             "ddtrace/settings/__init__.py",
             "ddtrace/settings/config.py",
             "ddtrace/settings/http.py",
-            "ddtrace/settings/integration.py"
+            "ddtrace/settings/exceptions.py",
+            "ddtrace/settings/integration.py",
+            "ddtrace/internal/_encoding.py*",
+            "ddtrace/internal/_tagset.py*",
+            "ddtrace/internal/_utils.*",
+            "ddtrace/internal/constants.py",
+            "ddtrace/internal/encoding.py",
+            "ddtrace/internal/pack.h",
+            "ddtrace/internal/pack_template.h",
+            "ddtrace/internal/peer_service/*",
+            "ddtrace/settings/peer_service.py",
+            "ddtrace/internal/processor/__init__.py",
+            "ddtrace/internal/processor/stats.py",
+            "ddtrace/internal/runtime/*",
+            "ddtrace/internal/sampling.py",
+            "ddtrace/internal/schema/*",
+            "ddtrace/internal/sma.py",
+            "ddtrace/internal/tracemethods.py",
+            "ddtrace/internal/sysdep.h",
+            "ddtrace/internal/writer/*"
         ],
         "runtime": [
-            "ddtrace/runtime/__init__.py"
+            "ddtrace/runtime/*"
         ],
         "contrib": [
             "ddtrace/contrib/__init__.py",
@@ -64,6 +128,7 @@
             "ddtrace/propagation/*",
             "ddtrace/settings/_database_monitoring.py",
             "tests/contrib/patch.py",
+            "tests/contrib/config.py",
             "tests/contrib/__init__.py"
         ],
         "redis": [
@@ -82,11 +147,11 @@
         "pg": [
             "ddtrace/contrib/aiopg/*",
             "ddtrace/contrib/asyncpg/*",
-            "ddtrace/contrib/psycopg/*",
-            "ddtrace/contrib/psycopg2/*"
+            "ddtrace/contrib/psycopg/*"
         ],
         "datastreams": [
-            "ddtrace/internal/datastreams/*"
+            "ddtrace/internal/datastreams/*",
+            "ddtrace/data_streams.py"
         ],
         "debugging": [
             "ddtrace/debugging/*",
@@ -138,9 +203,6 @@
         "git": [
             "ddtrace/ext/git.py"
         ],
-        "graphene": [
-            "ddtrace/contrib/graphene/*"
-        ],
         "starlette": [
             "ddtrace/contrib/starlette/*"
         ],
@@ -180,6 +242,8 @@
         ],
         "profiling": [
             "ddtrace/profiling/*",
+            "ddtrace/internal/datadog/profiling/*",
+            "ddtrace/internal/processor/endpoint_call_counter.py",
             "ddtrace/settings/profiling.py"
         ],
         "vendor": [
@@ -237,21 +301,17 @@
         ],
         "botocore": [
             "ddtrace/contrib/botocore/*",
+            "ddtrace/contrib/boto/*",
             "ddtrace/contrib/aiobotocore/*"
         ],
         "mysql": [
             "ddtrace/contrib/mysql/*",
             "ddtrace/contrib/mysqldb/*",
-            "ddtrace/contrib/mysqlconnector/*",
-            "ddtrace/contrib/mysqlpython/*",
             "ddtrace/contrib/pymysql/*",
             "ddtrace/contrib/aiomysql/*"
         ],
         "pylibmc": [
             "ddtrace/contrib/pylibmc/*"
-        ],
-        "asynctest": [
-            "ddtrace/contrib/asynctest/*"
         ],
         "logbook": [
             "ddtrace/contrib/logbook/*"
@@ -260,7 +320,8 @@
             "ddtrace/contrib/logging/*"
         ],
         "loguru": [
-            "ddtrace/contrib/logging/*"
+            "ddtrace/contrib/logging/*",
+            "ddtrace/contrib/loguru/*"
         ],
         "sqlite3": [
             "ddtrace/contrib/sqlite3/*"
@@ -315,9 +376,7 @@
             "ddtrace/ext/consul.py"
         ],
         "django": [
-            "ddtrace/contrib/django/*",
-            "ddtrace/contrib/django_hosts/*",
-            "ddtrace/contrib/djangorestframework/*"
+            "ddtrace/contrib/django/*"
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
@@ -328,15 +387,31 @@
             "ddtrace/contrib/unittest/*"
         ],
         "appsec": [
-            "ddtrace/appsec/*"
+            "ddtrace/appsec/*",
+            "ddtrace/settings/asm.py"
         ],
         "appsec_iast": [
             "ddtrace/appsec/iast/*"
+        ],
+        "symbol_db": [
+            "ddtrace/internal/symbol_db/*",
+            "ddtrace/settings/symbol_db.py"
+        ],
+        "serverless": [
+            "ddtrace/internal/serverless/*"
+        ],
+        "remoteconfig": [
+            "ddtrace/internal/remoteconfig/*"
+        ],
+        "codeowners": [
+            "ddtrace/internal/codeowners.py"
         ]
     },
     "suites": {
         "internal": [
             "@core",
+            "@remoteconfig",
+            "@symbol_db",
             "tests/internal/*",
             "tests/submod/*",
             "tests/cache/*"
@@ -352,6 +427,7 @@
             "@debugging",
             "@bootstrap",
             "@core",
+            "@remoteconfig",
             "@tracing",
             "tests/debugging/*"
         ],
@@ -369,7 +445,10 @@
             "@bootstrap",
             "@core",
             "@contrib",
-            "tests/tracer/*"
+            "@serverless",
+            "@remoteconfig",
+            "tests/tracer/*",
+            "tests/snapshots/test_*"
         ],
         "integration_agent": [
             "@tracing",
@@ -410,6 +489,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/*"
         ],
         "appsec_iast": [
@@ -418,6 +498,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/iast/*"
         ],
         "appsec_iast_tdd_propagation": [
@@ -426,6 +507,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/iast_tdd_propagation/*"
         ],
         "appsec_iast_memcheck": [
@@ -434,6 +516,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/iast/*",
             "tests/appsec/iast_memcheck/*"
         ],
@@ -443,6 +526,7 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/iast/*",
             "tests/appsec/iast_packages/*"
         ],
@@ -452,8 +536,8 @@
             "@tracing",
             "@appsec",
             "@appsec_iast",
+            "@remoteconfig",
             "tests/appsec/*",
-            "tests/appsec/iast_integrations/*",
             "tests/snapshots/tests.appsec.*"
         ],
         "appsec_threats_django": [
@@ -465,6 +549,7 @@
             "@asgi",
             "@wsgi",
             "@django",
+            "@remoteconfig",
             "tests/appsec/*",
             "tests/appsec/contrib_appsec/*"
         ],
@@ -477,6 +562,7 @@
             "@asgi",
             "@wsgi",
             "@flask",
+            "@remoteconfig",
             "tests/appsec/*",
             "tests/appsec/contrib_appsec/*"
         ],
@@ -490,6 +576,7 @@
             "@wsgi",
             "@fastapi",
             "@starlette",
+            "@remoteconfig",
             "tests/appsec/*",
             "tests/appsec/contrib_appsec/*"
         ],
@@ -518,6 +605,7 @@
             "@coverage",
             "@git",
             "@pytest",
+            "@codeowners",
             "tests/ci_visibility/*"
         ],
         "llmobs": [
@@ -584,7 +672,10 @@
             "@tracing",
             "@llmobs",
             "@botocore",
-            "tests/contrib/botocore/*"
+            "@llmobs",
+            "tests/contrib/botocore/*",
+            "tests/contrib/boto/*",
+            "tests/snapshots/tests.contrib.botocore*"
         ],
         "test_logging": [
             "@bootstrap",
@@ -766,8 +857,9 @@
             "@tracing",
             "@appsec",
             "@django",
+            "tests/snapshots/tests.contrib.{suite}.*",
             "tests/contrib/django_hosts/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "tests/contrib/django_hosts/django_app/*"
         ],
         "djangorestframework": [
             "@bootstrap",
@@ -776,7 +868,8 @@
             "@tracing",
             "@appsec",
             "@django",
-            "tests/contrib/djangorestframework/*"
+            "tests/contrib/djangorestframework/*",
+            "tests/contrib/djangorestframework/app/*"
         ],
         "fastapi": [
             "@bootstrap",
@@ -820,9 +913,8 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@graphene",
             "tests/contrib/graphene/*",
-            "tests/snapshots/tests.contrib.graphene.*"
+            "tests/snapshots/tests.contrib.graphene*"
         ],
         "graphql": [
             "@bootstrap",
@@ -894,23 +986,8 @@
             "@contrib",
             "@dbapi",
             "@mysql",
-            "tests/contrib/mysqldb/*"
-        ],
-        "mysqlconnector": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@mysql",
-            "tests/contrib/mysqlconnector/*"
-        ],
-        "mysqlpython": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@mysql",
-            "tests/contrib/mysqlpython/*"
+            "tests/contrib/mysqldb/*",
+            "tests/contrib/mysql/*"
         ],
         "pymysql": [
             "@bootstrap",
@@ -919,7 +996,8 @@
             "@tracing",
             "@dbapi",
             "@mysql",
-            "tests/contrib/pymysql/*"
+            "tests/contrib/pymysql/*",
+            "tests/contrib/mysql/*"
         ],
         "pylibmc": [
             "@bootstrap",
@@ -937,6 +1015,7 @@
             "@pytest",
             "@ci_visibility",
             "@coverage",
+            "@codeowners",
             "tests/contrib/pytest/*",
             "tests/contrib/pytest_benchmark/*",
             "tests/contrib/pytest_bdd/*",
@@ -955,7 +1034,6 @@
             "@core",
             "@contrib",
             "@tracing",
-            "@asynctest",
             "tests/contrib/asynctest/*"
         ],
         "pymemcache": [
@@ -1241,6 +1319,11 @@
             "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "runtime": [
+            "@core",
+            "@runtime",
+            "tests/runtime/*"
         ]
     }
 }
