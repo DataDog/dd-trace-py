@@ -38,7 +38,15 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/settings/integration.py', 'ddtrace/settings/peer_service.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
     'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml', 'pyproject.toml', 'riotfile.py',
     'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py',
-    'tests/conftest.py', 'tests/debugging/*', 'tests/suitespec.py', 'tests/utils.py']
+    'tests/conftest.py', 'tests/debugging/*', 'tests/lib-injection/dd-lib-python-init-test-django-gunicorn-alpine/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-gunicorn/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-no-perms/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*',
+    'tests/lib-injection/dd-lib-python-init-test-django/*', 'tests/meta/*', 'tests/smoke_test.py',
+    'tests/subprocesstest.py', 'tests/suitespec.py', 'tests/test_module/*', 'tests/utils.py',
+    'tests/wait-for-services.py', 'tests/webclient.py']
     >>> get_patterns("foobar")
     set()
     >>> sorted(get_patterns("urllib3"))  # doctest: +NORMALIZE_WHITESPACE
@@ -66,11 +74,19 @@ def get_patterns(suite: str) -> t.Set[str]:
     'ddtrace/propagation/*', 'ddtrace/provider.py', 'ddtrace/py.typed', 'ddtrace/sampler.py',
     'ddtrace/sampling_rule.py', 'ddtrace/settings/__init__.py', 'ddtrace/settings/_database_monitoring.py',
     'ddtrace/settings/config.py', 'ddtrace/settings/exceptions.py', 'ddtrace/settings/http.py',
-    'ddtrace/settings/integration.py', 'ddtrace/settings/peer_service.py', 'ddtrace/span.py',
-    'ddtrace/tracer.py', 'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml', 'pyproject.toml',
-    'riotfile.py', 'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json',
-    'tests/__init__.py', 'tests/conftest.py', 'tests/contrib/__init__.py', 'tests/contrib/patch.py',
-    'tests/contrib/urllib3/*', 'tests/snapshots/tests.contrib.urllib3.*', 'tests/suitespec.py', 'tests/utils.py']
+    'ddtrace/settings/integration.py', 'ddtrace/settings/peer_service.py', 'ddtrace/span.py', 'ddtrace/tracer.py',
+    'ddtrace/tracing/*', 'ddtrace/version.py', 'docker/*', 'hatch.toml', 'pyproject.toml', 'riotfile.py',
+    'scripts/ddtest', 'scripts/run-test-suite', 'setup.cfg', 'setup.py', 'tests/.suitespec.json', 'tests/__init__.py',
+    'tests/conftest.py', 'tests/contrib/__init__.py', 'tests/contrib/config.py', 'tests/contrib/patch.py',
+    'tests/contrib/urllib3/*', 'tests/lib-injection/dd-lib-python-init-test-django-gunicorn-alpine/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-gunicorn/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-no-perms/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*',
+    'tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*',
+    'tests/lib-injection/dd-lib-python-init-test-django/*', 'tests/meta/*', 'tests/smoke_test.py',
+    'tests/snapshots/tests.contrib.urllib3.*', 'tests/subprocesstest.py', 'tests/suitespec.py', 'tests/test_module/*',
+    'tests/utils.py', 'tests/wait-for-services.py', 'tests/webclient.py']
     """
     compos = SUITESPEC["components"]
     if suite not in SUITESPEC["suites"]:
