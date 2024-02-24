@@ -634,6 +634,11 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum",
 }
 
+TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=o:rum",
+}
+
 TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
@@ -1749,6 +1754,20 @@ EXTRACT_FIXTURES_ENV_ONLY = [
                 "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 "_dd.parent_id": "00f067aa0ba902b7",
+            },
+        },
+    ),
+    (
+        "valid_tracecontext_rum_no_sampling_decision",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
+        {
+            "trace_id": TRACE_ID,
+            "span_id": 67667974448284343,
+            "dd_origin": "rum",
+            "meta": {
+                "tracestate": "dd=o:rum",
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
             },
         },
     ),

@@ -732,20 +732,31 @@ class _TraceContext:
             return None, {}, None, None
 
     @staticmethod
-    def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
-        # type: (int, Optional[int]) -> int
+    def _get_sampling_priority(
+        traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str] = None
+    ):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
 
         When the traceparent sampled flag is not set, the Datadog sampling priority is either
         0 or a negative value of sampling priority if propagated in tracestate.
+
+        When origin is "rum" and there is no sampling priority propagated in tracestate, the above rules do not apply.
         """
+        from_rum_wo_priority = not tracestate_sampling_priority and origin == "rum"
 
-        if traceparent_sampled == 0 and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0):
+        if (
+            not from_rum_wo_priority
+            and traceparent_sampled == 0
+            and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0)
+        ):
             sampling_priority = 0
-
-        elif traceparent_sampled == 1 and (not tracestate_sampling_priority or tracestate_sampling_priority < 0):
+        elif (
+            not from_rum_wo_priority
+            and traceparent_sampled == 1
+            and (not tracestate_sampling_priority or tracestate_sampling_priority < 0)
+        ):
             sampling_priority = 1
         else:
             # The two other options provided for clarity:
@@ -805,7 +816,7 @@ class _TraceContext:
                     if lpid:
                         meta["_dd.parent_id"] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
