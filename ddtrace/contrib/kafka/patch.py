@@ -244,7 +244,12 @@ def traced_poll(func, instance, args, kwargs):
                 ):
                     span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
                 span.set_tag(kafkax.PARTITION, message.partition())
-                span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
+                is_tombstone = False
+                try:
+                    is_tombstone = len(message) == 0
+                except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
+                    pass
+                span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
                 span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.kafka.get_analytics_sample_rate()

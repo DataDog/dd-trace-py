@@ -493,7 +493,8 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-sampling-priority": "1",
                 "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
                 "traceparent": s.context._traceparent,
-                "tracestate": s.context._tracestate,
+                # outgoing headers must contain last parent span id in tracestate
+                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
             }
             if int(urllib3.__version__.split(".")[0]) >= 2:
                 m_make_request.assert_called_with(
