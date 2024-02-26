@@ -36,8 +36,8 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def inject_trace_to_kinesis_stream_data(record, span):
-    # type: (Dict[str, Any], Span) -> None
+def inject_trace_to_kinesis_stream_data(record, span, stream, inject_trace_context=True):
+    # type: (Dict[str, Any], Span, str, bool) -> None
     """
     :record: contains args for the current botocore action, Kinesis record is at index 1
     :span: the span which provides the trace context to be propagated
@@ -49,25 +49,33 @@ def inject_trace_to_kinesis_stream_data(record, span):
         log.warning("Unable to inject context. The kinesis stream has no data")
         return
 
-    data = record["Data"]
-    line_break, data_obj = get_kinesis_data_object(data)
-    if data_obj is not None:
-        data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"])
-        data_json = json.dumps(data_obj)
+    # always inject if Data Stream is enabled, otherwise only inject if distributed tracing is enabled and this is the
+    # first record in the payload
+    if (config.botocore["distributed_tracing"] and inject_trace_context) or config._data_streams_enabled:
+        data = record["Data"]
+        line_break, data_obj = get_kinesis_data_object(data)
+        if data_obj is not None:
+            data_obj["_datadog"] = {}
 
-        # if original string had a line break, add it back
-        if line_break is not None:
-            data_json += line_break
+            if config.botocore["distributed_tracing"] and inject_trace_context:
+                HTTPPropagator.inject(span.context, data_obj["_datadog"])
 
-        # check if data size will exceed max size with headers
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
-            raise TraceInjectionSizeExceed(
-                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-            )
+            core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"]])
 
-        record["Data"] = data_json
+            data_json = json.dumps(data_obj)
+
+            # if original string had a line break, add it back
+            if line_break is not None:
+                data_json += line_break
+
+            # check if data size will exceed max size with headers
+            data_size = len(data_json)
+            if data_size >= MAX_KINESIS_DATA_SIZE:
+                raise TraceInjectionSizeExceed(
+                    "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
+                )
+
+            record["Data"] = data_json
 
 
 def inject_trace_to_kinesis_stream(params, span):
@@ -77,15 +85,17 @@ def inject_trace_to_kinesis_stream(params, span):
     :span: the span which provides the trace context to be propagated
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
-    core.dispatch("botocore.kinesis.start", [params])
+    stream = params.get("StreamARN", params.get("StreamName", ""))
     if "Records" in params:
         records = params["Records"]
 
         if records:
-            record = records[0]
-            inject_trace_to_kinesis_stream_data(record, span)
+            for i in range(0, len(records)):
+                inject_trace_to_kinesis_stream_data(
+                    records[i], span, stream, i == 0
+                )  # only inject trace data to first record
     elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(params, span)
+        inject_trace_to_kinesis_stream_data(params, span, stream)
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
