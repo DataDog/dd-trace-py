@@ -689,20 +689,22 @@ def patch():
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
-        # rename as to not conflict named imports
-        from langchain_community import embeddings as lc_embeddings  # noqa:F401
-        from langchain_community import vectorstores as lc_vectorstores  # noqa:F401
-    # still import base classes/modules from langchain
-    from langchain import embeddings  # noqa:F401
-    from langchain import vectorstores  # noqa:F401
-    from langchain.chains.base import Chain  # noqa:F401
+        from langchain_community import embeddings  # noqa:F401
+        from langchain_community import vectorstores  # noqa:F401
+        # import langchain_community.chat_models  # noqa:F401
+    else:
+        from langchain import embeddings  # noqa:F401
+        from langchain import vectorstores  # noqa:F401
+        
     from langchain.chat_models.base import BaseChatModel  # noqa:F401
+
+    from langchain.chains.base import Chain  # noqa:F401
     from langchain.llms.base import BaseLLM  # noqa:F401
 
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-    wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
-    wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
+    wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)) # might need to change back to langchain_community
+    wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)) # might need to change back to langchain_community
     wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
     wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
     # Text embedding models override two abstract base methods instead of super calls, so we need to
@@ -774,19 +776,19 @@ def unpatch():
                 deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model),
                 wrapt.ObjectProxy,
             ):
-                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
+                unwrap(getattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model), "embed_query")
             if isinstance(
                 deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model),
                 wrapt.ObjectProxy,
             ):
-                unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
+                unwrap(getattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstore_classes:
         if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
             if isinstance(
                 deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
                 wrapt.ObjectProxy,
             ):
-                unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
+                unwrap(getattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")
 

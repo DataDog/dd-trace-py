@@ -8,6 +8,7 @@ import vcr
 
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
+from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
@@ -653,14 +654,20 @@ def test_openai_embedding_document(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_query(langchain):
-    embeddings = langchain.embeddings.FakeEmbeddings(size=99)
+def test_fake_embedding_query(langchain, langchain_community):
+    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
+    else:
+        embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_document(langchain):
-    embeddings = langchain.embeddings.FakeEmbeddings(size=99)
+def test_fake_embedding_document(langchain, langchain_community):
+    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
+    else:
+        embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
@@ -1282,8 +1289,9 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         }
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        # TODO: need to correct this
         """
-from langchain_community.llms import OpenAI
+from langchain.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
 llm = OpenAI()
@@ -1323,6 +1331,7 @@ def test_openai_service_name(
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        # TODO: need to correct this
         """
 from langchain.llms import OpenAI
 import ddtrace
