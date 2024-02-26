@@ -22,6 +22,9 @@ find_highest_compiler_version() {
   # Try to find the latest versions of both GCC and Clang
   # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is just a
   # a high number since Clang is on version 17)
+  # TODO provide a passthrough in CI where we want to use a pinned or specified
+  # version. Not a big deal since this script is currently only used for local
+  # development.
   for version in {20..5}; do
     if command -v "${base_name}-${version}" &> /dev/null; then
       if [ $version -gt $highest_version ]; then
