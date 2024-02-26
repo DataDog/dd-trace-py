@@ -3074,7 +3074,6 @@ class BotocoreTest(TracerTestCase):
 
         for record in response["Records"]:
             data = json.loads(record["Data"])
-            print(data)
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
@@ -3104,7 +3103,6 @@ class BotocoreTest(TracerTestCase):
 
         for record in response["Records"]:
             data = json.loads(record["Data"])
-            print(data)
             assert "_datadog" in data
             assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
@@ -3134,7 +3132,6 @@ class BotocoreTest(TracerTestCase):
 
         for record in response["Records"]:
             data = json.loads(record["Data"])
-            print(data)
             assert "_datadog" not in data
 
     @mock_kinesis
