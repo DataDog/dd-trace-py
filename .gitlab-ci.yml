@@ -7,7 +7,7 @@ stages:
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
   - local: ".gitlab/benchmarks.yml"
-  - /.gitlab/software_composition_analysis.yaml
+  - local: .gitlab/software_composition_analysis.yaml
 
 variables:
   DOWNSTREAM_BRANCH:
