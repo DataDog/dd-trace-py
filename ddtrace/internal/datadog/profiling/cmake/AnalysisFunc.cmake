@@ -2,7 +2,7 @@ include(FindCppcheck)
 
 function(add_ddup_config target)
     target_compile_options(${target} PRIVATE
-      "$<$<CONFIG:Debug>:-Og -ggdb3>"
+      "$<$<CONFIG:Debug>:-Og;-ggdb3>"
       "$<$<CONFIG:Release>:-Os>"
       -ffunction-sections -fno-semantic-interposition -Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast
     )

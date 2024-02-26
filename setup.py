@@ -283,6 +283,7 @@ class CMakeBuild(build_ext):
     def build_extension_cmake(self, ext):
         # Define the build and output directories
         output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
+        extension_basename = Path(self.get_ext_fullpath(ext.name)).name
 
         # We derive the cmake build directory from the output directory, but put it in
         # a sibling directory to avoid polluting the final package
@@ -297,6 +298,7 @@ class CMakeBuild(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
+            "-DCMAKE_EXTENSION_NAME={}".format(extension_basename),
         ]
 
         # Arguments to the cmake --build command
@@ -455,31 +457,27 @@ if not IS_PYSTON:
         python_include = sysconfig.get_paths()["include"]
         python_lib = sysconfig.get_config_var("LIBDIR")
 
-        ddup_extension_name = "ddtrace.internal.datadog.profiling.ddup._ddup"
         ext_modules.append(
             CMakeExtension(
-                ddup_extension_name,
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                    "-DEXTENSION_NAME={}".format(ddup_extension_name),
                     "-DPython3_INCLUDE_DIRS={}".format(python_include),
                     "-DPYTHON_EXECUTABLE={}".format(sys.executable),
                 ],
             )
         )
 
-        stack_v2_extension_name = "ddtrace.internal.datadog.profiling.stack_v2"
         ext_modules.append(
             CMakeExtension(
-                stack_v2_extension_name,
+                "ddtrace.internal.datadog.profiling.stack_v2",
                 optional=False,
                 source_dir=STACK_V2_DIR,
                 cmake_args=[
-                    "-DEXTENSION_NAME={}".format(stack_v2_extension_name),
                     "-DPython3_INCLUDE_DIRS={}".format(python_include),
                     "-DPYTHON_EXECUTABLE={}".format(sys.executable),
                 ],
