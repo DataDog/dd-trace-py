@@ -15,8 +15,8 @@ class TestLangchainPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def import_base_modules(self, langchain):
-        from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
 
         if SHOULD_USE_LANGCHAIN_COMMUNITY:

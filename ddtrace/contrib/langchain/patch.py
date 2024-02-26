@@ -697,9 +697,9 @@ def patch():
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
 
-    from langchain.chat_models.base import BaseChatModel  # noqa:F401
 
     from langchain.chains.base import Chain  # noqa:F401
+    from langchain.chat_models.base import BaseChatModel  # noqa:F401
     from langchain.llms.base import BaseLLM  # noqa:F401
 
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
