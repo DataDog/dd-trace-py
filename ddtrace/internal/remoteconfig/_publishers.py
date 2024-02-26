@@ -84,6 +84,16 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
 
     def append(self, config_content, target, config_metadata=None):
         # type: (Optional[Any], str, Optional[Any]) -> None
+        print(
+            ">>> RemoteConfigPublisherMergeDicts.append",
+            config_content,
+            "\n>>> target",
+            target,
+            "\n>>> metadata",
+            config_metadata,
+            "\n>>> self._configs",
+            self._configs,
+        )
         if not self._configs.get(target):
             self._configs[target] = {}
 
