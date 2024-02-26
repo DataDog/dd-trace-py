@@ -2935,22 +2935,12 @@ class BotocoreTest(TracerTestCase):
                     "type:kinesis",
                 ]
             )
-            print(first)
-            print(
-                first[
-                    (
-                        in_tags,
-                        1711768390031028072,
-                        0,
-                    )
-                ].full_pathway_latency._count
-            )
             assert (
                 first[
                     (
                         in_tags,
-                        1711768390031028072,
-                        0,
+                        7250761453654470644,
+                        17012262583645342129,
                     )
                 ].full_pathway_latency._count
                 >= 2
@@ -2959,8 +2949,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        1711768390031028072,
-                        0,
+                        7250761453654470644,
+                        17012262583645342129,
                     )
                 ].edge_latency._count
                 >= 2
@@ -3017,16 +3007,6 @@ class BotocoreTest(TracerTestCase):
                     "type:kinesis",
                 ]
             )
-            print(first)
-            print(
-                first[
-                    (
-                        in_tags,
-                        7186383338881463054,
-                        14715769790627487616,
-                    )
-                ].full_pathway_latency._count
-            )
             assert (
                 first[
                     (
@@ -3067,6 +3047,66 @@ class BotocoreTest(TracerTestCase):
                 ].edge_latency._count
                 >= 1
             )
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+            DD_BOTOCORE_PROPAGATION_ENABLED="False",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record("
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            print(data)
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="True",
+            DD_BOTOCORE_PROPAGATION_ENABLED="True",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record("
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            print(data)
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):
