@@ -1,6 +1,5 @@
 #pragma once
 
-// Makes up for shortcomings in my echion PR
 #include <chrono>
 #include <fstream>
 #include <memory>
