@@ -771,17 +771,20 @@ def unpatch():
     for text_embedding_model in text_embedding_models:
         if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
             ):
                 unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
             if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
             ):
                 unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstore_classes:
         if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
             if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
+                wrapt.ObjectProxy,
             ):
                 unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
