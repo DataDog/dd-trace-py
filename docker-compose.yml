@@ -106,13 +106,6 @@ services:
         image: rabbitmq:3.7-alpine
         ports:
             - "127.0.0.1:5672:5672"
-    ddagent5:
-      image: datadog/docker-dd-agent:latest
-      environment:
-        - DD_BIND_HOST=0.0.0.0
-        - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
-      ports:
-        - "127.0.0.1:8126:8126"
     ddagent:
         image: datadog/agent:latest
         environment:
