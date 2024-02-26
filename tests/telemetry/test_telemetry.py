@@ -449,6 +449,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
 
 def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
     """Ensure no telemetry events are sent when telemetry is disabled"""
+    initial_event_count = len(test_agent_session.get_events())
 
     env = os.environ.copy()
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
@@ -466,7 +467,7 @@ assert "ddtrace.internal.telemetry" not in sys.modules
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     events = test_agent_session.get_events()
-    assert len(events) == 0
+    assert len(events) == initial_event_count
 
     assert status == 0, stderr
     assert stderr == b""
