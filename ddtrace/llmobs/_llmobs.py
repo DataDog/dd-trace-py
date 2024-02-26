@@ -16,18 +16,18 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.llmobs._writer import LLMObsWriter
-from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._writer import LLMObsWriter
 
 
 log = get_logger(__name__)
@@ -90,12 +90,12 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     def _start_span(
-            self,
-            operation_kind: str,
-            name: Optional[str] = None,
-            session_id: Optional[str] = None,
-            model_name: Optional[str] = None,
-            model_provider: Optional[str] = None,
+        self,
+        operation_kind: str,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
     ) -> Span:
         if name is None:
             name = operation_kind

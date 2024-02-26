@@ -9,14 +9,14 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -148,7 +148,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a chat completion."""
         span.set_tag_str(
             INPUT_MESSAGES,
-            json.dumps([{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]),
+            json.dumps(
+                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
+            ),
         )
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
