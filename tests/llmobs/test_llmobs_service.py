@@ -326,8 +326,6 @@ def test_llmobs_annotate_parameters(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
         assert json.loads(span.get_tag(INPUT_PARAMETERS)) == {"temperature": 0.9, "max_tokens": 50}
-        LLMObs.annotate(span=span, parameters={"n": 1})
-        assert json.loads(span.get_tag(INPUT_PARAMETERS)) == {"temperature": 0.9, "max_tokens": 50, "n": 1}
 
 
 def test_llmobs_annotate_tag(LLMObs):

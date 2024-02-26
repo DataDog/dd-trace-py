@@ -117,7 +117,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> Span:
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.llm() cannot be used while LLMObs is disabled.")
         if not model_name:
             raise ValueError("model_name must be the specified name of the invoked model.")
@@ -129,25 +129,25 @@ class LLMObs(Service):
 
     @classmethod
     def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.tool() cannot be used while LLMObs is disabled.")
         return cls._instance._start_span("tool", name=name, session_id=session_id)
 
     @classmethod
     def task(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.task() cannot be used while LLMObs is disabled.")
         return cls._instance._start_span("task", name=name, session_id=session_id)
 
     @classmethod
     def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.agent() cannot be used while LLMObs is disabled.")
         return cls._instance._start_span("agent", name=name, session_id=session_id)
 
     @classmethod
     def workflow(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.workflow() cannot be used while LLMObs is disabled.")
         return cls._instance._start_span("workflow", name=name, session_id=session_id)
 
@@ -174,7 +174,7 @@ class LLMObs(Service):
          For llm span types, string outputs will be wrapped in a message dictionary.
         tags: Dictionary of key-value pairs to tag the LLMObs span with.
         """
-        if cls.enabled is False:
+        if cls.enabled is False or cls._instance is None:
             raise Exception("LLMObs.annotate() cannot be used while LLMObs is disabled.")
         if span is None:
             span = cls._instance.tracer.current_span()
@@ -198,12 +198,7 @@ class LLMObs(Service):
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
         if not isinstance(params, dict):
             raise ValueError("parameters must be a dictionary of key-value pairs.")
-        if not span.get_tag(INPUT_PARAMETERS):
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
-        else:
-            existing_params = json.loads(span.get_tag(INPUT_PARAMETERS))
-            existing_params.update(params)
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(existing_params))
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
 
     @staticmethod
     def _tag_span_input_output(io_type: str, span: Span, data: Union[List[Dict[str, Any]], str]) -> None:
@@ -224,7 +219,7 @@ class LLMObs(Service):
                 "Invalid list item type, must be a list of dictionaries with the format {'content': '...'}."
             )
         span_kind = span.get_tag(SPAN_KIND)
-        tags = {}
+        tags = None
         if not span_kind:
             raise ValueError("Cannot tag input/output without a span.kind tag.")
         if span_kind in ("llm", "agent"):
@@ -277,7 +272,7 @@ class LLMObsTraceProcessor(TraceProcessor):
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
         tags = self._llmobs_tags(span)
-        meta = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
+        meta: Dict[str, Any] = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
         session_id = span._meta.pop(SESSION_ID, None) or "{:x}".format(span.trace_id)
         if span.get_tag(MODEL_NAME):
             meta["model_name"] = span._meta.pop(MODEL_NAME)
@@ -328,8 +323,9 @@ class LLMObsTraceProcessor(TraceProcessor):
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags.append("error_type:%s" % err_type)
-        if span.get_tag(TAGS):
-            span_tags = json.loads(span.get_tag(TAGS))
+        existing_tags = span.get_tag(TAGS)
+        if existing_tags is not None:
+            span_tags = json.loads(existing_tags)
             tags.extend(["{}:{}".format(k, v) for k, v in span_tags.items()])
         return tags
 

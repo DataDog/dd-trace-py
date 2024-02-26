@@ -118,7 +118,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("openai.response.model") or span.get_tag("openai.request.model"))
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
         if record_type == "completion":
             self._llmobs_set_completion_meta(resp, err, kwargs, span)
