@@ -689,11 +689,12 @@ def patch():
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
-        from langchain_community import embeddings  # noqa:F401
-        from langchain_community import vectorstores  # noqa:F401
-    else:
-        from langchain import embeddings  # noqa:F401
-        from langchain import vectorstores  # noqa:F401
+        # rename as to not conflict named imorts
+        from langchain_community import embeddings as lc_embeddings  # noqa:F401
+        from langchain_community import vectorstores as lc_vectorstores  # noqa:F401
+    # still import base classes/modules from langchain
+    from langchain import embeddings  # noqa:F401
+    from langchain import vectorstores  # noqa:F401
     from langchain.chains.base import Chain  # noqa:F401
     from langchain.chat_models.base import BaseChatModel  # noqa:F401
     from langchain.llms.base import BaseLLM  # noqa:F401
@@ -730,7 +731,7 @@ def patch():
                 # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstore_classes:
-        if hasattr(langchain.vectorstores, vectorstore):
+        if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
                 deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
@@ -768,19 +769,19 @@ def unpatch():
     unwrap(langchain.chains.base.Chain, "__call__")
     unwrap(langchain.chains.base.Chain, "acall")
     for text_embedding_model in text_embedding_models:
-        if hasattr(langchain.embeddings, text_embedding_model):
+        if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             if isinstance(
-                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
             ):
                 unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_query")
             if isinstance(
-                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
             ):
                 unwrap(getattr(langchain.embeddings, text_embedding_model), "embed_documents")
     for vectorstore in vectorstore_classes:
-        if hasattr(langchain.vectorstores, vectorstore):
+        if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
             if isinstance(
-                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
             ):
                 unwrap(getattr(langchain.vectorstores, vectorstore), "similarity_search")
 
