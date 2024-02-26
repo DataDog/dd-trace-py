@@ -1722,7 +1722,7 @@ def test_spans_sampled_out(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 3
     for span in spans:
-        assert span.sampled is False
+        assert span.context.sampling_priority <= 0
 
 
 def test_spans_sampled_one(tracer, test_spans):

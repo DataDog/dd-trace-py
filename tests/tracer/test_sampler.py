@@ -924,7 +924,7 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
     span = spans[0]
     assert (
-        span.sampled is not None
+        span.context.sampling_priority is not None
     ), "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
     assert_sampling_decision_tags(

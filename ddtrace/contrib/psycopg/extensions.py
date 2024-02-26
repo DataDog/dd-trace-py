@@ -43,7 +43,7 @@ def get_psycopg2_extensions(psycopg_module):
                 s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
                 s.set_tag(SPAN_MEASURED_KEY)
-                if not s.sampled:
+                if s.context.sampling_priority is None or s.context.sampling_priority > 0:
                     return super(TracedCursor, self).execute(query, vars)
 
                 s.resource = query
