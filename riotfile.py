@@ -968,6 +968,7 @@ venv = Venv(
                 "werkzeug": "~=2.0",
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
+                "importlib_metadata": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -1004,43 +1005,31 @@ venv = Venv(
                         "werkzeug": "<2.0",
                     },
                 ),
-                # Flask >= 2.0.0
+                # Flask 2.x.x
                 Venv(
-                    # flask dropped support for Python 2.7/3.5 in 2.0
-                    # flask added support for Python 3.10/3.11 in 2.0
                     pys=select_pys(min_version="3.7"),
-                    pkgs={
-                        "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
-                        ],
-                        "importlib_metadata": "<=6.0",
-                    },
+                    pkgs={"flask": "~=2.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(max_version="3.7"),
                     command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={
-                        "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
-                        ],
-                        "importlib_metadata": "<=6.0",
-                    },
+                    pkgs={"flask": "~=2.0"},
                 ),
+                # Flask 3.x.x
                 Venv(
-                    # flask dropped support for Python 3.7 in 2.3.0
+                    # Flask 3.x.x dropped support for Python 3.7
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
+                            "~=3.0.0",
+                            latest,
                         ],
-                        "importlib_metadata": "<=6.0",
+                        # Flask 3.x.x requires Werkzeug >= 3.0.0
+                        "werkzeug": ">=3.0",
                     },
                 ),
                 Venv(
@@ -1052,9 +1041,11 @@ venv = Venv(
                     },
                     pkgs={
                         "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
+                            "~=3.0.0",
+                            latest,
                         ],
+                        # Flask 3.x.x requires Werkzeug >= 3.0.0
+                        "werkzeug": ">=3.0",
                     },
                 ),
             ],

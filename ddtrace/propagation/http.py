@@ -693,7 +693,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -718,14 +718,18 @@ class _TraceContext:
             if origin:
                 # we encode "=" as "~" in tracestate so need to decode here
                 origin = _TraceContext.decode_tag_val(origin)
+
+            # Get last datadog parent id, this field is used to reconnect traces with missing spans
+            lpid = dd.get("p", "0000000000000000")
+
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
                 "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
-            return sampling_priority_ts_int, other_propagated_tags, origin
+            return sampling_priority_ts_int, other_propagated_tags, origin, lpid
         else:
-            return None, {}, None
+            return None, {}, None, None
 
     @staticmethod
     def _get_sampling_priority(
@@ -807,8 +811,10 @@ class _TraceContext:
                     tracestate_values = None
 
                 if tracestate_values:
-                    sampling_priority_ts, other_propagated_tags, origin = tracestate_values
+                    sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
+                    if lpid:
+                        meta["_dd.parent_id"] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
@@ -830,8 +836,13 @@ class _TraceContext:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
             ts = span_context._tracestate
-            if ts:
-                headers[_HTTP_HEADER_TRACESTATE] = ts
+            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
+            if "dd=" in ts:
+                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
+            else:
+                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
+
+            headers[_HTTP_HEADER_TRACESTATE] = ts
 
 
 class _NOP_Propagator:
