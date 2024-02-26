@@ -154,7 +154,6 @@ class TraceSamplingProcessor(TraceProcessor):
             # only sample if we haven't already sampled
             # this sampling decision can still be overridden manually
             if root_ctx and not root_ctx.sampling_priority:
-                _update_span_tags_from_context(chunk_root, root_ctx)
                 self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.

@@ -286,8 +286,6 @@ class Span(object):
     def _override_sampling_decision(self, decision):
         self.context.sampling_priority = decision
         set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
-        # need to update the root span to keep track of the sampler ran there
-        # if user has set manual keep, we can avoid running sampling later
         for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
             if key in self._local_root._metrics:
                 del self._local_root._metrics[key]

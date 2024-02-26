@@ -304,6 +304,9 @@ class DatadogSampler(RateByServiceSampler):
         """
         If allow_false is False, this function will return True regardless of the sampling decision
         """
+        # update tags from the context so we don't miss any when evaluating sampling
+        span.context._update_tags(span)
+
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
         sampler = self._default_sampler  # type: BaseSampler
