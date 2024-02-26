@@ -11,6 +11,7 @@ from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -41,7 +42,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.tracing._span_link import SpanLink
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -75,6 +75,7 @@ class Span(object):
         "trace_id",
         "parent_id",
         "_meta",
+        "_meta_struct",
         "error",
         "_metrics",
         "_store",
@@ -149,6 +150,8 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
+
+        self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
@@ -371,6 +374,17 @@ class Span(object):
                 del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V3/V4 encoding
+        """
+        self._meta_struct[key] = value
+
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """Return the given struct or None if it doesn't exist."""
+        return self._meta_struct.get(key, None)
 
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and

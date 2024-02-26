@@ -112,7 +112,7 @@ def _package_file_mapping():
         return mapping
 
     except Exception:
-        LOG.error(
+        LOG.warning(
             "Unable to build package file mapping, "
             "please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,
@@ -152,3 +152,19 @@ def is_stdlib(path: Path) -> bool:
     return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
         rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
     )
+
+
+@cached()
+def is_distribution_available(name: str) -> bool:
+    """Determine if a distribution is available in the current environment."""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        importlib_metadata.distribution(name)
+    except importlib_metadata.PackageNotFoundError:
+        return False
+
+    return True

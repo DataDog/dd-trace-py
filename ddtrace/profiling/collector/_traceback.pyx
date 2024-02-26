@@ -20,7 +20,7 @@ cpdef _extract_class_name(frame):
         argname = code.co_varnames[0]
         try:
             value = frame.f_locals[argname]
-        except (KeyError, SystemError):
+        except Exception:
             log.debug("Unable to extract class name from frame %r", frame, exc_info=True)
             return ""
         try:
