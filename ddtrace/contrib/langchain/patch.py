@@ -689,7 +689,7 @@ def patch():
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
-        # rename as to not conflict named imorts
+        # rename as to not conflict named imports
         from langchain_community import embeddings as lc_embeddings  # noqa:F401
         from langchain_community import vectorstores as lc_vectorstores  # noqa:F401
     # still import base classes/modules from langchain
