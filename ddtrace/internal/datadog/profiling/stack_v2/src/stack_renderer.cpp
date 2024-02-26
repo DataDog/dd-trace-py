@@ -24,7 +24,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     }
 
 //#warning stack_v2 should use a C++ interface instead of re-converting intermediates
-    ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name.data());
+    ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, 1000 * wall_time_us, 1);
 }
 
@@ -47,7 +47,7 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
     if (!utf8_check_is_valid(file.data(), file.size())) {
         file = invalid;
     }
-    ddup_push_frame(sample, name.data(), file.data(), 0, line);
+    ddup_push_frame(sample, name, file, 0, line);
     ddup_drop_sample(sample);
     sample = nullptr;
 }
@@ -58,7 +58,7 @@ StackRenderer::render_native_frame(std::string_view name, std::string_view file,
     if (sample == nullptr) {
         return;
     }
-    ddup_push_frame(sample, name.data(), file.data(), 0, line);
+    ddup_push_frame(sample, name, file, 0, line);
 }
 
 void
