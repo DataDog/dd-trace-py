@@ -267,13 +267,45 @@ def test_commit(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit_with_consume(producer, consumer, kafka_topic):
+def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        messages = consumer.consume(num_messages=1, timeout=-1)
+        # One message is consumed and one span is generated. _batched_consumer_enabled has no effect here
+        messages = consumer.consume(num_messages=1)
         assert len(messages) == 1
         consumer.commit(messages[0])
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume_with_batch(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False, _batched_consumer_enabled=True)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        messages = consumer.consume(num_messages=2)
+        assert len(messages) == 2
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume_without_batch(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False, _batched_consumer_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        # Two messages are consumed but only ONE span is generated
+        messages = consumer.consume(num_messages=2)
+        assert len(messages) == 2
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=True)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        with pytest.raises(TypeError):
+            # tries to consume messages after the consumer has been closed with raises a RuntimeError
+            consumer.consume(num_messages=1, invalid_args="invalid_args")
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])

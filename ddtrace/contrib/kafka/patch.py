@@ -1,4 +1,5 @@
 import os
+import sys
 
 import confluent_kafka
 
@@ -44,6 +45,7 @@ config._add(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
         trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        _batched_consumer_enabled=asbool(os.getenv("DD_KAFKA_BATCHED_CONSUMER_ENABLED", default=False)),
     ),
 )
 
@@ -211,24 +213,26 @@ def traced_poll_or_consume(func, instance, args, kwargs):
     start_ns = time_ns()
     # wrap in a try catch and raise exception after span is started
     err = None
+    result = None
     try:
         result = func(*args, **kwargs)
+        return result
     except Exception as e:
         err = e
-
-    # consume returns a list of messages, poll returns a single message
-    if isinstance(result, confluent_kafka.Message):
-        _instrument_message(result, pin, start_ns, instance)
-    elif isinstance(result, list):
-        for message in result:
-            _instrument_message(message, pin, start_ns, instance)
-
-    if err is not None:
         raise err
-    return result
+    finally:
+        # consume returns a list of messages, poll returns a single message
+        if result is None or isinstance(result, confluent_kafka.Message):
+            _instrument_message(result, pin, start_ns, instance, err)
+        elif isinstance(result, list):
+            messages = result
+            if len(result) > 1 and not config.kafka._batched_consumer_enabled:
+                messages = [result[0]]
+            for message in messages:
+                _instrument_message(message, pin, start_ns, instance, err)
 
 
-def _instrument_message(message, pin, start_ns, instance):
+def _instrument_message(message, pin, start_ns, instance, err):
     ctx = None
     if message and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
@@ -276,6 +280,9 @@ def _instrument_message(message, pin, start_ns, instance):
             rate = config.kafka.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+
+            if err is not None:
+                span.set_exc_info(*sys.exc_info())
 
 
 def traced_commit(func, instance, args, kwargs):

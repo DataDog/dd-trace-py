@@ -11,17 +11,17 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65dc0d7f00000000",
+      "_dd.p.tid": "65dcd1fd00000000",
       "component": "kafka",
       "kafka.group_id": "test_group",
       "kafka.message_key": "test_key",
       "kafka.received_message": "True",
       "kafka.tombstone": "False",
-      "kafka.topic": "test_commit_with_consume",
+      "kafka.topic": "test_commit_with_consume_single_message",
       "language": "python",
       "messaging.system": "kafka",
-      "pathway.hash": "13071025578713689189",
-      "runtime-id": "9a78f577696342a181490a7a38f8d1ee",
+      "pathway.hash": "7964333589438960939",
+      "runtime-id": "ff074b2cc3b34b63bbdabbfb5bafd0a4",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -31,10 +31,10 @@
       "_sampling_priority_v1": 1,
       "kafka.message_offset": -1,
       "kafka.partition": 0,
-      "process_id": 30051
+      "process_id": 96733
     },
-    "duration": 1290132000,
-    "start": 1708920190156732000
+    "duration": 3198787000,
+    "start": 1708970490483150000
   }],
 [
   {
@@ -49,16 +49,16 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65dc0d7c00000000",
+      "_dd.p.tid": "65dcd1f900000000",
       "component": "kafka",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
-      "kafka.topic": "test_commit_with_consume",
+      "kafka.topic": "test_commit_with_consume_single_message",
       "language": "python",
       "messaging.kafka.bootstrap.servers": "localhost:29092",
       "messaging.system": "kafka",
-      "pathway.hash": "13030463675302293999",
-      "runtime-id": "9a78f577696342a181490a7a38f8d1ee",
+      "pathway.hash": "8904226842384519559",
+      "runtime-id": "ff074b2cc3b34b63bbdabbfb5bafd0a4",
       "span.kind": "producer"
     },
     "metrics": {
@@ -67,8 +67,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 30051
+      "process_id": 96733
     },
-    "duration": 778000,
-    "start": 1708920188186915000
+    "duration": 356000,
+    "start": 1708970489477615000
   }]]
