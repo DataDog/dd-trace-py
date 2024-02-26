@@ -152,7 +152,6 @@ class TraceSamplingProcessor(TraceProcessor):
             root_ctx = chunk_root._context
 
             # only sample if we haven't already sampled
-            # this sampling decision can still be overridden manually
             if root_ctx and not root_ctx.sampling_priority:
                 self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can

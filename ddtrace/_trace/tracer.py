@@ -1074,6 +1074,7 @@ class Tracer(object):
             # Reset the user sampler if one exists
             if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
                 self._sampler = self._user_sampler
+                self._update_sampler_on_processor()
                 return
 
             if cfg._get_source("_trace_sample_rate") != "default":
@@ -1084,16 +1085,7 @@ class Tracer(object):
             sampler = DatadogSampler(default_sample_rate=sample_rate)
 
             self._sampler = sampler
-            # we need to update the processor that uses the span
-            # alternatively we could re-run tracer.configure()
-            for aggregator in self._deferred_processors:
-                if type(aggregator) == SpanAggregator:
-                    for processor in aggregator._trace_processors:
-                        if type(processor) == TraceSamplingProcessor:
-                            processor.sampler = self._sampler
-                            break
-            else:
-                log.debug("No TraceSamplingProcessor available to update sampling rate from remote config")
+            self._update_sampler_on_processor()
 
         if "tags" in items:
             self._tags = cfg.tags.copy()
@@ -1116,3 +1108,15 @@ class Tracer(object):
                 from ddtrace.contrib.logging import unpatch
 
                 unpatch()
+
+    def _update_sampler_on_processor(self):
+        # we need to update the processor that uses the span
+        # alternatively we could re-run tracer.configure()
+        for aggregator in self._deferred_processors:
+            if type(aggregator) == SpanAggregator:
+                for processor in aggregator._trace_processors:
+                    if type(processor) == TraceSamplingProcessor:
+                        processor.sampler = self._sampler
+                        break
+        else:
+            log.debug("No TraceSamplingProcessor available to update sampling rate from remote config")
