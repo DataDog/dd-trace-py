@@ -6,6 +6,7 @@ from typing import Any  # noqa:F401
 from typing import Optional
 from typing import Text  # noqa:F401
 
+from ddtrace._trace._span_link import SpanLink  # noqa:F401
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_ID_KEY
@@ -14,7 +15,6 @@ from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
-from ddtrace.tracing._span_link import SpanLink  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
