@@ -2,6 +2,7 @@ import mock
 
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from tests.utils import DummyTracer
 
@@ -10,7 +11,7 @@ def test_processor_returns_all_traces():
     """Test that the LLMObsTraceProcessor returns all traces."""
     trace_filter = LLMObsTraceProcessor(llmobs_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
-    root_llm_span._local_root = root_llm_span
+    root_llm_span.set_tag_str(SPAN_KIND, "llm")
     trace1 = [root_llm_span]
     assert trace_filter.process_trace(trace1) == trace1
 
@@ -19,6 +20,7 @@ def test_processor_creates_llmobs_span_event():
     mock_llmobs_writer = mock.MagicMock()
     trace_filter = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
     root_llm_span = Span(name="root", span_type=SpanTypes.LLM)
+    root_llm_span.set_tag_str(SPAN_KIND, "llm")
     trace = [root_llm_span]
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 1
@@ -49,9 +51,10 @@ def test_processor_only_creates_llmobs_span_event():
     mock_llmobs_writer = mock.MagicMock()
     trace_filter = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
     with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
+        root_span.set_tag_str(SPAN_KIND, "llm")
         with dummy_tracer.trace("child_span") as child_span:
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                pass
+                grandchild_span.set_tag_str(SPAN_KIND, "llm")
     trace = [root_span, child_span, grandchild_span]
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 2

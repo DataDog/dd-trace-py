@@ -37,10 +37,12 @@ def mock_llmobs_writer():
 
 @pytest.fixture
 def LLMObs(mock_llmobs_writer):
-    dummy_tracer = DummyTracer()
-    llmobs_service.enable(tracer=dummy_tracer)
-    yield llmobs_service
-    llmobs_service.disable()
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(tracer=dummy_tracer)
+        yield llmobs_service
+        llmobs_service.disable()
+
 
 
 def test_llmobs_service_enable():
@@ -349,7 +351,7 @@ def test_llmobs_annotate_input_string(LLMObs):
         assert workflow_span.get_tag(INPUT_VALUE) == "test_input"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+        assert json.loads(agent_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input"}]
 
 
 def test_llmobs_annotate_input_llm_message(LLMObs):
@@ -379,7 +381,7 @@ def test_llmobs_annotate_output_string(LLMObs):
         assert workflow_span.get_tag(OUTPUT_VALUE) == "test_output"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+        assert json.loads(agent_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output"}]
 
 
 def test_llmobs_annotate_output_llm_message(LLMObs):
