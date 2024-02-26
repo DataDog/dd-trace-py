@@ -63,8 +63,11 @@ class _DBM_Propagator(object):
         self.peer_db_name_tag = peer_db_name_tag
 
     def inject(self, dbspan, args, kwargs):
+        # run sampling before injection to propagate correct sampling priority
+        if ddtrace.tracer._sampler and not dbspan.context.sampling_priority:
+            ddtrace.tracer._sampler.sample(dbspan._local_root)
+
         dbm_comment = self._get_dbm_comment(dbspan)
-        ddtrace.tracer._sampler.sample(dbspan._local_root)
         if dbm_comment is None:
             # injection_mode is disabled
             return args, kwargs
