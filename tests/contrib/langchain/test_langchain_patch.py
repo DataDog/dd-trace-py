@@ -18,16 +18,18 @@ class TestLangchainPatch(PatchTestCase.Base):
         from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.chains.base import Chain  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
+
         if SHOULD_USE_LANGCHAIN_COMMUNITY:
             import langchain_community
             import langchain_community.embeddings  # noqa:F401
             import langchain_community.vectorstores  # noqa:F401
+
             return langchain_community
         else:
             import langchain.embeddings
             import langchain.vectorstores
-            return langchain
 
+            return langchain
 
     def assert_module_patched(self, langchain):
         gated_langchain = self.import_base_modules(langchain)

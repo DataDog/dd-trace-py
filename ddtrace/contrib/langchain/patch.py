@@ -691,11 +691,12 @@ def patch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
+
         # import langchain_community.chat_models  # noqa:F401
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
-        
+
     from langchain.chat_models.base import BaseChatModel  # noqa:F401
 
     from langchain.chains.base import Chain  # noqa:F401
@@ -703,8 +704,12 @@ def patch():
 
     wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-    wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)) # might need to change back to langchain_community
-    wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)) # might need to change back to langchain_community
+    wrap(
+        "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
+    )  # might need to change back to langchain_community
+    wrap(
+        "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
+    )  # might need to change back to langchain_community
     wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
     wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
     # Text embedding models override two abstract base methods instead of super calls, so we need to
