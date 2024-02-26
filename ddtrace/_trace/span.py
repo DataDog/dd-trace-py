@@ -277,7 +277,7 @@ class Span(object):
     def sampled(self, value):
         deprecate(
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="This is a no-op setter. Please use span.set_tag(MANUAL_KEEP/MANUAL_DROP) to keep or drop spans.",
+            message="This is a no-op setter. Please use span.set_tag("manual.keep"/"manual.drop") to keep or drop spans.",
             category=DDTraceDeprecationWarning,
         )
 
