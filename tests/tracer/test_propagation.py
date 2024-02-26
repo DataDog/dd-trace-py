@@ -158,7 +158,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
+            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
@@ -631,7 +631,12 @@ TRACE_ID_HEX = "80f198ee56343ba864fe8b2a57d3eff7"
 # for testing with other propagation styles
 TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+    _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum",
+}
+
+TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
 TRACECONTEXT_HEADERS_VALID = {
@@ -779,8 +784,8 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     "ts_string,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;p:a0000000000000ff,congo=t61rcWkgMzE,mako=s:2;o:rum",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -788,13 +793,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:0;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:0;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 0,
                 {
@@ -802,13 +808,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -816,13 +823,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 None,
                 {
@@ -830,13 +838,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:-1;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 -1,
                 {
@@ -844,13 +853,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=p:a0000000000000ff;s:2;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -858,13 +868,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -873,20 +884,21 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.unk": "unk",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
-            (None, {}, None),
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
+            (None, {}, None, None),
             None,
             None,
         ),
         (
             "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -894,6 +906,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
+                "0000000000000000",
             ),
             None,
             None,
@@ -906,13 +919,13 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
-            (None, {}, None),
+            (None, {}, None, "0000000000000000"),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz6~~~4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz6~~~4",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -920,13 +933,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz6===4",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz:6:4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz:6:4",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -934,6 +948,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz:6:4",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
@@ -982,6 +997,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
+                    "_dd.parent_id": "0000000000000000",
                     "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
@@ -993,7 +1009,8 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "tracestate": "dd=s:2;o:rum",
+                    "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
+                    "_dd.parent_id": "00f067aa0ba902b7",
                     "_dd.origin": "rum",
                     "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
                 },
@@ -1734,8 +1751,24 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "sampling_priority": 2,
             "dd_origin": "rum",
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "_dd.parent_id": "00f067aa0ba902b7",
+            },
+        },
+    ),
+    (
+        "valid_tracecontext_rum_no_sampling_decision",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
+        {
+            "trace_id": TRACE_ID,
+            "span_id": 67667974448284343,
+            "dd_origin": "rum",
+            "meta": {
+                "tracestate": "dd=o:rum",
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "_dd.parent_id": "0000000000000000",
             },
         },
     ),
@@ -1889,6 +1922,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                "_dd.parent_id": "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[],
@@ -1915,6 +1949,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                "_dd.parent_id": "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -1948,6 +1983,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                "_dd.parent_id": "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2125,7 +2161,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "1",
             HTTP_HEADER_ORIGIN: "synthetics",
-            _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:1;o:synthetics",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
@@ -2137,7 +2173,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "2",
-            _HTTP_HEADER_TRACESTATE: "dd=s:2",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:2",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
@@ -2149,7 +2185,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "0",
-            _HTTP_HEADER_TRACESTATE: "dd=s:0",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:0",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
         },
     ),
@@ -2328,7 +2364,10 @@ INJECT_FIXTURES = [
                 "traceparent": "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             },
         },
-        {_HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,)},
+        {
+            _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,),
+            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7",
+        },
     ),
     (
         "only_tracestate",
@@ -2350,14 +2389,14 @@ INJECT_FIXTURES = [
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "_dd.origin": "rum",
             },
             "metrics": {"_sampling_priority_v1": 2},
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
-            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum",
         },
     ),
     (
@@ -2374,7 +2413,7 @@ INJECT_FIXTURES = [
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
-            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
+            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum,congo=baz123",
         },
     ),
     # All styles
@@ -2397,7 +2436,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:1;o:synthetics",
         },
     ),
     (
@@ -2418,7 +2457,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_FLAGS: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-d",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:2",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:2",
         },
     ),
     (
@@ -2439,7 +2478,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "0",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-0",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
-            _HTTP_HEADER_TRACESTATE: "dd=s:0",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:0",
         },
     ),
     (
@@ -2461,6 +2500,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
+            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370",
         },
     ),
 ]
