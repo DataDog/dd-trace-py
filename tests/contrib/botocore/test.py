@@ -2935,6 +2935,16 @@ class BotocoreTest(TracerTestCase):
                     "type:kinesis",
                 ]
             )
+            print(first)
+            print(
+                first[
+                    (
+                        in_tags,
+                        1711768390031028072,
+                        0,
+                    )
+                ].full_pathway_latency._count
+            )
             assert (
                 first[
                     (
@@ -3012,8 +3022,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        614755353881974019,
-                        0,
+                        7186383338881463054,
+                        14715769790627487616,
                     )
                 ].full_pathway_latency._count
             )
@@ -3021,8 +3031,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        614755353881974019,
-                        0,
+                        7186383338881463054,
+                        14715769790627487616,
                     )
                 ].full_pathway_latency._count
                 >= 1
@@ -3031,8 +3041,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        614755353881974019,
-                        0,
+                        7186383338881463054,
+                        14715769790627487616,
                     )
                 ].edge_latency._count
                 >= 1
