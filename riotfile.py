@@ -2504,6 +2504,7 @@ venv = Venv(
             pkgs={
                 "langchain": ["==0.0.192", "==0.1.4"],
                 "langchain-community": "==0.0.14",
+                # "langchain-openai": "==0.0.7",
                 "openai": "==0.27.8",
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -2515,6 +2516,7 @@ venv = Venv(
                 "exceptiongroup": latest,
                 "psutil": latest,
                 "pytest-randomly": latest,
+                "numexpr": latest,
             },
         ),
         Venv(
