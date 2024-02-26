@@ -40,9 +40,11 @@ from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -2840,7 +2842,14 @@ class BotocoreTest(TracerTestCase):
             # fails, it must be base64, since it should be untouched
             next_decoded_record = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
 
-        assert "_datadog" not in next_decoded_record
+        # if datastreams is enabled, we will have dd-pathway-ctx or dd-pathway-ctx-base64 in each record
+        # we should NOT have dd trace context in each record though!
+        if config._data_streams_enabled:
+            assert "_datadog" in next_decoded_record
+            assert HTTP_HEADER_TRACE_ID not in next_decoded_record["_datadog"]
+            assert PROPAGATION_KEY_BASE_64 in next_decoded_record["_datadog"]
+        else:
+            assert "_datadog" not in next_decoded_record
 
         client.delete_stream(StreamName=stream_name)
 
@@ -2997,6 +3006,16 @@ class BotocoreTest(TracerTestCase):
                     "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
                     "type:kinesis",
                 ]
+            )
+            print(first)
+            print(
+                first[
+                    (
+                        in_tags,
+                        614755353881974019,
+                        0,
+                    )
+                ].full_pathway_latency._count
             )
             assert (
                 first[
