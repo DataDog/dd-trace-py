@@ -7,7 +7,7 @@ from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
-import langchain_community # noqa: F401
+import langchain_community  # noqa: F401
 
 from ddtrace.appsec._iast import _is_iast_enabled
 
@@ -710,7 +710,8 @@ def patch():
         if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,
@@ -718,7 +719,8 @@ def patch():
                     traced_embedding(langchain),
                 )
             if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,
@@ -731,7 +733,8 @@ def patch():
         if hasattr(langchain.vectorstores, vectorstore):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
+                wrapt.ObjectProxy,
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,
