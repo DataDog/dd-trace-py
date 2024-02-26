@@ -460,6 +460,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 ddup_extension_name,
                 source_dir=DDUP_DIR,
+                optional=False,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
