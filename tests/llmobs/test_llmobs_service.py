@@ -4,17 +4,17 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
