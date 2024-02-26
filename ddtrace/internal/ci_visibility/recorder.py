@@ -13,6 +13,7 @@ from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.agent import get_trace_url
@@ -25,12 +26,25 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
+from ...ext.ci_visibility._ci_visibility_base import _CIVisibilityItemIdBase
+from ...ext.ci_visibility.api import CIModuleId
+from ...ext.ci_visibility.api import CISessionId
+from ...ext.ci_visibility.api import CISourceFileInfo
+from ...ext.ci_visibility.api import CISuiteId
+from ...ext.ci_visibility.api import CITestId
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
+from .api.ci_module import CIVisibilityModule
+from .api.ci_session import CIVisibilitySession
+from .api.ci_session import CIVisibilitySessionSettings
+from .api.ci_suite import CIVisibilitySuite
+from .api.ci_test import CIVisibilityTest
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
+from .constants import DEFAULT_CI_VISIBILITY_SERVICE
+from .constants import DEFAULT_OPERATION_NAMES
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -42,6 +56,7 @@ from .constants import SUITE
 from .constants import TEST
 from .constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from .context import CIContextProvider
+from .errors import CIVisibilityError
 from .git_client import METADATA_UPLOAD_STATUS
 from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES
@@ -66,6 +81,17 @@ DEFAULT_TIMEOUT = 15
 _CIVisibilitySettings = NamedTuple(
     "_CIVisibilitySettings",
     [("coverage_enabled", bool), ("skipping_enabled", bool), ("require_git", bool), ("itr_enabled", bool)],
+)
+
+ddconfig._add(
+    "ci_visibility",
+    {
+        "_default_service": DEFAULT_CI_VISIBILITY_SERVICE,
+        "session_operation_name": DEFAULT_OPERATION_NAMES.SESSION.value,
+        "module_operation_name": DEFAULT_OPERATION_NAMES.MODULE.value,
+        "suite_operation_name": DEFAULT_OPERATION_NAMES.SUITE.value,
+        "test_operation_name": DEFAULT_OPERATION_NAMES.TEST.value,
+    },
 )
 
 
@@ -148,12 +174,14 @@ class CIVisibility(Service):
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self._suite_skipping_mode = asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", default=False))
-        self.config = config  # type: Optional[IntegrationConfig]
+        self.config = config or ddconfig.ci_visibility  # type: Optional[IntegrationConfig]
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
+
+        self._session_data = {}  # type Dict[CISessionId, CIVisibilitySession]
 
         int_service = None
         if self.config is not None:
@@ -510,6 +538,8 @@ class CIVisibility(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        _register_session_handlers()
+
         try:
             cls._instance = cls(tracer=tracer, config=config, service=service)
         except CIVisibilityAuthenticationException:
@@ -598,3 +628,192 @@ class CIVisibility(Service):
                 span.set_tag(test.CODEOWNERS, json.dumps(handles))
         except KeyError:
             log.debug("no matching codeowners for %s", location)
+
+    @classmethod
+    def add_session(cls, session: CIVisibilitySession):
+        if session.item_id in cls._instance._session_data:
+            raise CIVisibilityError("Session already exists")
+        cls._instance._session_data[session.item_id] = session
+
+    @classmethod
+    def get_session_by_id(cls, session_id: CISessionId) -> CIVisibilitySession:
+        if session_id not in cls._instance._session_data:
+            raise CIVisibilityError("Session not found")
+        return cls._instance._session_data[session_id]
+
+    @classmethod
+    def get_module_by_id(cls, module_id) -> CIVisibilityModule:
+        return cls.get_session_by_id(module_id.session_id).get_module_by_id(module_id)
+
+    @classmethod
+    def get_suite_by_id(cls, suite_id) -> CIVisibilitySuite:
+        return cls.get_module_by_id(suite_id.module_id).get_suite_by_id(suite_id)
+
+    @classmethod
+    def get_test_by_id(cls, test_id) -> CIVisibilityTest:
+        return cls.get_suite_by_id(test_id.suite_id).get_test_by_id(test_id)
+
+    @classmethod
+    def get_session_settings(cls, item_id: _CIVisibilityItemIdBase) -> CIVisibilitySessionSettings:
+        return item_id.get_session_id().settings
+
+
+def _requires_civisibility_enabled(func):
+    def wrapper(*args, **kwargs):
+        if not CIVisibility.enabled:
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@_requires_civisibility_enabled
+def _on_discover_session(
+    session_id: CISessionId,
+    test_command: str,
+    session_operation_name: str,
+    module_operation_name: str,
+    suite_operation_name: str,
+    test_operation_name: str,
+    reject_unknown_items: bool,
+    reject_duplicates: bool,
+):
+    log.error("Handling session discovery")
+    if CIVisibility.get_session_by_id(session_id):
+        raise CIVisibilityError("Session already exists")
+
+    session_settings = CIVisibilitySessionSettings(
+        session_operation_name=session_operation_name,
+        module_operation_name=module_operation_name,
+        suite_operation_name=suite_operation_name,
+        test_operation_name=test_operation_name,
+        reject_unknown_items=reject_unknown_items,
+        reject_duplicates=reject_duplicates,
+    )
+
+    session = CIVisibilitySession(
+        session_id,
+        test_command,
+        session_settings,
+    )
+    CIVisibility.add_session(session)
+
+
+@_requires_civisibility_enabled
+def _on_start_session(session_id: CISessionId):
+    log.warning("Handling start for session id %s", session_id)
+    session = CIVisibility.get_session_by_id(session_id)
+    session.start()
+
+
+@_requires_civisibility_enabled
+def _on_finish_session(session_id, force_finish_children, override_status):
+    log.warning("Handling finish for session id %s", session_id)
+    session = CIVisibility.get_session_by_id(session_id)
+    session.finish(force_finish_children, override_status)
+
+
+def _register_session_handlers():
+    log.warning("Registering session handlers")
+    core.on("ci_visibility.session.register", _on_discover_session)
+    core.on("ci_visibility.session.start", _on_start_session)
+    core.on("ci_visibility.session.finish", _on_finish_session)
+
+
+def _on_discover_module(module_id: CIModuleId):
+    log.warning("Handling module registration for module %s", module_id)
+    session = CIVisibility.get_session_by_id(module_id.session_id)
+    if module_id in session.modules:
+        raise CIVisibilityError("Module already exists")
+
+    session.add_module(
+        CIVisibilityModule(
+            module_id,
+        )
+    )
+
+
+def _on_start_module(module_id: CIModuleId):
+    log.warning("Handling start for module id %s", module_id)
+    CIVisibility.get_module_by_id(module_id).start()
+
+
+def _on_finish_module(module_id: CIModuleId):
+    log.warning("Handling finish for module id %s", module_id)
+    CIVisibility.get_module_by_id(module_id).finish()
+
+
+def _register_module_handlers():
+    log.warning("Registering module handlers")
+    core.on("ci_visibility.module.discover", _on_discover_module)
+    core.on("ci_visibility.module.start", _on_start_module)
+    core.on("ci_visibility.module.finish", _on_finish_module)
+
+
+def _on_discover_suite(suite_id: CISuiteId):
+    log.warning("Handling suite discovery for suite %s", suite_id)
+    module = CIVisibility.get_module_by_id(suite_id.module_id)
+    if suite_id in module.suites:
+        raise CIVisibilityError("Suite already exists")
+
+    module.add_suite(CIVisibilitySuite(suite_id))
+
+
+def _on_start_suite(suite_id: CISuiteId):
+    log.warning("Handling start for suite id %s", suite_id)
+    CIVisibility.get_suite_by_id(suite_id).start()
+
+
+def _on_finish_suite(suite_id: CISuiteId):
+    log.warning("Handling finish for suite id %s", suite_id)
+    CIVisibility.get_suite_by_id(suite_id).finish()
+
+
+def _register_suite_handlers():
+    log.warning("Registering suite handlers")
+    core.on("ci_visibility.suite.discover", _on_discover_suite)
+    core.on("ci_visibility.suite.start", _on_start_suite)
+    core.on("ci_visibility.suite.finish", _on_finish_suite)
+
+
+def _on_discover_test(
+    test_id: CITestId, codeowner: Optional[str] = None, source_file_info: Optional[CISourceFileInfo] = None
+):
+    log.warning("Handling test discovery for test %s", test_id)
+    suite = CIVisibility.get_suite_by_id(test_id.suite_id)
+    if test_id in suite.tests:
+        raise CIVisibilityError("Test already exists")
+
+    suite.add_test(CIVisibilityTest(test_id, codeowner, source_file_info))
+
+
+def _on_discover_test_early_flake_retry(test_id: CITestId):
+    log.warning("Handling test discovery for test %s", test_id)
+    suite = CIVisibility.get_suite_by_id(test_id.suite_id)
+    if test_id in suite.tests:
+        raise CIVisibilityError("Test already exists")
+
+    suite.add_test(CIVisibilityTest(test_id))
+
+
+def _on_start_test(test_id: CITestId):
+    log.warning("Handling start for test id %s", test_id)
+    CIVisibility.get_test_by_id(test_id).start()
+
+
+def _on_finish_test(test_id: CITestId):
+    log.warning("Handling finish for test id %s", test_id)
+    CIVisibility.get_test_by_id(test_id).finish()
+
+
+def _register_test_handlers():
+    log.warning("Registering test handlers")
+    core.on("ci_visibility.test.discover", _on_discover_test)
+    core.on("ci_visibility.test.start", _on_start_test)
+    core.on("ci_visibility.test.finish", _on_finish_test)
+
+
+_register_session_handlers()
+_register_module_handlers()
+_register_suite_handlers()
+_register_test_handlers()
