@@ -7,7 +7,7 @@ from typing import Optional  # noqa:F401
 from typing import Union
 
 import langchain
-import langchain_community
+import langchain_community # noqa: F401
 
 from ddtrace.appsec._iast import _is_iast_enabled
 
@@ -53,12 +53,13 @@ def get_version():
     return getattr(langchain, "__version__", "")
 
 
-# After langchain 0.1.0, implementation was split up from langchain to langchain, langchain_community, and langchain_core.
+# After 0.1.0, implementation split into langchain, langchain_community, and langchain_core.
 # We need to check the version to determine which module to wrap, to avoid deprecation warnings
 # ref: https://github.com/DataDog/dd-trace-py/issues/8212
 LANGCHAIN_VERSION = parse_version(get_version())
 SHOULD_USE_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
-BASE_LANGCHAIN_MODULE_NAME = "langchain_community" if SHOULD_USE_LANGCHAIN_COMMUNITY else "langchain"
+BASE_LANGCHAIN_MODULE = langchain_community if SHOULD_USE_LANGCHAIN_COMMUNITY else langchain
+BASE_LANGCHAIN_MODULE_NAME = getattr(BASE_LANGCHAIN_MODULE, "__name__", "langchain")
 
 
 config._add(
@@ -690,9 +691,9 @@ def patch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
-    # Still import from langchain anyways, for purposes of wrapping
-    from langchain import embeddings  # noqa:F401
-    from langchain import vectorstores  # noqa:F401
+    else:
+        from langchain import embeddings  # noqa:F401
+        from langchain import vectorstores  # noqa:F401
     from langchain.chains.base import Chain  # noqa:F401
     from langchain.chat_models.base import BaseChatModel  # noqa:F401
     from langchain.llms.base import BaseLLM  # noqa:F401
@@ -706,10 +707,10 @@ def patch():
     # Text embedding models override two abstract base methods instead of super calls, so we need to
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
-        if hasattr(langchain.embeddings, text_embedding_model):
+        if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
-                deep_getattr(langchain.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model), wrapt.ObjectProxy
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,
@@ -717,7 +718,7 @@ def patch():
                     traced_embedding(langchain),
                 )
             if not isinstance(
-                deep_getattr(langchain.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model), wrapt.ObjectProxy
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,
@@ -730,7 +731,7 @@ def patch():
         if hasattr(langchain.vectorstores, vectorstore):
             # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
             if not isinstance(
-                deep_getattr(langchain.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
+                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore), wrapt.ObjectProxy
             ):
                 wrap(
                     BASE_LANGCHAIN_MODULE_NAME,

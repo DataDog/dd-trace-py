@@ -8,7 +8,6 @@ import vcr
 
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
-from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
@@ -1283,7 +1282,7 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         }
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        f"""
+        """
 from langchain_community.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
