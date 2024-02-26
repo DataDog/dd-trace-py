@@ -1768,6 +1768,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "meta": {
                 "tracestate": "dd=o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "_dd.parent_id": "0000000000000000",
             },
         },
     ),
