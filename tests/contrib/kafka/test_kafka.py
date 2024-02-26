@@ -267,6 +267,16 @@ def test_commit(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        messages = consumer.consume(num_messages=1, timeout=-1)
+        assert len(messages) == 1
+        consumer.commit(messages[0])
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)

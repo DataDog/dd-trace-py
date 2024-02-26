@@ -115,8 +115,11 @@ def patch():
     for producer in (TracedProducer, TracedSerializingProducer):
         trace_utils.wrap(producer, "produce", traced_produce)
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        trace_utils.wrap(consumer, "poll", traced_poll)
-        trace_utils.wrap(consumer, "commit", traced_commit)
+        trace_utils.wrap(consumer, "poll", traced_poll_or_consume)
+        trace_utils.wrap(consumer, "consume", traced_poll_or_consume)
+
+    # Consume is not implemented in deserializing consumers
+    trace_utils.wrap(TracedConsumer, "commit", traced_commit)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
     Pin().onto(confluent_kafka.SerializingProducer)
@@ -135,6 +138,9 @@ def unpatch():
             trace_utils.unwrap(consumer, "poll")
         if trace_utils.iswrapped(consumer.commit):
             trace_utils.unwrap(consumer, "commit")
+
+    # Consume is not implemented in deserializing consumers
+    trace_utils.unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -194,7 +200,7 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def traced_poll(func, instance, args, kwargs):
+def traced_poll_or_consume(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -205,9 +211,23 @@ def traced_poll(func, instance, args, kwargs):
     # wrap in a try catch and raise exception after span is started
     err = None
     try:
-        message = func(*args, **kwargs)
+        result = func(*args, **kwargs)
     except Exception as e:
         err = e
+
+    # consume returns a list of messages, poll returns a single message
+    if isinstance(result, confluent_kafka.Message):
+        _instrument_message(result, pin, start_ns, err, instance)
+    elif isinstance(result, list):
+        for message in result:
+            _instrument_message(message, pin, start_ns, err, instance)
+
+    if err is not None:
+        raise err
+    return result
+
+
+def _instrument_message(message, pin, start_ns, err, instance):
     ctx = None
     if message and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
@@ -255,16 +275,6 @@ def traced_poll(func, instance, args, kwargs):
             rate = config.kafka.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-
-            # raise exception if one was encountered
-            if err is not None:
-                raise err
-            return message
-    else:
-        if err is not None:
-            raise err
-        else:
-            return message
 
 
 def traced_commit(func, instance, args, kwargs):
