@@ -464,8 +464,8 @@ def test_load_new_config_and_remove_targets_file_same_product(
         applied_configs = {}
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
-        asm_data_data1 = b'{"data": [{"a":1}]}'
-        asm_data_data2 = b'{"data": [{"b":2}]}'
+        asm_data_data1 = b'{"data": [{"c":1}]}'
+        asm_data_data2 = b'{"data": [{"d":2}]}'
         payload = AgentPayload(
             target_files=[
                 TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
@@ -532,7 +532,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._applied_configs = applied_configs
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"a": 1}, {"b": 2}]}, None)
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": True}, "data": [{"c": 1}, {"d": 2}]}, None)
         mock_appsec_rules_data.reset_mock()
 
         list_callbacks = []
@@ -543,7 +543,7 @@ def test_load_new_config_and_remove_targets_file_same_product(
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": None}, "data": [{"b": 2}]}, None)
+        mock_appsec_rules_data.assert_called_with({"asm": {"enabled": None}, "data": [{"d": 2}]}, None)
         disable_appsec_rc()
 
 
@@ -554,8 +554,8 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         applied_configs = {}
         enable_appsec_rc(tracer)
         asm_features_data = b'{"asm":{"enabled":true}}'
-        asm_data_data1 = b'{"exclusions": [{"a":1}]}'
-        asm_data_data2 = b'{"exclusions": [{"b":2}]}'
+        asm_data_data1 = b'{"exclusions": [{"e":1}]}'
+        asm_data_data2 = b'{"exclusions": [{"f":2}]}'
         payload = AgentPayload(
             target_files=[
                 TargetFile(path="mock/ASM_FEATURES", raw=base64.b64encode(asm_features_data)),
@@ -622,7 +622,7 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_update_rules.assert_called_with({"exclusions": [{"a": 1}, {"b": 2}]})
+        mock_update_rules.assert_called_with({"exclusions": [{"e": 1}, {"f": 2}]})
         mock_update_rules.reset_mock()
 
         # ensure enable_appsec_rc is reentrant
@@ -635,7 +635,7 @@ def test_fullpath_appsec_rules_data(mock_update_rules, remote_config_worker, tra
         remoteconfig_poller._client._publish_configuration(list_callbacks)
         remoteconfig_poller._poll_data()
 
-        mock_update_rules.assert_called_with({"exclusions": [{"b": 2}]})
+        mock_update_rules.assert_called_with({"exclusions": [{"f": 2}]})
     disable_appsec_rc()
 
 
