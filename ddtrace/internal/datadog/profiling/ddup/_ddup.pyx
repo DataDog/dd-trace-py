@@ -16,28 +16,16 @@ from .utils import sanitize_string
 
 IF UNAME_SYSNAME == "Linux":
 
+    def ensure_binary_or_empty(s) -> bytes:
+        try:
+            return ensure_binary(s)
+        except Exception:
+            pass
+        return b""
+
     cdef extern from "<string_view>" namespace "std" nogil:
         cdef cppclass string_view:
             string_view(const char* s, size_t count)
-
-    cdef pystr_to_sv(object s):
-        cdef bytes s_bytes = b""
-        try:
-            s_bytes = ensure_binary(s)
-        except Exception:
-            pass
-        return string_view(<const char*>s_bytes, len(s_bytes))
-
-    cdef extern from "types.hpp":
-        ctypedef enum ProfileType "ProfileType":
-            CPU         "ProfileType::CPU"
-            Wall        "ProfileType::Wall"
-            Exception   "ProfileType::Exception"
-            LockAcquire "ProfileType::LockAcquire"
-            LockRelease "ProfileType::LockRelease"
-            Allocation  "ProfileType::Allocation"
-            Heap        "ProfileType::Heap"
-            All         "ProfileType::All"
 
     cdef extern from "sample.hpp" namespace "Datadog":
         ctypedef struct Sample:
@@ -83,6 +71,31 @@ IF UNAME_SYSNAME == "Linux":
         void ddup_set_runtime_id(string_view _id)
         bint ddup_upload() nogil
 
+    # Create wrappers for cython
+    cdef call_ddup_config_service(bytes service):
+        ddup_config_service(string_view(<const char*>service, len(service)))
+
+    cdef call_ddup_config_env(bytes env):
+        ddup_config_env(string_view(<const char*>env, len(env)))
+
+    cdef call_ddup_config_version(bytes version):
+        ddup_config_version(string_view(<const char*>version, len(version)))
+
+    cdef call_ddup_config_url(bytes url):
+        ddup_config_url(string_view(<const char*>url, len(url)))
+
+    cdef call_ddup_config_runtime(bytes runtime):
+        ddup_config_runtime(string_view(<const char*>runtime, len(runtime)))
+
+    cdef call_ddup_config_runtime_version(bytes runtime_version):
+        ddup_config_runtime_version(string_view(<const char*>runtime_version, len(runtime_version)))
+
+    cdef call_ddup_config_profiler_version(bytes profiler_version):
+        ddup_config_profiler_version(string_view(<const char*>profiler_version, len(profiler_version)))
+
+    cdef call_ddup_config_user_tag(bytes key, bytes val):
+        ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+
     def init(
             service: Optional[str],
             env: Optional[str],
@@ -93,31 +106,31 @@ IF UNAME_SYSNAME == "Linux":
 
         # Try to provide a ddtrace-specific default service if one is not given
         service = service or DEFAULT_SERVICE_NAME
-        ddup_config_service(pystr_to_sv(service))
+        call_ddup_config_service(ensure_binary_or_empty(service))
 
         # If otherwise no values are provided, the uploader will omit the fields
         # and they will be auto-populated in the backend
         if env:
-            ddup_config_env(pystr_to_sv(env))
+            call_ddup_config_env(ensure_binary_or_empty(env))
         if version:
-            ddup_config_version(pystr_to_sv(version))
+            call_ddup_config_version(ensure_binary_or_empty(version))
         if url:
-            ddup_config_url(pystr_to_sv(url))
+            call_ddup_config_url(ensure_binary_or_empty(url))
 
         # Inherited
-        ddup_config_runtime(pystr_to_sv(platform.python_implementation()))
-        ddup_config_runtime_version(pystr_to_sv(platform.python_version()))
-        ddup_config_profiler_version(pystr_to_sv(ddtrace.__version__))
-        ddup_config_max_nframes(max_nframes)
+        call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
+        call_ddup_config_runtime_version(ensure_binary_or_empty(platform.python_version()))
+        call_ddup_config_profiler_version(ensure_binary_or_empty(ddtrace.__version__))
+        ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
         if tags is not None:
             for key, val in tags.items():
                 if key and val:
-                    ddup_config_user_tag(pystr_to_sv(key), pystr_to_sv(val))
+                    call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
         ddup_init()
 
     def upload() -> None:
-        runtime_id = pystr_to_sv(runtime.get_runtime_id())
-        ddup_set_runtime_id(runtime_id)
+        runtime_id = ensure_binary_or_empty(runtime.get_runtime_id())
+        ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
         with nogil:
             ddup_upload()
 
@@ -158,20 +171,23 @@ IF UNAME_SYSNAME == "Linux":
 
         def push_lock_name(self, lock_name: str) -> None:
             if self.ptr is not NULL:
-                ddup_push_lock_name(self.ptr, pystr_to_sv(lock_name))
+                lock_name_bytes = ensure_binary_or_empty(lock_name)
+                ddup_push_lock_name(self.ptr, string_view(<const char*>lock_name_bytes, len(lock_name_bytes)))
 
         def push_frame(self, name: str, filename: str, int address, int line) -> None:
             if self.ptr is not NULL:
-                name = sanitize_string(name)
-                filename = sanitize_string(filename)
-                ddup_push_frame(self.ptr, pystr_to_sv(name), pystr_to_sv(filename), address, line)
+                # We've ogtten rreports that `name` and `filename` may be unexpected objects, so we go through a sanitization procedure.
+                # this is almost certainly wasteful.
+                name_bytes = ensure_binary_or_empty(sanitize_string(name))
+                filename_bytes = ensure_binary_or_empty(sanitize_string(filename))
+                ddup_push_frame(self.ptr, string_view(<const char*>name_bytes, len(name_bytes)), string_view(<const char*>filename_bytes, len(filename_bytes)), address, line)
 
         def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: str) -> None:
             if self.ptr is not NULL:
                 thread_id = thread_id if thread_id is not None else 0
                 thread_native_id = thread_native_id if thread_native_id is not None else 0
-                thread_name = thread_name if thread_name is not None else ""
-                ddup_push_threadinfo(self.ptr, thread_id, thread_native_id, pystr_to_sv(thread_name))
+                thread_name_bytes = ensure_binary_or_empty(thread_name)
+                ddup_push_threadinfo(self.ptr, thread_id, thread_native_id, string_view(<const char*>thread_name_bytes, len(thread_name_bytes)))
 
         def push_task_id(self, task_id: int) -> None:
             if self.ptr is not NULL:
@@ -180,18 +196,19 @@ IF UNAME_SYSNAME == "Linux":
         def push_task_name(self, task_name: str) -> None:
             if self.ptr is not NULL:
                 if task_name:
-                    ddup_push_task_name(self.ptr, pystr_to_sv(task_name))
+                    task_name_bytes = ensure_binary_or_empty(task_name)
+                    ddup_push_task_name(self.ptr, string_view(<const char*>task_name_bytes, len(task_name_bytes)))
 
         def push_exceptioninfo(self, exc_type: type, count: int) -> None:
             if self.ptr is not NULL:
                 if exc_type is not None:
-                    exc_name = exc_type.__module__ + "." + exc_type.__name__
-                    ddup_push_exceptioninfo(self.ptr, pystr_to_sv(exc_name), count)
+                    exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
+                    ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), count)
 
         def push_class_name(self, class_name: str) -> None:
             if self.ptr is not NULL:
-                class_name = class_name if class_name is not None else ""
-                ddup_push_class_name(self.ptr, pystr_to_sv(class_name))
+                class_name_bytes = ensure_binary_or_empty(class_name)
+                ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
         def push_span(self, span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
             if self.ptr is NULL:
@@ -205,9 +222,11 @@ IF UNAME_SYSNAME == "Linux":
             if span._local_root.span_id:
                 ddup_push_local_root_span_id(self.ptr, span._local_root.span_id)
             if span._local_root.span_type:
-                ddup_push_trace_type(self.ptr, pystr_to_sv(span._local_root.span_type))
+                span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
+                ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
             if endpoint_collection_enabled:
-                ddup_push_trace_resource_container(self.ptr, pystr_to_sv(span._local_root.service))
+                root_service_bytes = ensure_binary_or_empty(span._local_root.service)
+                ddup_push_trace_resource_container(self.ptr, string_view(<const char*>root_service_bytes, len(root_service_bytes)))
 
         def flush_sample(self) -> None:
             # Flushing the sample consumes it.  The user will no longer be able to use
