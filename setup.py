@@ -476,6 +476,7 @@ if not IS_PYSTON:
         ext_modules.append(
             CMakeExtension(
                 stack_v2_extension_name,
+                optional=False,
                 source_dir=STACK_V2_DIR,
                 cmake_args=[
                     "-DEXTENSION_NAME={}".format(stack_v2_extension_name),
