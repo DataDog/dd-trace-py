@@ -125,8 +125,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
-
-        if span.context.sampling_priority is not None and span.context.sampling_priority > 0:
+        if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
