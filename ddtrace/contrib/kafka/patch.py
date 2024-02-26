@@ -116,10 +116,10 @@ def patch():
         trace_utils.wrap(producer, "produce", traced_produce)
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
         trace_utils.wrap(consumer, "poll", traced_poll_or_consume)
-        trace_utils.wrap(consumer, "consume", traced_poll_or_consume)
+        trace_utils.wrap(consumer, "commit", traced_commit)
 
     # Consume is not implemented in deserializing consumers
-    trace_utils.wrap(TracedConsumer, "commit", traced_commit)
+    trace_utils.wrap(TracedConsumer, "consume", traced_poll_or_consume)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
     Pin().onto(confluent_kafka.SerializingProducer)
@@ -140,7 +140,8 @@ def unpatch():
             trace_utils.unwrap(consumer, "commit")
 
     # Consume is not implemented in deserializing consumers
-    trace_utils.unwrap(TracedConsumer, "consume")
+    if trace_utils.iswrapped(TracedConsumer.consume):
+        trace_utils.unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -217,17 +218,17 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
     # consume returns a list of messages, poll returns a single message
     if isinstance(result, confluent_kafka.Message):
-        _instrument_message(result, pin, start_ns, err, instance)
+        _instrument_message(result, pin, start_ns, instance)
     elif isinstance(result, list):
         for message in result:
-            _instrument_message(message, pin, start_ns, err, instance)
+            _instrument_message(message, pin, start_ns, instance)
 
     if err is not None:
         raise err
     return result
 
 
-def _instrument_message(message, pin, start_ns, err, instance):
+def _instrument_message(message, pin, start_ns, instance):
     ctx = None
     if message and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
