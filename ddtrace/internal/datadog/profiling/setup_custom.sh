@@ -19,6 +19,9 @@ find_highest_compiler_version() {
   local highest_var_name=$2
   local highest_version=0
 
+  # Try to find the latest versions of both GCC and Clang
+  # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is just a
+  # a high number since Clang is on version 17)
   for version in {20..5}; do
     if command -v "${base_name}-${version}" &> /dev/null; then
       if [ $version -gt $highest_version ]; then
