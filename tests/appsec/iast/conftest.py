@@ -5,6 +5,7 @@ from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
 from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import reset_context
+from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
@@ -19,18 +20,20 @@ from tests.utils import override_global_config
 
 def iast_span(tracer, env, request_sampling="100", deduplication="false"):
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": deduplication})
+    iast_span_processor = AppSecIastSpanProcessor()
     VulnerabilityBase._reset_cache()
     with override_global_config(dict(_iast_enabled=True)), override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:
+            span.span_type = "web"
             weak_hash_patch()
             weak_cipher_patch()
             path_traversal_patch()
             sqli_sqlite_patch()
             json_patch()
-            oce.acquire_request(span)
+            iast_span_processor.on_span_start(span)
             yield span
-            oce.release_request()
+            iast_span_processor.on_span_finish(span)
             weak_hash_unpatch()
             weak_cipher_unpatch()
             sqli_sqlite_unpatch()
