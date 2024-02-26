@@ -263,7 +263,7 @@ class Span(object):
         # type: () -> Optional[bool]
         deprecate(
             "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled references the state of `span.context.sampling_priority`.
+            message="""span.sampled references the state of span.context.sampling_priority.
             Please use `span.context.sampling_priority` instead to check if a span is sampled.""",
             category=DDTraceDeprecationWarning,
         )
