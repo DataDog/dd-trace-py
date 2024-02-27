@@ -42,6 +42,7 @@ def _is_valid_libdatadog():
     # type: () -> bool
     return platform.system() == "Linux"
 
+
 def _is_valid_v2_stack():
     # type: () -> bool
     return platform.python_version_tuple() >= ("3", "7") and _is_valid_libdatadog()
@@ -244,5 +245,6 @@ class ProfilingConfig(En):
 
         # Only available in certain configurations
         libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_valid_libdatadog())
+
 
 config = ProfilingConfig()

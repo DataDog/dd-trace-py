@@ -127,6 +127,7 @@ class MemoryCollector(collector.PeriodicCollector):
                         # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                         #      re-initialization.
                         LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+            return tuple()
         else:
             return (
                 tuple(
@@ -143,8 +144,6 @@ class MemoryCollector(collector.PeriodicCollector):
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
-        else:
-            return tuple()
 
     def collect(self):
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
@@ -180,6 +179,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+            return []
         else:
             return (
                 tuple(
@@ -197,5 +197,3 @@ class MemoryCollector(collector.PeriodicCollector):
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
-        else:
-            return []
