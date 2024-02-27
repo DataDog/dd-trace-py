@@ -59,6 +59,9 @@ void
 StackRenderer::render_native_frame(std::string_view name, std::string_view file, uint64_t line)
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
+    (void)name;
+    (void)file;
+    (void)line;
 }
 
 void
