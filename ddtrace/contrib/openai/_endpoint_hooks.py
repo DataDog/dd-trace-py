@@ -4,6 +4,7 @@ from .utils import _compute_prompt_token_count
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
 from .utils import _is_generator
+from .utils import _tag_streamed_chat_completion_response
 from .utils import _tag_tool_calls
 
 
@@ -104,7 +105,8 @@ class _BaseCompletionHook(_EndpointHook):
         def shared_gen():
             try:
                 num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
-                num_completion_tokens = yield
+                streamed_chunks = yield
+                num_completion_tokens = sum(len(streamed_choice) for streamed_choice in streamed_chunks)
                 span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
                 total_tokens = num_prompt_tokens + num_completion_tokens
                 span.set_metric("openai.response.usage.total_tokens", total_tokens)
@@ -117,6 +119,13 @@ class _BaseCompletionHook(_EndpointHook):
                 )
                 integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
             finally:
+                if integration.is_pc_sampled_span(span):
+                    _tag_streamed_chat_completion_response(integration, span, streamed_chunks)
+                if integration.is_pc_sampled_llmobs(span):
+                    if span.resource == _ChatCompletionHook.OPERATION_ID:
+                        integration.llmobs_set_tags("chat", resp, None, span, kwargs, streamed_resp=streamed_chunks)
+                    elif span.resource == _CompletionHook.OPERATION_ID:
+                        integration.llmobs_set_tags("completion", resp, None, span, kwargs, streamed_resp=streamed_chunks)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
@@ -145,14 +154,17 @@ class _BaseCompletionHook(_EndpointHook):
             async def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                num_completion_tokens = 0
+                streamed_chunks = [[] for _ in range(kwargs.get("n", 1))]
                 try:
                     async for chunk in resp:
-                        num_completion_tokens += 1
+                        if span.get_tag("openai.response.model") is None:
+                            span.set_tag_str("openai.response.model", chunk.model)
+                        for choice in chunk.choices:
+                            streamed_chunks[choice.index].append(choice)
                         yield chunk
                 finally:
                     try:
-                        g.send(num_completion_tokens)
+                        g.send(streamed_chunks)
                     except StopIteration:
                         pass
 
@@ -163,14 +175,17 @@ class _BaseCompletionHook(_EndpointHook):
             def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                num_completion_tokens = 0
+                streamed_chunks = [[] for _ in range(kwargs.get("n", 1))]
                 try:
                     for chunk in resp:
-                        num_completion_tokens += 1
+                        if span.get_tag("openai.response.model") is None:
+                            span.set_tag_str("openai.response.model", chunk.model)
+                        for choice in chunk.choices:
+                            streamed_chunks[choice.index].append(choice)
                         yield chunk
                 finally:
                     try:
-                        g.send(num_completion_tokens)
+                        g.send(streamed_chunks)
                     except StopIteration:
                         pass
 

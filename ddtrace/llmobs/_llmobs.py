@@ -294,7 +294,6 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not meta["output"]:
             meta.pop("output")
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
-
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
