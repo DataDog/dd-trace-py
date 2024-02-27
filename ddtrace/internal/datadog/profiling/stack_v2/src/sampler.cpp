@@ -7,12 +7,12 @@
 using namespace Datadog;
 
 void
-Sampler::sampling_thread()
+Sampler::sampling_thread(unsigned long seq_num)
 {
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();
 
-    while (true) {
+    while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
@@ -24,20 +24,12 @@ Sampler::sampling_thread()
             });
         });
 
-        // If we've been asked to stop, then stop
-        if (!is_profiling.load()) {
-            break;
-        }
-
         // Sleep for the remainder of the interval, get it atomically
         // Generally speaking system "sleep" times will wait _at least_ as long as the specified time, so
         // in actual fact the duration may be more than we indicated.  This tends to be more true on busy
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
-
-    // Release the profiling mutex
-    profiling_mutex.unlock();
 }
 
 void
@@ -86,27 +78,15 @@ Sampler::start()
     // a tight loop isn't something we really support.
     stop();
 
-    // OK, now we can start the profiler.
-    is_profiling.store(true);
-    std::thread t(&Sampler::sampling_thread, this);
+    // OK, now we can start the profiler.  When we launch the profiler, we mutate the sequence number and give it to the
+    // thread.  This will (eventually) terminate any outstanding thread.
+    std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
     t.detach();
 }
 
 void
 Sampler::stop()
 {
-    // Try to take the profiling mutex.  If we can take it, then we release and we're done.
-    // If we can't take it, then we're already profiling and we need to stop it.
-    if (profiling_mutex.try_lock()) {
-        profiling_mutex.unlock();
-        return;
-    }
-
-    // If we're here, then we need to tell the sampling thread to stop
-    // We send the signal and wait.
-    is_profiling.store(false);
-    profiling_mutex.lock();
-
-    // When we get the lock, we know the thread is dead, so we can release the mutex
-    profiling_mutex.unlock();
+    // Modifying the thread sequence number will cause the sampling thread to exit.
+    ++thread_seq_num;
 }

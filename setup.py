@@ -298,7 +298,7 @@ class CMakeBuild(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
-            "-DCMAKE_EXTENSION_NAME={}".format(extension_basename),
+            "-DEXTENSION_NAME={}".format(extension_basename),
         ]
 
         # Arguments to the cmake --build command

@@ -3,7 +3,6 @@
 #include "stack_renderer.hpp"
 
 #include <atomic>
-#include <mutex>
 
 namespace Datadog {
 
@@ -18,15 +17,17 @@ class Sampler
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<unsigned long> sample_interval_us{ g_default_sampling_period_us };
 
-    std::atomic<bool> is_profiling{ false };
-    std::mutex profiling_mutex;
+    // This is not a running total of the number of launched threads; it is a sequence for the
+    // transactions upon the sampling threads (usually starts + stops). This allows threads to be
+    // stopped or started in a straightforward manner without finer-grained control (locks)
+    std::atomic<unsigned long> thread_seq_num{ 0 };
 
     // One-time configuration
     unsigned int echion_frame_cache_size{ g_default_echion_frame_cache_size };
     unsigned int max_nframes = g_default_max_nframes;
 
     // Helper function; implementation of the echion sampling thread
-    void sampling_thread();
+    void sampling_thread(unsigned long seq_num);
 
     // This is a singleton, so no public constructor
     Sampler();

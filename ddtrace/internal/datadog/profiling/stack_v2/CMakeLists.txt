@@ -75,22 +75,28 @@ endif()
 # This suppresses that behavior, which is required to ensure all paths can be inferred
 # correctly by setup.py.
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
-#set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN") # NB., gets installed to parent!
+set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
+
+# RPATH is needed for sofile discovery at runtime, since Python packages are not
+# installed in the system path. This is typical.
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE
     dd_wrapper
 )
 
-# We want the extension to be built with position-independent code
+# Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Set the output directory for the built library
-set_target_properties(${EXTENSION_NAME}
-    PROPERTIES
+set_target_properties(${EXTENSION_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
 
+# Set the output directory for the built library
 if (LIB_INSTALL_DIR)
-    install(TARGETS ${EXTENSION_NAME} DESTINATION ${LIB_INSTALL_DIR})
+    install(TARGETS ${EXTENSION_NAME} DESTINATION
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+    )
 endif()
