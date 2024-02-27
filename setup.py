@@ -473,7 +473,7 @@ if not IS_PYSTON:
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2",
-                optional=False,
+                optional=CURRENT_OS != "Linux" or sys.version_info < (3, 8),
                 source_dir=STACK_V2_DIR,
                 cmake_args=[
                     "-DPython3_INCLUDE_DIRS={}".format(python_include),
