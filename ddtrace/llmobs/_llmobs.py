@@ -311,12 +311,11 @@ class LLMObsTraceProcessor(TraceProcessor):
     @staticmethod
     def _llmobs_tags(span: Span) -> List[str]:
         tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
+            "version:{}".format(config.version or ""),
+            "env:{}".format(config.env or ""),
+            "service:{}".format(span.service or ""),
             "source:integration",
-            "model_name:{}".format(span.get_tag(MODEL_NAME) or ""),
-            "model_provider:{}".format(span.get_tag(MODEL_PROVIDER) or "custom"),
+            "ml_app:{}".format(config._llmobs_ml_app or ""),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag(ERROR_TYPE)

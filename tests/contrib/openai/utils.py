@@ -30,14 +30,13 @@ def get_openai_vcr(subdirectory_name=""):
     )
 
 
-def _expected_llmobs_tags(model, error=None):
+def _expected_llmobs_tags(error=None):
     expected_tags = [
         "version:",
         "env:",
         "service:",
         "source:integration",
-        "model_name:{}".format(model),
-        "model_provider:openai",
+        "ml_app:",
     ]
     if error:
         expected_tags.append("error:1")
