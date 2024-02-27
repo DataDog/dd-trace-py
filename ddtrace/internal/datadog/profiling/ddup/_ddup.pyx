@@ -196,7 +196,7 @@ IF UNAME_SYSNAME == "Linux":
                         self.ptr,
                         thread_id,
                         thread_native_id,
-                        string_view(<const char*>thread_name_bytes, len(thread_name_bytes))i
+                        string_view(<const char*>thread_name_bytes, len(thread_name_bytes))
                 )
 
         def push_task_id(self, task_id: int) -> None:
