@@ -162,6 +162,10 @@ def test_otel_start_current_span_without_default_args(oteltracer):
 @pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.flask.version"])
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as otel_span:
+        # need to manually run sampling before running the inject() since it's difficult
+        # to pass the span into the inject() method in this test
+        oteltracer._tracer._sampler.sample(otel_span._ddspan)
+
         headers = {
             "traceparent": otel_span._ddspan.context._traceparent,
             "tracestate": otel_span._ddspan.context._tracestate,
