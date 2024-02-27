@@ -15,15 +15,15 @@ class Sampler
     std::shared_ptr<StackRenderer> renderer_ptr;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
-    std::atomic<unsigned long> sample_interval_us{ g_default_sampling_period_us };
+    std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };
 
     // This is not a running total of the number of launched threads; it is a sequence for the
     // transactions upon the sampling threads (usually starts + stops). This allows threads to be
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<unsigned long> thread_seq_num{ 0 };
 
-    // One-time configuration
-    unsigned int echion_frame_cache_size{ g_default_echion_frame_cache_size };
+    // Parameters
+    unsigned int echion_frame_cache_size = g_default_echion_frame_cache_size;
     unsigned int max_nframes = g_default_max_nframes;
 
     // Helper function; implementation of the echion sampling thread
@@ -31,6 +31,9 @@ class Sampler
 
     // This is a singleton, so no public constructor
     Sampler();
+
+    // One-time setup of echion
+    void one_time_setup();
 
   public:
     // Singleton instance

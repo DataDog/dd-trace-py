@@ -35,14 +35,18 @@ Sampler::sampling_thread(unsigned long seq_num)
 void
 Sampler::set_interval(double new_interval_s)
 {
-    unsigned int new_interval_us = static_cast<unsigned int>(new_interval_s * 1e6);
+    microsecond_t new_interval_us = static_cast<unsigned int>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
 }
 
 void
 Sampler::set_max_nframes(unsigned int _max_nframes)
 {
-    max_nframes = _max_nframes;
+    if (thread_seq_num.load() == 0) {
+        // Only change this if the thread isn't running.  This is a defensive check since the
+        // caller, at the moment, might only use this during init anyway.
+        max_nframes = _max_nframes;
+    }
 }
 
 Sampler::Sampler()
@@ -58,25 +62,21 @@ Sampler::get()
 }
 
 void
+Sampler::one_time_setup()
+{
+    _set_cpu(true);
+    init_frame_cache(echion_frame_cache_size);
+    _set_pid(getpid());
+
+    // Register our rendering callbacks with echion's Renderer singleton
+    Renderer::get().set_renderer(renderer_ptr);
+}
+
+void
 Sampler::start()
 {
-    // Do some one-time setup.  There's no real reason to leave this to the caller
-    static bool initialized = false;
-    if (!initialized) {
-        _set_cpu(true);
-        init_frame_cache(echion_frame_cache_size);
-        _set_pid(getpid());
-
-        // Register our rendering callbacks with echion's Renderer singleton
-        Renderer::get().set_renderer(renderer_ptr);
-
-        // OK, never initialize again
-        initialized = true;
-    }
-
-    // For simplicity, we just try to stop the sampling thread.  Stopping/starting the profiler in
-    // a tight loop isn't something we really support.
-    stop();
+    static std::once_flag once;
+    std::call_once(once, [this]() { this->one_time_setup(); });
 
     // OK, now we can start the profiler.  When we launch the profiler, we mutate the sequence number and give it to the
     // thread.  This will (eventually) terminate any outstanding thread.
@@ -87,6 +87,7 @@ Sampler::start()
 void
 Sampler::stop()
 {
-    // Modifying the thread sequence number will cause the sampling thread to exit.
+    // Modifying the thread sequence number will cause the sampling thread to exit when it completes
+    // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
 }
