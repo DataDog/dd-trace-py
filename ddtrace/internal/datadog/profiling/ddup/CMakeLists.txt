@@ -5,8 +5,9 @@ cmake_minimum_required(VERSION 3.19)
 # setup.py to build the wheel. Otherwise, we have to propagate a lot of state all around.
 # Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
 # ddup is used by a default for standalone/test builds.
-set(EXTENSION_NAME "ddtrace.internal.datadog.profiling.ddup._ddup" CACHE STRING "Name of the extension")
+set(EXTENSION_NAME "_ddup" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
+message(STATUS "Building extension: ${EXTENSION_NAME}")
 
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
@@ -49,7 +50,7 @@ target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
 # This suppresses that behavior, which is required to ensure all paths can be inferred
 # correctly by setup.py.
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
-set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
+#set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not
 # installed in the system path. This is typical.

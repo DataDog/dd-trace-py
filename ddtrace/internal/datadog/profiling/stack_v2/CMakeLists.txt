@@ -75,7 +75,7 @@ endif()
 # This suppresses that behavior, which is required to ensure all paths can be inferred
 # correctly by setup.py.
 set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
-set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
+#set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN") # NB., gets installed to parent!
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE
