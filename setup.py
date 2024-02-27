@@ -347,7 +347,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        optional=False  # By default, extensions are optional for now TODO make this true lol
+        optional=True  # By default, extensions are optional
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -399,7 +399,6 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-# TODO can we specify the exact compiler version less literally?
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -459,7 +458,6 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                optional=False,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
@@ -470,18 +468,19 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2",
-                optional=CURRENT_OS != "Linux" or sys.version_info < (3, 8),
-                source_dir=STACK_V2_DIR,
-                cmake_args=[
-                    "-DPython3_INCLUDE_DIRS={}".format(python_include),
-                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                ],
-                build_args=["--verbose"],
+        # Don't even try building on Python 3.7
+        if sys.version_info >= (3, 8):
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.stack_v2",
+                    source_dir=STACK_V2_DIR,
+                    cmake_args=[
+                        "-DPython3_INCLUDE_DIRS={}".format(python_include),
+                        "-DPYTHON_EXECUTABLE={}".format(sys.executable),
+                    ],
+                    build_args=["--verbose"],
+                )
             )
-        )
 
 else:
     ext_modules = []
