@@ -39,8 +39,7 @@ class BedrockIntegration(BaseLLMIntegration):
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
             span.set_tag_str(
-                OUTPUT_MESSAGES,
-                json.dumps([{"content": completion} for completion in formatted_response["text"]])
+                OUTPUT_MESSAGES, json.dumps([{"content": completion} for completion in formatted_response["text"]])
             )
         span.set_tag_str(METRICS, json.dumps(self._llmobs_metrics(span, formatted_response)))
 
