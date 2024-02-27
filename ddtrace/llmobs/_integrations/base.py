@@ -81,10 +81,9 @@ class BaseLLMIntegration:
     def is_pc_sampled_log(self, span: Span) -> bool:
         if span.context.sampling_priority is not None:
             if span.context.sampling_priority <= 0:
-                sampled = False
-            sampled = True
+                return False
 
-        if not self.logs_enabled or not sampled:
+        if not self.logs_enabled:
             return False
         return self._log_pc_sampler.sample(span)
 
