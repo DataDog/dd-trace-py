@@ -2204,7 +2204,7 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.8")),
+                Venv(pys=select_pys(min_version="3.8", max_version="3.12")),
                 Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
             ],
         ),
