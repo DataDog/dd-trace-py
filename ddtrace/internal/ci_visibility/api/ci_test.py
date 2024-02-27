@@ -22,9 +22,9 @@ class CIVisibilityTest(CIVisibilityItemBase):
         self.span: Optional[Span] = None
         self.ci_test_id = ci_test_id
         self.name = self.ci_test_id.test_name
+        self._session_settings = session_settings
         self._codeowner = codeowner
         self._source_file_info = source_file_info
-        self._session_settings = session_settings
 
     def start(self):
         log.warning("Starting CI Visibility test %s", self.item_id)

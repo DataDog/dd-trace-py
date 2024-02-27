@@ -3,6 +3,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
@@ -16,12 +17,21 @@ log = get_logger(__name__)
 
 
 class CIVisibilitySuite(CIVisibilityItemBase):
-    def __init__(self, ci_suite_id: CISuiteId, session_settings: CIVisibilitySessionSettings):
+    def __init__(
+        self,
+        ci_suite_id: CISuiteId,
+        session_settings: CIVisibilitySessionSettings,
+        codeowner: Optional[str] = None,
+        source_file_info: Optional[CISourceFileInfo] = None,
+    ):
         self.span: Optional[Span] = None
         self.ci_suite_id = ci_suite_id
         self.name = self.ci_suite_id.suite_name
-        self.tests: Dict[CITestId, CIVisibilityTest] = {}
         self._session_settings = session_settings
+        self._codeowner = codeowner
+        self._source_file_info = source_file_info
+
+        self.tests: Dict[CITestId, CIVisibilityTest] = {}
 
     def start(self):
         log.warning("Starting CI Visibility suite %s", self.item_id)
