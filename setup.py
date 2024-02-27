@@ -347,7 +347,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        optional=True,  # By default, extensions are optional for now
+        optional=False  # By default, extensions are optional for now TODO make this true lol
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
