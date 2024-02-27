@@ -66,25 +66,25 @@ ddup_config_runtime(std::string_view runtime)
 void
 ddup_config_runtime_version(std::string_view runtime_version)
 {
-   Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version)
 {
-   Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    Datadog::UploaderBuilder::set_profiler_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url)
 {
-   Datadog::UploaderBuilder::set_url(url);
+    Datadog::UploaderBuilder::set_url(url);
 }
 
 void
 ddup_config_user_tag(std::string_view key, std::string_view val)
 {
-   Datadog::UploaderBuilder::set_tag(key, val);
+    Datadog::UploaderBuilder::set_tag(key, val);
 }
 
 void
@@ -179,13 +179,13 @@ ddup_push_heap(Datadog::Sample* sample, uint64_t size)
 void
 ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name)
 {
-   sample->push_lock_name(lock_name);
+    sample->push_lock_name(lock_name);
 }
 
 void
 ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, std::string_view thread_name)
 {
-   sample->push_threadinfo(thread_id, thread_native_id, thread_name);
+    sample->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
 void
@@ -197,7 +197,7 @@ ddup_push_task_id(Datadog::Sample* sample, int64_t task_id)
 void
 ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name)
 {
-   sample->push_task_name(task_name);
+    sample->push_task_name(task_name);
 }
 
 void
@@ -215,31 +215,35 @@ ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id
 void
 ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type)
 {
-   sample->push_trace_type(trace_type);
+    sample->push_trace_type(trace_type);
 }
 
 void
 ddup_push_trace_resource_container(Datadog::Sample* sample, std::string_view trace_resource_container)
 {
-   sample->push_trace_resource_container(trace_resource_container);
+    sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
 ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count)
 {
-   sample->push_exceptioninfo(exception_type, count);
+    sample->push_exceptioninfo(exception_type, count);
 }
 
 void
 ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name)
 {
-   sample->push_class_name(class_name);
+    sample->push_class_name(class_name);
 }
 
 void
-ddup_push_frame(Datadog::Sample* sample, std::string_view _name, std::string_view _filename, uint64_t address, int64_t line)
+ddup_push_frame(Datadog::Sample* sample,
+                std::string_view _name,
+                std::string_view _filename,
+                uint64_t address,
+                int64_t line)
 {
-   sample->push_frame(_name, _filename, address, line);
+    sample->push_frame(_name, _filename, address, line);
 }
 
 void

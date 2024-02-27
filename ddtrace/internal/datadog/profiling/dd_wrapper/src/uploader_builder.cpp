@@ -120,7 +120,7 @@ UploaderBuilder::build()
                 reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
             }
         } else {
-          reasons.push_back(std::string(to_string(tag)) + ": " + "empty");
+            reasons.push_back(std::string(to_string(tag)) + ": " + "empty");
         }
     }
 

@@ -448,9 +448,7 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR)
-        )
+        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
     if platform.system() == "Linux" and is_64_bit_python():
         # Get Python library paths development paths

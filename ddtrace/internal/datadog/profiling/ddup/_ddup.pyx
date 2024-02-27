@@ -176,18 +176,28 @@ IF UNAME_SYSNAME == "Linux":
 
         def push_frame(self, name: str, filename: str, int address, int line) -> None:
             if self.ptr is not NULL:
-                # We've ogtten rreports that `name` and `filename` may be unexpected objects, so we go through a sanitization procedure.
-                # this is almost certainly wasteful.
+                # Customers report `name` and `filename` may be unexpected objects, so sanitize.
                 name_bytes = ensure_binary_or_empty(sanitize_string(name))
                 filename_bytes = ensure_binary_or_empty(sanitize_string(filename))
-                ddup_push_frame(self.ptr, string_view(<const char*>name_bytes, len(name_bytes)), string_view(<const char*>filename_bytes, len(filename_bytes)), address, line)
+                ddup_push_frame(
+                        self.ptr,
+                        string_view(<const char*>name_bytes, len(name_bytes)),
+                        string_view(<const char*>filename_bytes, len(filename_bytes)),
+                        address,
+                        line
+                )
 
         def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: str) -> None:
             if self.ptr is not NULL:
                 thread_id = thread_id if thread_id is not None else 0
                 thread_native_id = thread_native_id if thread_native_id is not None else 0
                 thread_name_bytes = ensure_binary_or_empty(thread_name)
-                ddup_push_threadinfo(self.ptr, thread_id, thread_native_id, string_view(<const char*>thread_name_bytes, len(thread_name_bytes)))
+                ddup_push_threadinfo(
+                        self.ptr,
+                        thread_id,
+                        thread_native_id,
+                        string_view(<const char*>thread_name_bytes, len(thread_name_bytes))i
+                )
 
         def push_task_id(self, task_id: int) -> None:
             if self.ptr is not NULL:
@@ -226,7 +236,10 @@ IF UNAME_SYSNAME == "Linux":
                 ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
             if endpoint_collection_enabled:
                 root_service_bytes = ensure_binary_or_empty(span._local_root.service)
-                ddup_push_trace_resource_container(self.ptr, string_view(<const char*>root_service_bytes, len(root_service_bytes)))
+                ddup_push_trace_resource_container(
+                        self.ptr,
+                        string_view(<const char*>root_service_bytes, len(root_service_bytes))
+                )
 
         def flush_sample(self) -> None:
             # Flushing the sample consumes it.  The user will no longer be able to use
