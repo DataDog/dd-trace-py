@@ -33,18 +33,13 @@ FEATURES = {
     "transparent_events": False,
 }
 
-# These are flags indicating the enablement of the profiler.  This is handled at the level of
+# .  This is handled at the level of
 # a global rather than a passed parameter because this is a time of transition
 cdef bint use_libdd = False
-cdef bint use_py = True
 
 cdef void set_use_libdd(bint flag):
     global use_libdd
     use_libdd = flag
-
-cdef void set_use_py(bint flag):
-    global use_py
-    use_py = flag
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
@@ -328,89 +323,89 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if use_libdd and nframes:
-                handle = ddup.SampleHandle()
-                handle.push_walltime(wall_time, 1)
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_task_id(task_id)
-                handle.push_task_name(task_name)
-                handle.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                handle.flush_sample()
-
-            if use_py and nframes:
-                stack_events.append(
-                    stack_event.StackSampleEvent(
-                        thread_id=thread_id,
-                        thread_native_id=thread_native_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        nframes=nframes, frames=frames,
-                        wall_time_ns=wall_time,
-                        sampling_period=int(interval * 1e9),
+            if nframes:
+                if use_libdd:
+                    handle = ddup.SampleHandle()
+                    handle.push_walltime(wall_time, 1)
+                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    handle.push_task_id(task_id)
+                    handle.push_task_name(task_name)
+                    handle.push_class_name(frames[0].class_name)
+                    for frame in frames:
+                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    handle.flush_sample()
+                else:
+                    stack_events.append(
+                        stack_event.StackSampleEvent(
+                            thread_id=thread_id,
+                            thread_native_id=thread_native_id,
+                            thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
+                            nframes=nframes, frames=frames,
+                            wall_time_ns=wall_time,
+                            sampling_period=int(interval * 1e9),
+                        )
                     )
-                )
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-        if use_libdd and nframes:
-            handle = ddup.SampleHandle()
-            handle.push_cputime( cpu_time, 1)
-            handle.push_walltime( wall_time, 1)
-            handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-            handle.push_class_name(frames[0].class_name)
-            for frame in frames:
-                handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-            handle.push_span(span, collect_endpoint)
-            handle.flush_sample()
-
-        if use_py and nframes:
-            event = stack_event.StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=None,
-                task_name=None,
-                nframes=nframes,
-                frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            )
-            event.set_trace_info(span, collect_endpoint)
-            stack_events.append(event)
+        if nframes:
+            if use_libdd:
+                handle = ddup.SampleHandle()
+                handle.push_cputime( cpu_time, 1)
+                handle.push_walltime( wall_time, 1)
+                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                handle.push_class_name(frames[0].class_name)
+                for frame in frames:
+                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                handle.push_span(span, collect_endpoint)
+                handle.flush_sample()
+            else:
+                event = stack_event.StackSampleEvent(
+                    thread_id=thread_id,
+                    thread_native_id=thread_native_id,
+                    thread_name=thread_name,
+                    task_id=None,
+                    task_name=None,
+                    nframes=nframes,
+                    frames=frames,
+                    wall_time_ns=wall_time,
+                    cpu_time_ns=cpu_time,
+                    sampling_period=int(interval * 1e9),
+                )
+                event.set_trace_info(span, collect_endpoint)
+                stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
-            if use_libdd and nframes:
-                handle = ddup.SampleHandle()
-                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                handle.push_exceptioninfo(exc_type, 1)
-                handle.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                handle.push_span(span, collect_endpoint)
-                handle.flush_sample()
-
-            if use_py and nframes:
-                exc_event = stack_event.StackExceptionSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    thread_native_id=thread_native_id,
-                    task_id=None,
-                    task_name=None,
-                    nframes=nframes,
-                    frames=frames,
-                    sampling_period=int(interval * 1e9),
-                    exc_type=exc_type,
-                )
-                exc_event.set_trace_info(span, collect_endpoint)
-                exc_events.append(exc_event)
+            if nframes:
+                if use_libdd:
+                    handle = ddup.SampleHandle()
+                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    handle.push_exceptioninfo(exc_type, 1)
+                    handle.push_class_name(frames[0].class_name)
+                    for frame in frames:
+                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    handle.push_span(span, collect_endpoint)
+                    handle.flush_sample()
+                else:
+                    exc_event = stack_event.StackExceptionSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=thread_name,
+                        thread_native_id=thread_native_id,
+                        task_id=None,
+                        task_name=None,
+                        nframes=nframes,
+                        frames=frames,
+                        sampling_period=int(interval * 1e9),
+                        exc_type=exc_type,
+                    )
+                    exc_event.set_trace_info(span, collect_endpoint)
+                    exc_events.append(exc_event)
 
     return stack_events, exc_events
 
@@ -489,11 +484,12 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
-        set_use_libdd(config.export.libdd_enabled)
-        set_use_py(config.export.py_enabled)
 
-        if self._stack_collector_v2_enabled and use_libdd:
-            stack_v2.start(max_frames=self.nframes, min_interval=self.min_interval_time)
+        # Force-set use_libdd if the v2 stack collector is enabled
+        if self._stack_collector_v2_enabled:
+            set_use_libdd(True)
+        else:
+            set_use_libdd(config.export.libdd_enabled)
 
     def _start_service(self):
         # type: (...) -> None
@@ -512,7 +508,7 @@ class StackCollector(collector.PeriodicCollector):
         LOG.debug("Profiling StackCollector stopped")
 
         # Also tell the native thread running the v2 sampler to stop, if needed
-        if self._stack_collector_v2_enabled and use_libdd:
+        if self._stack_collector_v2_enabled:
             stack_v2.stop()
 
     def _compute_new_interval(self, used_wall_time_ns):

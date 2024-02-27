@@ -128,7 +128,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -179,9 +178,10 @@ class _ProfilerInstance(service.Service):
             configured_features.append("mem")
         if config.heap.sample_size > 0:
             configured_features.append("heap")
+
         if self._export_libdd_enabled:
             configured_features.append("exp_dd")
-        if self._export_py_enabled:
+        else:
             configured_features.append("exp_py")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
@@ -192,21 +192,15 @@ class _ProfilerInstance(service.Service):
             endpoint_call_counter_span_processor.enable()
 
         if self._export_libdd_enabled:
-            versionname = (
-                "{}.libdd".format(self.version)
-                if self._export_py_enabled and self.version is not None
-                else self.version
-            )
             ddup.init(
                 env=self.env,
                 service=self.service,
-                version=versionname,
+                version=self.version,
                 tags=self.tags,
                 max_nframes=config.max_frames,
                 url=endpoint,
             )
-
-        if self._export_py_enabled:
+        else:
             # DEV: Import this only if needed to avoid importing protobuf
             # unnecessarily
             from ddtrace.profiling.exporter import http
@@ -380,4 +374,4 @@ class _ProfilerInstance(service.Service):
                 col.join()
 
     def visible_events(self):
-        return self._export_py_enabled
+        return not self._export_libdd_enabled

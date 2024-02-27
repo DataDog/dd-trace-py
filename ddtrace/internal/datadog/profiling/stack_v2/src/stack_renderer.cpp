@@ -6,7 +6,7 @@ using namespace Datadog;
 void
 StackRenderer::render_message(std::string_view msg)
 {
-    // This is unused for now, since the dd-trace-py profiler doesn't support emitting arbitrary messages.
+    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
     (void)msg;
 }
 
@@ -20,6 +20,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     (void)tstate;
     sample = ddup_start_sample();
     if (sample == nullptr) {
+        std::cerr << "Failed to create a sample. Profiling data will be lost." << std::endl;
         return;
     }
 
@@ -31,15 +32,17 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 void
 StackRenderer::render_stack_begin()
 {
-    // This is currently unused, the profiler determines state by keeping track of a sample start
+    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
 
 void
 StackRenderer::render_python_frame(std::string_view name, std::string_view file, uint64_t line)
 {
     if (sample == nullptr) {
+        std::cerr << "Failed to create a sample. Profiling data will be lost." << std::endl;
         return;
     }
+
     static const std::string_view invalid = "<invalid_utf8>";
     if (!utf8_check_is_valid(name.data(), name.size())) {
         name = invalid;
@@ -55,19 +58,17 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
 void
 StackRenderer::render_native_frame(std::string_view name, std::string_view file, uint64_t line)
 {
-    if (sample == nullptr) {
-        return;
-    }
-    ddup_push_frame(sample, name, file, 0, line);
+    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
 
 void
 StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
 {
-    // ddup is configured to expect nanoseconds
     if (sample == nullptr) {
         return;
     }
+
+    // ddup is configured to expect nanoseconds
     ddup_push_cputime(sample, 1000 * cpu_time_us, 1);
 }
 
@@ -77,6 +78,7 @@ StackRenderer::render_stack_end()
     if (sample == nullptr) {
         return;
     }
+
     ddup_flush_sample(sample);
     ddup_drop_sample(sample);
     sample = nullptr;

@@ -64,7 +64,6 @@ class MemoryCollector(collector.PeriodicCollector):
     heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
     ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
@@ -128,8 +127,7 @@ class MemoryCollector(collector.PeriodicCollector):
                         # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                         #      re-initialization.
                         LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
-        if self._export_py_enabled:
+        else:
             return (
                 tuple(
                     MemoryHeapSampleEvent(
@@ -182,8 +180,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
-        if self._export_py_enabled:
+        else:
             return (
                 tuple(
                     MemoryAllocSampleEvent(
