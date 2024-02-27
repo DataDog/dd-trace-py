@@ -44,7 +44,6 @@ def LLMObs(mock_llmobs_writer):
         llmobs_service.disable()
 
 
-
 def test_llmobs_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         dummy_tracer = DummyTracer()
