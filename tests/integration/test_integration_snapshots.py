@@ -154,7 +154,9 @@ def test_tracer_trace_across_multiple_forks():
             p.join()
         tracer.shutdown()
 
-    with tracer.trace("parent"):
+    with tracer.trace("parent") as parent_span:
+        # need to sample first
+        tracer._sampler.sample(parent_span)
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
