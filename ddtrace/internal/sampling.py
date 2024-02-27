@@ -305,7 +305,6 @@ def _apply_rate_limit(span, sampled, limiter):
 def _set_priority(span, priority):
     # type: (Span, int) -> None
     span.context.sampling_priority = priority
-    span.sampled = priority > 0  # Positive priorities mean it was kept
 
 
 def _get_highest_precedence_rule_matching(span, rules):

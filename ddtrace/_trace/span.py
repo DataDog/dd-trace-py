@@ -42,6 +42,8 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -82,8 +84,6 @@ class Span(object):
         "span_type",
         "start_ns",
         "duration_ns",
-        # Sampler attributes
-        "sampled",
         # Internal attributes
         "_context",
         "_local_root",
@@ -168,10 +168,8 @@ class Span(object):
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        # sampling
-        self.sampled = True  # type: bool
-
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
+
         self._links = {}  # type: Dict[int, SpanLink]
         if links:
             self._links = {link.span_id: link for link in links}
@@ -259,6 +257,30 @@ class Span(object):
     def duration(self, value):
         # type: (float) -> None
         self.duration_ns = int(value * 1e9)
+
+    @property
+    def sampled(self):
+        # type: () -> Optional[bool]
+        deprecate(
+            "span.sampled is deprecated and will be removed in a future version of the tracer.",
+            message="""span.sampled references the state of span.context.sampling_priority.
+            Please use span.context.sampling_priority instead to check if a span is sampled.""",
+            category=DDTraceDeprecationWarning,
+        )
+        if self.context.sampling_priority is None:
+            # this maintains original span.sampled behavior, where all spans would start
+            # with span.sampled = True until sampling runs
+            return True
+        return self.context.sampling_priority > 0
+
+    @sampled.setter
+    def sampled(self, value):
+        deprecate(
+            "span.sampled is deprecated and will be removed in a future version of the tracer.",
+            message="""span.sampled has a no-op setter.
+            Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",
+            category=DDTraceDeprecationWarning,
+        )
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
