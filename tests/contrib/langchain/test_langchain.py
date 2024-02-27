@@ -97,6 +97,7 @@ def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_lo
             yield langchain_community
             unpatch()
 
+
 @pytest.fixture
 def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
     global_config = default_global_config()
