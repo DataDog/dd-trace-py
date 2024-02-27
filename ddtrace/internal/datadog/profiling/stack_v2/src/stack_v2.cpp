@@ -8,17 +8,15 @@ static PyObject*
 _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
-    static const char* const_kwlist[] = { "min_interval", "max_frames", NULL };
+    static const char* const_kwlist[] = { "min_interval", NULL };
     static char** kwlist = const_cast<char**>(const_kwlist);
     double min_interval_s = g_default_sampling_period_s;
-    double max_nframes = g_default_max_nframes;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|dd", kwlist, &min_interval_s, &max_nframes)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kwlist, &min_interval_s)) {
         return NULL; // If an error occurs during argument parsing
     }
 
     Sampler::get().set_interval(min_interval_s);
-    Sampler::get().set_max_nframes(max_nframes);
 
     return PyLong_FromLong(1);
 }

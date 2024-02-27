@@ -7,7 +7,7 @@
 using namespace Datadog;
 
 void
-Sampler::sampling_thread(unsigned long seq_num)
+Sampler::sampling_thread(uint64_t seq_num)
 {
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();
@@ -24,6 +24,11 @@ Sampler::sampling_thread(unsigned long seq_num)
             });
         });
 
+        // Before sleeping, check whether the user has called for this thread to die.
+        if (seq_num != thread_seq_num.load()) {
+            break;
+        }
+
         // Sleep for the remainder of the interval, get it atomically
         // Generally speaking system "sleep" times will wait _at least_ as long as the specified time, so
         // in actual fact the duration may be more than we indicated.  This tends to be more true on busy
@@ -35,18 +40,8 @@ Sampler::sampling_thread(unsigned long seq_num)
 void
 Sampler::set_interval(double new_interval_s)
 {
-    microsecond_t new_interval_us = static_cast<unsigned int>(new_interval_s * 1e6);
+    microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
-}
-
-void
-Sampler::set_max_nframes(unsigned int _max_nframes)
-{
-    if (thread_seq_num.load() == 0) {
-        // Only change this if the thread isn't running.  This is a defensive check since the
-        // caller, at the moment, might only use this during init anyway.
-        max_nframes = _max_nframes;
-    }
 }
 
 Sampler::Sampler()
@@ -78,8 +73,9 @@ Sampler::start()
     static std::once_flag once;
     std::call_once(once, [this]() { this->one_time_setup(); });
 
-    // OK, now we can start the profiler.  When we launch the profiler, we mutate the sequence number and give it to the
-    // thread.  This will (eventually) terminate any outstanding thread.
+    // Launch the sampling thread.
+    // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
+    // launched with, the thread will exit.
     std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
     t.detach();
 }

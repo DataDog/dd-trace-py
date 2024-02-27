@@ -468,7 +468,7 @@ if not IS_PYSTON:
             )
         )
 
-        # Don't even try building on Python 3.7
+        # One of the stack v2 dependencies doesn't quite work on 3.7, so only support later for now
         if sys.version_info >= (3, 8):
             ext_modules.append(
                 CMakeExtension(

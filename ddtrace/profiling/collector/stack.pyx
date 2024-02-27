@@ -488,6 +488,11 @@ class StackCollector(collector.PeriodicCollector):
         # Force-set use_libdd if the v2 stack collector is enabled
         if self._stack_collector_v2_enabled:
             set_use_libdd(True)
+
+            # Restarting the profiler is infrequent; always start with the minimum interval
+            # instead of the dynamically configured one.  The difference will get picked up
+            # by the next sample.
+            stack_v2.start(min_interval=self.min_interval_time)
         else:
             set_use_libdd(config.export.libdd_enabled)
 
@@ -533,5 +538,8 @@ class StackCollector(collector.PeriodicCollector):
 
         used_wall_time_ns = compat.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
+
+        if self.stack_collector_v2_enabled:
+            stack_v2.set_interval(self.interval)
 
         return all_events

@@ -20,14 +20,13 @@ class Sampler
     // This is not a running total of the number of launched threads; it is a sequence for the
     // transactions upon the sampling threads (usually starts + stops). This allows threads to be
     // stopped or started in a straightforward manner without finer-grained control (locks)
-    std::atomic<unsigned long> thread_seq_num{ 0 };
+    std::atomic<uint64_t> thread_seq_num{ 0 };
 
     // Parameters
-    unsigned int echion_frame_cache_size = g_default_echion_frame_cache_size;
-    unsigned int max_nframes = g_default_max_nframes;
+    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
 
     // Helper function; implementation of the echion sampling thread
-    void sampling_thread(unsigned long seq_num);
+    void sampling_thread(uint64_t seq_num);
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -47,7 +46,6 @@ class Sampler
     // we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
 
-    void set_max_nframes(unsigned int _max_nfames);
 };
 
 } // namespace Datadog
