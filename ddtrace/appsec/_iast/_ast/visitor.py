@@ -714,6 +714,10 @@ class AstVisitor(ast.NodeTransformer):
         if self._is_string_node(subscr_node.value):
             return subscr_node
 
+        # This means we're on the left side of an assignment, we don't want to convert it
+        if subscr_node.ctx is ast.Store:
+            return subscr_node
+
         attr_node = self._attr_node(subscr_node, "")
 
         call_node = self._call_node(
