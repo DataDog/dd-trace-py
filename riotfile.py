@@ -2502,10 +2502,6 @@ venv = Venv(
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "langchain": ["==0.0.192", "==0.1.4"],
-                "langchain-community": "==0.0.14",
-                # "langchain-openai": "==0.0.7",
-                "openai": "==0.27.8",
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
@@ -2518,6 +2514,21 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "numexpr": latest,
             },
+            venvs=[
+                Venv(pkgs={
+                    "langchain": "==0.0.192",
+                    "langchain-community": "==0.0.14",
+                    "openai": "==0.27.8"
+                }),
+                Venv(pkgs={
+                    "langchain": "==0.1.9",
+                    "langchain-community": "==0.0.24",
+                    "langchain-core": "==0.1.27",
+                    "langchain-openai": "==0.0.8",
+                    "langsmith": "==0.1.9",
+                    "openai": "==1.12.0",
+                }),
+            ],
         ),
         Venv(
             name="logbook",
