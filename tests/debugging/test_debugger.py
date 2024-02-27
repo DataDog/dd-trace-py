@@ -1154,7 +1154,7 @@ def test_debugger_redacted_identifiers():
                 probe_id="foo",
                 version=1,
                 source_file="tests/submod/stuff.py",
-                line=164,
+                line=169,
                 **compile_template(
                     "token=",
                     {"dsl": "token", "json": {"ref": "token"}},
@@ -1178,11 +1178,15 @@ def test_debugger_redacted_identifiers():
             f"pii_dict['jwt']={REDACTED}"
         )
 
-        assert msg["debugger.snapshot"]["captures"]["lines"]["164"] == {
+        assert msg["debugger.snapshot"]["captures"]["lines"]["169"] == {
             "arguments": {"pwd": redacted_value(str())},
             "locals": {
                 "token": redacted_value(str()),
                 "answer": {"type": "int", "value": "42"},
+                "data": {
+                    "type": "SensitiveData",
+                    "fields": {"password": {"notCapturedReason": "redactedIdent", "type": "str"}},
+                },
                 "pii_dict": {
                     "type": "dict",
                     "entries": [

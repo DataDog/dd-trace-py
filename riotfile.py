@@ -1385,17 +1385,14 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={
-                "moto[all]": latest,
-                "botocore": latest,
+                "moto[all]": "<5.0",
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"vcrpy": latest},
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={"botocore": ["~=1.13", latest], "vcrpy": latest},
                 ),
-                Venv(pys="3.7"),
             ],
         ),
         Venv(
