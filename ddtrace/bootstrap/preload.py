@@ -78,6 +78,10 @@ if config._remote_config_enabled:
     remoteconfig_poller.enable()
     config.enable_remote_configuration()
 
+    if config._tracer_flare_enabled:
+        config.enable_tracer_flare()
+
+
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 

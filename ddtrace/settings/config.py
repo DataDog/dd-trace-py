@@ -386,6 +386,7 @@ class Config(object):
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
+        self._tracer_flare_enabled = asbool(os.getenv("DD_TRACER_FLARE_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
                 "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
@@ -729,6 +730,23 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
+    def _tracerflarePubSub(self):
+        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+        from ddtrace.internal.remoteconfig._pubsub import PubSub
+        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
+
+        class _TracerFlarePubSub(PubSub):
+            __publisher_class__ = RemoteConfigPublisher
+            __subscriber_class__ = RemoteConfigSubscriber
+            __shared_data__ = PublisherSubscriberConnector()
+
+            def __init__(self, callback):
+                self._publisher = self.__publisher_class__(self.__shared_data__, None)
+                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TracerFlare")
+
+        return _TracerFlarePubSub
+
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
@@ -769,6 +787,9 @@ class Config(object):
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
 
+    def _handle_tracerflare(self, data, test_tracer=None):
+        pass
+
     def _handle_remoteconfig_header_tags(self, base_rc_config):
         """Implements precedence order between remoteconfig header tags from code, env, and RC"""
         header_tags_conf = self._config["trace_http_header_tags"]
@@ -793,3 +814,12 @@ class Config(object):
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
+
+    def enable_tracer_flare(self):
+        # type: () -> None
+        """Enable the tracer flare functionality"""
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+        tracerflarePubSub = self._tracerflarePubSub()(self._handle_tracerflare)
+        remoteconfig_poller.register("AGENT_CONFIG", tracerflarePubSub)
+        remoteconfig_poller.register("AGENT_TASK", tracerflarePubSub)
