@@ -244,6 +244,33 @@ def get_ddtrace_repo():
     return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
 
 
+def add_release_to_changelog(name: str, release_notes: str):
+    separator = "---"
+    with open("../CHANGELOG.md", "r") as changelog_file:
+        contents = changelog_file.read()
+    release_notes_lines = contents.split("\n")
+    insert_index = release_notes_lines.index(separator)
+    new_notes = [separator, "", f"## {name}", ""] + release_notes_lines
+    composite = release_notes_lines[: insert_index - 1] + new_notes + release_notes_lines[insert_index:0]
+    with open("../CHANGELOG.md", "w") as changelog_file:
+        changelog_file.writelines(composite)
+
+
+def commit_and_push(branch_name: str):
+    pass
+
+
+def edit_and_commit_changelog(name: str, release_notes: str):
+    add_release_to_changelog(name, release_notes)
+    commit_and_push(f"release.script/changelog-update-{name}")
+
+
+def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
+    edit_and_commit_changelog(name, release_notes)
+    # push
+    # open pull request
+
+
 def create_notebook(dd_repo, name, rn, base):
     dd_api_key = os.getenv("DD_API_KEY_STAGING")
     dd_app_key = os.getenv("DD_APP_KEY_STAGING")
@@ -446,6 +473,8 @@ if __name__ == "__main__":
                     "No notebook will be created at this time."
                 )
             )
+    else:
+        create_changelog_pull_request(dd_repo, name, rn)
 
     # switch back to original git branch
     subprocess.check_output(
