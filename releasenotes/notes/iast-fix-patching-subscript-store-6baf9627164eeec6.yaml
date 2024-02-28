@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix addresses AST patching issues where other subscript operations than ``Load`` were being unintentionally patched, leading to compilation errors for the patched module.
