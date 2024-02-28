@@ -710,12 +710,13 @@ class AstVisitor(ast.NodeTransformer):
         if hasattr(subscr_node, "avoid_convert"):
             return subscr_node
 
-        # Optimization: String literal slices and indexes are not patched
-        if self._is_string_node(subscr_node.value):
+        # We only want to convert subscript nodes that are being used as a load.
+        # That means, no Delete or Store contexts.
+        if not isinstance(subscr_node.ctx, ast.Load):
             return subscr_node
 
-        # This means we're on the left side of an assignment, we don't want to convert it
-        if isinstance(subscr_node.ctx, ast.Store):
+        # Optimization: String literal slices and indexes are not patched
+        if self._is_string_node(subscr_node.value):
             return subscr_node
 
         attr_node = self._attr_node(subscr_node, "")
