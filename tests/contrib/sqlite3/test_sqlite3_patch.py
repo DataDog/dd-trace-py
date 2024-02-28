@@ -2,7 +2,6 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
-
 import sys
 
 from ddtrace.contrib.sqlite3 import get_version
@@ -20,7 +19,6 @@ try:
     sys.modules["sqlite3"] = __import__("pysqlite3")
 except ImportError:
     pass
-
 
 class TestSqlite3Patch(PatchTestCase.Base):
     __integration_name__ = "sqlite3"
