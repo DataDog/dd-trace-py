@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix addresses an issue where a vulnerability would be reported at line 0 if we couldn't extract the proper line number, whereas the default line number should be -1.

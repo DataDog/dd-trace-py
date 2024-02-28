@@ -9,6 +9,13 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
@@ -110,62 +117,58 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        metrics = self._set_llmobs_metrics(resp)
-        meta = {
-            "model_name": span.get_tag("openai.response.model") or span.get_tag("openai.request.model"),
-            "model_provider": "openai",
-            "span.kind": "llm",
-        }
+        span.set_tag_str(SPAN_KIND, "llm")
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        span.set_tag_str(MODEL_NAME, model_name or "")
+        span.set_tag_str(MODEL_PROVIDER, "openai")
         if record_type == "completion":
-            meta = self._llmobs_set_completion_meta(resp, err, kwargs, meta)
+            self._llmobs_set_completion_meta(resp, err, kwargs, span)
         elif record_type == "chat":
-            meta = self._llmobs_set_chat_meta(resp, err, kwargs, meta)
-        # Since span tags have to be strings, we have to json dump the data here and load on the trace processor.
-        span.set_tag_str("ml_obs.meta", json.dumps(meta))
-        span.set_tag_str("ml_obs.metrics", json.dumps(metrics))
+            self._llmobs_set_chat_meta(resp, err, kwargs, span)
+        # Since span tags have to be strings, we have to json dump the metrics here and load on the trace processor.
+        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics(resp)))
 
     @staticmethod
-    def _llmobs_set_completion_meta(
-        resp: Any, err: Any, kwargs: Dict[str, Any], meta: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _llmobs_set_completion_meta(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span):
         """Extract prompt/response tags from a completion."""
         prompt = kwargs.get("prompt", "")
         if isinstance(prompt, str):
             prompt = [prompt]
-        meta["input"] = {"messages": [{"content": p} for p in prompt]}
-        meta["input"]["parameters"] = {"temperature": kwargs.get("temperature", 0)}
+        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
+        parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
-            meta["input"]["parameters"]["max_tokens"] = kwargs.get("max_tokens")
+            parameters["max_tokens"] = kwargs.get("max_tokens")
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
-            meta["output"] = {"messages": [{"content": ""}]}
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            meta["output"] = {"messages": [{"content": choice.text} for choice in resp.choices]}
-        return meta
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
     @staticmethod
-    def _llmobs_set_chat_meta(resp: Any, err: Any, kwargs: Dict[str, Any], meta: Dict[str, Any]) -> Dict[str, Any]:
+    def _llmobs_set_chat_meta(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span):
         """Extract prompt/response tags from a chat completion."""
-        meta["input"] = {
-            "messages": [
-                {"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])
-            ],
-            "parameters": {"temperature": kwargs.get("temperature", 0)},
-        }
+        span.set_tag_str(
+            INPUT_MESSAGES,
+            json.dumps(
+                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
+            ),
+        )
+        parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
-            meta["input"]["parameters"]["max_tokens"] = kwargs.get("max_tokens")
+            parameters["max_tokens"] = kwargs.get("max_tokens")
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
-            meta["output"] = {"messages": [{"content": ""}]}
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            messages = []
-            for choice in resp.choices:
+            output_messages = []
+            for idx, choice in enumerate(resp.choices):
                 content = getattr(choice.message, "content", None)
                 if getattr(choice.message, "function_call", None):
                     content = choice.message.function_call.arguments
                 elif getattr(choice.message, "tool_calls", None):
                     content = choice.message.tool_calls.function.arguments
-                messages.append({"content": str(content), "role": choice.message.role})
-            meta["output"] = {"messages": messages}
-        return meta
+                output_messages.append({"content": str(content), "role": choice.message.role})
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
     def _set_llmobs_metrics(resp: Any) -> Dict[str, Any]:
