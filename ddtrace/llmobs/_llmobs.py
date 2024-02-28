@@ -130,10 +130,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
-            return
+            return None
         if not model_name:
             log.warning("model_name must be the specified name of the invoked model.")
-            return
+            return None
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
@@ -152,7 +152,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.tool() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("tool", name=name, session_id=session_id)
 
     @classmethod
@@ -167,7 +167,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.task() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("task", name=name, session_id=session_id)
 
     @classmethod
@@ -182,7 +182,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.agent() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("agent", name=name, session_id=session_id)
 
     @classmethod
@@ -197,7 +197,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("workflow", name=name, session_id=session_id)
 
     @classmethod
