@@ -11,7 +11,7 @@ def parametrized_weak_hash(hash_func, method):
     m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
-    # label parametrized_week_hash
+    # label parametrized_weak_hash
     getattr(m, method)()
 
 
