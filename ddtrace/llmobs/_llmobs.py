@@ -116,11 +116,24 @@ class LLMObs(Service):
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
-    ) -> Span:
+    ) -> Optional[Span]:
+        """
+        Trace an interaction with a large language model (LLM).
+
+        :param str model_name: The name of the invoked LLM.
+        :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
+        :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
+                                   If not provided, a default value of "custom" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+
+        :returns: The Span object representing the traced operation.
+        """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.llm() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
+            return None
         if not model_name:
-            raise ValueError("model_name must be the specified name of the invoked model.")
+            log.warning("model_name must be the specified name of the invoked model.")
+            return None
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
@@ -128,27 +141,63 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
+    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+        """
+        Trace an operation of an interface/software used for interacting with or supporting an LLM.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+
+        :returns: The Span object representing the traced operation.
+        """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.tool() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.tool() cannot be used while LLMObs is disabled.")
+            return None
         return cls._instance._start_span("tool", name=name, session_id=session_id)
 
     @classmethod
-    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
+    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+        """
+        Trace an operation of a function/task that is part of a larger workflow involving an LLM.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+
+        :returns: The Span object representing the traced operation.
+        """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.task() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.task() cannot be used while LLMObs is disabled.")
+            return None
         return cls._instance._start_span("task", name=name, session_id=session_id)
 
     @classmethod
-    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
+    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+        """
+        Trace a workflow orchestrated by an LLM agent.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+
+        :returns: The Span object representing the traced operation.
+        """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.agent() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.agent() cannot be used while LLMObs is disabled.")
+            return None
         return cls._instance._start_span("agent", name=name, session_id=session_id)
 
     @classmethod
-    def workflow(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Span:
+    def workflow(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+        """
+        Trace a sequence of operations that are part of a larger workflow involving an LLM.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+
+        :returns: The Span object representing the traced operation.
+        """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.workflow() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
+            return None
         return cls._instance._start_span("workflow", name=name, session_id=session_id)
 
     @classmethod
@@ -159,29 +208,37 @@ class LLMObs(Service):
         input_data: Optional[Union[List[Dict[str, Any]], str]] = None,
         output_data: Optional[Union[List[Dict[str, Any]], str]] = None,
         tags: Optional[Dict[str, Any]] = None,
-    ):
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
-        Sets the parameter, input, and output tags for a given LLMObs span.
-        span: Span to annotate. If no span is provided, the current active span will be used.
-         Must be an LLMObs-type span.
-        parameters: Dictionary of input parameter key-value pairs such as max_tokens/temperature.
-         Will be mapped to span's meta.input.parameters.* fields.
-        input_data: A single input string, or a list of dictionaries following {"content": "...", "role": "..."}.
-         Will be mapped to `meta.input.value` or `meta.input.messages.*`, respectively.
-         For llm span types, string inputs will be wrapped in a message dictionary.
-        output_data: A single output string, or a list of dictionaries following {"content": "...", "role": "..."}.
-         Will be mapped to `meta.output.value` or `meta.output.messages.*`, respectively.
-         For llm span types, string outputs will be wrapped in a message dictionary.
-        tags: Dictionary of key-value pairs to tag the LLMObs span with.
+        Sets the parameter, input, output, tags, and metrics for a given LLMObs span.
+        Note that this method will override any existing values for the specified fields.
+
+        :param Span span: Span to annotate. If no span is provided, the current active span will be used.
+                          Must be an LLMObs-type span.
+        :param parameters: Dictionary of input parameter key-value pairs such as max_tokens/temperature.
+                           Will be mapped to span's meta.input.parameters.* fields.
+        :param input_data: A single input string, or a list of dictionaries of form {"content": "...", "role": "..."}.
+                           Will be mapped to `meta.input.value` or `meta.input.messages.*`, respectively.
+                           For llm/agent spans, string inputs will be wrapped in a message dictionary.
+        :param output_data: A single output string, or a list of dictionaries of form {"content": "...", "role": "..."}.
+                            Will be mapped to `meta.output.value` or `meta.output.messages.*`, respectively.
+                            For llm/agent spans, string outputs will be wrapped in a message dictionary.
+        :param tags: Dictionary of key-value custom tag pairs to set on the LLMObs span.
+        :param metrics: Dictionary of key-value metric pairs such as prompt_tokens/completion_tokens/total_tokens.
+                        Will be mapped to span's metrics.* fields.
         """
         if cls.enabled is False or cls._instance is None:
-            raise Exception("LLMObs.annotate() cannot be used while LLMObs is disabled.")
+            log.warning("LLMObs.annotate() cannot be used while LLMObs is disabled.")
+            return
         if span is None:
             span = cls._instance.tracer.current_span()
             if span is None:
-                raise ValueError("No span provided and no active span found.")
+                log.warning("No span provided and no active span found.")
+                return
         if span.span_type != SpanTypes.LLM:
-            raise ValueError("span must be an LLM-type span.")
+            log.warning("Span must be an LLM-type span.")
+            return
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
@@ -193,11 +250,15 @@ class LLMObs(Service):
             cls._tag_span_input_output("output", span, output_data)
         if tags is not None:
             cls._tag_span_tags(span, tags)
+        if metrics is not None:
+            cls._tag_metrics(span, metrics)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
+        """Tags input parameters for a given LLMObs span."""
         if not isinstance(params, dict):
-            raise ValueError("parameters must be a dictionary of key-value pairs.")
+            log.warning("parameters must be a dictionary of key-value pairs.")
+            return
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
 
     @staticmethod
@@ -211,17 +272,18 @@ class LLMObs(Service):
         if io_type not in ("input", "output"):
             raise ValueError("io_type must be either 'input' or 'output'.")
         if not isinstance(data, (str, list)):
-            raise TypeError(
+            log.warning(
                 "Invalid type, must be either a raw string or list of dictionaries with the format {'content': '...'}."
             )
+            return
         if isinstance(data, list) and not all(isinstance(item, dict) for item in data):
-            raise TypeError(
-                "Invalid list item type, must be a list of dictionaries with the format {'content': '...'}."
-            )
+            log.warning("Invalid list item type, must be a list of dictionaries with the format {'content': '...'}.")
+            return
         span_kind = span.get_tag(SPAN_KIND)
         tags = None
         if not span_kind:
-            raise ValueError("Cannot tag input/output without a span.kind tag.")
+            log.warning("Cannot tag input/output without a span.kind tag.")
+            return
         if span_kind in ("llm", "agent"):
             if isinstance(data, str):
                 tags = [{"content": data}]
@@ -238,14 +300,23 @@ class LLMObs(Service):
                 else:
                     span.set_tag_str(OUTPUT_VALUE, data)
             else:
-                raise ValueError("Invalid input/output type for non-llm span. Must be a raw string.")
+                log.warning("Invalid input/output type for non-llm span. Must be a raw string.")
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
-        """Tags a given LLMObs span with a dictionary of key-value pairs."""
+        """Tags a given LLMObs span with a dictionary of key-value tag pairs."""
         if not isinstance(span_tags, dict):
-            raise ValueError("span_tags must be a dictionary of string key - primitive value pairs.")
+            log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
+            return
         span.set_tag_str(TAGS, json.dumps(span_tags))
+
+    @staticmethod
+    def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
+        """Tags a given LLMObs span with a dictionary of key-value metric pairs."""
+        if not isinstance(metrics, dict):
+            log.warning("metrics must be a dictionary of string key - numeric value pairs.")
+            return
+        span.set_tag_str(METRICS, json.dumps(metrics))
 
 
 class LLMObsTraceProcessor(TraceProcessor):
@@ -273,10 +344,9 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         tags = self._llmobs_tags(span)
         meta: Dict[str, Any] = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
-        session_id = span._meta.pop(SESSION_ID, None) or "{:x}".format(span.trace_id)
         if span.get_tag(MODEL_NAME):
             meta["model_name"] = span._meta.pop(MODEL_NAME)
-            meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom")
+            meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
         if span.get_tag(INPUT_PARAMETERS):
             meta["input"]["parameters"] = json.loads(span._meta.pop(INPUT_PARAMETERS))
         if span.get_tag(INPUT_MESSAGES):
@@ -294,11 +364,12 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not meta["output"]:
             meta.pop("output")
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
+
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": str(self._get_llmobs_parent_id(span) or ""),
-            "session_id": session_id,
+            "session_id": self._get_session_id(span),
             "name": span.name,
             "tags": tags,
             "start_ns": span.start_ns,
@@ -315,7 +386,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "env:{}".format(config.env or ""),
             "service:{}".format(span.service or ""),
             "source:integration",
-            "ml_app:{}".format(config._llmobs_ml_app or ""),
+            "ml_app:{}".format(os.getenv("DD_LLMOBS_APP_NAME", "unnamed-ml-app")),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag(ERROR_TYPE)
@@ -327,14 +398,35 @@ class LLMObsTraceProcessor(TraceProcessor):
             tags.extend(["{}:{}".format(k, v) for k, v in span_tags.items()])
         return tags
 
-    @staticmethod
-    def _get_llmobs_parent_id(span: Span) -> Optional[int]:
+    def _get_session_id(self, span: Span) -> str:
+        """
+        Return the session ID for a given span, in priority order:
+        1) Span's session ID tag (if set manually)
+        2) Session ID from the span's nearest LLMObs span ancestor
+        3) Span's trace ID if no session ID is found
+        """
+        session_id = span._meta.pop(SESSION_ID, None)
+        if not session_id:
+            nearest_llmobs_ancestor = self._get_nearest_llmobs_ancestor(span)
+            if nearest_llmobs_ancestor:
+                session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
+        return session_id or "{:x}".format(span.trace_id)
+
+    def _get_llmobs_parent_id(self, span: Span) -> Optional[int]:
         """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree."""
+        nearest_llmobs_ancestor = self._get_nearest_llmobs_ancestor(span)
+        if nearest_llmobs_ancestor:
+            return nearest_llmobs_ancestor.span_id
+        return None
+
+    @staticmethod
+    def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
+        """Return the nearest LLMObs-type ancestor span of a given span."""
         if span.span_type != SpanTypes.LLM:
             return None
         parent = span._parent
         while parent:
             if parent.span_type == SpanTypes.LLM:
-                return parent.span_id
+                return parent
             parent = parent._parent
         return None

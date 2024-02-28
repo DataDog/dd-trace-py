@@ -1882,7 +1882,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
     with openai_vcr.use_cassette("completion.yaml"):
         model = "ada"
         client = openai.OpenAI()
-        resp = client.completions.create(
+        client.completions.create(
             model=model,
             prompt="Hello world",
             temperature=0.8,

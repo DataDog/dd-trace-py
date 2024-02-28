@@ -125,7 +125,9 @@ class _BaseCompletionHook(_EndpointHook):
                     if span.resource == _ChatCompletionHook.OPERATION_ID:
                         integration.llmobs_set_tags("chat", resp, None, span, kwargs, streamed_resp=streamed_chunks)
                     elif span.resource == _CompletionHook.OPERATION_ID:
-                        integration.llmobs_set_tags("completion", resp, None, span, kwargs, streamed_resp=streamed_chunks)
+                        integration.llmobs_set_tags(
+                            "completion", resp, None, span, kwargs, streamed_resp=streamed_chunks
+                        )
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 

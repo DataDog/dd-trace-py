@@ -128,9 +128,13 @@ def _tag_streamed_chat_completion_response(integration, span, streamed_chunks):
         if span.resource == "createChatCompletion":
             content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
             if getattr(choice[0].delta, "tool_calls", None):
-                content = "".join(c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None))
+                content = "".join(
+                    c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
+                )
             elif getattr(choice[0].delta, "function_call", None):
-                content = "".join(c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None))
+                content = "".join(
+                    c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
+                )
             span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
             span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice[0].delta.role)
         else:
