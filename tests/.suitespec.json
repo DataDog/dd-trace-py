@@ -435,7 +435,6 @@
             "@appsec",
             "@appsec_iast",
             "tests/appsec/*",
-            "tests/appsec/iast_integrations/*",
             "tests/snapshots/tests.appsec.*"
         ],
         "aws_lambda": [
