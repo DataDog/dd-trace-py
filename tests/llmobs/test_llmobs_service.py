@@ -26,25 +26,6 @@ def mock_logs():
         yield mock_logs
 
 
-@pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
-    LLMObsWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def LLMObs(mock_llmobs_writer):
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
-        yield llmobs_service
-        llmobs_service.disable()
-
-
 def test_llmobs_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         dummy_tracer = DummyTracer()
@@ -428,12 +409,10 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
         },
     )
 
-    
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")]
-)
-def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer):
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(version="1.2.3", env="test_env", service="test_service")])
+def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypatch):
+    monkeypatch.setenv("DD_LLMOBS_ML_APP", "test_app_name")
     with LLMObs.task(name="test_task") as span:
         pass
     expected_tags = [

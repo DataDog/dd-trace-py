@@ -386,7 +386,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "env:{}".format(config.env or ""),
             "service:{}".format(span.service or ""),
             "source:integration",
-            "ml_app:{}".format(config._llmobs_ml_app or ""),
+            "ml_app:{}".format(os.getenv("DD_LLMOBS_ML_APP", "unnamed-ml-app")),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag(ERROR_TYPE)
