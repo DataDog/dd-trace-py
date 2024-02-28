@@ -2245,11 +2245,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
 def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         model = "ada"
-        resp_model = model
         expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
         resp = openai.Completion.create(model=model, prompt="Hello world", stream=True)
-        for chunk in resp:
-            resp_model = chunk.model
+        for _ in resp:
+            pass
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
