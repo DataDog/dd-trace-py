@@ -13,13 +13,13 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.collector import stack_v2
 from ddtrace.settings.profiling import config
 
 
@@ -484,6 +484,13 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
+
+        # If stack_v2 is enabled, verify that it loaded properly.  If not, fallback to the v1 stack collector
+        # and log a warning.
+        if self._stack_collector_v2_enabled:
+            if not stack_v2.is_available():
+                self._stack_collector_v2_enabled = False
+                LOG.warning("Failed to load the v2 stack collector; falling back to the v1 stack collector")
 
         # Force-set use_libdd if the v2 stack collector is enabled
         if self._stack_collector_v2_enabled:
