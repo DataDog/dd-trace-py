@@ -837,7 +837,7 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
         try:
             return json.loads(as_bytes)
         except json.decoder.JSONDecodeError:
-            return as_bytes
+            return  # return a type that has no __len__ because such types caused a crash at one point
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
