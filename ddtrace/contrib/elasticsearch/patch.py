@@ -142,8 +142,8 @@ def _get_perform_request_coro(transport):
 
             span.set_tag(SPAN_MEASURED_KEY)
 
-            # Don't instrument if the trace is not sampled
-            if not span.sampled:
+            # Only instrument if trace is sampled or if we haven't tried to sample yet
+            if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
                 yield func(*args, **kwargs)
                 return
 
