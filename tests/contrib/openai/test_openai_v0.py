@@ -1,5 +1,4 @@
 from io import BytesIO
-import json
 import os
 from typing import AsyncGenerator
 from typing import Generator
@@ -2349,7 +2348,9 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
 
 
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
-async def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+async def test_llmobs_chat_completion_stream(
+    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -2512,6 +2513,7 @@ def test_llmobs_chat_completion_function_call_stream(
             ),
         ]
     )
+
 
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
 def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):

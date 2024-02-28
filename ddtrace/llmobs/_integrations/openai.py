@@ -113,7 +113,15 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def llmobs_set_tags(self, record_type: str, resp: Any, err: Any, span: Span, kwargs: Dict[str, Any], streamed_resp: Optional[Any] = None) -> None:
+    def llmobs_set_tags(
+        self,
+        record_type: str,
+        resp: Any,
+        err: Any,
+        span: Span,
+        kwargs: Dict[str, Any],
+        streamed_resp: Optional[Any] = None,
+    ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
@@ -129,7 +137,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics(span, resp, streamed_resp)))
 
     @staticmethod
-    def _llmobs_set_completion_meta(resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span):
+    def _llmobs_set_completion_meta(
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+    ):
         """Extract prompt/response tags from a completion."""
         prompt = kwargs.get("prompt", "")
         if isinstance(prompt, str):
@@ -142,7 +152,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         elif streamed_resp:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]))
+            span.set_tag_str(
+                OUTPUT_MESSAGES,
+                json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]),
+            )
         else:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
