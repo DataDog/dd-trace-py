@@ -2354,6 +2354,8 @@ async def test_llmobs_chat_completion_stream(
 
     Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
     """
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
             model = "gpt-3.5-turbo"
