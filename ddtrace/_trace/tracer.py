@@ -695,7 +695,6 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
                 span._local_root = parent._local_root
 
@@ -750,7 +749,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
+            self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
