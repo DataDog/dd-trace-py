@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import json
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -16,6 +17,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
@@ -108,18 +110,19 @@ def unregister(span: Span) -> None:
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
         root_span = env.span._local_root or env.span
-        report = root_span.get_struct_tag(APPSEC.STRUCT)
-        if report is not None:
+        report_list = get_triggers(root_span)
+        if report_list is not None:
             try:
-                if "triggers" not in report:
-                    report["triggers"] = []
-                report["triggers"].extend(env.waf_triggers)
+                report_list.extend(env.waf_triggers)
             except BaseException:
-                report = {"triggers": env.waf_triggers}
+                report_list = env.waf_triggers
         else:
-            report = {"triggers": env.waf_triggers}
-        root_span.set_struct_tag(APPSEC.STRUCT, report)
-
+            report_list = env.waf_triggers
+        if asm_config._use_metastruct_for_triggers:
+            root_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+            print(">>>F", root_span, root_span.get_struct_tag(APPSEC.STRUCT))
+        else:
+            root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
 
 

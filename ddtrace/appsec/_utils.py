@@ -1,7 +1,9 @@
 import os
+from typing import Any
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
@@ -174,3 +176,25 @@ class _UserInfoRetriever:
             return None, {}
 
         return user_id, user_extra_info
+
+
+def has_triggers(span) -> bool:
+    if asm_config._use_metastruct_for_triggers:
+        print(">>>", span, span.get_struct_tag(APPSEC.STRUCT))
+        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
+    return span.get_tag(APPSEC.JSON) is not None
+
+
+def get_triggers(span) -> Any:
+    import json
+
+    if asm_config._use_metastruct_for_triggers:
+        print(">>>", span, span.get_struct_tag(APPSEC.STRUCT))
+        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
+    json_payload = span.get_tag(APPSEC.JSON)
+    if json_payload:
+        try:
+            return json.loads(json_payload).get("triggers", None)
+        except Exception:
+            log.debug("Failed to parse triggers", exc_info=True)
+    return None

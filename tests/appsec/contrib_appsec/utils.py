@@ -8,11 +8,11 @@ import pytest
 
 import ddtrace
 from ddtrace.appsec import _constants as asm_constants
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
-from tests.appsec.utils import get_triggers
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -59,6 +59,7 @@ class Contrib_TestClass_For_Threats:
     def check_single_rule_triggered(self, rule_id: str, root_span):
         triggers = get_triggers(root_span())
         assert triggers is not None, "no appsec struct in root span"
+        print(triggers)
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
@@ -378,16 +379,17 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None, f"asm struct in root span {get_triggers(root_span())}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
     def test_request_suspicious_request_block_match_method(
-        self, interface: Interface, get_tag, root_span, asm_enabled, method, kwargs
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, method, kwargs
     ):
         # GET must be blocked
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
             self.update_tracer(interface)
             response = getattr(interface.client, method)("/", **kwargs)
             assert get_tag(http.URL) == "http://localhost:8000/"

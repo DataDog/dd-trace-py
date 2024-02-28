@@ -12,12 +12,12 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
-from tests.appsec.utils import get_triggers
 from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config

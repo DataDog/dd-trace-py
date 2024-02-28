@@ -1,7 +1,5 @@
 import sys
 
-from ddtrace.appsec._constants import APPSEC
-
 
 class Either:
     def __init__(self, *possibilities):
@@ -12,7 +10,3 @@ class Either:
             print(f"Either: Expected {other} to be in {self.possibilities}", file=sys.stderr, flush=True)
             return False
         return True
-
-
-def get_triggers(span):
-    return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)

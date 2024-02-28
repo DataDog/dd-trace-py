@@ -20,6 +20,7 @@ from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1clic
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -30,7 +31,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
-from tests.appsec.utils import get_triggers
 from tests.utils import override_env
 from tests.utils import override_global_config
 

@@ -1,11 +1,11 @@
 import pytest
 
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
 import tests.appsec.rules as rules
-from tests.appsec.utils import get_triggers
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config

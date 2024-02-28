@@ -29,6 +29,7 @@ from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
@@ -399,7 +400,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="response")
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if span.get_struct_tag(APPSEC.STRUCT) is None and _asm_request_context.in_context():
+                if not has_triggers(span) and _asm_request_context.in_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 
