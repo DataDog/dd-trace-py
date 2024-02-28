@@ -452,7 +452,9 @@ class Tracer(object):
 
         if writer is not None:
             self._writer = writer
-        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
+        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
+            if self._asm_enabled:
+                api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
@@ -693,7 +695,6 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
                 span._local_root = parent._local_root
 
@@ -748,7 +749,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
+            self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
 
         # Only call span processors if the tracer is enabled
         if self.enabled:

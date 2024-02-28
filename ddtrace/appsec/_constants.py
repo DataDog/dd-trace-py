@@ -44,6 +44,7 @@ class APPSEC(metaclass=Constant_Class):
     ENV = "DD_APPSEC_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
+    STRUCT = "appsec"
     EVENT_RULE_VERSION = "_dd.appsec.event_rules.version"
     EVENT_RULE_ERRORS = "_dd.appsec.event_rules.errors"
     EVENT_RULE_LOADED = "_dd.appsec.event_rules.loaded"
@@ -82,6 +83,7 @@ class IAST(metaclass=Constant_Class):
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
+    REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
