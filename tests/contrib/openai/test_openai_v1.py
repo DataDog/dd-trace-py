@@ -1932,12 +1932,11 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             model = "ada"
-            resp_model = model
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-            for chunk in resp:
-                resp_model = chunk.model
+            for _ in resp:
+                pass
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
