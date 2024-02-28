@@ -26,25 +26,6 @@ def mock_logs():
         yield mock_logs
 
 
-@pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
-    LLMObsWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def LLMObs(mock_llmobs_writer):
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
-        yield llmobs_service
-        llmobs_service.disable()
-
-
 def test_llmobs_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         dummy_tracer = DummyTracer()
@@ -403,7 +384,7 @@ def test_llmobs_annotate_metrics(LLMObs):
         assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
 
-def test_llmobs_span_error_sets_error_tag(LLMObs, mock_llmobs_writer):
+def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
     with pytest.raises(ValueError):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
             raise ValueError("test error message")
@@ -424,6 +405,36 @@ def test_llmobs_span_error_sets_error_tag(LLMObs, mock_llmobs_writer):
                 "model_provider": "test_model_provider",
                 "error.message": "test error message",
             },
+            "metrics": mock.ANY,
+        },
+    )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(version="1.2.3", env="test_env", service="test_service")])
+def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypatch):
+    monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_app_name")
+    with LLMObs.task(name="test_task") as span:
+        pass
+    expected_tags = [
+        "version:1.2.3",
+        "env:test_env",
+        "service:test_service",
+        "source:integration",
+        "ml_app:test_app_name",
+        "error:0",
+    ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        {
+            "span_id": str(span.span_id),
+            "trace_id": "{:x}".format(span.trace_id),
+            "parent_id": "",
+            "session_id": "{:x}".format(span.trace_id),
+            "name": span.name,
+            "tags": expected_tags,
+            "start_ns": span.start_ns,
+            "duration": span.duration_ns,
+            "error": 0,
+            "meta": {"span.kind": "task"},
             "metrics": mock.ANY,
         },
     )

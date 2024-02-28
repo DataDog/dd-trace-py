@@ -36,6 +36,7 @@ def _expected_llmobs_tags(error=None):
         "env:",
         "service:",
         "source:integration",
+        "ml_app:unnamed-ml-app",
     ]
     if error:
         expected_tags.append("error:1")

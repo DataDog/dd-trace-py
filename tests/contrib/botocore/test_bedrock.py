@@ -409,6 +409,7 @@ class TestLLMObsBedrock:
             "env:",
             "service:aws.bedrock-runtime",
             "source:integration",
+            "ml_app:unnamed-ml-app",
             "error:0",
         ]
         expected_llmobs_writer_calls = [mock.call.start()]
@@ -587,6 +588,7 @@ class TestLLMObsBedrock:
             "env:",
             "service:aws.bedrock-runtime",
             "source:integration",
+            "ml_app:unnamed-ml-app",
             "error:1",
             "error_type:%s" % span.get_tag("error.type"),
         ]
