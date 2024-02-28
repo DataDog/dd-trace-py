@@ -68,6 +68,11 @@ def test_exploration_file_output():
     ),
 )
 def test_rc_default_products_registered():
+    """
+    By default, RC should be enabled. When RC is enabled, we will always
+    enable the tracer flare feature as well. There should be three products
+    registered when DD_REMOTE_CONFIGURATION_ENABLED is True
+    """
     import os
 
     from ddtrace.internal.utils.formats import asbool

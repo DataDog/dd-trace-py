@@ -786,7 +786,8 @@ class Config(object):
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
 
-    def _handle_tracerflare(self, data, test_tracer=None):
+    def _handle_tracerflare(self, data: dict) -> None:
+        # TODO: This should be implemented to handle AGENT_CONFIG and AGENT_TASK cases
         pass
 
     def _handle_remoteconfig_header_tags(self, base_rc_config):
@@ -814,8 +815,7 @@ class Config(object):
 
         remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
 
-    def enable_tracer_flare(self):
-        # type: () -> None
+    def enable_tracer_flare(self) -> None:
         """Enable the tracer flare functionality"""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 

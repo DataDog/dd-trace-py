@@ -166,7 +166,6 @@ try:
     for f in preload.post_preload:
         f()
 
-except Exception as e:
+except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)
-    raise e
