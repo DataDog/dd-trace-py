@@ -95,7 +95,6 @@ t.join()
 
 
 @parametrize_with_all_encodings
-@pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
 def test_single_trace_uds():
     import mock
 
@@ -618,7 +617,6 @@ def test_writer_flush_queue_generates_debug_log():
 
     from ddtrace.internal import agent
     from ddtrace.internal.writer import AgentWriter
-    from tests.integration.utils import AGENT_VERSION
     from tests.utils import AnyFloat
     from tests.utils import AnyStr
 
@@ -629,7 +627,7 @@ def test_writer_flush_queue_generates_debug_log():
         writer.write([])
         writer.flush_queue(raise_exc=True)
         # for latest agent, default to v0.3 since no priority sampler is set
-        expected_encoding = "v0.3" if AGENT_VERSION == "v5" else (encoding or "v0.3")
+        expected_encoding = encoding or "v0.3"
         calls = [
             mock.call(
                 logging.DEBUG,
