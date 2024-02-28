@@ -1,11 +1,18 @@
 import sys
+
+
+try:
+    sys.modules["sqlite3"] = __import__("pysqlite3")
+    import sqlite3
+except ImportError:
+    import sqlite3
+
 import time
 from typing import TYPE_CHECKING  # noqa:F401
 
 import pytest
 
 import ddtrace
-import sqlite3
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -20,10 +27,6 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
-try:
-    sys.modules["sqlite3"] = __import__("pysqlite3")
-except ImportError:
-    pass
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Generator  # noqa:F401

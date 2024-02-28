@@ -4,6 +4,12 @@
 # from being overwritten by future re-generations.
 import sys
 
+
+try:
+    sys.modules["sqlite3"] = __import__("pysqlite3")
+except ImportError:
+    pass
+
 from ddtrace.contrib.sqlite3 import get_version
 from ddtrace.contrib.sqlite3.patch import patch
 
@@ -14,11 +20,6 @@ except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
 
-
-try:
-    sys.modules["sqlite3"] = __import__("pysqlite3")
-except ImportError:
-    pass
 
 class TestSqlite3Patch(PatchTestCase.Base):
     __integration_name__ = "sqlite3"
