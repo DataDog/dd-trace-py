@@ -412,7 +412,7 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
 
 @pytest.mark.parametrize("ddtrace_global_config", [dict(version="1.2.3", env="test_env", service="test_service")])
 def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypatch):
-    monkeypatch.setenv("DD_LLMOBS_ML_APP", "test_app_name")
+    monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_app_name")
     with LLMObs.task(name="test_task") as span:
         pass
     expected_tags = [
