@@ -88,9 +88,8 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             self._configs[target] = {}
 
         if config_content is False:
-            # Remove old config from the configs dict. _remove_previously_applied_configurations function should
-            # call to this method
-            del self._configs[target]
+            # clear lists but keep the keys active so it can be updated accordingly
+            self._configs[target] = {k: [] for k, v in self._configs[target].items() if isinstance(v, list)}
         elif config_content is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method

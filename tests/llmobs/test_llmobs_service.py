@@ -37,18 +37,8 @@ def mock_llmobs_writer():
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api-key>"}
-
-@pytest.fixture
-def LLMObs(ddtrace_global_config, mock_llmobs_writer):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
+def LLMObs(mock_llmobs_writer):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(tracer=dummy_tracer)
         yield llmobs_service
@@ -413,12 +403,6 @@ def test_llmobs_annotate_metrics(LLMObs):
         assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
 
-def test_llmobs_annotate_metrics(LLMObs):
-    with LLMObs.llm(model_name="test_model") as span:
-        LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
-        assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
-
-
 def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
     with pytest.raises(ValueError):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
@@ -444,7 +428,7 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
         },
     )
 
-
+    
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")]

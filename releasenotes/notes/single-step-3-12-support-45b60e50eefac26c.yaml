@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    lib-injection: Adds supports for installing ddtrace via single step instrumentation on python3.12
