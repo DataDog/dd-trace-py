@@ -2,18 +2,11 @@ import gevent
 import gevent.pool
 
 import ddtrace
-from ddtrace._trace.provider import DefaultContextProvider
 
-from .greenlet import GEVENT_VERSION
 from .greenlet import TracedGreenlet
-from .greenlet import TracedIMap
-from .greenlet import TracedIMapUnordered
-from .provider import GeventContextProvider
 
 
 __Greenlet = gevent.Greenlet
-__IMap = gevent.pool.IMap
-__IMapUnordered = gevent.pool.IMapUnordered
 
 
 def get_version():
@@ -34,8 +27,8 @@ def patch():
         return
     gevent.__datadog_patch = True
 
-    _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
-    ddtrace.tracer.configure(context_provider=GeventContextProvider())
+    ddtrace.Pin().onto(gevent)
+    _replace(TracedGreenlet)
 
 
 def unpatch():
@@ -48,30 +41,15 @@ def unpatch():
         return
     gevent.__datadog_patch = False
 
-    _replace(__Greenlet, __IMap, __IMapUnordered)
-    ddtrace.tracer.configure(context_provider=DefaultContextProvider())
+    _replace(__Greenlet)
 
 
-def _replace(g_class, imap_class, imap_unordered_class):
+def _replace(g_class):
     """
     Utility function that replace the gevent Greenlet class with the given one.
     """
     # replace the original Greenlet classes with the new one
     gevent.greenlet.Greenlet = g_class
-
-    if GEVENT_VERSION >= (1, 3):
-        # For gevent >= 1.3.0, IMap and IMapUnordered were pulled out of
-        # gevent.pool and into gevent._imap
-        gevent._imap.IMap = imap_class
-        gevent._imap.IMapUnordered = imap_unordered_class
-        gevent.pool.IMap = gevent._imap.IMap
-        gevent.pool.IMapUnordered = gevent._imap.IMapUnordered
-        gevent.pool.Greenlet = gevent.greenlet.Greenlet
-    else:
-        # For gevent < 1.3, only patching of gevent.pool classes necessary
-        gevent.pool.IMap = imap_class
-        gevent.pool.IMapUnordered = imap_unordered_class
-
     gevent.pool.Group.greenlet_class = g_class
 
     # replace gevent shortcuts

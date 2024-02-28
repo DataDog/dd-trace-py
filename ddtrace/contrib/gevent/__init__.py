@@ -1,7 +1,6 @@
 """
 The gevent integration adds support for tracing across greenlets.
 
-
 The integration patches the gevent internals to add context management logic.
 
 .. note::
@@ -57,12 +56,12 @@ required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from ...provider import DefaultContextProvider as _DefaultContextProvider
         from .patch import get_version
         from .patch import patch
         from .patch import unpatch
-        from .provider import GeventContextProvider
 
-        context_provider = GeventContextProvider()
+        context_provider = _DefaultContextProvider()
 
         __all__ = [
             "patch",
