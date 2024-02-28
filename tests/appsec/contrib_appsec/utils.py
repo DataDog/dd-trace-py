@@ -409,16 +409,17 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
     def test_request_suspicious_request_block_match_uri(
-        self, interface: Interface, get_tag, root_span, asm_enabled, uri, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri, blocked
     ):
         # GET must be blocked
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             assert get_tag(http.URL) == f"http://localhost:8000{uri}"
@@ -438,6 +439,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("path", "blocked"),
         [
@@ -448,14 +450,14 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_path_params(
-        self, interface: Interface, get_tag, root_span, asm_enabled, path, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, path, blocked
     ):
         from ddtrace.ext import http
 
         uri = f"/asm/4352/{path}"  # removing trailer slash will cause errors
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -476,6 +478,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("query", "blocked"),
         [
@@ -485,7 +488,7 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_query_params(
-        self, interface: Interface, get_tag, root_span, asm_enabled, query, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, query, blocked
     ):
         if interface.name in ("django",) and query == "?toto=xtrace&toto=ytrace":
             raise pytest.skip(f"{interface.name} does not support multiple query params with same name")
@@ -493,9 +496,9 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         uri = f"/{query}"
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -516,6 +519,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("headers", "blocked"),
         [
@@ -524,13 +528,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_headers(
-        self, interface: Interface, get_tag, root_span, asm_enabled, headers, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, headers, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             # DEV Warning: encoded URL will behave differently
@@ -551,6 +555,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("cookies", "blocked"),
         [
@@ -559,13 +564,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_cookies(
-        self, interface: Interface, get_tag, root_span, asm_enabled, cookies, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, cookies, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
             # DEV Warning: encoded URL will behave differently
@@ -586,6 +591,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("uri", "status", "blocked"),
         [
@@ -596,13 +602,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_response_status(
-        self, interface: Interface, get_tag, root_span, asm_enabled, uri, status, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri, status, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -623,6 +629,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("uri", "blocked"),
         [
@@ -633,13 +640,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_response_headers(
-        self, interface: Interface, get_tag, asm_enabled, root_span, uri, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -660,6 +667,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("body", "content_type", "blocked"),
         [
@@ -688,13 +696,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_body(
-        self, interface: Interface, get_tag, asm_enabled, root_span, body, content_type, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.post("/asm/", data=body, content_type=content_type)
             # DEV Warning: encoded URL will behave differently
@@ -715,6 +723,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("query", "status", "rule_id", "action"),
         [
@@ -731,7 +740,7 @@ class Contrib_TestClass_For_Threats:
         [{"Accept": "text/html"}, {"Accept": "text/json"}, {}],
     )
     def test_request_suspicious_request_block_custom_actions(
-        self, interface: Interface, get_tag, asm_enabled, root_span, query, status, rule_id, action, headers
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, query, status, rule_id, action, headers
     ):
         from ddtrace.ext import http
         import ddtrace.internal.utils.http as http_cache
@@ -741,7 +750,9 @@ class Contrib_TestClass_For_Threats:
         http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
         try:
             uri = f"/?param={query}"
-            with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            with override_global_config(
+                dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+            ), override_env(
                 dict(
                     DD_APPSEC_RULES=rules.RULES_SRBCA,
                     DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,

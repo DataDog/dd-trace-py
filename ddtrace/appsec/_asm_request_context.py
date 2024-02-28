@@ -112,15 +112,11 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         root_span = env.span._local_root or env.span
         report_list = get_triggers(root_span)
         if report_list is not None:
-            try:
-                report_list.extend(env.waf_triggers)
-            except BaseException:
-                report_list = env.waf_triggers
+            report_list.extend(env.waf_triggers)
         else:
             report_list = env.waf_triggers
         if asm_config._use_metastruct_for_triggers:
             root_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
-            print(">>>F", root_span, root_span.get_struct_tag(APPSEC.STRUCT))
         else:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []

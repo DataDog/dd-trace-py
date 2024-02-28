@@ -180,7 +180,6 @@ class _UserInfoRetriever:
 
 def has_triggers(span) -> bool:
     if asm_config._use_metastruct_for_triggers:
-        print(">>>", span, span.get_struct_tag(APPSEC.STRUCT))
         return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
     return span.get_tag(APPSEC.JSON) is not None
 
@@ -189,7 +188,6 @@ def get_triggers(span) -> Any:
     import json
 
     if asm_config._use_metastruct_for_triggers:
-        print(">>>", span, span.get_struct_tag(APPSEC.STRUCT))
         return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
     if json_payload:
