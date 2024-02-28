@@ -290,11 +290,18 @@ class CMakeBuild(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
+        # Get development paths
+        python_include = sysconfig.get_paths()["include"]
+        python_lib = sysconfig.get_config_var("LIBDIR")
+
         # Which commands are passed to _every_ cmake invocation
         cmake_args = ext.cmake_args or []
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
+            "-DPython3_INCLUDE_DIRS={}".format(python_include),
+            "-DPython3_LIBRARIES={}".format(python_lib),
+            "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
@@ -450,10 +457,6 @@ if not IS_PYSTON:
         ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
     if platform.system() == "Linux" and is_64_bit_python():
-        # Get Python library paths development paths
-        python_include = sysconfig.get_paths()["include"]
-        python_lib = sysconfig.get_config_var("LIBDIR")
-
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -462,8 +465,6 @@ if not IS_PYSTON:
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                    "-DPython3_INCLUDE_DIRS={}".format(python_include),
-                    "-DPYTHON_EXECUTABLE={}".format(sys.executable),
                 ],
             )
         )
@@ -474,10 +475,6 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2",
                     source_dir=STACK_V2_DIR,
-                    cmake_args=[
-                        "-DPython3_INCLUDE_DIRS={}".format(python_include),
-                        "-DPYTHON_EXECUTABLE={}".format(sys.executable),
-                    ],
                     build_args=["--verbose"],
                 )
             )
