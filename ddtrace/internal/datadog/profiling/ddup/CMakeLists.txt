@@ -57,7 +57,6 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
 
 target_include_directories(${EXTENSION_NAME} PRIVATE
-    include
     ../dd_wrapper/include
     ${Datadog_INCLUDE_DIRS}
     ${Python3_INCLUDE_DIRS}

@@ -114,8 +114,8 @@ UploaderBuilder::build()
     };
 
     for (const auto& [tag, data] : tag_data) {
-        std::string errmsg;
         if (!data.empty()) {
+            std::string errmsg;
             if (!add_tag(tags, tag, data, errmsg)) {
                 reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
             }

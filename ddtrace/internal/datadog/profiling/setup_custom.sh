@@ -68,6 +68,9 @@ cmake_args=(
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
+  -DPython3_INCLUDE_DIRS=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")
+  -DPython3_EXECUTABLE=$(which python3)
+  -DPython3_LIBRARY=$(python3 -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 )
 
 # Initial build targets; no matter what, dd_wrapper is the base dependency, so it's always built
@@ -127,13 +130,13 @@ print_help() {
   echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
   echo "Options (one of)"
   echo "  -h, --help        Show this help message and exit"
-  echo "  -s, --safety      Clang + " compile_args["safety"]
-  echo "  -t, --thread      Clang + " compile_args["thread"]
-  echo "  -n, --numerical   Clang + " compile_args["numerical"]
-  echo "  -d, --dataflow    Clang + " compile_args["dataflow"]
-  echo "  -m  --memory      Clang + " compile_args["memory"]
-  echo "  -C  --cppcheck    Clang + " compile_args["cppcheck"]
-  echo "  -f, --fanalyze    GCC + " compile_args["fanalyzer"]
+  echo "  -s, --safety      Clang + " ${compile_args["safety"]}
+  echo "  -t, --thread      Clang + " ${compile_args["thread"]}
+  echo "  -n, --numerical   Clang + " ${compile_args["numerical"]}
+  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}
+  echo "  -m  --memory      Clang + " ${compile_args["memory"]}
+  echo "  -C  --cppcheck    Clang + " ${compile_args["cppcheck"]}
+  echo "  -f, --fanalyze    GCC + " ${compile_args["fanalyzer"]}
   echo "  -c, --clang       Clang (alone)"
   echo "  -g, --gcc         GCC (alone)"
   echo "  --                Don't do anything special"
@@ -171,31 +174,31 @@ add_compiler_args() {
       exit 0
       ;;
     -s|--safety)
-      cmake_args+=compiler_args["safety"]
+      cmake_args+=(${compiler_args["safety"]})
       set_clang
       ;;
     -t|--thread)
-      cmake_args+=compiler_args["thread"]
+      cmake_args+=(${compiler_args["thread"]})
       set_clang
       ;;
     -n|--numerical)
-      cmake_args+=compiler_args["numerical"]
+      cmake_args+=(${compiler_args["numerical"]})
       set_clang
       ;;
     -d|--dataflow)
-      cmake_args+=compiler_args["dataflow"]
+      cmake_args+=(${compiler_args["dataflow"]})
       set_clang
       ;;
     -m|--memory)
-      cmake_args+=compiler_args["memory"]
+      cmake_args+=(${compiler_args["memory"]})
       set_clang
       ;;
     -C|--cppcheck)
-      cmake_args+=compiler_args["cppcheck"]
+      cmake_args+=(${compiler_args["cppcheck"]})
       set_clang
       ;;
     -f|--fanalyze)
-      cmake_args+=compiler_args["fanalyzer"]
+      cmake_args+=(${compiler_args["fanalyzer"]})
       set_gcc
       ;;
     -c|--clang)

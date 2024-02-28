@@ -6,13 +6,14 @@ set(EXTENSION_NAME "stack_v2" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 
 # Custom cmake modules are in the parent directory
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 # Includes
 include(FetchContent)
 include(ExternalProject)
 include(FindPython3)
 include(AnalysisFunc)
+include(FindCppcheck)
 add_subdirectory(../dd_wrapper "${LIB_INSTALL_DIR}")
 
 # Find the Python interpreter
@@ -100,3 +101,10 @@ if (LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
     )
 endif()
+
+# Configure cppcheck
+add_cppcheck_target(${EXTENSION_NAME}
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
+  SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
+)

@@ -1,5 +1,3 @@
-include(FindCppcheck)
-
 function(add_ddup_config target)
     target_compile_options(${target} PRIVATE
       "$<$<CONFIG:Debug>:-Og;-ggdb3>"
@@ -24,7 +22,4 @@ function(add_ddup_config target)
     if (DO_FANALYZER AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
       target_compile_options(${target} PRIVATE -fanalyzer)
     endif()
-
-    # If DO_CPPCHECK is specified, then we can use cppcheck
-    add_cppcheck_target(cppcheck_dd_${target} ${CMAKE_CURRENT_SOURCE_DIR})
 endfunction()

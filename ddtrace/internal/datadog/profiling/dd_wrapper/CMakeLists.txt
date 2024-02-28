@@ -15,6 +15,7 @@ include(FetchContent)
 include(ExternalProject)
 include(FindLibdatadog)
 include(AnalysisFunc)
+include(FindCppcheck)
 
 # Library sources
 add_library(dd_wrapper SHARED
@@ -58,6 +59,14 @@ if (LIB_INSTALL_DIR)
         DESTINATION "${LIB_INSTALL_DIR}"
     )
 endif()
+
+# Configure cppcheck
+add_cppcheck_target(dd_wrapper
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${Datadog_INCLUDE_DIRS}
+    SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 # Add the tests
 if (BUILD_TESTING)
