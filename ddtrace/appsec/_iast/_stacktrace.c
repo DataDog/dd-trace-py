@@ -122,8 +122,8 @@ exit:
     return result;
 
 exit_0:; // fix: "a label can only be part of a statement and a declaration is not a statement" error
-    // Return "", 0
-    PyObject* line_obj = Py_BuildValue("i", 0);
+    // Return "", -1
+    PyObject* line_obj = Py_BuildValue("i", -1);
     filename_o = PyUnicode_FromString("");
     result = PyTuple_Pack(2, filename_o, line_obj);
     Py_DecRef(cwd_bytes);
