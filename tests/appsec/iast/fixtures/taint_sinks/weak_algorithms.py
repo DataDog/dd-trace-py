@@ -5,7 +5,7 @@ make some changes
 import os
 
 
-def parametrized_week_hash(hash_func, method):
+def parametrized_weak_hash(hash_func, method):
     import hashlib
 
     m = getattr(hashlib, hash_func)()
