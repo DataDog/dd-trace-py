@@ -409,8 +409,6 @@ class TestLLMObsBedrock:
             "env:",
             "service:aws.bedrock-runtime",
             "source:integration",
-            "model_name:%s" % span.get_tag("bedrock.request.model"),
-            "model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
             "error:0",
         ]
         expected_llmobs_writer_calls = [mock.call.start()]
@@ -589,8 +587,6 @@ class TestLLMObsBedrock:
             "env:",
             "service:aws.bedrock-runtime",
             "source:integration",
-            "model_name:{}".format(span.get_tag("bedrock.request.model")),
-            "model_provider:{}".format(span.get_tag("bedrock.request.model_provider")),
             "error:1",
             "error_type:%s" % span.get_tag("error.type"),
         ]

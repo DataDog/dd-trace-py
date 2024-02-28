@@ -28,3 +28,18 @@ def get_openai_vcr(subdirectory_name=""):
         # Ignore requests to the agent
         ignore_localhost=True,
     )
+
+
+def _expected_llmobs_tags(error=None):
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "source:integration",
+    ]
+    if error:
+        expected_tags.append("error:1")
+        expected_tags.append("error_type:{}".format(error))
+    else:
+        expected_tags.append("error:0")
+    return expected_tags
