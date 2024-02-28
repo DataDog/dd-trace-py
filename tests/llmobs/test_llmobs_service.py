@@ -7,6 +7,7 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -89,23 +90,22 @@ def test_llmobs_service_enable_already_enabled(mock_logs):
         mock_logs.debug.assert_has_calls([mock.call("%s already enabled", "LLMObs")])
 
 
-def test_llmobs_start_span_while_disabled_raises_error(LLMObs):
+def test_llmobs_start_span_while_disabled_logs_warning(LLMObs, mock_logs):
     LLMObs.disable()
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider"):
-            pass
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        with LLMObs.tool(name="test_tool"):
-            pass
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        with LLMObs.task(name="test_task"):
-            pass
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        with LLMObs.workflow(name="test_workflow"):
-            pass
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        with LLMObs.agent(name="test_agent"):
-            pass
+    _ = LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider")
+    mock_logs.warning.assert_called_once_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
+    mock_logs.reset_mock()
+    _ = LLMObs.tool(name="test_tool")
+    mock_logs.warning.assert_called_once_with("LLMObs.tool() cannot be used while LLMObs is disabled.")
+    mock_logs.reset_mock()
+    _ = LLMObs.task(name="test_task")
+    mock_logs.warning.assert_called_once_with("LLMObs.task() cannot be used while LLMObs is disabled.")
+    mock_logs.reset_mock()
+    _ = LLMObs.workflow(name="test_workflow")
+    mock_logs.warning.assert_called_once_with("LLMObs.workflow() cannot be used while LLMObs is disabled.")
+    mock_logs.reset_mock()
+    _ = LLMObs.agent(name="test_agent")
+    mock_logs.warning.assert_called_once_with("LLMObs.agent() cannot be used while LLMObs is disabled.")
 
 
 def test_llmobs_start_span_uses_kind_as_default_name(LLMObs):
@@ -182,13 +182,15 @@ def test_llmobs_llm_span(LLMObs, mock_llmobs_writer):
     )
 
 
-def test_llmobs_llm_span_no_model_raises_error(LLMObs):
+def test_llmobs_llm_span_no_model_raises_error(LLMObs, mock_logs):
     with pytest.raises(TypeError):
         with LLMObs.llm(name="test_llm_call", model_provider="test_provider"):
             pass
-    with pytest.raises(ValueError, match="model_name must be the specified name of the invoked model."):
-        with LLMObs.llm(model_name="", name="test_llm_call", model_provider="test_provider"):
-            pass
+
+
+def test_llmobs_llm_span_empty_model_name_logs_warning(LLMObs, mock_logs):
+    _ = LLMObs.llm(model_name="", name="test_llm_call", model_provider="test_provider")
+    mock_logs.warning.assert_called_once_with("model_name must be the specified name of the invoked model.")
 
 
 def test_llmobs_default_model_provider_set_to_custom(LLMObs):
@@ -298,22 +300,22 @@ def test_llmobs_agent_span(LLMObs, mock_llmobs_writer):
     )
 
 
-def test_llmobs_annotate_while_disabled_raises_error(LLMObs):
+def test_llmobs_annotate_while_disabled_logs_warning(LLMObs, mock_logs):
     LLMObs.disable()
-    with pytest.raises(Exception, match="cannot be used while LLMObs is disabled."):
-        LLMObs.annotate(parameters={"test": "test"})
+    LLMObs.annotate(parameters={"test": "test"})
+    mock_logs.warning.assert_called_once_with("LLMObs.annotate() cannot be used while LLMObs is disabled.")
 
 
-def test_llmobs_annotate_no_active_span_raises_error(LLMObs):
-    with pytest.raises(Exception, match="No span provided and no active span found."):
-        LLMObs.annotate(parameters={"test": "test"})
+def test_llmobs_annotate_no_active_span_logs_warning(LLMObs, mock_logs):
+    LLMObs.annotate(parameters={"test": "test"})
+    mock_logs.warning.assert_called_once_with("No span provided and no active span found.")
 
 
-def test_llmobs_annotate_non_llm_span_raises_error(LLMObs):
+def test_llmobs_annotate_non_llm_span_logs_warning(LLMObs, mock_logs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root") as non_llmobs_span:
-        with pytest.raises(ValueError, match="span must be an LLM-type span."):
-            LLMObs.annotate(span=non_llmobs_span, parameters={"test": "test"})
+        LLMObs.annotate(span=non_llmobs_span, parameters={"test": "test"})
+        mock_logs.warning.assert_called_once_with("Span must be an LLM-type span.")
 
 
 def test_llmobs_annotate_finished_span_does_nothing(LLMObs, mock_logs):
@@ -359,10 +361,10 @@ def test_llmobs_annotate_input_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
 
 
-def test_llmobs_annotate_non_llm_span_message_input_raises_error(LLMObs):
+def test_llmobs_annotate_non_llm_span_message_input_logs_warning(LLMObs, mock_logs):
     with LLMObs.task() as span:
-        with pytest.raises(ValueError, match="Invalid input/output type for non-llm span. Must be a raw string."):
-            LLMObs.annotate(span=span, input_data=[{"content": "test_input"}])
+        LLMObs.annotate(span=span, input_data=[{"content": "test_input"}])
+        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
 
 
 def test_llmobs_annotate_output_string(LLMObs):
@@ -389,10 +391,16 @@ def test_llmobs_annotate_output_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output", "role": "human"}]
 
 
-def test_llmobs_annotate_non_llm_span_message_output_raises_error(LLMObs):
+def test_llmobs_annotate_non_llm_span_message_output_logs_warning(LLMObs, mock_logs):
     with LLMObs.task() as span:
-        with pytest.raises(ValueError, match="Invalid input/output type for non-llm span. Must be a raw string."):
-            LLMObs.annotate(span=span, output_data=[{"content": "test_input"}])
+        LLMObs.annotate(span=span, output_data=[{"content": "test_input"}])
+        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
+
+
+def test_llmobs_annotate_metrics(LLMObs):
+    with LLMObs.llm(model_name="test_model") as span:
+        LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
+        assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
 
 def test_llmobs_span_error_sets_error_tag(LLMObs, mock_llmobs_writer):
