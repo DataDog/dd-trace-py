@@ -60,3 +60,26 @@ def test_exploration_file_output():
     from tests.debugging.exploration._config import config
 
     assert config.output_file == Path("expl.txt")
+
+
+@pytest.mark.subprocess(
+    parametrize=dict(
+        DD_REMOTE_CONFIGURATION_ENABLED=["1", "0"],
+    ),
+)
+def test_rc_default_products_registered():
+    import os
+
+    from ddtrace.internal.utils.formats import asbool
+
+    rc_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED"))
+
+    from ddtrace import config
+
+    assert config._remote_config_enabled == rc_enabled
+
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    assert bool(remoteconfig_poller._client._products.get("APM_TRACING")) == rc_enabled
+    assert bool(remoteconfig_poller._client._products.get("AGENT_CONFIG")) == rc_enabled
+    assert bool(remoteconfig_poller._client._products.get("AGENT_TASK")) == rc_enabled
