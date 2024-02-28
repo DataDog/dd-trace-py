@@ -44,8 +44,9 @@ Sampler::set_interval(double new_interval_s)
     sample_interval_us.store(new_interval_us);
 }
 
-Sampler::Sampler() : renderer_ptr{std::make_shared<StackRenderer>()}
-{ }
+Sampler::Sampler()
+  : renderer_ptr{ std::make_shared<StackRenderer>() }
+{}
 
 Sampler&
 Sampler::get()

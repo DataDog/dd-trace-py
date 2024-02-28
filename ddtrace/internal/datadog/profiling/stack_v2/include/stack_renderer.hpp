@@ -22,10 +22,10 @@ class StackRenderer : public RendererInterface
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
-                             std::string_view name,
-                             microsecond_t wall_time_us,
-                             uintptr_t thread_id,
-                             unsigned long native_id) override;
+                                     std::string_view name,
+                                     microsecond_t wall_time_us,
+                                     uintptr_t thread_id,
+                                     unsigned long native_id) override;
 
     virtual void render_stack_begin() override;
     virtual void render_python_frame(std::string_view name, std::string_view file, uint64_t line) override;
