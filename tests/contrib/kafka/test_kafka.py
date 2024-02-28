@@ -90,10 +90,16 @@ def dummy_tracer():
 
 
 @pytest.fixture
-def tracer():
+def should_filter_empty_polls():
+    yield True
+
+
+@pytest.fixture
+def tracer(should_filter_empty_polls):
     patch()
     t = Tracer()
-    t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    if should_filter_empty_polls:
+        t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     # disable backoff because it makes these tests less reliable
     t._writer._send_payload_with_backoff = t._writer._send_payload
     try:
@@ -299,12 +305,15 @@ def test_commit_with_consume_without_batch(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
-    with override_config("kafka", dict(trace_empty_poll_enabled=True)):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-        with pytest.raises(TypeError):
-            # tries to consume messages after the consumer has been closed with raises a RuntimeError
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    with pytest.raises(TypeError):
+        # tries to consume messages after the consumer has been closed with raises a RuntimeError
+        # Empty poll spans are filtered out by the KafkaConsumerPollFilter. We need to disable it to test this.
+        # Allowing empty poll spans could introduce flakiness in the test.
+        with override_config("kafka", dict(trace_empty_poll_enabled=True)):
             consumer.consume(num_messages=1, invalid_args="invalid_args")
 
 
@@ -457,19 +466,9 @@ def _generate_in_subprocess(random_topic):
     import ddtrace
     from ddtrace.contrib.kafka.patch import patch
     from ddtrace.contrib.kafka.patch import unpatch
-    from ddtrace.filters import TraceFilter
+    from tests.contrib.kafka.test_kafka import KafkaConsumerPollFilter
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-
-    class KafkaConsumerPollFilter(TraceFilter):
-        def process_trace(self, trace):
-            # Filter out all poll spans that have no received message
-            return (
-                None
-                if trace[0].name in {"kafka.consume", "kafka.process"}
-                and trace[0].get_tag("kafka.received_message") == "False"
-                else trace
-            )
 
     ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     # disable backoff because it makes these tests less reliable
@@ -775,6 +774,7 @@ from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
+from tests.contrib.kafka.test_kafka import should_filter_empty_polls
 from tests.utils import DummyTracer
 
 def test(consumer, producer, kafka_topic):
@@ -965,6 +965,7 @@ from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
+from tests.contrib.kafka.test_kafka import should_filter_empty_polls
 from tests.utils import DummyTracer
 
 def test(consumer, producer, kafka_topic):
