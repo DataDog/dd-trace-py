@@ -191,7 +191,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         else:
             output_messages = []
             for idx, choice in enumerate(resp.choices):
-                content = getattr(choice.message, "content", None)
+                content = getattr(choice.message, "content", "")
                 if getattr(choice.message, "function_call", None):
                     content = choice.message.function_call.arguments
                 elif getattr(choice.message, "tool_calls", None):
