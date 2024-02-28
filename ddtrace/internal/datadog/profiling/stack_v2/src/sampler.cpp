@@ -7,7 +7,7 @@
 using namespace Datadog;
 
 void
-Sampler::sampling_thread(uint64_t seq_num)
+Sampler::sampling_thread(const uint64_t seq_num)
 {
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();

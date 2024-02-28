@@ -26,7 +26,7 @@ class Sampler
     uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
 
     // Helper function; implementation of the echion sampling thread
-    void sampling_thread(uint64_t seq_num);
+    void sampling_thread(const uint64_t seq_num);
 
     // This is a singleton, so no public constructor
     Sampler();

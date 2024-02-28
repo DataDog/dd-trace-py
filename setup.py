@@ -354,7 +354,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        optional=True  # By default, extensions are optional
+        optional=True,  # By default, extensions are optional
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
