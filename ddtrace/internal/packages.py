@@ -112,7 +112,7 @@ def _package_file_mapping():
         return mapping
 
     except Exception:
-        LOG.error(
+        LOG.warning(
             "Unable to build package file mapping, "
             "please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,

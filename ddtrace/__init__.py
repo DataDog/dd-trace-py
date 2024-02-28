@@ -1,4 +1,5 @@
 import sys
+import warnings
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
@@ -40,6 +41,14 @@ from ddtrace._trace.span import Span  # noqa: E402
 from ddtrace._trace.tracer import Tracer  # noqa: E402
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
+
+# DEV: Import deprecated tracer module in order to retain side-effect of package
+# initialization, which added this module to sys.modules. We catch deprecation
+# warnings as this is only to retain a side effect of the package
+# initialization.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from .tracer import Tracer as _
 
 
 __version__ = get_version()
