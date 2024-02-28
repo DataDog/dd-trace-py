@@ -327,7 +327,8 @@ class _DatadogMultiHeader:
         if sampling_priority == USER_KEEP:
             if not meta:
                 meta = {}
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
+            if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+                meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
