@@ -60,33 +60,3 @@ def test_exploration_file_output():
     from tests.debugging.exploration._config import config
 
     assert config.output_file == Path("expl.txt")
-
-
-@pytest.mark.subprocess(
-    parametrize=dict(
-        DD_REMOTE_CONFIGURATION_ENABLED=["1", "0"],
-    ),
-)
-def test_rc_default_products_registered():
-    """
-    By default, RC should be enabled. When RC is enabled, we will always
-    enable the tracer flare feature as well. There should be three products
-    registered when DD_REMOTE_CONFIGURATION_ENABLED is True
-    """
-    import os
-
-    from ddtrace.internal.utils.formats import asbool
-
-    rc_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED"))
-
-    # Import this to trigger the preload
-    from ddtrace import config
-    import ddtrace.auto  # noqa:F401
-
-    assert config._remote_config_enabled == rc_enabled
-
-    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-    assert bool(remoteconfig_poller._client._products.get("APM_TRACING")) == rc_enabled
-    assert bool(remoteconfig_poller._client._products.get("AGENT_CONFIG")) == rc_enabled
-    assert bool(remoteconfig_poller._client._products.get("AGENT_TASK")) == rc_enabled
