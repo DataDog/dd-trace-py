@@ -4,12 +4,12 @@
 *                                   @DataDog/apm-core-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations
+ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations
+ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
