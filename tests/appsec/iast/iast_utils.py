@@ -11,10 +11,13 @@ def get_line(label, filename=None):
     raise AssertionError("label %s not found" % label)
 
 
-def get_line_and_hash(label, vuln_type, filename=None):
+def get_line_and_hash(label, vuln_type, filename=None, fixed_line=None):
     """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
 
-    line = get_line(label, filename=filename)
+    if fixed_line is not None:
+        line = fixed_line
+    else:
+        line = get_line(label, filename=filename)
     rep = "Vulnerability(type='%s', location=Location(path='%s', line=%s))" % (vuln_type, filename, line)
     hash_value = zlib.crc32(rep.encode())
 
