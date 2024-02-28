@@ -552,7 +552,6 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP", "")
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
