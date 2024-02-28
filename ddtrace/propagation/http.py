@@ -320,7 +320,7 @@ class _DatadogMultiHeader:
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
-        if sampling_priority == USER_KEEP:
+        if sampling_priority == USER_KEEP and not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
             if not meta:
                 meta = {}
             meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
