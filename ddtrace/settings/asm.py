@@ -41,6 +41,7 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     _asm_can_be_enabled = (APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled) or _asm_enabled
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _use_metastruct_for_triggers = False
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
@@ -82,6 +83,7 @@ class ASMConfig(Env):
     _asm_config_keys = [
         "_asm_enabled",
         "_iast_enabled",
+        "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
         "_user_model_login_field",
         "_user_model_email_field",
