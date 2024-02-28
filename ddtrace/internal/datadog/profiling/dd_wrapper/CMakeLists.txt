@@ -16,6 +16,7 @@ include(ExternalProject)
 include(FindLibdatadog)
 include(AnalysisFunc)
 include(FindCppcheck)
+include(FindInfer)
 
 # Library sources
 add_library(dd_wrapper SHARED
