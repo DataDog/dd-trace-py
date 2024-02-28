@@ -6,10 +6,13 @@ import sys
 import typing as t
 
 
+sys.path.insert(0, str(Path(__file__).parents[1] / "ddtrace" / "internal"))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 import tests.suitespec as spec  # noqa
+from codeowners import Codeowners  # noqa
 
+CODEOWNERS = Codeowners()
 
 ROOT = Path(__file__).parents[1]
 GITIGNORE_FILE = ROOT / ".gitignore"
@@ -21,6 +24,12 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
+# The aioredis integration is deprecated and untested
+IGNORE_PATTERNS.add("ddtrace/contrib/aioredis/*")
+
+
+def owners(path: str) -> str:
+    return ", ".join(CODEOWNERS.of(path))
 
 
 def filter_ignored(paths: t.Iterable[Path]) -> set[Path]:
@@ -30,7 +39,7 @@ def filter_ignored(paths: t.Iterable[Path]) -> set[Path]:
 
 
 def uncovered(path: Path) -> set[str]:
-    return {f for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(f, p) for p in SPEC_PATTERNS)}
+    return {str(f) for f in filter_ignored(path.glob("**/*")) if not any(fnmatch.fnmatch(f, p) for p in SPEC_PATTERNS)}
 
 
 def unmatched() -> set[str]:
@@ -44,12 +53,12 @@ unmatched_patterns = unmatched()
 if uncovered_sources:
     print(f"▶️ {len(uncovered_sources)} source files not covered by any suite specs:")
     for f in sorted(uncovered_sources):
-        print(f"    {f}")
+        print(f"    {f}\t({owners(f)})")
     print()
 if uncovered_tests:
     print(f"🧪 {len(uncovered_tests)} test files not covered by any suite specs:")
     for f in sorted(uncovered_tests):
-        print(f"    {f}")
+        print(f"    {f}\t({owners(f)})")
     print()
 if not uncovered_sources and not uncovered_tests:
     print("✨ 🍰 ✨ All files are covered by suite specs")
