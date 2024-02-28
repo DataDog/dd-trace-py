@@ -21,8 +21,10 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
-sys.modules["sqlite3"] = __import__("pysqlite3")
-
+try:
+    sys.modules["sqlite3"] = __import__("pysqlite3")
+except ImportError:
+    pass
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Generator  # noqa:F401

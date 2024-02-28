@@ -16,7 +16,10 @@ except ImportError:
 from tests.contrib.patch import PatchTestCase
 
 
-sys.modules["sqlite3"] = __import__("pysqlite3")
+try:
+    sys.modules["sqlite3"] = __import__("pysqlite3")
+except ImportError:
+    pass
 
 
 class TestSqlite3Patch(PatchTestCase.Base):
