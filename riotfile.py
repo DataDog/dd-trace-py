@@ -2204,7 +2204,8 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.8", max_version="3.12")),
+                # remove pysqlite3 from the list of packages to test on Python 3.8+ locally on non-linux machines
+                Venv(pys=select_pys(min_version="3.8"), pkgs={"pysqlite3": ["~=0.4.0", latest]}),
                 Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
             ],
         ),

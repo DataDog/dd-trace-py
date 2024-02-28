@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 import time
 from typing import TYPE_CHECKING  # noqa:F401
 
@@ -18,6 +19,9 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+
+
+sys.modules["sqlite3"] = __import__("pysqlite3")
 
 
 if TYPE_CHECKING:  # pragma: no cover

@@ -3,6 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+import sys
+
 from ddtrace.contrib.sqlite3 import get_version
 from ddtrace.contrib.sqlite3.patch import patch
 
@@ -12,6 +14,9 @@ try:
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
+
+
+sys.modules["sqlite3"] = __import__("pysqlite3")
 
 
 class TestSqlite3Patch(PatchTestCase.Base):
