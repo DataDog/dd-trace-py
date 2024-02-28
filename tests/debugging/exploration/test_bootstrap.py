@@ -79,7 +79,9 @@ def test_rc_default_products_registered():
 
     rc_enabled = asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED"))
 
+    # Import this to trigger the preload
     from ddtrace import config
+    import ddtrace.auto  # noqa:F401
 
     assert config._remote_config_enabled == rc_enabled
 
