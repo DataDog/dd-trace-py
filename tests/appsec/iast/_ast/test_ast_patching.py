@@ -112,6 +112,7 @@ import html"""
         ("tests.appsec.iast.fixtures.ast.str.__init__"),  # Empty __init__.py
         ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
         ("tests.appsec.iast.fixtures.ast.str.empty_file"),
+        ("tests.appsec.iast.fixtures.ast.subscript.store_context"),
     ],
 )
 def test_astpatch_source_unchanged(module_name):
