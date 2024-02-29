@@ -237,6 +237,7 @@ def run_function_from_file(item, params=None):
 
             xfailed = "_pytest.outcomes.XFailed" in err and status == 1
             if xfailed:
+                pytest.xfail("subprocess test resulted in XFail")
                 return
 
             if status != expected_status:
