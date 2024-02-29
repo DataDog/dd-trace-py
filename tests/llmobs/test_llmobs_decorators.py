@@ -36,6 +36,7 @@ def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         pass
+
     LLMObs.disable()
     f()
     mock_logs.warning.assert_called_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
@@ -43,9 +44,11 @@ def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
 def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)]:
+
         @decorator(name="test_function", session_id="test_session_id")
         def f():
             pass
+
         LLMObs.disable()
         f()
         mock_logs.warning.assert_called_with(
