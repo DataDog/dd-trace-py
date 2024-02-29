@@ -18,7 +18,7 @@ include(ExternalProject)
 include(FindLibdatadog)
 include(AnalysisFunc)
 
-add_subdirectory(../dd_wrapper)
+add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/dd_wrapper_build)
 
 # Find the Python interpreter
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
