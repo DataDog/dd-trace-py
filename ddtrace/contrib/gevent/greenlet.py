@@ -6,13 +6,19 @@ import gevent
 GEVENT_VERSION = gevent.version_info[0:3]
 
 
-class TracedGreenlet(gevent.Greenlet):
+class TracingMixin(object):
+    def __init__(self, *args, **kwargs):
+        # Initialize greenlet contextvars to the same as the current context.
+        # This is necessary to ensure tracing context is passed to greenlets.
+        # Note - this change may impact other libraries that rely on greenlet local storage.
+        self.gr_context = _copy_context()
+        super(TracingMixin, self).__init__(*args, **kwargs)
+
+
+class TracedGreenlet(TracingMixin, gevent.Greenlet):
     """
     ``Greenlet`` class that is used to replace the original ``gevent``
-    class. This class is supposed to do ``Context`` replacing operation, so
-    that any greenlet inherits the context from the parent Greenlet.
-    When a new greenlet is spawned from the main greenlet, a new instance
-    of ``Context`` is created. The main greenlet is not affected by this behavior.
+    class. This class ensures any greenlet inherits the contextvars from the parent Greenlet.
 
     There is no need to inherit this class to create or optimize greenlets
     instances, because this class replaces ``gevent.greenlet.Greenlet``
@@ -21,20 +27,14 @@ class TracedGreenlet(gevent.Greenlet):
     """
 
     def __init__(self, *args, **kwargs):
-        # Initialize greenlet contextvars to the same as the current context.
-        # This is necessary to ensure tracing context is passed to greenlets.
-        # Note - this change may impact other libraries that rely on greenlet local storage.
-        self.gr_context = _copy_context()
         super(TracedGreenlet, self).__init__(*args, **kwargs)
 
 
-class TracedIMapUnordered(gevent.pool.IMapUnordered):
+class TracedIMapUnordered(TracingMixin, gevent.pool.IMapUnordered):
     def __init__(self, *args, **kwargs):
-        self.gr_context = _copy_context()
         super(TracedIMapUnordered, self).__init__(*args, **kwargs)
 
 
-class TracedIMap(gevent.pool.IMap, TracedIMapUnordered):
+class TracedIMap(TracedIMapUnordered, gevent.pool.IMap):
     def __init__(self, *args, **kwargs):
-        self.gr_context = _copy_context()
         super(TracedIMap, self).__init__(*args, **kwargs)
