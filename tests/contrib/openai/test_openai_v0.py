@@ -1612,12 +1612,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 15, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 17, tags=expected_tags) in mock_metrics.mock_calls
 
 
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
@@ -1664,15 +1662,10 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 12, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 12 + prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1721,15 +1714,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.gauge("ratelimit.remaining.tokens", 89971, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 35, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 35 + prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(
@@ -2333,7 +2321,7 @@ async def test_llmobs_chat_completion_stream(
                     input_messages=input_messages,
                     output_messages=[{"content": expected_completion, "role": "assistant"}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 8, "completion_tokens": 15, "total_tokens": 23},
+                    token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
                 )
             ),
         ]
@@ -2410,7 +2398,7 @@ def test_llmobs_chat_completion_function_call_stream(
                     input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                     output_messages=[{"content": expected_output, "role": "assistant"}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 63, "completion_tokens": 35, "total_tokens": 98},
+                    token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
                 )
             ),
         ]
