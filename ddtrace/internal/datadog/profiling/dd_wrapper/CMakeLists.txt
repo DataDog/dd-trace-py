@@ -48,15 +48,12 @@ target_link_libraries(dd_wrapper PRIVATE
 )
 set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-set_target_properties(dd_wrapper
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${dd_wrapper_BUILD_DIR}"
-)
-
 # If LIB_INSTALL_DIR is set, install the library
 if (LIB_INSTALL_DIR)
     install(TARGETS dd_wrapper
-        DESTINATION "${LIB_INSTALL_DIR}"
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
     )
 endif()
 

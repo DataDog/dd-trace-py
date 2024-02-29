@@ -15,11 +15,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 # Includes
 include(FetchContent)
 include(ExternalProject)
-include(FindPython3)
 include(FindLibdatadog)
 include(AnalysisFunc)
 
-add_subdirectory(../dd_wrapper "${LIB_INSTALL_DIR}")
+add_subdirectory(../dd_wrapper)
 
 # Find the Python interpreter
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -33,15 +32,16 @@ set (ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
 set (ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
 
 # Cythonize the .pyx file
+set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_LIST_DIR}/_ddup.cpp
-    COMMAND ${PYTHON_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${CMAKE_CURRENT_LIST_DIR}/_ddup.cpp
+    OUTPUT ${DDUP_CPP_SRC}
+    COMMAND ${PYTHON_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx
 )
 
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED
-    _ddup.cpp
+    ${DDUP_CPP_SRC}
 )
 
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
@@ -69,13 +69,9 @@ target_link_libraries(${EXTENSION_NAME} PRIVATE
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-set_target_properties(${EXTENSION_NAME} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-)
-
 # Set the output directory for the built library
 if (LIB_INSTALL_DIR)
-    install(TARGETS ${EXTENSION_NAME} DESTINATION
+    install(TARGETS ${EXTENSION_NAME}
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}

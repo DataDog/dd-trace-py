@@ -1,3 +1,5 @@
+include(CheckIPOSupported)
+
 function(add_ddup_config target)
     target_compile_options(${target} PRIVATE
       "$<$<CONFIG:Debug>:-Og;-ggdb3>"
@@ -9,6 +11,10 @@ function(add_ddup_config target)
       -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
     )
     set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    check_ipo_supported(RESULT result)
+    if (result)
+      set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
 
     # Propagate sanitizers
     if (SANITIZE_OPTIONS)

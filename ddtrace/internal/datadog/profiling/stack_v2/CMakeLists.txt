@@ -11,10 +11,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 # Includes
 include(FetchContent)
 include(ExternalProject)
-include(FindPython3)
 include(AnalysisFunc)
 include(FindCppcheck)
-add_subdirectory(../dd_wrapper "${LIB_INSTALL_DIR}")
+add_subdirectory(../dd_wrapper)
 
 # Find the Python interpreter
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -89,13 +88,9 @@ target_link_libraries(${EXTENSION_NAME} PRIVATE
 # Extensions are built as dynamic libraries, so PIC is required.
 set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-set_target_properties(${EXTENSION_NAME} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-)
-
 # Set the output directory for the built library
 if (LIB_INSTALL_DIR)
-    install(TARGETS ${EXTENSION_NAME} DESTINATION
+    install(TARGETS ${EXTENSION_NAME}
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
