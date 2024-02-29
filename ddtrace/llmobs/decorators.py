@@ -31,7 +31,7 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
 
 
 def llmobs_decorator(operation_kind):
-    def decorator(name=None, session_id=None):
+    def decorator(original_func=None, name=None, session_id=None):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -47,6 +47,8 @@ def llmobs_decorator(operation_kind):
 
             return wrapper
 
+        if original_func and callable(original_func):
+            return inner(original_func)
         return inner
 
     return decorator
