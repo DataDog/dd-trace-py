@@ -95,6 +95,9 @@ class VulnerabilityBase(Operation):
     @classmethod
     @taint_sink_deduplication
     def _prepare_report(cls, span, vulnerability_type, evidence, file_name, line_number, sources):
+        if line_number is not None and (line_number == 0 or line_number < -1):
+            line_number = -1
+
         report = core.get_item(IAST.CONTEXT_KEY, span=span)
         if report:
             report.vulnerabilities.add(
