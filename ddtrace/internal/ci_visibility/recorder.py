@@ -35,6 +35,7 @@ from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_NAME
+from .constants import ITR_CORRELATION_ID_TAG_NAME
 from .constants import REQUESTS_MODE
 from .constants import SETTING_ENDPOINT
 from .constants import SKIPPABLE_ENDPOINT
@@ -154,6 +155,7 @@ class CIVisibility(Service):
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
+        self._itr_meta = {}  # type: Dict[str, Any]
 
         int_service = None
         if self.config is not None:
@@ -464,6 +466,13 @@ class CIVisibility(Service):
             log.warning("Skippable tests request missing data, no tests will be skipped")
             return
 
+        if "meta" in parsed and "correlation_id" in parsed["meta"]:
+            itr_correlation_id = parsed["meta"]["correlation_id"]
+            log.debug("Skippable tests response correlation_id: %s", itr_correlation_id)
+            self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = itr_correlation_id
+        else:
+            log.debug("Skippable tests response missing correlation_id")
+
         try:
             for item in parsed["data"]:
                 if item["type"] == skipping_mode and "suite" in item["attributes"]:
@@ -495,7 +504,6 @@ class CIVisibility(Service):
     def enable(cls, tracer=None, config=None, service=None):
         # type: (Optional[Tracer], Optional[Any], Optional[str]) -> None
         log.debug("Enabling %s", cls.__name__)
-
         if ddconfig._ci_visibility_agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(
