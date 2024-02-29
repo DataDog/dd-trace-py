@@ -1530,35 +1530,13 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # fastapi added support for Python 3.7 in 0.1.0
-                    # fastapi dropped support for Python 3.7 in 0.103.0
-                    pys="3.7",
-                    pkgs={"fastapi": ["~=0.1.0", "~=0.103.0"]},
-                ),
-                Venv(
-                    # fastapi added support for Python 3.8 in 0.1.0
-                    pys="3.8",
-                    pkgs={"fastapi": ["~=0.1.0", latest]},
-                ),
-                Venv(
-                    # fastapi added support for Python 3.9 in 0.69.0
-                    pys="3.9",
-                    pkgs={"fastapi": ["~=0.69.0", latest]},
-                ),
-                Venv(
-                    # fastapi added support for Python 3.10 in 0.71.0
-                    pys="3.10",
-                    pkgs={"fastapi": ["~=0.71.0", latest]},
+                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
                     pys="3.11",
-                    pkgs={"fastapi": ["~=0.86.0", latest]},
-                ),
-                Venv(
-                    # fastapi added support for Python 3.12 in 0.109.0
-                    pys="3.12",
-                    pkgs={"fastapi": ["~=0.109.0", latest]},
+                    pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
                 ),
             ],
         ),
