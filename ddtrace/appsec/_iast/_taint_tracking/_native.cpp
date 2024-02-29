@@ -61,6 +61,12 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 
 PYBIND11_MODULE(_native, m)
 {
+    std::string iast_enabled = std::string(std::getenv("DD_IAST_ENABLED"));
+    std::transform(
+      iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (iast_enabled != "true" && iast_enabled != "1")
+        return;
+
     initializer = make_unique<Initializer>();
     initializer->create_context();
     // Cleanup code to be run at the end of the interpreter lifetime:
