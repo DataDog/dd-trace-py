@@ -26,3 +26,15 @@ class TracedGreenlet(gevent.Greenlet):
         # Note - this change may impact other libraries that rely on greenlet local storage.
         self.gr_context = _copy_context()
         super(TracedGreenlet, self).__init__(*args, **kwargs)
+
+
+class TracedIMapUnordered(gevent.pool.IMapUnordered):
+    def __init__(self, *args, **kwargs):
+        self.gr_context = _copy_context()
+        super(TracedIMapUnordered, self).__init__(*args, **kwargs)
+
+
+class TracedIMap(gevent.pool.IMap, TracedIMapUnordered):
+    def __init__(self, *args, **kwargs):
+        self.gr_context = _copy_context()
+        super(TracedIMap, self).__init__(*args, **kwargs)

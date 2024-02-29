@@ -76,7 +76,7 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         funcs = [
-            gevent.pool.Group().map,
+            gevent.pool.Group().imap_unordered,
             gevent.pool.Group().imap,
             gevent.pool.Group().imap_unordered,
             gevent.pool.Pool(2).map,
