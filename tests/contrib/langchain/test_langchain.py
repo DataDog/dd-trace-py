@@ -467,17 +467,23 @@ def test_llm_logs(langchain, langchain_openai, ddtrace_config_langchain, request
     mock_metrics.distribution.assert_not_called()
     mock_metrics.count.assert_not_called()
 
-@pytest.mark.skipif(SHOULD_USE_LANGCHAIN_OPENAI, reason="For using langchain_openai")
+@pytest.mark.skipif(not SHOULD_USE_LANGCHAIN_OPENAI, reason="Should use langchain_openai")
+@pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     # token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_chat_model_sync_call_langchain_openai(langchain_openai,request_vcr):
+def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai,request_vcr):
+    from langchain.schema import HumanMessage
+
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        # or
+        # chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@pytest.mark.skipif(SHOULD_USE_LANGCHAIN_OPENAI, reason="Should not use langchain_openai")
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
