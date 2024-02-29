@@ -1,8 +1,6 @@
 import gevent
 import gevent.pool
 
-import ddtrace
-
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
@@ -31,7 +29,6 @@ def patch():
         return
     gevent.__datadog_patch = True
 
-    ddtrace.Pin().onto(gevent)
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
 
 
