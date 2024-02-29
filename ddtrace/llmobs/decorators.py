@@ -36,7 +36,7 @@ def llmobs_decorator(operation_kind):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 if not LLMObs.enabled or LLMObs._instance is None:
-                    log.warning("LLMObs.{}() cannot be used while LLMObs is disabled.".format(operation_kind))
+                    log.warning("LLMObs.{}() cannot be used while LLMObs is disabled.", operation_kind)
                     return func(*args, **kwargs)
                 span_name = name
                 if span_name is None:

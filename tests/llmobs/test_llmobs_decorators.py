@@ -35,9 +35,7 @@ def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
         LLMObs.disable()
         f()
-        mock_logs.warning.assert_called_with(
-            "LLMObs.{}() cannot be used while LLMObs is disabled.".format(decorator_name)
-        )
+        mock_logs.warning.assert_called_with("LLMObs.{}() cannot be used while LLMObs is disabled.", decorator_name)
         mock_logs.reset_mock()
 
 
