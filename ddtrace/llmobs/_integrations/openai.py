@@ -117,10 +117,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         self,
         record_type: str,
         resp: Any,
-        err: Any,
         span: Span,
         kwargs: Dict[str, Any],
         streamed_resp: Optional[Any] = None,
+        err: Optional[Any] = None,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -133,7 +133,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_resp, span)
         elif record_type == "chat":
             self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_resp, span)
-        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp)))
+        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp is not None)))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(
@@ -201,12 +201,12 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
-    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed_resp: Optional[Any]) -> Dict[str, Any]:
+    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         metrics = {}
-        if streamed_resp:
+        if streamed:
             prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
-            completion_tokens = sum(len(choice) for choice in streamed_resp)
+            completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
             metrics.update(
                 {
                     "prompt_tokens": prompt_tokens,
