@@ -1,23 +1,14 @@
 """
 The gevent integration adds support for tracing across greenlets.
 
-The integration patches the gevent internals to add context management logic.
+The integration ensures gevent contextvars are copied to spawned greenlets.
+This change may impact other libraries that rely on greenlet local storage. To
+disable propagating trace context across greenlets set ``DD_TRACE_GEVENT_ENABLED=False``.
 
 .. note::
     If ``ddtrace-run`` is not being used then be sure to ``import ddtrace.auto``
-    before calling ``gevent.monkey.patch_all``.
+    before importing from the gevent library.
     If ``ddtrace-run`` is being used then no additional configuration is required.
-
-
-The integration also configures the global tracer instance to use a gevent
-context provider to utilize the context management logic.
-
-If custom tracer instances are being used in a gevent application, then
-configure it with::
-
-    from ddtrace.contrib.gevent import context_provider
-
-    tracer.configure(context_provider=context_provider)
 
 
 Enabling
@@ -63,9 +54,4 @@ with require_modules(required_modules) as missing_modules:
 
         context_provider = _DefaultContextProvider()
 
-        __all__ = [
-            "patch",
-            "unpatch",
-            "context_provider",
-            "get_version"
-        ]
+        __all__ = ["patch", "unpatch", "context_provider", "get_version"]
