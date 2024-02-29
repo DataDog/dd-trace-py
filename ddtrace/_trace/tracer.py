@@ -229,7 +229,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
-        self._sampler: BaseSampler = DatadogSampler()
+        self.sampler: BaseSampler = DatadogSampler()
         forksafe.register_before_in_child(self.sample_before_fork)
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -266,7 +266,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
-            self._sampler,
+            self.sampler,
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
@@ -322,15 +322,15 @@ class Tracer(object):
 
     def sample_before_fork(self) -> None:
         span = self.current_root_span()
-        self._sampler.sample(span)
+        self.sampler.sample(span)
 
     @property
     def _sampler(self):
-        return self._sampler_current
+        return self.sampler_current
 
     @_sampler.setter
     def _sampler(self, value):
-        self._sampler_current = value
+        self.sampler_current = value
         # we need to update the processor that uses the sampler
         if getattr(self, "_deferred_processors", None):
             for aggregator in self._deferred_processors:
@@ -440,8 +440,8 @@ class Tracer(object):
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
         if sampler is not None:
-            self._sampler = sampler
-            self._user_sampler = self._sampler
+            self.sampler = sampler
+            self._user_sampler = self.sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -526,7 +526,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
-                self._sampler,
+                self.sampler,
                 self._endpoint_call_counter_span_processor,
             )
 
@@ -545,8 +545,8 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self._sampler, BasePrioritySampler):
-                self._sampler.update_rate_by_service_sample_rates(
+            if isinstance(self.sampler, BasePrioritySampler):
+                self.sampler.update_rate_by_service_sample_rates(
                     resp.rate_by_service,
                 )
         except ValueError:
@@ -592,7 +592,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
-            self._sampler,
+            self.sampler,
             self._endpoint_call_counter_span_processor,
         )
 
@@ -1096,7 +1096,7 @@ class Tracer(object):
         if "_trace_sample_rate" in items:
             # Reset the user sampler if one exists
             if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                self._sampler = self._user_sampler
+                self.sampler = self._user_sampler
                 return
 
             if cfg._get_source("_trace_sample_rate") != "default":
@@ -1106,7 +1106,7 @@ class Tracer(object):
 
             sampler = DatadogSampler(default_sample_rate=sample_rate)
 
-            self._sampler = sampler
+            self.sampler = sampler
 
         if "tags" in items:
             self._tags = cfg.tags.copy()

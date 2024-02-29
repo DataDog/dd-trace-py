@@ -96,7 +96,7 @@ class OverheadControl(object):
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
-        self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
+        self.sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def acquire_request(self, span):
         # type: (Span) -> bool
@@ -104,7 +104,7 @@ class OverheadControl(object):
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota <= 0 or not self._sampler.sample(span):
+        if self._request_quota <= 0 or not self.sampler.sample(span):
             return False
 
         with self._lock:

@@ -99,7 +99,7 @@ def test_dbm_propagation_full_mode():
 
     # since inject() below will call the sampler we just call the sampler here
     # so sampling priority will align in the traceparent
-    tracer._sampler.sample(dbspan._local_root)
+    tracer.sampler.sample(dbspan._local_root)
 
     # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
     dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
@@ -179,7 +179,7 @@ def test_dbm_peer_entity_tags():
 
     # since inject() below will call the sampler we just call the sampler here
     # so sampling priority will align in the traceparent
-    tracer._sampler.sample(dbspan._local_root)
+    tracer.sampler.sample(dbspan._local_root)
 
     # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
     dbm_propagator = _database_monitoring._DBM_Propagator(0, "procedure")
