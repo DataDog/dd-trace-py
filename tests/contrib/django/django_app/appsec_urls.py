@@ -5,6 +5,7 @@ import django
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+import mock
 
 from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
@@ -117,9 +118,10 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
 
 def taint_checking_enabled_view(request):
     if python_supported_by_iast():
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-        from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
+        with mock.patch("ddtrace.appsec._iast._utils._is_iast_enabled", return_value=True):
+            from ddtrace.appsec._iast._taint_tracking import OriginType
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
