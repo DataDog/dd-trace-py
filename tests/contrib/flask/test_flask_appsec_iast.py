@@ -2,6 +2,7 @@ import json
 
 from flask import request
 from importlib_metadata import version
+import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -24,8 +25,9 @@ werkzeug_version = version("werkzeug")
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import reset_context
+    with mock.patch("ddtrace.appsec._iast._utils._is_iast_enabled", return_value=True):
+        from ddtrace.appsec._iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import reset_context
 
     yield
     reset_context()
