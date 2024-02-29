@@ -120,3 +120,25 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
             integration.trunc(str(tool_call.arguments)),
         )
         span.set_tag("openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(tool_call.name))
+
+
+def _tag_streamed_chat_completion_response(integration, span, streamed_chunks):
+    """Tagging logic for streamed chat/completions."""
+    for idx, choice in enumerate(streamed_chunks):
+        if span.resource == "createChatCompletion":
+            content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
+            if getattr(choice[0].delta, "tool_calls", None):
+                content = "".join(
+                    c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
+                )
+            elif getattr(choice[0].delta, "function_call", None):
+                content = "".join(
+                    c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
+                )
+            span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(content))
+            span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice[0].delta.role)
+        else:
+            content = "".join(c.text for c in choice if c.text is not None)
+            span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(content))
+        if choice[-1].finish_reason is not None:
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice[-1].finish_reason)
