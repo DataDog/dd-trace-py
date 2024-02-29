@@ -2204,8 +2204,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.8")),
-                Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
+                # sqlite3 is tied to the Python version and is not installable via pip
+                # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
+                # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
+                Venv(pys=select_pys(min_version="3.9"), pkgs={"pysqlite3-binary": [latest]}),
+                Venv(pys=select_pys(max_version="3.8"), pkgs={"importlib-metadata": latest}),
             ],
         ),
         Venv(
