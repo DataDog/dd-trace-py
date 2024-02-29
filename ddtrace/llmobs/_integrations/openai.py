@@ -113,7 +113,15 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def llmobs_set_tags(self, record_type: str, resp: Any, err: Any, span: Span, kwargs: Dict[str, Any]) -> None:
+    def llmobs_set_tags(
+        self,
+        record_type: str,
+        resp: Any,
+        err: Any,
+        span: Span,
+        kwargs: Dict[str, Any],
+        streamed_resp: Optional[Any] = None,
+    ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
@@ -122,15 +130,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
         if record_type == "completion":
-            self._llmobs_set_completion_meta(resp, err, kwargs, span)
+            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_resp, span)
         elif record_type == "chat":
-            self._llmobs_set_chat_meta(resp, err, kwargs, span)
-        # Since span tags have to be strings, we have to json dump the metrics here and load on the trace processor.
-        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics(resp)))
+            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_resp, span)
+        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp)))
 
     @staticmethod
-    def _llmobs_set_completion_meta(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span):
-        """Extract prompt/response tags from a completion."""
+    def _llmobs_set_meta_tags_from_completion(
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+    ) -> None:
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
         prompt = kwargs.get("prompt", "")
         if isinstance(prompt, str):
             prompt = [prompt]
@@ -141,12 +150,19 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+        elif streamed_resp:
+            span.set_tag_str(
+                OUTPUT_MESSAGES,
+                json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]),
+            )
         else:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
     @staticmethod
-    def _llmobs_set_chat_meta(resp: Any, err: Any, kwargs: Dict[str, Any], span: Span):
-        """Extract prompt/response tags from a chat completion."""
+    def _llmobs_set_meta_tags_from_chat(
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+    ) -> None:
+        """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
         span.set_tag_str(
             INPUT_MESSAGES,
             json.dumps(
@@ -159,10 +175,24 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+        elif streamed_resp:
+            output_messages = []
+            for idx, choice in enumerate(streamed_resp):
+                content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
+                if getattr(choice[0].delta, "tool_calls", None):
+                    content = "".join(
+                        c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
+                    )
+                elif getattr(choice[0].delta, "function_call", None):
+                    content = "".join(
+                        c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
+                    )
+                output_messages.append({"content": content, "role": choice[0].delta.role})
+                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
         else:
             output_messages = []
             for idx, choice in enumerate(resp.choices):
-                content = getattr(choice.message, "content", None)
+                content = getattr(choice.message, "content", "")
                 if getattr(choice.message, "function_call", None):
                     content = choice.message.function_call.arguments
                 elif getattr(choice.message, "tool_calls", None):
@@ -171,9 +201,20 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
-    def _set_llmobs_metrics(resp: Any) -> Dict[str, Any]:
+    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed_resp: Optional[Any]) -> Dict[str, Any]:
+        """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         metrics = {}
-        if resp:
+        if streamed_resp:
+            prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
+            completion_tokens = sum(len(choice) for choice in streamed_resp)
+            metrics.update(
+                {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                }
+            )
+        elif resp:
             metrics.update(
                 {
                     "prompt_tokens": resp.usage.prompt_tokens,
