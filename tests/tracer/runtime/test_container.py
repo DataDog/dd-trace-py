@@ -1,3 +1,5 @@
+import os
+
 import mock
 import pytest
 
@@ -295,6 +297,7 @@ def test_cgroup_info_from_line(line, expected_info):
         (None, None, None),
     ),
 )
+@mock.patch.dict(os.environ, {"DD_ENTITY_ID": "init/1234-pod-uid/5678-container-name"})
 def test_get_container_info(file_contents, container_id, node_inode):
     with get_mock_open(read_data=file_contents) as mock_open:
         # simulate the file not being found
@@ -308,7 +311,8 @@ def test_get_container_info(file_contents, container_id, node_inode):
             if node_inode is None:
                 assert info.node_inode == node_inode
             else:
-                assert isinstance(info.node_inode, int)
+                assert isinstance(info.node_inode, str)
+            assert info.entity_id == "init/1234-pod-uid/5678-container-name"
 
         mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 

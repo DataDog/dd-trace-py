@@ -23,6 +23,7 @@ class CGroupInfo(object):
     controllers = attr.ib(default=None)
     pod_id = attr.ib(default=None)
     node_inode = attr.ib(default=None)
+    entity_id = attr.ib(default=None)
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
@@ -82,11 +83,15 @@ class CGroupInfo(object):
             if match:
                 pod_id = match.group(1)
 
+        # Grab the inode of the cgroup node
         try:
             node_inode = os.stat(f"/sys/fs/cgroup/{path}").st_ino
         except Exception:
             log.debug("Failed to stat cgroup node file for path %r", path, exc_info=True)
             node_inode = None
+
+        # Grab the entity id from the environment
+        entity_id = os.environ.get("DD_ENTITY_ID")
 
         return cls(
             id=id_,
@@ -96,6 +101,7 @@ class CGroupInfo(object):
             controllers=controllers,
             pod_id=pod_id,
             node_inode=node_inode,
+            entity_id=entity_id,
         )
 
 
@@ -120,7 +126,7 @@ def get_container_info(pid="self"):
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
-                if info and (info.container_id or info.node_inode):
+                if info and (info.container_id or info.node_inode or info.entity_id):
                     return info
     except IOError as e:
         if e.errno != errno.ENOENT:
@@ -140,9 +146,13 @@ def update_headers_with_container_info(headers: Dict, container_info: Optional[C
                 ENTITY_ID_HEADER_NAME: f"cid-{container_info.container_id}",
             }
         )
-    elif container_info.node_inode:
+    elif container_info.node_inode or container_info.entity_id:
+        # Entity ID is composed of the inode of the cgroup node and the DD_ENTITY_ID environment variable.
+        # The format is: in-<inode>/en-<entity_id>
+        entity_id_header = "/".join(filter(None, [str(container_info.node_inode), container_info.entity_id])).strip("/")
+
         headers.update(
             {
-                ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+                ENTITY_ID_HEADER_NAME: entity_id_header,
             }
         )
