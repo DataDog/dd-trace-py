@@ -45,7 +45,7 @@ def _is_valid_libdatadog():
 
 def _is_valid_v2_stack():
     # type: () -> bool
-    return platform.python_version_tuple() >= ("3", "7") and _is_valid_libdatadog()
+    return sys.version_info >= (3, 7) and _is_valid_libdatadog()
 
 
 class ProfilingConfig(En):
