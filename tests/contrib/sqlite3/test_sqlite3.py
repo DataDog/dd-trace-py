@@ -3,10 +3,10 @@ import sys
 
 try:
     sys.modules["sqlite3"] = __import__("pysqlite3")
-    import sqlite3
 except ImportError:
-    import sqlite3
+    pass
 
+import sqlite3
 import time
 from typing import TYPE_CHECKING  # noqa:F401
 
