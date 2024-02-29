@@ -277,25 +277,15 @@ def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        # One message is consumed and one span is generated. _batched_consumer_enabled has no effect here
+        # One message is consumed and one span is generated.
         messages = consumer.consume(num_messages=1)
         assert len(messages) == 1
         consumer.commit(messages[0])
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit_with_consume_with_batch(producer, consumer, kafka_topic):
-    with override_config("kafka", dict(trace_empty_poll_enabled=False, _batched_consumer_enabled=True)):
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.flush()
-        messages = consumer.consume(num_messages=2)
-        assert len(messages) == 2
-
-
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
-def test_commit_with_consume_without_batch(producer, consumer, kafka_topic):
-    with override_config("kafka", dict(trace_empty_poll_enabled=False, _batched_consumer_enabled=False)):
+def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
@@ -304,14 +294,15 @@ def test_commit_with_consume_without_batch(producer, consumer, kafka_topic):
         assert len(messages) == 2
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
+    # Raises an exception by consuming messages after the consumer has been closed
     with pytest.raises(TypeError):
-        # tries to consume messages after the consumer has been closed with raises a RuntimeError
-        # Empty poll spans are filtered out by the KafkaConsumerPollFilter. We need to disable it to test this.
+        # Empty poll spans are filtered out by the KafkaConsumerPollFilter. We need to disable
+        # it to test error spans.
         # Allowing empty poll spans could introduce flakiness in the test.
         with override_config("kafka", dict(trace_empty_poll_enabled=True)):
             consumer.consume(num_messages=1, invalid_args="invalid_args")
