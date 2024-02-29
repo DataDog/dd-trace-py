@@ -1,9 +1,15 @@
 from ddtrace.ext import SpanTypes
 
-from .utils import _compute_prompt_token_count
+from .utils import _compute_token_count
+from .utils import _loop_handler
+from .utils import _set_metrics_on_request
+from .utils import _set_metrics_on_streamed_response
+from .utils import _construct_completion_from_streamed_chunks
+from .utils import _construct_message_from_streamed_chunks
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
 from .utils import _is_generator
+from .utils import _tag_streamed_completion_response
 from .utils import _tag_streamed_chat_completion_response
 from .utils import _tag_tool_calls
 
@@ -89,13 +95,9 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    """
-    Share streamed response handling logic between Completion and ChatCompletion endpoints.
-    """
-
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
-    def _handle_streamed_response(self, integration, span, args, kwargs, resp):
+    def _handle_streamed_response(self, integration, span, kwargs, resp, operation_id):
         """Handle streamed response objects returned from endpoint calls.
 
         This method helps with streamed responses by wrapping the generator returned with a
@@ -104,65 +106,51 @@ class _BaseCompletionHook(_EndpointHook):
 
         def shared_gen():
             try:
-                num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
                 streamed_chunks = yield
-                num_completion_tokens = sum(len(streamed_choice) for streamed_choice in streamed_chunks)
-                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-                total_tokens = num_prompt_tokens + num_completion_tokens
-                span.set_metric("openai.response.usage.total_tokens", total_tokens)
-                if span.get_metric("openai.request.prompt_tokens_estimated") == 0:
-                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
-                else:
-                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
-                integration.metric(
-                    span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
+                _set_metrics_on_request(
+                    span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
                 )
-                integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+                    num_completion_tokens = sum(
+                        _compute_token_count(choice["text"], span.get_tag("openai.response.model"))[1]
+                        for choice in completions
+                    )
+                else:
+                    messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+                    num_completion_tokens = sum(
+                        _compute_token_count(choice["content"], span.get_tag("openai.response.model"))[1]
+                        for choice in messages
+                    )
+                _set_metrics_on_streamed_response(integration, span, num_completion_tokens)
             finally:
-                if integration.is_pc_sampled_span(span):
-                    _tag_streamed_chat_completion_response(integration, span, streamed_chunks)
-                if integration.is_pc_sampled_llmobs(span):
-                    if span.resource == _ChatCompletionHook.OPERATION_ID:
-                        integration.llmobs_set_tags("chat", resp, None, span, kwargs, streamed_resp=streamed_chunks)
-                    elif span.resource == _CompletionHook.OPERATION_ID:
-                        integration.llmobs_set_tags(
-                            "completion", resp, None, span, kwargs, streamed_resp=streamed_chunks
-                        )
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    if integration.is_pc_sampled_span(span):
+                        _tag_streamed_completion_response(integration, span, completions)
+                    if integration.is_pc_sampled_llmobs(span):
+                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_resp=streamed_chunks)
+                else:
+                    if integration.is_pc_sampled_span(span):
+                        _tag_streamed_chat_completion_response(integration, span, messages)
+                    if integration.is_pc_sampled_llmobs(span):
+                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_resp=streamed_chunks)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
-        num_prompt_tokens = 0
-        estimated = False
-        prompt = kwargs.get("prompt", None)
-        messages = kwargs.get("messages", None)
-        if prompt is not None:
-            if isinstance(prompt, str) or isinstance(prompt, list) and isinstance(prompt[0], int):
-                prompt = [prompt]
-            for p in prompt:
-                estimated, prompt_tokens = _compute_prompt_token_count(p, kwargs.get("model"))
-                num_prompt_tokens += prompt_tokens
-        if messages is not None:
-            for m in messages:
-                estimated, prompt_tokens = _compute_prompt_token_count(m.get("content", ""), kwargs.get("model"))
-                num_prompt_tokens += prompt_tokens
-        span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
-        span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-
-        # A chunk corresponds to a token:
-        #  https://community.openai.com/t/how-to-get-total-tokens-from-a-stream-of-completioncreaterequests/110700
-        #  https://community.openai.com/t/openai-api-get-usage-tokens-in-response-when-set-stream-true/141866
         if _is_async_generator(resp):
 
             async def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                streamed_chunks = [[] for _ in range(kwargs.get("n", 1))]
+                n = kwargs.get("n", 1)
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
                 try:
                     async for chunk in resp:
-                        if span.get_tag("openai.response.model") is None:
-                            span.set_tag_str("openai.response.model", chunk.model)
-                        for choice in chunk.choices:
-                            streamed_chunks[choice.index].append(choice)
+                        _loop_handler(span, chunk, streamed_chunks)
                         yield chunk
                 finally:
                     try:
@@ -177,13 +165,15 @@ class _BaseCompletionHook(_EndpointHook):
             def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                streamed_chunks = [[] for _ in range(kwargs.get("n", 1))]
+                n = kwargs.get("n", 1)
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
                 try:
                     for chunk in resp:
-                        if span.get_tag("openai.response.model") is None:
-                            span.set_tag_str("openai.response.model", chunk.model)
-                        for choice in chunk.choices:
-                            streamed_chunks[choice.index].append(choice)
+                        _loop_handler(span, chunk, streamed_chunks)
                         yield chunk
                 finally:
                     try:
@@ -233,7 +223,7 @@ class _CompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
         if integration.is_pc_sampled_log(span):
             attrs_dict = {"prompt": kwargs.get("prompt", "")}
             if error is None:
@@ -245,7 +235,7 @@ class _CompletionHook(_BaseCompletionHook):
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("completion", resp, error, span, kwargs)
+            integration.llmobs_set_tags("completion", resp, span, kwargs, err=error)
         if not resp:
             return
         for choice in resp.choices:
@@ -257,6 +247,7 @@ class _CompletionHook(_BaseCompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
+    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = (
         "model",
         "engine",
@@ -290,7 +281,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
             if hasattr(resp.choices[0], "model_dump"):
@@ -300,7 +291,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chat", resp, error, span, kwargs)
+            integration.llmobs_set_tags("chat", resp, span, kwargs, err=error)
         if not resp:
             return
         for choice in resp.choices:

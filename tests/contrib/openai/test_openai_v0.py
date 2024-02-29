@@ -2333,7 +2333,7 @@ async def test_llmobs_chat_completion_stream(
                     input_messages=input_messages,
                     output_messages=[{"content": expected_completion, "role": "assistant"}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 8, "completion_tokens": 15, "total_tokens": 23},
+                    token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
                 )
             ),
         ]
@@ -2410,7 +2410,7 @@ def test_llmobs_chat_completion_function_call_stream(
                     input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                     output_messages=[{"content": expected_output, "role": "assistant"}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 63, "completion_tokens": 35, "total_tokens": 98},
+                    token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
                 )
             ),
         ]
