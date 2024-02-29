@@ -380,19 +380,21 @@ class RemoteConfigClient(object):
             root_version=1,
             targets_version=self._last_targets_version,
             config_states=[
-                dict(
-                    id=config.id,
-                    version=config.tuf_version,
-                    product=config.product_name,
-                    apply_state=config.apply_state,
-                    apply_error=config.apply_error,
-                )
-                if config.apply_error
-                else dict(
-                    id=config.id,
-                    version=config.tuf_version,
-                    product=config.product_name,
-                    apply_state=config.apply_state,
+                (
+                    dict(
+                        id=config.id,
+                        version=config.tuf_version,
+                        product=config.product_name,
+                        apply_state=config.apply_state,
+                        apply_error=config.apply_error,
+                    )
+                    if config.apply_error
+                    else dict(
+                        id=config.id,
+                        version=config.tuf_version,
+                        product=config.product_name,
+                        apply_state=config.apply_state,
+                    )
                 )
                 for config in self._applied_configs.values()
             ],
@@ -435,7 +437,7 @@ class RemoteConfigClient(object):
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
-            elif target not in client_configs:
+            elif target not in targets:
                 callback_action = False
             else:
                 continue
