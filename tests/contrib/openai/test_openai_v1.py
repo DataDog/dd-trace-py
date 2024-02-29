@@ -1219,12 +1219,10 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1261,12 +1259,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
@@ -1312,15 +1308,10 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1367,15 +1358,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(

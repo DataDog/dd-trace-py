@@ -1,16 +1,15 @@
 from ddtrace.ext import SpanTypes
 
-from .utils import _compute_token_count
-from .utils import _loop_handler
-from .utils import _set_metrics_on_request
-from .utils import _set_metrics_on_streamed_response
 from .utils import _construct_completion_from_streamed_chunks
 from .utils import _construct_message_from_streamed_chunks
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
 from .utils import _is_generator
-from .utils import _tag_streamed_completion_response
+from .utils import _loop_handler
+from .utils import _set_metrics_on_request
+from .utils import _set_metrics_on_streamed_response
 from .utils import _tag_streamed_chat_completion_response
+from .utils import _tag_streamed_completion_response
 from .utils import _tag_tool_calls
 
 
@@ -105,24 +104,18 @@ class _BaseCompletionHook(_EndpointHook):
         """
 
         def shared_gen():
+            completions = None
+            messages = None
             try:
                 streamed_chunks = yield
                 _set_metrics_on_request(
-                    span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
+                    integration, span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
                 )
                 if operation_id == _CompletionHook.OPERATION_ID:
                     completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
-                    num_completion_tokens = sum(
-                        _compute_token_count(choice["text"], span.get_tag("openai.response.model"))[1]
-                        for choice in completions
-                    )
                 else:
                     messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
-                    num_completion_tokens = sum(
-                        _compute_token_count(choice["content"], span.get_tag("openai.response.model"))[1]
-                        for choice in messages
-                    )
-                _set_metrics_on_streamed_response(integration, span, num_completion_tokens)
+                _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
             finally:
                 if operation_id == _CompletionHook.OPERATION_ID:
                     if integration.is_pc_sampled_span(span):
