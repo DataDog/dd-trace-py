@@ -41,6 +41,11 @@ add_library(${EXTENSION_NAME} SHARED
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
+add_cppcheck_target(${EXTENSION_NAME}
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
+  SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 # This project is build with C++17, even though the underlying repo adheres to the manylinux 2014 standard.
 # This isn't currently a problem, but if it becomes one, we may have to structure the library differently.
@@ -80,7 +85,6 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not
 # installed in the system path. This is typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
-
 target_link_libraries(${EXTENSION_NAME} PRIVATE
     dd_wrapper
 )
@@ -96,10 +100,3 @@ if (LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
     )
 endif()
-
-# Configure cppcheck
-add_cppcheck_target(${EXTENSION_NAME}
-  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
-  SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
-)

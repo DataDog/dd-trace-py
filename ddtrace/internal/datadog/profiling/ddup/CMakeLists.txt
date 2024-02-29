@@ -16,12 +16,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 include(FetchContent)
 include(ExternalProject)
 include(FindLibdatadog)
-include(AnalysisFunc)
 
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/dd_wrapper_build)
 
-# Find the Python interpreter
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# Make sure we have certain variables
 if (NOT Python3_INCLUDE_DIRS)
   message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
 endif()
@@ -44,6 +42,19 @@ add_library(${EXTENSION_NAME} SHARED
     ${DDUP_CPP_SRC}
 )
 
+# We can't add common Profiling configuration because cython generates messy code, so we just setup some
+# basic flags and features
+target_compile_options(${EXTENSION_NAME} PRIVATE
+  "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+  "$<$<CONFIG:Release>:-Os>"
+  -ffunction-sections -fno-semantic-interposition
+)
+target_link_options(${EXTENSION_NAME} PRIVATE
+  "$<$<CONFIG:Release>:-s>"
+  -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections
+)
+set_property(TARGET ${EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries).
@@ -55,7 +66,6 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 # RPATH is needed for sofile discovery at runtime, since Python packages are not
 # installed in the system path. This is typical.
 set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
-
 target_include_directories(${EXTENSION_NAME} PRIVATE
     ../dd_wrapper/include
     ${Datadog_INCLUDE_DIRS}

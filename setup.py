@@ -303,7 +303,6 @@ class CMakeBuild(build_ext):
             "-DPython3_LIBRARIES={}".format(python_lib),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
-            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
@@ -315,7 +314,7 @@ class CMakeBuild(build_ext):
             # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
-            # DEV: -j is only supported in CMake 3.12+ only.
+            # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
                 build_args += ["-j{}".format(self.parallel)]
 
@@ -475,7 +474,6 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2",
                     source_dir=STACK_V2_DIR,
-                    build_args=["--verbose"],
                 )
             )
 
