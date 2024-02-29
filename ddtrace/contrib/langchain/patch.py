@@ -691,8 +691,6 @@ def patch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
-
-        # import langchain_community.chat_models  # noqa:F401
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
