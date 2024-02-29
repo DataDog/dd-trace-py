@@ -24,6 +24,7 @@ class BedrockIntegration(BaseLLMIntegration):
         prompt: Optional[str] = None,
         err: bool = False,
     ) -> None:
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
         parameters = {
