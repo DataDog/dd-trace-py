@@ -101,7 +101,6 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
-    _appsec_api_security_settings(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
 
 
@@ -235,6 +234,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
 
 def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     """
+    Deprecated
     Update API Security settings from remote config
     Actually: Update sample rate
     """

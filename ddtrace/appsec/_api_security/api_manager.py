@@ -126,7 +126,7 @@ class APIManager(Service):
             return
 
         try:
-            if not self._should_collect_schema(env, root.context.sampling_priority):
+            if not self._should_collect_schema(env, env.span.context.sampling_priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
