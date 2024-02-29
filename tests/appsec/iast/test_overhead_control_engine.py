@@ -70,53 +70,94 @@ def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
 
 
-def test_oce_max_requests(tracer, iast_span_defaults):
+def test_oce_no_race_conditions(tracer, iast_span_defaults):
+    from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
+
+    oc = OverheadControl()
+    oc.reconfigure()
+
+    assert oc._request_quota == MAX_REQUESTS
+
+    # Request 1 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should have quota
+    assert oc._request_quota > 0
+
+    # Request 2 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should not have quota
+    assert oc._request_quota == 0
+
+    # Request 3 tries to acquire the lock and fails
+    assert oc.acquire_request(iast_span_defaults) is False
+
+    # oce should have quota
+    assert oc._request_quota == 0
+
+    # Request 1 releases the lock
+    oc.release_request()
+
+    assert oc._request_quota > 0
+
+    # Request 4 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should have quota
+    assert oc._request_quota == 0
+
+    # Request 4 releases the lock
+    oc.release_request()
+
+    # oce should have quota again
+    assert oc._request_quota > 0
+
+    # Request 5 tries to acquire the lock
+    assert oc.acquire_request(iast_span_defaults) is True
+
+    # oce should not have quota
+    assert oc._request_quota == 0
+
+
+def acquire_and_release_quota(oc, iast_span_defaults):
+    """
+    Just acquires the request quota and releases it with some
+    random sleeps
+    """
+    import random
+    import time
+
+    random_int = random.randint(1, 10)
+    time.sleep(0.01 * random_int)
+    if oc.acquire_request(iast_span_defaults):
+        time.sleep(0.01 * random_int)
+        oc.release_request()
+
+
+def test_oce_concurrent_requests(tracer, iast_span_defaults):
+    """
+    Ensures quota is always within bounds after multithreading scenario
+    """
     import threading
 
-    results = []
-    num_requests = 5
-    total_vulnerabilities = 0
+    from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
+    from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
 
-    threads = [threading.Thread(target=function_with_vulnerabilities_1, args=(tracer,)) for _ in range(0, num_requests)]
+    oc = OverheadControl()
+    oc.reconfigure()
+
+    results = []
+    num_requests = 5000
+
+    threads = [
+        threading.Thread(target=acquire_and_release_quota, args=(oc, iast_span_defaults))
+        for _ in range(0, num_requests)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
         results.append(thread.join())
 
-    spans = tracer.pop()
-    for span in spans:
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        if span_report:
-            total_vulnerabilities += len(span_report.vulnerabilities)
-
-    assert len(results) == num_requests
-    assert len(spans) == num_requests
-    assert total_vulnerabilities == 1
-
-
-def test_oce_max_requests_py3(tracer, iast_span_defaults):
-    import concurrent.futures
-
-    results = []
-    num_requests = 5
-    total_vulnerabilities = 0
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = []
-        for _ in range(0, num_requests):
-            futures.append(executor.submit(function_with_vulnerabilities_1, tracer))
-            futures.append(executor.submit(function_with_vulnerabilities_2, tracer))
-            futures.append(executor.submit(function_with_vulnerabilities_3, tracer))
-
-        for future in concurrent.futures.as_completed(futures):
-            results.append(future.result())
-
-    spans = tracer.pop()
-    for span in spans:
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=span)
-        if span_report:
-            total_vulnerabilities += len(span_report.vulnerabilities)
-
-    assert len(results) == num_requests * 3
-    assert len(spans) == num_requests * 3
-    assert total_vulnerabilities == MAX_REQUESTS
+    # Ensures quota is always within bounds after multithreading scenario
+    assert 0 <= oc._request_quota <= MAX_REQUESTS

@@ -8,6 +8,7 @@ from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
@@ -87,7 +88,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["metrics"] = dict(sorted(span._metrics.items()))
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
-
         sp = CIVisibilityEncoderV01._filter_ids(sp)
 
         version = CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION
@@ -131,6 +131,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
                 del sp["meta"][SUITE_ID]
         if COVERAGE_TAG_NAME in sp["meta"]:
             del sp["meta"][COVERAGE_TAG_NAME]
+        if ITR_CORRELATION_ID_TAG_NAME in sp["meta"]:
+            sp[ITR_CORRELATION_ID_TAG_NAME] = sp["meta"][ITR_CORRELATION_ID_TAG_NAME]
+            del sp["meta"][ITR_CORRELATION_ID_TAG_NAME]
         return sp
 
 
