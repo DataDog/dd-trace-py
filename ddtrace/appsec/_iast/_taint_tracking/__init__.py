@@ -3,10 +3,10 @@
 from typing import TYPE_CHECKING
 
 from .._metrics import _set_metric_iast_executed_source
-from .._utils import _is_python_version_supported
 
+from .._utils import _is_iast_enabled
 
-if _is_python_version_supported():
+if _is_iast_enabled():
     from .. import oce
     from ._native import ops
     from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
