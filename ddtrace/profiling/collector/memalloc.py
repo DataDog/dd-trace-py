@@ -179,7 +179,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-            return []
+            return tuple()
         else:
             return (
                 tuple(
