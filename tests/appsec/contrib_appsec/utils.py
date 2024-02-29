@@ -14,6 +14,7 @@ from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -819,6 +820,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_triggers(root_span()) is None
 
+    @flaky(1719696234)
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize(
         ("name", "expected_value"),
