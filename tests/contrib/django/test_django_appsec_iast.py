@@ -21,7 +21,7 @@ TEST_FILE = "tests/contrib/django/django_app/appsec_urls.py"
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    with mock.patch("ddtrace.appsec._iast._utils._is_iast_enabled", return_value=True):
+    with mock.patch("ddtrace.appsec._iast._taint_tracking._is_iast_enabled", return_value=True):
         from ddtrace.appsec._iast._taint_tracking import create_context
         from ddtrace.appsec._iast._taint_tracking import reset_context
 
