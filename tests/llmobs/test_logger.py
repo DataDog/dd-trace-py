@@ -94,7 +94,7 @@ def test_send_on_exit():
     import time
 
     from ddtrace.llmobs._log_writer import V2LogWriter
-    from tests.llmobs.utils import logs_vcr
+    from tests.llmobs._utils import logs_vcr
 
     ctx = logs_vcr.use_cassette("tests.llmobs.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()
