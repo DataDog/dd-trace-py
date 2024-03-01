@@ -43,6 +43,10 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
         return;
     }
 
+    // Normally, further utf-8 validation would be pointless here, but we may be reading data where the
+    // string pointer was valid, but the string is actually garbage data at the exact time of the read.
+    // This is rare, but blowing some cycles on early validation allows the sample to be retained by
+    // libdatadog, so we can evaluate the actual impact of this scenario in live scenarios.
     static const std::string_view invalid = "<invalid_utf8>";
     if (!utf8_check_is_valid(name.data(), name.size())) {
         name = invalid;
