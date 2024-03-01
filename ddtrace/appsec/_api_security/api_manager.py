@@ -5,6 +5,7 @@ import json
 import time
 from typing import Optional
 
+from ddtrace import constants
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
 from ddtrace.appsec._asm_request_context import add_context_callback
@@ -126,10 +127,20 @@ class APIManager(Service):
             return
 
         try:
-            if not self._should_collect_schema(env, env.span.context.sampling_priority):
+            # check both current span and root span for sampling priority
+            # if any of them is set to USER_KEEP or USER_REJECT, we should respect it
+            priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
+            if constants.USER_KEEP in priorities:
+                priority = constants.USER_KEEP
+            elif constants.USER_REJECT in priorities:
+                priority = constants.USER_REJECT
+            else:
+                priority = max(priorities)
+            if not self._should_collect_schema(env, priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
+            return
 
         # we need the request content type on the span
         try:
