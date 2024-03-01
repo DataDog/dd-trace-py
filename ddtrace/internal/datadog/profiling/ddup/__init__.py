@@ -15,7 +15,7 @@ except Exception as e:
     from ddtrace.internal.logger import get_logger
 
     LOG = get_logger(__name__)
-    LOG.warning("Failed to import _ddup: %s", e)
+    LOG.debug("Failed to import _ddup: %s", e)
 
     def is_available():
         # type: () -> bool
