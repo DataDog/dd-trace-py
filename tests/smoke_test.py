@@ -1,3 +1,4 @@
+import os
 from platform import system
 import sys
 
@@ -17,6 +18,8 @@ def mac_supported_iast_version():
 if __name__ == "__main__":
     # ASM IAST smoke test
     if (3, 6, 0) <= sys.version_info < (3, 12) and system() != "Windows" and mac_supported_iast_version():
+        os.environ["DD_IAST_ENABLED"] = "True"
+
         from ddtrace.appsec._iast._taint_tracking._native import ops
 
         assert ops
