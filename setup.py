@@ -518,7 +518,7 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
+        "ddtrace.internal.datadog.profiling.ddup": [str(Path("..") / "libdd_wrapper.*")],
     },
     python_requires=">=3.7",
     zip_safe=False,

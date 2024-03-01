@@ -489,7 +489,7 @@ class StackCollector(collector.PeriodicCollector):
         if config.export.libdd_enabled:
             if not ddup.is_available():
                 # We probably already told the user about this in profiler.py, but let's do it again here.
-                LOG.error("Failed to load the libdd collector; falling back to legacy collector")
+                LOG.error("Failed to load the libdd collector from stack.pyx; falling back to the legacy collector")
                 set_use_libdd(False)
             else:
                 set_use_libdd(True)
