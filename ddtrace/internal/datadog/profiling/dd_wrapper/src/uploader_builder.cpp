@@ -119,8 +119,6 @@ UploaderBuilder::build()
             if (!add_tag(tags, tag, data, errmsg)) {
                 reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
             }
-        } else {
-            reasons.push_back(std::string(to_string(tag)) + ": " + "empty");
         }
     }
 

@@ -485,28 +485,24 @@ class StackCollector(collector.PeriodicCollector):
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
 
-        # If stack_v2 is enabled, verify that it loaded properly.  If not, fallback to the v1 stack collector
-        # and log an error.
+        # If libdd is enabled, propagate the configuration
+        if config.export.libdd_enabled:
+            if not ddup.is_available():
+                # We probably already told the user about this in profiler.py, but let's do it again here.
+                LOG.error("Failed to load the libdd collector; falling back to legacy collector")
+                set_use_libdd(False)
+            else:
+                set_use_libdd(True)
+
+        # If stack v2 is requested, verify it is loaded properly and that libdd has been enabled.
         if self._stack_collector_v2_enabled:
             if not stack_v2.is_available():
                 self._stack_collector_v2_enabled = False
                 LOG.error("Failed to load the v2 stack sampler; falling back to the v1 stack sampler")
-            if not ddup.is_available():
+            if not use_libdd:
                 self._stack_collector_v2_enabled = False
-                LOG.error("Failed to load the libdd collector; falling back to the v1 stack sampler")
+                LOG.error("libdd collector not enabled; falling back to the v1 stack sampler.  Did you set DD_PROFILING_EXPORT_LIBDD_ENABLED=true?")
 
-        # Force-set use_libdd if the v2 stack collector is enabled
-        if self._stack_collector_v2_enabled:
-            set_use_libdd(True)
-
-            # Restarting the profiler is infrequent; always start with the minimum interval
-            # instead of the dynamically configured one.  The difference will get picked up
-            # by the next sample.
-            stack_v2.start(min_interval=self.min_interval_time)
-        else:
-            if config.export.libdd_enabled and not ddup.is_available():
-                LOG.error("Failed to load the libdd collector; falling back to legacy collector")
-            set_use_libdd(config.export.libdd_enabled)
 
     def _start_service(self):
         # type: (...) -> None

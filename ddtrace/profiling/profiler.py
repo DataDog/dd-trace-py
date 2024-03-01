@@ -168,25 +168,21 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-        # The libdatadog collector gets force-enabled when the user specifies v2 of the stack sampler.
-        # However, that collector can only be initialized here, so we check whether the user has enabled
-        # v2 stack sampling and that it can be used.
-        if config.stack.v2_enabled:
-            from ddtrace.internal.datadog.profiling import stack_v2
-
-            if stack_v2.is_available():
-                self._export_libdd_enabled = True
-
-        # It's possible to fail to load the libdatadog collector, so we check.  There's no need to do anything
-        # with the v2 stack sampler here, as it can figure this out on its own.
+        # It's possible to fail to load the libdatadog collector, so we check.  Any other consumers
+        # of libdd can do their own check, so we just log.
         if self._export_libdd_enabled and not ddup.is_available():
             LOG.error("Failed to load the libdd collector, falling back to the legacy collector")
             self._export_libdd_enabled = False
+        elif self._export_libdd_enabled:
+            LOG.debug("Using the libdd collector")
 
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
         if self._stack_collector_enabled:
-            configured_features.append("stack")
+            if config.stack.v2.enabled:
+                configured_features.append("stack_v2")
+            else:
+                configured_features.append("stack")
         if self._lock_collector_enabled:
             configured_features.append("lock")
         if self._memory_collector_enabled:
