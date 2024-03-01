@@ -322,7 +322,7 @@ class Tracer(object):
 
     def sample_before_fork(self) -> None:
         span = self.current_root_span()
-        if span is not None:
+        if span is not None and not span.context.sampling_priority:
             self._sampler.sample(span)
 
     @property
