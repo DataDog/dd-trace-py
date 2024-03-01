@@ -152,7 +152,7 @@ exclude-modules = '''
   | ddtrace.internal.datadog.profiling.libdd_wrapper
   # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
   | ddtrace.internal.datadog.profiling.ddup._ddup
-  | ddtrace.internal.datadog.profiling.collector._stack_v2
+  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
 )
 '''
 
