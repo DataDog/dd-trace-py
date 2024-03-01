@@ -18,6 +18,7 @@ from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
 
+
 # assigning a different variable the same value for readability purposes
 SHOULD_USE_LANGCHAIN_OPENAI = SHOULD_USE_LANGCHAIN_COMMUNITY
 
@@ -347,12 +348,20 @@ def test_cohere_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_huggingfacehub_llm_sync(langchain, request_vcr):
-    llm = langchain.llms.HuggingFaceHub(
-        repo_id="google/flan-t5-xxl",
-        model_kwargs={"temperature": 0.5, "max_length": 256},
-        huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-    )
+def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
+    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        llm = langchain_community.llms.HuggingFaceEndpoint(
+            repo_id="google/flan-t5-xxl",
+            temperature=0.5,
+            max_length=256,
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+        )
+    else:
+        llm = langchain.llms.HuggingFaceHub(
+            repo_id="google/flan-t5-xxl",
+            model_kwargs={"temperature": 0.5, "max_length": 256},
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+        )
     with request_vcr.use_cassette("huggingfacehub_completion_sync.yaml"):
         llm("Why does Mr. Krabs have a whale daughter?")
 
@@ -483,7 +492,7 @@ def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_opena
 
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
-        chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        chat(messages=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
         # or
         # chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
