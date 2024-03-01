@@ -42,8 +42,9 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
-DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+PROF_NATIVE_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling"
+DDUP_DIR = PROF_NATIVE_DIR / "ddup"
+STACK_V2_DIR = PROF_NATIVE_DIR / "stack_v2"
 
 CURRENT_OS = platform.system()
 
@@ -464,6 +465,7 @@ if not IS_PYSTON:
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
+                    "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),
                 ],
             )
         )
@@ -474,6 +476,9 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2",
                     source_dir=STACK_V2_DIR,
+                    cmake_args=[
+                        "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),
+                    ],
                 )
             )
 
@@ -513,7 +518,6 @@ setup(
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
     python_requires=">=3.7",
     zip_safe=False,

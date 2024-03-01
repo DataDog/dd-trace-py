@@ -17,17 +17,19 @@ include(FetchContent)
 include(ExternalProject)
 include(FindLibdatadog)
 
-add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/dd_wrapper_build)
+# Technically, this should be its own project which we `include()`, but I don't
+# want to deal with that when so many things may yet be factored differently.
+add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
-# Make sure we have certain variables
+# Make sure we have necessary Python variables
 if (NOT Python3_INCLUDE_DIRS)
   message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
 endif()
 
 # This sets some parameters for the target build, which can only be defined by setup.py
-set (ENV{PY_MAJOR_VERSION} ${PY_MAJOR_VERSION})
-set (ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
-set (ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
+set(ENV{PY_MAJOR_VERSION} ${PY_MAJOR_VERSION})
+set(ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
+set(ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
 
 # Cythonize the .pyx file
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)

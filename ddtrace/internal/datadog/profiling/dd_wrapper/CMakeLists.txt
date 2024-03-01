@@ -49,11 +49,11 @@ target_link_libraries(dd_wrapper PRIVATE
 set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # If LIB_INSTALL_DIR is set, install the library
-if (LIB_INSTALL_DIR)
+if (PROFILING_ROOT)
     install(TARGETS dd_wrapper
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+        LIBRARY DESTINATION ${PROFILING_ROOT}
+        ARCHIVE DESTINATION ${OFILING_ROOT}
+        RUNTIME DESTINATION ${OFILING_ROOT}
     )
 endif()
 

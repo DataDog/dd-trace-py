@@ -1,9 +1,11 @@
+cmake_minimum_required(VERSION 3.19)
+
 # The exact name of this extension determines aspects of the installation and build paths,
 # which need to be kept in sync with setup.py. Accordingly, take the name passed in by the
 # caller, defaulting to "stack_v2" if needed.
-cmake_minimum_required(VERSION 3.19)
 set(EXTENSION_NAME "stack_v2" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
+message(STATUS "Building extension: ${EXTENSION_NAME}")
 
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
@@ -13,10 +15,12 @@ include(FetchContent)
 include(ExternalProject)
 include(AnalysisFunc)
 include(FindCppcheck)
-add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/dd_wrapper_build)
 
-# Find the Python interpreter
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# dd_wrapper should be its own project at one point, if the current design is kept,
+# but whether or not we keep that design is unknown.  Hack it for now.
+add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
+
+# Make sure we have necessary Python variables
 if (NOT Python3_INCLUDE_DIRS)
   message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
 endif()
@@ -57,7 +61,7 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 # Includes; echion and python are marked "system" to suppress warnings,
 # but note in MSVC we'll have to #pragma warning(push, 0 then pop for the same effect.
 target_include_directories(${EXTENSION_NAME} PRIVATE
-    ..
+    .. # include dd_wrapper from the root in order to make its paths transparent in the code
     include
 )
 target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE
