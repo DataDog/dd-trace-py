@@ -466,7 +466,6 @@ if not IS_PYSTON:
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                    "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),
                 ],
             )
         )
@@ -478,9 +477,6 @@ if not IS_PYSTON:
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
                     optional=False,
-                    cmake_args=[
-                        "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),
-                    ],
                 )
             )
 

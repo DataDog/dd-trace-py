@@ -48,12 +48,13 @@ target_link_libraries(dd_wrapper PRIVATE
 )
 set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# If LIB_INSTALL_DIR is set, install the library
-if (PROFILING_ROOT)
+# If LIB_INSTALL_DIR is set, install the library.
+# Install one directory up--both ddup and stackv2 are set to the same relative level.
+if (LIB_INSTALL_DIR)
     install(TARGETS dd_wrapper
-        LIBRARY DESTINATION ${PROFILING_ROOT}
-        ARCHIVE DESTINATION ${OFILING_ROOT}
-        RUNTIME DESTINATION ${OFILING_ROOT}
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}/..
     )
 endif()
 
