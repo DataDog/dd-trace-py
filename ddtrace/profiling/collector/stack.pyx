@@ -33,8 +33,8 @@ FEATURES = {
     "transparent_events": False,
 }
 
-# .  This is handled at the level of
-# a global rather than a passed parameter because this is a time of transition
+# Switch to use libdd (ddup) collector/exporter.  Handled as a global since we're transitioning into
+# the now-experimental interface.
 cdef bint use_libdd = False
 
 cdef void set_use_libdd(bint flag):
