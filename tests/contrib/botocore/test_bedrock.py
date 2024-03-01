@@ -8,6 +8,7 @@ from ddtrace import Pin
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
@@ -403,48 +404,26 @@ class TestLLMObsBedrock:
     def _expected_llmobs_calls(span, n_output):
         prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
         completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
-
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:aws.bedrock-runtime",
-            "source:integration",
-            "model_name:%s" % span.get_tag("bedrock.request.model"),
-            "model_provider:%s" % span.get_tag("bedrock.request.model_provider"),
-            "error:0",
-        ]
         expected_llmobs_writer_calls = [mock.call.start()]
         expected_llmobs_writer_calls += [
             mock.call.enqueue(
-                {
-                    "span_id": str(span.span_id),
-                    "trace_id": "{:x}".format(span.trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(span.trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 0,
-                    "meta": {
-                        "span.kind": "llm",
-                        "model_name": span.get_tag("bedrock.request.model"),
-                        "model_provider": span.get_tag("bedrock.request.model_provider"),
-                        "input": {
-                            "messages": [{"content": mock.ANY}],
-                            "parameters": {
-                                "temperature": float(span.get_tag("bedrock.request.temperature")),
-                                "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                            },
-                        },
-                        "output": {"messages": [{"content": mock.ANY} for _ in range(n_output)]},
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=span.get_tag("bedrock.request.model"),
+                    model_provider=span.get_tag("bedrock.request.model_provider"),
+                    input_messages=[{"content": mock.ANY}],
+                    output_messages=[{"content": mock.ANY} for _ in range(n_output)],
+                    parameters={
+                        "temperature": float(span.get_tag("bedrock.request.temperature")),
+                        "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
                     },
-                    "metrics": {
+                    token_metrics={
                         "prompt_tokens": prompt_tokens,
                         "completion_tokens": completion_tokens,
                         "total_tokens": prompt_tokens + completion_tokens,
                     },
-                },
+                    tags={"service": "aws.bedrock-runtime"},
+                )
             )
         ]
         return expected_llmobs_writer_calls
@@ -584,45 +563,23 @@ class TestLLMObsBedrock:
                 json.loads(response.get("body").read())
         span = mock_tracer.pop_traces()[0][0]
 
-        expected_tags = [
-            "version:",
-            "env:",
-            "service:aws.bedrock-runtime",
-            "source:integration",
-            "model_name:{}".format(span.get_tag("bedrock.request.model")),
-            "model_provider:{}".format(span.get_tag("bedrock.request.model_provider")),
-            "error:1",
-            "error_type:%s" % span.get_tag("error.type"),
-        ]
         expected_llmobs_writer_calls = [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span.span_id),
-                    "trace_id": "{:x}".format(span.trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(span.trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 1,
-                    "meta": {
-                        "span.kind": "llm",
-                        "error.message": span.get_tag("error.message"),
-                        "model_name": span.get_tag("bedrock.request.model"),
-                        "model_provider": span.get_tag("bedrock.request.model_provider"),
-                        "input": {
-                            "messages": [{"content": mock.ANY}],
-                            "parameters": {
-                                "temperature": float(span.get_tag("bedrock.request.temperature")),
-                                "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                            },
-                        },
-                        "output": {"messages": [{"content": ""}]},
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=span.get_tag("bedrock.request.model"),
+                    model_provider=span.get_tag("bedrock.request.model_provider"),
+                    input_messages=[{"content": mock.ANY}],
+                    parameters={
+                        "temperature": float(span.get_tag("bedrock.request.temperature")),
+                        "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
                     },
-                    "metrics": {},
-                },
+                    output_messages=[{"content": ""}],
+                    error=span.get_tag("error.type"),
+                    error_message=span.get_tag("error.message"),
+                    tags={"service": "aws.bedrock-runtime"},
+                )
             ),
         ]
 

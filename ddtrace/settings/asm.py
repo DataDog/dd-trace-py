@@ -41,13 +41,14 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     _asm_can_be_enabled = (APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled) or _asm_enabled
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _use_metastruct_for_triggers = False
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
     _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
-    _api_security_sample_rate = Env.var(float, API_SECURITY.SAMPLE_RATE, validator=_validate_sample_rate, default=0.1)
+    _api_security_sample_rate = 0.0
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
@@ -82,6 +83,7 @@ class ASMConfig(Env):
     _asm_config_keys = [
         "_asm_enabled",
         "_iast_enabled",
+        "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
         "_user_model_login_field",
         "_user_model_email_field",
