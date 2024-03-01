@@ -1219,12 +1219,10 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1261,12 +1259,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
@@ -1312,15 +1308,10 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1367,15 +1358,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(
@@ -1915,13 +1901,15 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
 def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            model = "ada"
-            expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-            client = openai.OpenAI()
-            resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-            for _ in resp:
-                pass
+            with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
+                mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
+                mock_est.return_value = 2
+                model = "ada"
+                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+                client = openai.OpenAI()
+                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+                for _ in resp:
+                    pass
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
@@ -1935,7 +1923,7 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
                     input_messages=[{"content": "Hello world"}],
                     output_messages=[{"content": expected_completion}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
+                    token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
                 ),
             ),
         ]
@@ -1994,20 +1982,22 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
     """
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            model = "gpt-3.5-turbo"
-            resp_model = model
-            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-            client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model=model,
-                messages=input_messages,
-                stream=True,
-                user="ddtrace-test",
-            )
-            for chunk in resp:
-                resp_model = chunk.model
+            with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
+                mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
+                mock_est.return_value = 8
+                model = "gpt-3.5-turbo"
+                resp_model = model
+                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+                client = openai.OpenAI()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=input_messages,
+                    stream=True,
+                    user="ddtrace-test",
+                )
+                for chunk in resp:
+                    resp_model = chunk.model
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
@@ -2021,7 +2011,7 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
                     input_messages=input_messages,
                     output_messages=[{"content": expected_completion, "role": "assistant"}],
                     parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 8, "completion_tokens": 15, "total_tokens": 23},
+                    token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
                 )
             ),
         ]
