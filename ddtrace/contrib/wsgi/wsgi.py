@@ -132,7 +132,7 @@ class _DDWSGIMiddlewareBase(object):
                 core.dispatch("wsgi.request.prepare", (ctx, start_response))
                 try:
                     closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
-                except BaseException:
+                except Exception:
                     core.dispatch("wsgi.app.exception", (ctx,))
                     raise
                 else:

@@ -104,7 +104,7 @@ def trace_tween_factory(handler, registry):
                     # response types
                     response = e
                     raise
-                except BaseException:
+                except Exception:
                     status = 500
                     raise
                 finally:
