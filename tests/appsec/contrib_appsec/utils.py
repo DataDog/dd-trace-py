@@ -885,7 +885,6 @@ class Contrib_TestClass_For_Threats:
             ({"User-Agent": "AllOK"}, False, False),
         ],
     )
-    @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
     def test_api_security_schemas(
         self,
         interface: Interface,
@@ -897,16 +896,13 @@ class Contrib_TestClass_For_Threats:
         headers,
         event,
         blocked,
-        sample_rate,
     ):
         import base64
         import gzip
 
         from ddtrace.ext import http
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=sample_rate)
-        ):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -916,7 +912,6 @@ class Contrib_TestClass_For_Threats:
                 content_type="application/json",
             )
             assert asm_config._api_security_enabled == apisec_enabled
-            assert asm_config._api_security_sample_rate == sample_rate
 
             assert self.status(response) == 403 if blocked else 200
             assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
@@ -925,7 +920,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_triggers(root_span()) is None
             value = get_tag(name)
-            if apisec_enabled and sample_rate:
+            if apisec_enabled:
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
@@ -975,6 +970,42 @@ class Contrib_TestClass_For_Threats:
                 assert api == expected_value
             else:
                 assert value is None
+
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize("priority", ["keep", "drop"])
+    def test_api_security_sampling(self, interface: Interface, get_tag, apisec_enabled, priority):
+        from ddtrace.ext import http
+
+        payload = {"mastercard": "5123456789123456"}
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                f"/asm/?priority={priority}",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_tag("_dd.appsec.s.req.body")
+            if apisec_enabled and priority == "keep":
+                assert value
+            else:
+                assert value is None
+            # second request must be ignored
+            self.update_tracer(interface)
+            response = interface.client.post(
+                f"/asm/?priority={priority}",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_tag("_dd.appsec.s.req.body")
+            assert value is None
 
     def test_request_invalid_rule_file(self, interface):
         """

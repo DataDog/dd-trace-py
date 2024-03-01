@@ -168,7 +168,7 @@ import time
 
 from ddtrace.llmobs._writer import LLMObsWriter
 from tests.llmobs.test_llmobs_writer import _completion_event
-from tests.llmobs.utils import logs_vcr
+from tests.llmobs._utils import logs_vcr
 
 ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_writer.test_send_on_exit.yaml")
 ctx.__enter__()
