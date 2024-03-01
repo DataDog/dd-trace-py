@@ -215,3 +215,11 @@ class DEFAULT(metaclass=Constant_Class):
         rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
         rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
     )
+
+
+class EXPLOIT_PREVENTION(metaclass=Constant_Class):
+    STACK_TRACES = "_dd.stack"
+    EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
+    STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
+    MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
+    MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
