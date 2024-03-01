@@ -1,3 +1,5 @@
+# This key allows the agent to ignore the sampling_priority set on a span. This
+# legacy behavior is deprecated and SAMPLE_RATE_METRIC_KEY will be removed.
 SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
