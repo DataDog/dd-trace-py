@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.19)
 # The exact name of this extension determines aspects of the installation and build paths,
 # which need to be kept in sync with setup.py. Accordingly, take the name passed in by the
 # caller, defaulting to "stack_v2" if needed.
-set(EXTENSION_NAME "stack_v2" CACHE STRING "Name of the extension")
+set(EXTENSION_NAME "_stack_v2" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
@@ -88,7 +88,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not
 # installed in the system path. This is typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_link_libraries(${EXTENSION_NAME} PRIVATE
     dd_wrapper
 )

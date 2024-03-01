@@ -474,7 +474,7 @@ if not IS_PYSTON:
         if sys.version_info >= (3, 8):
             ext_modules.append(
                 CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2",
+                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
                     cmake_args=[
                         "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),

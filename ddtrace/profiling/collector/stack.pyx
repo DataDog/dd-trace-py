@@ -13,13 +13,13 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.collector import stack_v2
 from ddtrace.settings.profiling import config
 
 
@@ -486,11 +486,14 @@ class StackCollector(collector.PeriodicCollector):
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
 
         # If stack_v2 is enabled, verify that it loaded properly.  If not, fallback to the v1 stack collector
-        # and log a warning.
+        # and log an error.
         if self._stack_collector_v2_enabled:
             if not stack_v2.is_available():
                 self._stack_collector_v2_enabled = False
-                LOG.warning("Failed to load the v2 stack collector; falling back to the v1 stack collector")
+                LOG.error("Failed to load the v2 stack sampler; falling back to the v1 stack sampler")
+            if not ddup.is_available():
+                self._stack_collector_v2_enabled = False
+                LOG.error("Failed to load the libdd collector; falling back to the v1 stack sampler")
 
         # Force-set use_libdd if the v2 stack collector is enabled
         if self._stack_collector_v2_enabled:
@@ -501,6 +504,8 @@ class StackCollector(collector.PeriodicCollector):
             # by the next sample.
             stack_v2.start(min_interval=self.min_interval_time)
         else:
+            if config.export.libdd_enabled and not ddup.is_available():
+                LOG.error("Failed to load the libdd collector; falling back to legacy collector")
             set_use_libdd(config.export.libdd_enabled)
 
     def _start_service(self):
@@ -532,16 +537,19 @@ class StackCollector(collector.PeriodicCollector):
         now = compat.monotonic_ns()
         wall_time = now - self._last_wall_time
         self._last_wall_time = now
+        all_events = []
 
-        all_events = stack_collect(
-            self.ignore_profiler,
-            self._thread_time,
-            self.nframes,
-            self.interval,
-            wall_time,
-            self._thread_span_links,
-            self.endpoint_collection_enabled,
-        )
+        # If the stack v2 collector is enabled, then do not collect the stack samples here.
+        if not self._stack_collector_v2_enabled:
+            all_events = stack_collect(
+                self.ignore_profiler,
+                self._thread_time,
+                self.nframes,
+                self.interval,
+                wall_time,
+                self._thread_span_links,
+                self.endpoint_collection_enabled,
+            )
 
         used_wall_time_ns = compat.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)

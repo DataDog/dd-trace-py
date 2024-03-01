@@ -56,7 +56,7 @@ static PyMethodDef _stack_v2_methods[] = {
 };
 
 PyMODINIT_FUNC
-PyInit_stack_v2(void)
+PyInit__stack_v2(void)
 {
     PyObject* m;
     static struct PyModuleDef moduledef = {
