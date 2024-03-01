@@ -171,7 +171,9 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 @flaky(1735812000)
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
-def test_global_tags(ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer):
+def test_global_tags(
+    ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
+):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -191,7 +193,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, langchain_openai, requ
             llm("What does Nietzsche mean by 'God is dead'?")
 
     span = mock_tracer.pop_traces()[0][0]
-    assert span.resource == "langchain.llms.openai.OpenAI" # check this needs changed
+    assert span.resource == "langchain.llms.openai.OpenAI"  # check this needs changed
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -428,7 +430,9 @@ def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metri
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_llm_logs(langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_llm_logs(
+    langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
+):
     if SHOULD_USE_LANGCHAIN_OPENAI:
         llm = langchain_openai.OpenAI(model="text-davinci-003")
     else:
@@ -467,13 +471,14 @@ def test_llm_logs(langchain, langchain_openai, ddtrace_config_langchain, request
     mock_metrics.distribution.assert_not_called()
     mock_metrics.count.assert_not_called()
 
-@pytest.mark.skipif(not SHOULD_USE_LANGCHAIN_OPENAI, reason="Should use langchain_openai")
+
+@pytest.mark.skipif(not SHOULD_USE_LANGCHAIN_OPENAI, reason="Needs langchain_openai")
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     # token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai,request_vcr):
+def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai, request_vcr):
     from langchain.schema import HumanMessage
 
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -483,13 +488,13 @@ def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_opena
         # chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@pytest.mark.skipif(SHOULD_USE_LANGCHAIN_OPENAI, reason="Should not use langchain_openai")
+@pytest.mark.skipif(SHOULD_USE_LANGCHAIN_OPENAI, reason="Needs langchain")
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_chat_model_sync_call(langchain,request_vcr):
+def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
@@ -1443,7 +1448,7 @@ def test_llm_logs_when_response_not_completed(
         f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
-            llm = langchain.llms.OpenAI()
+            llm = langchain.llms.OpenAI(model="text-davinci-003")
             llm("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
     span = mock_tracer.pop_traces()[0][0]
