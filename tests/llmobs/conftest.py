@@ -4,7 +4,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs.utils import logs_vcr
+from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 from tests.utils import request_token
