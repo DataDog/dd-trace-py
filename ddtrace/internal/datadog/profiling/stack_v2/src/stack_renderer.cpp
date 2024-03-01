@@ -18,9 +18,14 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    unsigned long native_id)
 {
     (void)tstate;
+    static bool failed = false;
+    if (failed) {
+        return;
+    }
     sample = ddup_start_sample();
     if (sample == nullptr) {
-        std::cerr << "Failed to create a sample. Profiling data will be lost." << std::endl;
+        std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
+        failed = true;
         return;
     }
 
@@ -39,7 +44,7 @@ void
 StackRenderer::render_python_frame(std::string_view name, std::string_view file, uint64_t line)
 {
     if (sample == nullptr) {
-        std::cerr << "Failed to create a sample. Profiling data will be lost." << std::endl;
+        std::cerr << "Received a new frame without sample storage.  Some profiling data has been lost." << std::endl;
         return;
     }
 
@@ -55,8 +60,6 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
         file = invalid;
     }
     ddup_push_frame(sample, name, file, 0, line);
-    ddup_drop_sample(sample);
-    sample = nullptr;
 }
 
 void
@@ -72,6 +75,7 @@ void
 StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
 {
     if (sample == nullptr) {
+        std::cerr << "Received a CPU time without sample storage.  Some profiling data has been lost." << std::endl;
         return;
     }
 
@@ -83,6 +87,7 @@ void
 StackRenderer::render_stack_end()
 {
     if (sample == nullptr) {
+        std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
         return;
     }
 

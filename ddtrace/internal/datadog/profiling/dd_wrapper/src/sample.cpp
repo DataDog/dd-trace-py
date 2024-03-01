@@ -17,10 +17,6 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 }
 
 void
-Sample::start_sample()
-{}
-
-void
 Sample::profile_clear_state()
 {
     profile_state.cycle_buffers();

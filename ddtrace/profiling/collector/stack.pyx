@@ -503,6 +503,11 @@ class StackCollector(collector.PeriodicCollector):
                 self._stack_collector_v2_enabled = False
                 LOG.error("libdd collector not enabled; falling back to the v1 stack sampler.  Did you set DD_PROFILING_EXPORT_LIBDD_ENABLED=true?")
 
+        # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
+        if self._stack_collector_v2_enabled:
+            LOG.debug("Starting the stack v2 sampler")
+            stack_v2.start()
+
 
     def _start_service(self):
         # type: (...) -> None

@@ -461,6 +461,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
+                optional=False,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
@@ -476,6 +477,7 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
+                    optional=False,
                     cmake_args=[
                         "-DPROFILING_ROOT={}".format(PROF_NATIVE_DIR),
                     ],
@@ -516,9 +518,9 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
+        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling.ddup": [str(Path("..") / "libdd_wrapper.*")],
+        "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
     python_requires=">=3.7",
     zip_safe=False,
