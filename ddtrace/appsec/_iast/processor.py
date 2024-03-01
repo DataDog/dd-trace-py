@@ -15,7 +15,6 @@ from . import oce
 from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted
-from ._utils import _iast_report_to_str
 from ._utils import _is_iast_enabled
 
 
@@ -75,6 +74,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         from ._taint_tracking import reset_context  # noqa: F401
+        from ._utils import _iast_report_to_str
 
         span.set_metric(IAST.ENABLED, 1.0)
 
