@@ -3,7 +3,6 @@ import sys
 
 import ddtrace.appsec._ddwaf
 import ddtrace.bootstrap.sitecustomize as module
-from tests.utils import override_env
 
 
 def mac_supported_iast_version():
@@ -18,10 +17,9 @@ def mac_supported_iast_version():
 if __name__ == "__main__":
     # ASM IAST smoke test
     if (3, 6, 0) <= sys.version_info < (3, 12) and system() != "Windows" and mac_supported_iast_version():
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            from ddtrace.appsec._iast._taint_tracking._native import ops
+        from ddtrace.appsec._iast._taint_tracking._native import ops
 
-            assert ops
+        assert ops
 
     # ASM WAF smoke test
     if system() == "Linux":

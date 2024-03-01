@@ -110,7 +110,7 @@ jobs:
         run: pip install dist/*.tar.gz
 
       - name: Test the source package
-        run: python $GITHUB_WORKSPACE/tests/smoke_test.py
+        run: DD_IAST_ENABLED=1 python $GITHUB_WORKSPACE/tests/smoke_test.py
         # Move out of the workspace to avoid importing ddtrace from the source
         working-directory: /
 
