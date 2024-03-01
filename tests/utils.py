@@ -1046,7 +1046,7 @@ def snapshot_context(
                     r = conn.getresponse()
                     if r.status == 200:
                         traces = json.loads(r.read())
-                        if len(traces) == wait_for_num_traces:
+                        if len(traces) >= wait_for_num_traces:
                             break
                 except Exception:
                     pass
