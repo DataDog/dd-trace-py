@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e2775500000000",
+      "_dd.p.tid": "65e2c50600000000",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/sub-app/hello/{name}",
@@ -20,17 +20,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "e41d791a495b45bc8fb6795d71b554f0",
+      "runtime-id": "b273c948f6414e7782d1ba93035ab5ba",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 15475
+      "process_id": 44458
     },
-    "duration": 340000,
-    "start": 1709340501724456000
+    "duration": 343000,
+    "start": 1709360390669427000
   },
      {
        "name": "starlette.request",
@@ -51,6 +51,6 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 138000,
-       "start": 1709340501724671000
+       "duration": 143000,
+       "start": 1709360390669641000
      }]]

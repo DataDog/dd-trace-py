@@ -85,6 +85,17 @@ def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 
 
+def _extract_full_path(raw_path, root_path, path):
+    if root_path and raw_path and raw_path.startswith(root_path.encode()):
+        raw = raw_path.split(b"?")[0] if b"?" in raw_path else raw_path
+        check_path = root_path + path
+
+        if raw.decode() != check_path:
+            return path
+
+    return root_path + path
+
+
 async def _blocked_asgi_app(scope, receive, send):
     await send({"type": "http.response.start", "status": 403, "headers": []})
     await send({"type": "http.response.body", "body": b""})
@@ -184,7 +195,8 @@ class TraceMiddleware:
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
-            full_path = scope.get("root_path", "") + scope.get("path", "")
+
+            full_path = _extract_full_path(scope.get("raw_path", ""), scope.get("root_path", ""), scope.get("path", ""))
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
             elif server and len(server) == 2:

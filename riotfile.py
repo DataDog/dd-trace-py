@@ -1243,7 +1243,7 @@ venv = Venv(
                 "aiosqlite": latest,
                 "databases": latest,
                 "pytest-randomly": latest,
-                "anyio": "<4.0"
+                "anyio": "<4.0",
             },
             venvs=[
                 Venv(

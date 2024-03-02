@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e2772c00000000",
+      "_dd.p.tid": "65e2c4e600000000",
       "component": "requests",
       "http.method": "GET",
       "http.status_code": "200",
@@ -19,7 +19,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "1be5ba4468d049f78cc0958a76da2050",
+      "runtime-id": "6defe05e80af4dbcb9c90cb62bf0cfa4",
       "span.kind": "client"
     },
     "metrics": {
@@ -27,10 +27,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 15153
+      "process_id": 44360
     },
-    "duration": 782000,
-    "start": 1709340460331155000
+    "duration": 1339000,
+    "start": 1709360358038246000
   },
      {
        "name": "starlette.request",
@@ -42,7 +42,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "65e2772c00000000",
+         "_dd.p.tid": "65e2c4e600000000",
          "component": "starlette",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -55,8 +55,8 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "duration": 253000,
-       "start": 1709340460331455000
+       "duration": 252000,
+       "start": 1709360358038884000
      },
         {
           "name": "starlette.request",
@@ -68,7 +68,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "65e2772c00000000",
+            "_dd.p.tid": "65e2c4e600000000",
             "component": "starlette",
             "http.method": "GET",
             "http.status_code": "200",
@@ -77,6 +77,6 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 128000,
-          "start": 1709340460331594000
+          "duration": 124000,
+          "start": 1709360358039026000
         }]]
