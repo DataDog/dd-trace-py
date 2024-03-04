@@ -1269,35 +1269,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.9"),
-                            pkgs={
-                                "sqlalchemy": ["~=1.3", "~=1.4"],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        Venv(
-                            # sqlalchemy added support for Python 3.10 in 1.4.26
-                            pys="3.10",
-                            pkgs={
-                                "sqlalchemy": "~=1.4",
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        # FIXME: tests fail with sqlalchemy 2.0
-                        # Venv(
-                        #     # sqlalchemy added support for Python 3.11 in 2.0
-                        #     pys="3.11",
-                        #     pkgs={
-                        #         "sqlalchemy": ["~=2.0.0", latest],
-                        #         "psycopg2-binary": latest,
-                        #         "mysql-connector-python": latest,
-                        #     },
-                        # ),
-                    ],
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "sqlalchemy": ["~=1.3.0", latest],
+                        "psycopg2-binary": latest,
+                        "mysql-connector-python": latest,
+                    },
                 ),
             ],
         ),

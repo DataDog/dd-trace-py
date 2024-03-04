@@ -4,6 +4,7 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
+import ddtrace.constants
 from tests.webclient import PingFilter
 
 
@@ -36,6 +37,11 @@ def multi_view(param_int=0, param_str=""):
     }
     status = int(query_params.get("status", "200"))
     headers_query = query_params.get("headers", "").split(",")
+    priority = query_params.get("priority", None)
+    if priority in ("keep", "drop"):
+        tracer.current_span().set_tag(
+            ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
+        )
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")
