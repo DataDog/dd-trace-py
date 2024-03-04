@@ -472,6 +472,10 @@ jobs:
       - name: Pin trio
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install trio==0.23.2
+      # with sqlalchemy 2.0.28 we are seeing sqlalchemy.exc.ArgumentError
+      - name: Pin sqlalchemy
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install sqlalchemy==2.0.27
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
