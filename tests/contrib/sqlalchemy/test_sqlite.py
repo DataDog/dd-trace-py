@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from ddtrace.constants import ERROR_MSG
@@ -26,7 +27,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         # ensures that SQL errors are reported
         with pytest.raises(OperationalError):
             with self.connection() as conn:
-                conn.execute("SELECT * FROM a_wrong_table").fetchall()
+                conn.execute(text("SELECT * FROM a_wrong_table")).fetchall()
 
         traces = self.pop_traces()
         # trace composition
