@@ -387,6 +387,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "service:{}".format(span.service or ""),
             "source:integration",
             "ml_app:{}".format(self._get_ml_app_name(span)),
+            "ddtrace.version:{}".format(ddtrace.__version__),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag(ERROR_TYPE)
