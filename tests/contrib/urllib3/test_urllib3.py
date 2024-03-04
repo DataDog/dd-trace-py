@@ -496,6 +496,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 # outgoing headers must contain last parent span id in tracestate
                 "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
             }
+
             if int(urllib3.__version__.split(".")[0]) >= 2:
                 m_make_request.assert_called_with(
                     mock.ANY,
