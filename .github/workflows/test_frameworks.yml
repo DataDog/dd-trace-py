@@ -302,6 +302,8 @@ jobs:
           python-version: '3.8'
       - name: Install tox
         if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install envier
+        run: pip install "pytest<8.1"
         run: pip install tox
       - name: Create tox env
         if: needs.needs-run.outputs.outcome == 'success'
