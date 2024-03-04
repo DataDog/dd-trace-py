@@ -83,7 +83,7 @@ class CGroupInfo(object):
                 pod_id = match.group(1)
 
         try:
-            node_inode = os.stat(f"/sys/fs/cgroup/{path}").st_ino
+            node_inode = os.stat(f"/sys/fs/cgroup/{path.strip('/')}").st_ino
         except Exception:
             log.debug("Failed to stat cgroup node file for path %r", path, exc_info=True)
             node_inode = None
