@@ -85,7 +85,7 @@ class CGroupInfo(object):
         try:
             node_inode = os.stat(f"/sys/fs/cgroup/{path.strip('/')}").st_ino
         except Exception:
-            log.debug("Failed to stat cgroup node file for path %r", path, exc_info=True)
+            log.debug("Failed to stat cgroup node file for path %r", path)
             node_inode = None
 
         return cls(
