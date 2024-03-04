@@ -11,6 +11,7 @@ import sys
 from time import time
 
 import hypothesis
+from packaging.version import Version
 import pytest
 
 
@@ -69,8 +70,7 @@ def pytest_configure(config):
 # DEV: We can only ignore folders/modules, we cannot ignore individual files
 # DEV: We must wrap with `@pytest.mark.hookwrapper` to inherit from default (e.g. honor `--ignore`)
 #      https://github.com/pytest-dev/pytest/issues/846#issuecomment-122129189
-@pytest.hookimpl(hookwrapper=True)
-def pytest_ignore_collect(collection_path, config):
+def _pytest_ignore_collect(path, outcome):
     """
     Skip directories defining a required minimum Python version
 
@@ -82,18 +82,13 @@ def pytest_ignore_collect(collection_path, config):
         Python 3.5: Collect
         Python 3.6: Collect
     """
-    # Execute original behavior first
-    # DEV: We need to set `outcome.force_result(True)` if we need to override
-    #      these results and skip this directory
-    outcome = yield
-
     # Was not ignored by default behavior
     if not outcome.get_result():
         # DEV: `path` is a `LocalPath`
-        collection_path = str(collection_path)
-        if not os.path.isdir(collection_path):
-            collection_path = os.path.dirname(collection_path)
-        dirname = os.path.basename(collection_path)
+        path = str(path)
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
+        dirname = os.path.basename(path)
 
         # Directory name match `py[23][0-9]`
         if PY_DIR_PATTERN.match(dirname):
@@ -103,6 +98,36 @@ def pytest_ignore_collect(collection_path, config):
             # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
                 outcome.force_result(True)
+
+
+_pytest_version = Version(pytest.__version__)
+PYTEST_GTE_7 = any(
+    [
+        _pytest_version.is_devrelease,
+        _pytest_version.is_prerelease,
+        _pytest_version >= Version("7.0"),
+    ]
+)
+
+if PYTEST_GTE_7:
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_ignore_collect(collection_path, config):
+        # Execute original behavior first
+        # DEV: We need to set `outcome.force_result(True)` if we need to override
+        #      these results and skip this directory
+        outcome = yield
+        _pytest_ignore_collect(collection_path, outcome)
+
+else:
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_ignore_collect(path, config):
+        # Execute original behavior first
+        # DEV: We need to set `outcome.force_result(True)` if we need to override
+        #      these results and skip this directory
+        outcome = yield
+        _pytest_ignore_collect(path, outcome)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
