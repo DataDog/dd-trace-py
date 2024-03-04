@@ -468,7 +468,7 @@ if not IS_PYSTON:
             )
         )
 
-        # One of the stack v2 dependencies doesn't quite work on 3.7, so only support later for now
+        # Echion doesn't build on 3.7, so just skip it outright for now
         if sys.version_info >= (3, 8):
             ext_modules.append(
                 CMakeExtension(
