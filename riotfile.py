@@ -95,6 +95,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
+        "packaging": ">=14.0",
         "hypothesis": "<6.45.1",
     },
     env={
