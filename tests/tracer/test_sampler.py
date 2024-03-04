@@ -93,6 +93,8 @@ class RateSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
 
+            # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+            # with rate limiting disabled.
             tracer._sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
 
             iterations = int(1e4 / sample_rate)
@@ -120,6 +122,8 @@ class RateSamplerTest(unittest.TestCase):
     def test_deterministic_behavior(self):
         """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
+        # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+        # with rate limiting disabled.
         tracer._sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
 
         for i in range(10):
@@ -130,7 +134,7 @@ class RateSamplerTest(unittest.TestCase):
             assert (
                 len(samples) == 1
             ), f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
-            sampled = (len(samples) == 1 and samples[0].context.sampling_priority > 0)
+            sampled = len(samples) == 1 and samples[0].context.sampling_priority > 0
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
