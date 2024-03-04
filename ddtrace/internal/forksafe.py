@@ -107,30 +107,6 @@ if hasattr(os, "register_at_fork"):
     os.register_at_fork(
         before=ddtrace_before_in_child, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked
     )
-elif hasattr(os, "fork"):
-    # DEV: This "should" be the correct way of implementing this, but it doesn't
-    # work if hooks create new threads.
-    _threading_after_fork = threading._after_fork  # type: ignore
-
-    def _after_fork():
-        # type: () -> None
-        _threading_after_fork()
-        if not _soft:
-            ddtrace_after_in_child()
-
-    threading._after_fork = _after_fork  # type: ignore[attr-defined]
-
-    # DEV: If hooks create threads, we should do this instead.
-    _os_fork = os.fork
-
-    def _fork():
-        ddtrace_before_in_child()
-        pid = _os_fork()
-        if pid == 0 and _soft:
-            ddtrace_after_in_child()
-        return pid
-
-    os.fork = _fork
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
