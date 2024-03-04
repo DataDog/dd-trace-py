@@ -45,6 +45,7 @@ from ..internal.logger import get_logger
 from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
+from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
 
 
@@ -836,13 +837,7 @@ class _TraceContext:
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
-            ts = span_context._tracestate
-            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
-            if "dd=" in ts:
-                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
-            else:
-                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
-
+            ts = w3c_tracestate_add_p(span_context._tracestate, span_context.span_id or 0)
             headers[_HTTP_HEADER_TRACESTATE] = ts
 
 
