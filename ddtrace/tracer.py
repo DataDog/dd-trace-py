@@ -4,7 +4,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 deprecate(
-    "The tracer module is deprecated and will be moved.",
-    message="A new tracer interface will be provided by the trace sub-package.",
+    "The ddtrace.tracer module is deprecated and will be removed.",
+    message="A new interface will be provided by the trace sub-package.",
     category=DDTraceDeprecationWarning,
 )

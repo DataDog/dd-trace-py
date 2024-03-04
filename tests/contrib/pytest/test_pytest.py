@@ -16,6 +16,7 @@ from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -54,6 +55,7 @@ class PytestTestCase(TracerTestCase):
                         assert CIVisibility.enabled
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                        CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
@@ -1884,11 +1886,13 @@ class PytestTestCase(TracerTestCase):
         assert len(skipped_suite_spans) == 2
         for skipped_suite_span in skipped_suite_spans:
             assert skipped_suite_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_suite_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
 
         skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
         assert len(skipped_test_spans) == 2
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span.get_tag("itr_correlation_id") is None
 
     def test_pytest_skip_tests_by_path(self):
         """
@@ -1963,9 +1967,14 @@ class PytestTestCase(TracerTestCase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 3
 
+        suite_spans = [x for x in spans if x.get_tag("type") == "test_suite_end"]
+        for suite_span in suite_spans:
+            assert suite_span.get_tag("itr_correlation_id") is None
+
         skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
         for skipped_test_span in skipped_test_spans:
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
 
     def test_pytest_skip_none_tests(self):
         """

@@ -143,6 +143,7 @@ def override_global_config(values):
         "_dd_api_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
+        "_llmobs_ml_app",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -1045,7 +1046,7 @@ def snapshot_context(
                     r = conn.getresponse()
                     if r.status == 200:
                         traces = json.loads(r.read())
-                        if len(traces) == wait_for_num_traces:
+                        if len(traces) >= wait_for_num_traces:
                             break
                 except Exception:
                     pass
