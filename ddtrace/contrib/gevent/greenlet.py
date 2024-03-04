@@ -1,6 +1,6 @@
-from contextvars import copy_context as _copy_context
-
 import gevent
+
+from ddtrace._trace.provider import _DD_CONTEXTVAR
 
 
 GEVENT_VERSION = gevent.version_info[0:3]
@@ -8,11 +8,17 @@ GEVENT_VERSION = gevent.version_info[0:3]
 
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
-        # Initialize greenlet contextvars to the same as the current context.
+        # Storse the current Datadog context.
         # This is necessary to ensure tracing context is passed to greenlets.
-        # Note - this change may impact other libraries that rely on greenlet local storage.
-        self.gr_context = _copy_context()
+        # Avoids setting Greenlet.gr_context, setting field could introduce
+        # unintended side-effects in third party libraries.
+        self.trace_context = _DD_CONTEXTVAR.get()
         super(TracingMixin, self).__init__(*args, **kwargs)
+
+    def run(self):
+        # Propagates Datadog context to spawned greenlets
+        _DD_CONTEXTVAR.set(self.trace_context)
+        super(TracingMixin, self).run()
 
 
 class TracedGreenlet(TracingMixin, gevent.Greenlet):

@@ -1,10 +1,6 @@
 """
 The gevent integration adds support for tracing across greenlets.
 
-The integration ensures gevent contextvars are copied to spawned greenlets.
-This change may impact other libraries that rely on greenlet local storage. To
-disable propagating trace context across greenlets set ``DD_TRACE_GEVENT_ENABLED=False``.
-
 .. note::
     If ``ddtrace-run`` is not being used then be sure to ``import ddtrace.auto``
     before importing from the gevent library.
