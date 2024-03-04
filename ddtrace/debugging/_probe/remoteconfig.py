@@ -23,6 +23,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import MetricFunctionProbe
 from ddtrace.debugging._probe.model import MetricLineProbe
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeLocationKind
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.model import SpanDecoration
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
@@ -87,7 +88,7 @@ class ProbeFactory(object):
         cls.update_args(args, attribs)
 
         where = attribs["where"]
-        if where.get("sourceFile", None) is not None:
+        if where["kind"] == ProbeLocationKind.LINE:
             if cls.__line_class__ is None:
                 raise TypeError("Line probe type is not supported")
 
