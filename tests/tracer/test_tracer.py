@@ -19,6 +19,8 @@ import six
 
 import ddtrace
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import _is_top_level
+from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -41,8 +43,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
-from ddtrace.span import _is_top_level
-from ddtrace.tracer import Tracer
 from tests.appsec.appsec.test_processor import tracer_appsec
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
@@ -1713,23 +1713,25 @@ def test_context_priority(tracer, test_spans):
 
 def test_spans_sampled_out(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
 
     spans = test_spans.pop()
-    assert len(spans) == 0
+    assert len(spans) == 3
+    for span in spans:
+        assert span.context.sampling_priority <= 0
 
 
 def test_spans_sampled_one(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1737,11 +1739,11 @@ def test_spans_sampled_one(tracer, test_spans):
 
 def test_spans_sampled_all(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = True
+        span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1967,3 +1969,18 @@ def test_installed_excepthook():
     assert sys.excepthook is telemetry._excepthook
     # Reset exception hooks
     telemetry.uninstall_excepthook()
+
+
+@pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})
+def test_import_ddtrace_tracer_not_module():
+    import os
+
+    import_ddtrace_tracer = os.environ["IMPORT_DDTRACE_TRACER"] == "true"
+
+    if import_ddtrace_tracer:
+        import ddtrace.tracer  # noqa: F401
+
+    from ddtrace import Tracer
+    from ddtrace import tracer
+
+    assert isinstance(tracer, Tracer)

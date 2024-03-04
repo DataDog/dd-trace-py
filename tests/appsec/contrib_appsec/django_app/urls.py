@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from ddtrace import tracer
+import ddtrace.constants
 
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
@@ -40,6 +41,11 @@ def multi_view(request, param_int=0, param_str=""):
     }
     status = int(query_params.get("status", "200"))
     headers_query = query_params.get("headers", "").split(",")
+    priority = query_params.get("priority", None)
+    if priority in ("keep", "drop"):
+        tracer.current_span().set_tag(
+            ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
+        )
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")

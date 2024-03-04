@@ -45,7 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Text  # noqa:F401
 
     from ddtrace._trace.context import Context  # noqa:F401
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 # Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111
@@ -90,7 +90,7 @@ def validate_sampling_decision(
         if TRACE_TAG_RE.match(value) is None:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
-            log.warning("failed to decode _dd.p.dm: %r", value, exc_info=True)
+            log.warning("failed to decode _dd.p.dm: %r", value)
     return meta
 
 
@@ -305,7 +305,6 @@ def _apply_rate_limit(span, sampled, limiter):
 def _set_priority(span, priority):
     # type: (Span, int) -> None
     span.context.sampling_priority = priority
-    span.sampled = priority > 0  # Positive priorities mean it was kept
 
 
 def _get_highest_precedence_rule_matching(span, rules):

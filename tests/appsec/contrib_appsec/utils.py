@@ -8,7 +8,7 @@ import pytest
 
 import ddtrace
 from ddtrace.appsec import _constants as asm_constants
-from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
@@ -56,18 +56,17 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
-    def check_single_rule_triggered(self, rule_id: str, get_tag):
-        tag = get_tag(APPSEC.JSON)
-        assert tag is not None, "no JSON tag in root span"
-        loaded = json.loads(tag)
-        result = [t["rule"]["id"] for t in loaded["triggers"]]
+    def check_single_rule_triggered(self, rule_id: str, root_span):
+        triggers = get_triggers(root_span())
+        assert triggers is not None, "no appsec struct in root span"
+        print(triggers)
+        result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
-    def check_rules_triggered(self, rule_id: List[str], get_tag):
-        tag = get_tag(APPSEC.JSON)
-        assert tag is not None, "no JSON tag in root span"
-        loaded = json.loads(tag)
-        result = sorted([t["rule"]["id"] for t in loaded["triggers"]])
+    def check_rules_triggered(self, rule_id: List[str], root_span):
+        triggers = get_triggers(root_span())
+        assert triggers is not None, "no appsec struct in root span"
+        result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
@@ -101,14 +100,13 @@ class Contrib_TestClass_For_Threats:
             assert get_tag("http.status_code") == "200"
             assert self.headers(response)["content-type"] == "text/html; charset=utf-8"
 
-    def test_simple_attack(self, interface: Interface, root_span, get_tag):
+    def test_simple_attack(self, interface: Interface, root_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert response.status_code == 404
-            str_json = get_tag(APPSEC.JSON)
-            assert str_json is not None, "no JSON tag in root span"
-            assert "triggers" in json.loads(str_json)
+            triggers = get_triggers(root_span())
+            assert triggers is not None, "no appsec struct in root span"
             assert core.get_item("http.request.uri", span=root_span()) == "http://localhost:8000/.git?q=1"
             assert core.get_item("http.request.headers", span=root_span()) is not None
             query = dict(core.get_item("http.request.query", span=root_span()))
@@ -138,7 +136,7 @@ class Contrib_TestClass_For_Threats:
         ("cookies", "attack"),
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
-    def test_request_cookies(self, interface: Interface, root_span, get_tag, asm_enabled, cookies, attack):
+    def test_request_cookies(self, interface: Interface, root_span, asm_enabled, cookies, attack):
         with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
             dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
         ):
@@ -150,14 +148,13 @@ class Contrib_TestClass_For_Threats:
                 assert cookies_parsed == cookies
             else:
                 assert core.get_item("http.request.cookies", span=root_span()) is None
-            str_json = get_tag(APPSEC.JSON)
+            triggers = get_triggers(root_span())
             if asm_enabled and attack:
-                assert str_json is not None, "no JSON tag in root span"
-                json_payload = json.loads(str_json)
-                assert len(json_payload["triggers"]) == 1
-                assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
+                assert triggers is not None, "no appsec struct in root span"
+                assert len(triggers) == 1
+                assert triggers[0]["rule"]["id"] == "crs-942-100"
             else:
-                assert str_json is None, f"asm JSON tag in root span: asm_enabled={asm_enabled}, attack={attack}"
+                assert triggers is None, f"asm JSON tag in root span: asm_enabled={asm_enabled}, attack={attack}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -177,7 +174,6 @@ class Contrib_TestClass_For_Threats:
         self,
         interface: Interface,
         root_span,
-        get_tag,
         asm_enabled,
         encode_payload,
         content_type,
@@ -199,15 +195,14 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert not body  # DEV: Flask send {} for text/plain with asm
 
-            str_json = get_tag(APPSEC.JSON)
+            triggers = get_triggers(root_span())
 
             if asm_enabled and attack and content_type != "text/plain":
-                assert str_json is not None, "no JSON tag in root span"
-                json_payload = json.loads(str_json)
-                assert len(json_payload["triggers"]) == 1
-                assert json_payload["triggers"][0]["rule"]["id"] == "crs-942-100"
+                assert triggers is not None, "no appsec struct in root span"
+                assert len(triggers) == 1
+                assert triggers[0]["rule"]["id"] == "crs-942-100"
             else:
-                assert str_json is None, "asm JSON tag in root span"
+                assert triggers is None, "asm JSON tag in root span"
 
     @pytest.mark.parametrize(
         ("content_type"),
@@ -313,7 +308,9 @@ class Contrib_TestClass_For_Threats:
             ({"X-Real-Ip": rules._IP.DEFAULT}, False, None, None),
         ],
     )
-    def test_request_ipblock(self, interface: Interface, get_tag, asm_enabled, headers, blocked, body, content_type):
+    def test_request_ipblock(
+        self, interface: Interface, get_tag, root_span, asm_enabled, headers, blocked, body, content_type
+    ):
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
@@ -328,7 +325,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert get_tag(http.URL) == "http://localhost:8000/"
                 assert get_tag(http.METHOD) == "GET"
-                self.check_single_rule_triggered("blk-001-001", get_tag)
+                self.check_single_rule_triggered("blk-001-001", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == content_type
                 )
@@ -348,15 +345,14 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize(
         ("query", "blocked"),
         [
-            # lowercase transformer is currently bugged on libddwaf
-            # ("?x=MoNiToR_ThAt_VaLuE", False),
-            # ("?x=BlOcK_ThAt_VaLuE&y=1", True),
+            ("?x=MoNiToR_ThAt_VaLuE", False),
+            ("?x=BlOcK_ThAt_VaLuE&y=1", True),
             ("?x=monitor_that_value", False),
             ("?x=block_that_value&y=1", True),
         ],
     )
     def test_request_ipmonitor(
-        self, interface: Interface, get_tag, asm_enabled, headers, monitored, bypassed, query, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, headers, monitored, bypassed, query, blocked
     ):
         from ddtrace.ext import http
 
@@ -376,23 +372,24 @@ class Contrib_TestClass_For_Threats:
                     get_tag("actor.ip") == headers["X-Real-Ip"]
                 ), f"actor.ip={get_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
                 if monitored:
-                    self.check_rules_triggered(["blk-001-010", rule], get_tag)
+                    self.check_rules_triggered(["blk-001-010", rule], root_span)
                 else:
-                    self.check_rules_triggered([rule], get_tag)
+                    self.check_rules_triggered([rule], root_span)
             else:
-                assert get_tag(APPSEC.JSON) is None, f"asm JSON tag in root span {get_tag(APPSEC.JSON)}"
+                assert get_triggers(root_span()) is None, f"asm struct in root span {get_triggers(root_span())}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("method", "kwargs"), [("get", {}), ("post", {"data": {"key": "value"}}), ("options", {})])
     def test_request_suspicious_request_block_match_method(
-        self, interface: Interface, get_tag, asm_enabled, method, kwargs
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, method, kwargs
     ):
         # GET must be blocked
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
             self.update_tracer(interface)
             response = getattr(interface.client, method)("/", **kwargs)
             assert get_tag(http.URL) == "http://localhost:8000/"
@@ -401,7 +398,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-006", get_tag)
+                self.check_single_rule_triggered("tst-037-006", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -409,17 +406,20 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(("uri", "blocked"), [("/.git", True), ("/legit", False)])
-    def test_request_suspicious_request_block_match_uri(self, interface: Interface, get_tag, asm_enabled, uri, blocked):
+    def test_request_suspicious_request_block_match_uri(
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri, blocked
+    ):
         # GET must be blocked
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             assert get_tag(http.URL) == f"http://localhost:8000{uri}"
@@ -428,7 +428,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-002", get_tag)
+                self.check_single_rule_triggered("tst-037-002", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -436,9 +436,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 404
                 assert get_tag(http.STATUS_CODE) == "404"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("path", "blocked"),
         [
@@ -449,14 +450,14 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_path_params(
-        self, interface: Interface, get_tag, asm_enabled, path, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, path, blocked
     ):
         from ddtrace.ext import http
 
         uri = f"/asm/4352/{path}"  # removing trailer slash will cause errors
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -466,7 +467,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-007", get_tag)
+                self.check_single_rule_triggered("tst-037-007", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -474,9 +475,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("query", "blocked"),
         [
@@ -486,7 +488,7 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_query_params(
-        self, interface: Interface, get_tag, asm_enabled, query, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, query, blocked
     ):
         if interface.name in ("django",) and query == "?toto=xtrace&toto=ytrace":
             raise pytest.skip(f"{interface.name} does not support multiple query params with same name")
@@ -494,9 +496,9 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         uri = f"/{query}"
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -506,7 +508,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-001", get_tag)
+                self.check_single_rule_triggered("tst-037-001", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -514,9 +516,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("headers", "blocked"),
         [
@@ -525,13 +528,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_headers(
-        self, interface: Interface, get_tag, asm_enabled, headers, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, headers, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             # DEV Warning: encoded URL will behave differently
@@ -541,7 +544,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-004", get_tag)
+                self.check_single_rule_triggered("tst-037-004", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -549,9 +552,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("cookies", "blocked"),
         [
@@ -560,13 +564,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_cookies(
-        self, interface: Interface, get_tag, asm_enabled, cookies, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, cookies, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
             # DEV Warning: encoded URL will behave differently
@@ -576,7 +580,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-008", get_tag)
+                self.check_single_rule_triggered("tst-037-008", root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -584,9 +588,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("uri", "status", "blocked"),
         [
@@ -597,13 +602,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_response_status(
-        self, interface: Interface, get_tag, asm_enabled, uri, status, blocked
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri, status, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -613,7 +618,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, get_tag)
+                self.check_single_rule_triggered(blocked, root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -621,9 +626,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == status
                 assert get_tag(http.STATUS_CODE) == str(status)
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("uri", "blocked"),
         [
@@ -634,13 +640,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_response_headers(
-        self, interface: Interface, get_tag, asm_enabled, root_span, uri, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -650,7 +656,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, get_tag)
+                self.check_single_rule_triggered(blocked, root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -658,9 +664,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("body", "content_type", "blocked"),
         [
@@ -689,13 +696,13 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     def test_request_suspicious_request_block_match_request_body(
-        self, interface: Interface, get_tag, asm_enabled, root_span, body, content_type, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_SRB)
-        ):
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.post("/asm/", data=body, content_type=content_type)
             # DEV Warning: encoded URL will behave differently
@@ -705,7 +712,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 403
                 assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, get_tag)
+                self.check_single_rule_triggered(blocked, root_span)
                 assert (
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
@@ -713,9 +720,10 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("query", "status", "rule_id", "action"),
         [
@@ -732,7 +740,7 @@ class Contrib_TestClass_For_Threats:
         [{"Accept": "text/html"}, {"Accept": "text/json"}, {}],
     )
     def test_request_suspicious_request_block_custom_actions(
-        self, interface: Interface, get_tag, asm_enabled, root_span, query, status, rule_id, action, headers
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, query, status, rule_id, action, headers
     ):
         from ddtrace.ext import http
         import ddtrace.internal.utils.http as http_cache
@@ -742,7 +750,9 @@ class Contrib_TestClass_For_Threats:
         http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
         try:
             uri = f"/?param={query}"
-            with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
+            with override_global_config(
+                dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+            ), override_env(
                 dict(
                     DD_APPSEC_RULES=rules.RULES_SRBCA,
                     DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,
@@ -757,7 +767,7 @@ class Contrib_TestClass_For_Threats:
                 if asm_enabled and action:
                     assert self.status(response) == status
                     assert get_tag(http.STATUS_CODE) == str(status)
-                    self.check_single_rule_triggered(rule_id, get_tag)
+                    self.check_single_rule_triggered(rule_id, root_span)
 
                     if action == "blocked":
                         content_type = (
@@ -780,7 +790,7 @@ class Contrib_TestClass_For_Threats:
                 else:
                     assert self.status(response) == 200
                     assert get_tag(http.STATUS_CODE) == "200"
-                    assert get_tag(APPSEC.JSON) is None
+                    assert get_triggers(root_span()) is None
         finally:
             # remove cache to avoid using custom templates in other tests
             http_cache._HTML_BLOCKED_TEMPLATE_CACHE = None
@@ -791,6 +801,7 @@ class Contrib_TestClass_For_Threats:
         self,
         interface: Interface,
         get_tag,
+        root_span,
         asm_enabled,
     ):
         from ddtrace.ext import http
@@ -804,9 +815,9 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 404
             assert get_tag(http.STATUS_CODE) == "404"
             if asm_enabled:
-                self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], get_tag)
+                self.check_rules_triggered(["nfd-000-001", "ua0-600-12x"], root_span)
             else:
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -874,18 +885,24 @@ class Contrib_TestClass_For_Threats:
             ({"User-Agent": "AllOK"}, False, False),
         ],
     )
-    @pytest.mark.parametrize("sample_rate", [0.0, 1.0])
     def test_api_security_schemas(
-        self, interface: Interface, get_tag, apisec_enabled, name, expected_value, headers, event, blocked, sample_rate
+        self,
+        interface: Interface,
+        get_tag,
+        root_span,
+        apisec_enabled,
+        name,
+        expected_value,
+        headers,
+        event,
+        blocked,
     ):
         import base64
         import gzip
 
         from ddtrace.ext import http
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=sample_rate)
-        ):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -895,16 +912,15 @@ class Contrib_TestClass_For_Threats:
                 content_type="application/json",
             )
             assert asm_config._api_security_enabled == apisec_enabled
-            assert asm_config._api_security_sample_rate == sample_rate
 
             assert self.status(response) == 403 if blocked else 200
             assert get_tag(http.STATUS_CODE) == "403" if blocked else "200"
             if event:
-                assert get_tag(APPSEC.JSON) is not None
+                assert get_triggers(root_span()) is not None
             else:
-                assert get_tag(APPSEC.JSON) is None
+                assert get_triggers(root_span()) is None
             value = get_tag(name)
-            if apisec_enabled and sample_rate:
+            if apisec_enabled:
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
@@ -954,6 +970,42 @@ class Contrib_TestClass_For_Threats:
                 assert api == expected_value
             else:
                 assert value is None
+
+    @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize("priority", ["keep", "drop"])
+    def test_api_security_sampling(self, interface: Interface, get_tag, apisec_enabled, priority):
+        from ddtrace.ext import http
+
+        payload = {"mastercard": "5123456789123456"}
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                f"/asm/?priority={priority}",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_tag("_dd.appsec.s.req.body")
+            if apisec_enabled and priority == "keep":
+                assert value
+            else:
+                assert value is None
+            # second request must be ignored
+            self.update_tracer(interface)
+            response = interface.client.post(
+                f"/asm/?priority={priority}",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert asm_config._api_security_enabled == apisec_enabled
+
+            value = get_tag("_dd.appsec.s.req.body")
+            assert value is None
 
     def test_request_invalid_rule_file(self, interface):
         """

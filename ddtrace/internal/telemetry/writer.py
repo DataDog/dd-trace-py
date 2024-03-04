@@ -34,6 +34,7 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..packages import Distribution
 from ..periodic import PeriodicService
+from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
@@ -165,6 +166,7 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
+        container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
 
 

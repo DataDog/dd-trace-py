@@ -235,6 +235,11 @@ def run_function_from_file(item, params=None):
         def _subprocess_wrapper():
             out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
+            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+            if xfailed:
+                pytest.xfail("subprocess test resulted in XFail")
+                return
+
             if status != expected_status:
                 raise AssertionError(
                     "Expected status %s, got %s."
@@ -426,9 +431,9 @@ class TelemetryTestSession(object):
                 conn.request(method, url)
                 r = conn.getresponse()
                 return r.status, r.read()
-            except BaseException as err:
+            except BaseException:
                 if try_nb == MAX_RETRY - 1:
-                    raise RuntimeError("Failed to connect to test agent") from err
+                    pytest.xfail("Failed to connect to test agent")
                 time.sleep(pow(exp_time, try_nb))
             finally:
                 conn.close()
