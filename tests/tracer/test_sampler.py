@@ -130,7 +130,7 @@ class RateSamplerTest(unittest.TestCase):
             assert (
                 len(samples) == 1
             ), f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
-            sampled = 1 == len([sample for sample in samples if sample.context.sampling_priority > 0])
+            sampled = (len(samples) == 1 and samples[0].context.sampling_priority > 0)
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
