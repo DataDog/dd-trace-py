@@ -128,8 +128,12 @@ class APIManager(Service):
 
         try:
             # check both current span and root span for sampling priority
+            # if sampling has not yet run for the span, we default to treating it as sampled
+            if root.context.sampling_priority is None and env.span.context.sampling_priority is None:
+                priorities = (1,)
+            else:
+                priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
             # if any of them is set to USER_KEEP or USER_REJECT, we should respect it
-            priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
             if constants.USER_KEEP in priorities:
                 priority = constants.USER_KEEP
             elif constants.USER_REJECT in priorities:
