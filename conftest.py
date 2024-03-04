@@ -11,7 +11,6 @@ import sys
 from time import time
 
 import hypothesis
-from packaging.version import Version
 import pytest
 
 
@@ -100,15 +99,8 @@ def _pytest_ignore_collect(path, outcome):
                 outcome.force_result(True)
 
 
-_pytest_version = Version(pytest.__version__)
-PYTEST_GTE_7 = any(
-    [
-        _pytest_version.is_devrelease,
-        _pytest_version.is_prerelease,
-        _pytest_version >= Version("7.0"),
-    ]
-)
-
+_pytest_version = pytest.__version__
+PYTEST_GTE_7 = int(_pytest_version.split(".")[0]) >= 7
 if PYTEST_GTE_7:
 
     @pytest.hookimpl(hookwrapper=True)
