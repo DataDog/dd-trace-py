@@ -9,8 +9,8 @@ from ddtrace.settings.asm import config as asm_config
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
+from .._utils import _is_iast_enabled
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
@@ -37,6 +37,11 @@ class SSRF(VulnerabilityBase):
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
+        if not _is_iast_enabled():
+            return
+
+        from .._taint_tracking import taint_ranges_as_evidence_info
+
         if isinstance(evidence_value, (str, bytes, bytearray)):
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(SSRF, cls).report(evidence_value=evidence_value, sources=sources)

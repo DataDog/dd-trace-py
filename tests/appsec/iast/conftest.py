@@ -3,8 +3,6 @@ import pytest
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
@@ -18,6 +16,11 @@ from ddtrace.contrib.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+with override_env({"DD_IAST_ENABLED": "True"}):
+    from ddtrace.appsec._iast._taint_tracking import create_context
+    from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
 def iast_span(tracer, env, request_sampling="100", deduplication="false"):
