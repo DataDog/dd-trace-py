@@ -5,10 +5,13 @@ prelude: >
     1. Before encoding a trace chunk to be sent to the agent
     2. Before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration
     3. Before running ``os.fork()``
-    It should be noted that if a user has application egress points (that are not automatically instrumented),
+    For most users this change shouldn't have any impact on their traces, but it does allow for more flexibility 
+    in sampling (see ``features`` release note).
+    It should be noted that if a user has application egress points that are not automatically instrumented,
     to other Datadog components (downstream instrumented services, databases, or execution context changes),
-    and rely on the Python tracer to make the sampling decision (don't have an upstream service doing this)
-    they will need to manually sample those traces. For more information please see:
+    and rely on the Python tracer to make the sampling decision (don't have an upstream service doing this),
+    they will need to manually run the sampler for those traces, or use ``HttpPropagator.inject()``. 
+    For more information please see:
     https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-context-management
 features:
   - |
