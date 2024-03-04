@@ -70,7 +70,7 @@ def pytest_configure(config):
 # DEV: We must wrap with `@pytest.mark.hookwrapper` to inherit from default (e.g. honor `--ignore`)
 #      https://github.com/pytest-dev/pytest/issues/846#issuecomment-122129189
 @pytest.hookimpl(hookwrapper=True)
-def pytest_ignore_collect(path, config):
+def pytest_ignore_collect(collection_path, config):
     """
     Skip directories defining a required minimum Python version
 
@@ -90,10 +90,10 @@ def pytest_ignore_collect(path, config):
     # Was not ignored by default behavior
     if not outcome.get_result():
         # DEV: `path` is a `LocalPath`
-        path = str(path)
-        if not os.path.isdir(path):
-            path = os.path.dirname(path)
-        dirname = os.path.basename(path)
+        collection_path = str(collection_path)
+        if not os.path.isdir(collection_path):
+            collection_path = os.path.dirname(collection_path)
+        dirname = os.path.basename(collection_path)
 
         # Directory name match `py[23][0-9]`
         if PY_DIR_PATTERN.match(dirname):
