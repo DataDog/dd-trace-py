@@ -23,7 +23,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 10515
     },
@@ -50,8 +49,7 @@
          "langchain.response.outputs.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_sample_rate": 1.0
+         "_dd.measured": 1
        },
        "duration": 4724777,
        "start": 1694032467489617732
@@ -82,8 +80,7 @@
             "langchain.response.completions.0.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
           },
           "metrics": {
-            "_dd.measured": 1,
-            "_sample_rate": 1.0
+            "_dd.measured": 1
           },
           "duration": 4302827,
           "start": 1694032467489888358
