@@ -3,8 +3,11 @@ import dataclasses
 from enum import Enum
 from typing import Any
 from typing import Dict
+from typing import Generic
 from typing import List
 from typing import Optional
+from typing import TypeVar
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 
@@ -12,15 +15,36 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+class CIVisibilityItemIdType:
+    pass
+
+
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityItemIdBase:
     """This class exists for the ABC class below"""
 
-    def get_parent(self):
-        raise NotImplementedError("Not implemented in base class")
+    name: str
 
-    def get_session_id(self):
-        raise NotImplementedError("Not implemented in base class")
+    def get_parent_id(self) -> "_CIVisibilityItemIdBase":
+        return self
+
+    def get_session_id(self) -> "_CIVisibilityItemIdBase":
+        return self
+
+
+T = TypeVar("T", bound=Union[CIVisibilityItemIdType, _CIVisibilityItemIdBase])
+
+
+@dataclasses.dataclass(frozen=True)
+class _CIVisibilityChildItemIdBase(Generic[T]):
+    parent_id: T
+    name: str
+
+    def get_parent_id(self) -> T:
+        return self.parent_id
+
+    def get_session_id(self) -> T:
+        return self.get_parent_id().get_session_id()
 
 
 class _CIVisibilityAPIBase(abc.ABC):

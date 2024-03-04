@@ -69,7 +69,7 @@ CIVISIBILITY_LOG_FILTER_RE = re.compile(
     "|".join(
         [
             r"^ddtrace\.contrib\.(coverage|pytest|unittest)",
-            r"ddtrace\.internal\.(ci_visibility|gitmetadata)",
+            r"ddtrace\.internal\.(ci_visibility|gitmetadata).*",
             r"ddtrace\.ext\.(git|ci_visibility|test)",
         ]
     )

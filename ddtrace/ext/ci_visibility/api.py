@@ -12,9 +12,12 @@ import dataclasses
 from enum import Enum
 from typing import Any
 from typing import Dict
+from typing import NamedTuple
 from typing import Optional
 
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIVisibilityItemIdType
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityItemIdBase
 from ddtrace.ext.ci_visibility.util import _catch_and_log_exceptions
 from ddtrace.ext.test import Status as TestStatus
@@ -38,51 +41,64 @@ DEFAULT_SESSION_NAME = "ci_visibility_session"
 
 @dataclasses.dataclass(frozen=True)
 class CISessionId(_CIVisibilityItemIdBase):
-    session_name: str = DEFAULT_SESSION_NAME
+    name: str = DEFAULT_SESSION_NAME
 
-    def get_parent(self):
-        raise NotImplementedError("Sessions do not have parents")
-
-    def get_session_id(self):
-        raise NotImplementedError("Current id is a session id")
+    def __repr__(self):
+        return "CISessionId(name={})".format(self.name)
 
 
-@dataclasses.dataclass(frozen=True)
-class CIModuleId(_CIVisibilityItemIdBase):
-    session_id: CISessionId
-    module_name: str
-
-    def get_parent_id(self):
-        return self.session_id
-
-    def get_session_id(self):
-        return self.get_parent_id()
+class CISessionIdType(CIVisibilityItemIdType, CISessionId):
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
-class CISuiteId(_CIVisibilityItemIdBase):
-    module_id: CIModuleId
-    suite_name: str
+class CIModuleId(_CIVisibilityChildItemIdBase[CISessionIdType]):
+    parent_id: CISessionIdType
+    name: str
 
-    def get_parent_id(self):
-        return self.module_id
+    def __repr__(self):
+        return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
 
-    def get_session_id(self):
-        return self.get_parent_id().get_session_id()
+
+class CIModuleIdType(CIVisibilityItemIdType, CIModuleId):
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
-class CITestId(_CIVisibilityItemIdBase):
-    suite_id: CISuiteId
-    test_name: str
-    test_parameters: Optional[Dict[str, Any]] = None
-    retry_number: Optional[int] = 0
+class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleIdType]):
+    parent_id: CIModuleIdType
+    name: str
 
-    def get_parent_id(self):
-        return self.suite_id
+    def __repr__(self):
+        return "CISuiteId(session={}, module={}, suite={})".format(
+            self.get_session_id().name, self.parent_id.name, self.name
+        )
 
-    def get_session_id(self):
-        return self.get_parent_id().get_session_id()
+
+class CISuiteIdType(CIVisibilityItemIdType, CISuiteId):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class CITestId(_CIVisibilityChildItemIdBase[CISuiteIdType]):
+    parent_id: CISuiteIdType
+    name: str
+    test_parameters: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    retry_number: int = 0
+
+    def __repr__(self):
+        return "CITestId(session={}, module={}, suite={}, test={}, parameters={}, retry_number={})".format(
+            self.get_session_id().name,
+            self.parent_id.parent_id.name,
+            self.parent_id.name,
+            self.name,
+            self.test_parameters,
+            self.retry_number,
+        )
+
+
+class CITestIdType(CIVisibilityItemIdType, CITestId):
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,14 +109,25 @@ class CISourceFileInfo:
 
 
 class CISession(_CIVisibilityAPIBase):
-    @staticmethod
-    def _get_default_session_id() -> CISessionId:
-        return CISessionId()
+    class DiscoverArgs(NamedTuple):
+        session_id: CISessionIdType
+        test_command: str
+        session_operation_name: Optional[str]
+        module_operation_name: Optional[str]
+        suite_operation_name: Optional[str]
+        test_operation_name: Optional[str]
+        reject_unknown_items: bool
+        reject_duplicates: bool
+
+    class FinishArgs(NamedTuple):
+        session_id: CISessionIdType
+        force_finish_children: bool
+        override_status: Optional[CITestStatus]
 
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
-        item_id: Optional[CISessionId],
+        item_id: Optional[CISessionIdType],
         test_command: str,
         session_operation_name: Optional[str] = None,
         module_operation_name: Optional[str] = None,
@@ -109,7 +136,7 @@ class CISession(_CIVisibilityAPIBase):
         reject_unknown_items: bool = True,
         reject_duplicates: bool = True,
     ):
-        item_id = item_id or CISessionId()
+        item_id = item_id or CISessionIdType()
 
         log.debug("Registering session %s with test command: %s", item_id, test_command)
         from ddtrace.internal.ci_visibility import CIVisibility
@@ -122,89 +149,102 @@ class CISession(_CIVisibilityAPIBase):
         core.dispatch(
             "ci_visibility.session.register",
             (
-                item_id,
-                test_command,
-                session_operation_name,
-                module_operation_name,
-                suite_operation_name,
-                test_operation_name,
-                reject_unknown_items,
-                reject_duplicates,
+                CISession.DiscoverArgs(
+                    item_id,
+                    test_command,
+                    session_operation_name,
+                    module_operation_name,
+                    suite_operation_name,
+                    test_operation_name,
+                    reject_unknown_items,
+                    reject_duplicates,
+                ),
             ),
         )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: Optional[CISessionId] = None):
+    def start(item_id: Optional[CISessionIdType] = None):
         log.debug("Starting session")
 
-        item_id = item_id or CISessionId()
+        item_id = item_id or CISessionIdType()
         core.dispatch("ci_visibility.session.start", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: Optional[CISessionId] = None,
+        item_id: Optional[CISessionIdType] = None,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        item_id = item_id or CISessionId()
-        core.dispatch("ci_visibility.session.finish", (item_id, force_finish_children, override_status))
+        item_id = item_id or CISessionIdType()
+        core.dispatch(
+            "ci_visibility.session.finish", CISession.FinishArgs(item_id, force_finish_children, override_status)
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_skippable_items(item_id: Optional[CISessionId] = None):
+    def get_skippable_items(item_id: Optional[CISessionIdType] = None):
         pass
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_settings(item_id: Optional[CISessionId] = None):
+    def get_settings(item_id: Optional[CISessionIdType] = None):
         pass
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_known_tests(item_id: Optional[CISessionId] = None):
+    def get_known_tests(item_id: Optional[CISessionIdType] = None):
         pass
 
     @staticmethod
     @_catch_and_log_exceptions
-    def set_tag(tag_name: str, tag_value: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
-        item_id = item_id or CISessionId()
-        super().set_tag(tag_name, tag_value, item_id, recurse)
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def set_tags(tags: Dict[str, str], item_id: Optional[CISessionId] = None, recurse: bool = False):
+    def set_tag(tag_name: str, tag_value: str, item_id: Optional[CISessionIdType] = None, recurse: bool = False):
         pass
 
     @staticmethod
     @_catch_and_log_exceptions
-    def delete_tag(tag_name: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
+    def set_tags(tags: Dict[str, str], item_id: Optional[CISessionIdType] = None, recurse: bool = False):
         pass
 
     @staticmethod
     @_catch_and_log_exceptions
-    def delete_tags(tag_name: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
+    def delete_tag(tag_name: str, item_id: Optional[CISessionIdType] = None, recurse: bool = False):
+        pass
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def delete_tags(tag_name: str, item_id: Optional[CISessionIdType] = None, recurse: bool = False):
         pass
 
 
 class CIModule(_CIVisibilityAPIBase):
-    @staticmethod
-    @_catch_and_log_exceptions
-    def discover(item_id: CIModuleId):
-        log.debug("Registered module %s", item_id)
+    class DiscoverArgs(NamedTuple):
+        module_id: CIModuleIdType
+
+    class FinishArgs(NamedTuple):
+        module_id: CIModuleIdType
+        override_status: Optional[CITestStatus] = None
+        force_finish_children: bool = False
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: CIModuleId):
+    def discover(item_id: CIModuleIdType):
+        log.debug("Registered module %s", item_id)
+        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(module_id=item_id),))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def start(item_id: CIModuleIdType):
         log.debug("Starting module %s", item_id)
+        core.dispatch("ci_visibility.module.start", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: CIModuleId,
+        item_id: CIModuleIdType,
         override_status: Optional[CITestStatus] = None,
         force_finish_children: bool = False,
     ):
@@ -214,74 +254,120 @@ class CIModule(_CIVisibilityAPIBase):
             override_status,
             force_finish_children,
         )
+        core.dispatch(
+            "ci_visibility.module.finish", (CIModule.FinishArgs(item_id, override_status, force_finish_children),)
+        )
 
 
 class CISuite(_CIVisibilityAPIBase):
-    @staticmethod
-    @_catch_and_log_exceptions
-    def discover(item_id: CISuiteId, source_file_info: Optional[CISourceFileInfo] = None):
-        """Registers a test suite with the CI Visibility service."""
-        log.debug("Registering suite %s, source: %s", item_id, source_file_info)
+    class DiscoverArgs(NamedTuple):
+        suite_id: CISuiteIdType
+        codeowner: Optional[str] = None
+        source_file_info: Optional[CISourceFileInfo] = None
+
+    class FinishArgs(NamedTuple):
+        suite_id: CISuiteIdType
+        force_finish_children: bool = False
+        override_status: Optional[CITestStatus] = None
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: CISuiteId):
+    def discover(
+        item_id: CISuiteIdType, codeowner: Optional[str] = None, source_file_info: Optional[CISourceFileInfo] = None
+    ):
+        """Registers a test suite with the CI Visibility service."""
+        log.debug("Registering suite %s, source: %s", item_id, source_file_info)
+        core.dispatch("ci_visibility.suite.discover", (CISuite.DiscoverArgs(item_id, codeowner, source_file_info),))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def start(item_id: CISuiteIdType):
         log.debug("Starting suite %s", item_id)
+        core.dispatch("ci_visibility.suite.start", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: CISuiteId,
+        item_id: CISuiteIdType,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
     ):
         log.debug(
             "Finishing suite %s, override_status: %s, force_finish_children: %s",
             item_id,
-            override_status,
             force_finish_children,
+            override_status,
+        )
+        core.dispatch(
+            "ci_visibility.suite.finish", (CISuite.FinishArgs(item_id, force_finish_children, override_status),)
         )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, any]):
+    def add_coverage_data(item_id: CITestIdType, coverage_data: Dict[str, Any]):
         log.debug("Adding coverage data for suite %s: %s", item_id, coverage_data)
 
 
 class CITest(_CIVisibilityAPIBase):
+    class DiscoverArgs(NamedTuple):
+        test_id: CITestIdType
+        codeowner: Optional[str] = None
+        source_file_info: Optional[CISourceFileInfo] = None
+
+    class DiscoverEarlyFlakeRetryArgs(NamedTuple):
+        test_id: CITestIdType
+        retry_number: int
+
+    class FinishArgs(NamedTuple):
+        test_id: CITestIdType
+        override_status: Optional[CITestStatus] = None
+
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
-        item_id: CITestId,
+        item_id: CITestIdType,
         codeowner: Optional[str] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
+        is_early_flake_detection: bool = False,
     ):
         """Registers a test with the CI Visibility service."""
         log.debug(
-            "Registered test %s, codeowner: %s, source file: %s, is_early_flake_detection %s",
+            "Discovering test %s, codeowner: %s, source file: %s",
             item_id,
             codeowner,
             source_file_info,
         )
-        core.dispatch("ci_visibility.test.register", (item_id, codeowner, source_file_info))
-
-    @staticmethod
-    def discover_early_flake_retry(item_id: CITestId):
-        if item_id.retry_number == 0:
-            log.debug("Registered early flake retry for test %s", item_id)
-        log.debug("Registered early flake retry for test %s, retry number: %s", item_id, item_id.retry_number)
+        core.dispatch("ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowner, source_file_info),))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: CITestId):
+    def discover_early_flake_retry(item_id: CITestIdType):
+        if item_id.retry_number <= 0:
+            log.warning(
+                "Cannot register early flake retry of test %s with retry number %s", item_id, item_id.retry_number
+            )
+        log.warning("Registered early flake retry for test %s, retry number: %s", item_id, item_id.retry_number)
+        original_test_id = CITestIdType(item_id.parent_id, item_id.name, item_id.test_parameters)
+        core.dispatch(
+            "ci_visibility.test.discover_early_flake_retry",
+            (CITest.DiscoverEarlyFlakeRetryArgs(original_test_id, item_id.retry_number),),
+        )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def start(item_id: CITestIdType):
         log.debug("Starting test %s", item_id)
+        core.dispatch("ci_visibility.test.start", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(item_id: CITestId, status: CITestStatus, reason: Optional[str] = None, exc_info: Optional[any] = None):
-        log.debug("Finishing test %s, status: %s, reason: %s, exception: %s", item_id, status, reason, exc_info)
+    def finish(
+        item_id: CITestIdType, status: CITestStatus, reason: Optional[str] = None, exc_info: Optional[Any] = None
+    ):
+        log.debug("Finishing test %s, status: %s, reason: %s", item_id, status, reason, exc_info)
+        core.dispatch("ci_visibility.test.finish", (CITest.FinishArgs(item_id, status),))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, any]):
+    def add_coverage_data(item_id: CITestIdType, coverage_data: Dict[str, Any]):
         log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
