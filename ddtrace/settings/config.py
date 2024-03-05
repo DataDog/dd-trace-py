@@ -729,23 +729,6 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _tracerflarePubSub(self):
-        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-        from ddtrace.internal.remoteconfig._pubsub import PubSub
-        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
-
-        class _TracerFlarePubSub(PubSub):
-            __publisher_class__ = RemoteConfigPublisher
-            __subscriber_class__ = RemoteConfigSubscriber
-            __shared_data__ = PublisherSubscriberConnector()
-
-            def __init__(self, callback):
-                self._publisher = self.__publisher_class__(self.__shared_data__, None)
-                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TracerFlare")
-
-        return _TracerFlarePubSub
-
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
@@ -786,10 +769,6 @@ class Config(object):
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
 
-    def _handle_tracerflare(self, data: dict) -> None:
-        # TODO: This should be implemented to handle AGENT_CONFIG and AGENT_TASK cases
-        pass
-
     def _handle_remoteconfig_header_tags(self, base_rc_config):
         """Implements precedence order between remoteconfig header tags from code, env, and RC"""
         header_tags_conf = self._config["trace_http_header_tags"]
@@ -813,12 +792,7 @@ class Config(object):
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
-
-    def enable_tracer_flare(self) -> None:
-        """Enable the tracer flare functionality"""
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-        tracerflarePubSub = self._tracerflarePubSub()(self._handle_tracerflare)
-        remoteconfig_poller.register("AGENT_CONFIG", tracerflarePubSub)
-        remoteconfig_poller.register("AGENT_TASK", tracerflarePubSub)
+        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
