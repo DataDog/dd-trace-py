@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "trace8",
+    "service": null,
+    "resource": "trace8",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "language": "python",
+      "runtime-id": "3fca1d80c0964fbbb4f687fc836bc225"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "process_id": 55908
+    },
+    "duration": 127000,
+    "start": 1709568577619719000
+  },
+     {
+       "name": "child",
+       "service": null,
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 59000,
+       "start": 1709568577619765000
+     }]]
