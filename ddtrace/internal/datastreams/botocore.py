@@ -3,31 +3,14 @@ from datetime import datetime
 import json
 
 from ddtrace import config
+from ddtrace.contrib.botocore.utils import get_kinesis_data_object
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def get_pathway(endpoint_service, dsm_identifier):
-    # type: (str, str) -> str
-    """
-    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
-    :dsm_identifier: the identifier for the topic/queue/stream/etc
-
-    Set the data streams monitoring checkpoint and return the encoded pathway
-    """
-    from . import data_streams_processor as processor
-
-    path_type = "type:{}".format(endpoint_service)
-    if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-
-    pathway = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
-    return pathway.encode_b64()
 
 
 def get_queue_name(params):
@@ -65,10 +48,21 @@ def get_stream_arn(params):
 
 
 def inject_context(trace_data, endpoint_service, dsm_identifier):
-    pathway = get_pathway(endpoint_service, dsm_identifier)
+    # type: (dict, str, str) -> None
+    """
+    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
+    :dsm_identifier: the identifier for the topic/queue/stream/etc
 
-    if trace_data is not None:
-        trace_data[PROPAGATION_KEY_BASE_64] = pathway
+    Set the data streams monitoring checkpoint and inject context to carrier
+    """
+    from . import data_streams_processor as processor
+
+    path_type = "type:{}".format(endpoint_service)
+    if not dsm_identifier:
+        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
+
+    ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
+    DsmPathwayCodec.encode(ctx, trace_data)
 
 
 def handle_kinesis_produce(params):
@@ -144,10 +138,8 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-            ctx = processor().decode_pathway_b64(pathway)
+            ctx = DsmPathwayCodec.decode(context_json, processor())
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
-
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
@@ -164,7 +156,10 @@ def record_data_streams_path_for_kinesis_stream(params, results):
     pathway = processor().new_pathway()
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        pathway.set_checkpoint(
+        _, data_obj = get_kinesis_data_object(record["Data"])
+
+        ctx = DsmPathwayCodec.decode(data_obj.get("_datadog"), processor())
+        ctx.set_checkpoint(
             ["direction:in", "topic:" + stream_arn, "type:kinesis"],
             edge_start_sec_override=time_estimate,
             pathway_start_sec_override=time_estimate,

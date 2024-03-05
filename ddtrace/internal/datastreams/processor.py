@@ -453,6 +453,40 @@ class DataStreamsCtx:
         )
 
 
+class DsmPathwayCodec:
+    # we use a class for encoding / decoding in case we update our encoding/decoding. A class will make updates easier
+    # instead of using individual functions.
+
+    @staticmethod
+    def encode(ctx, carrier):
+        # type: (DataStreamsCtx, dict) -> None
+        if not isinstance(ctx, DataStreamsCtx) or not ctx or not ctx.hash:
+            return
+        carrier[PROPAGATION_KEY_BASE_64] = ctx.encode_b64()
+
+    @staticmethod
+    def decode(carrier, data_streams_processor):
+        # type: (dict, DataStreamsProcessor) -> DataStreamsCtx
+        if not carrier:
+            return data_streams_processor.new_pathway()
+
+        ctx = None
+        if PROPAGATION_KEY_BASE_64 in carrier:
+            # decode V2 base64 encoding
+            ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY_BASE_64])
+        elif PROPAGATION_KEY in carrier:
+            try:
+                # decode V1 encoding
+                ctx = data_streams_processor.decode_pathway(carrier[PROPAGATION_KEY])
+            except Exception:
+                try:
+                    # cover case where base64 encoding was included under depcreated key
+                    ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY])
+                except Exception:
+                    pass
+        return ctx
+
+
 def _atexit(obj=None):
     try:
         # Data streams tries to flush data on shutdown.
