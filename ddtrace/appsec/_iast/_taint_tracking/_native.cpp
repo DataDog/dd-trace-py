@@ -61,6 +61,20 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 
 PYBIND11_MODULE(_native, m)
 {
+    const char* env_iast_enabled = std::getenv("DD_IAST_ENABLED");
+    if (env_iast_enabled == nullptr) {
+        throw py::import_error("IAST not enabled");
+        return;
+    }
+
+    std::string iast_enabled = std::string(env_iast_enabled);
+    std::transform(
+      iast_enabled.begin(), iast_enabled.end(), iast_enabled.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (iast_enabled != "true" && iast_enabled != "1") {
+        throw py::import_error("IAST not enabled");
+        return;
+    }
+
     initializer = make_unique<Initializer>();
     initializer->create_context();
 
