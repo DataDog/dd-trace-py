@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Optional
+from typing_extensions import Self
 from typing import TypeVar
 from typing import Union
 
@@ -19,35 +20,35 @@ class CIVisibilityOrphanItemIdType:
     pass
 
 
+# @dataclasses.dataclass(frozen=True)
+# class _CIVisibilityIdBase(abc.ABC, Generic[T]):
+#     @abc.abstractmethod
+#     def get_parent_id(self) -> "_CIVisibilityIdBase":
+#         raise NotImplementedError("This method must be implemented by the subclass")
+
+#     @abc.abstractmethod
+#     def get_session_id(self) -> "_CIVisibilityIdBase":
+#         raise NotImplementedError("This method must be implemented by the subclass")
+
+
+
+
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityIdBase(abc.ABC):
-    @abc.abstractmethod
-    def get_parent_id(self) -> "_CIVisibilityIdBase":
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-    @abc.abstractmethod
-    def get_session_id(self) -> "_CIVisibilityIdBase":
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-
-PT = TypeVar("PT", bound=_CIVisibilityIdBase)
-
-
-@dataclasses.dataclass(frozen=True)
-class _CIVisibilityOrphanItemIdBase(_CIVisibilityIdBase):
+class _CIVisibilityOrphanItemIdBase():
     """This class exists for the ABC class below"""
 
     name: str
 
-    def get_parent_id(self) -> "_CIVisibilityOrphanItemIdBase":
+    def get_parent_id(self) -> Self:
         return self
 
-    def get_session_id(self) -> "_CIVisibilityOrphanItemIdBase":
+    def get_session_id(self) -> Self:
         return self
 
+PT = TypeVar("PT", bound=_CIVisibilityOrphanItemIdBase)
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
+class _CIVisibilityChildItemIdBase(_CIVisibilityOrphanItemIdBase, Generic[PT]):
     parent_id: PT
     name: str
 
@@ -55,14 +56,16 @@ class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
         return self.parent_id
 
     def get_session_id(self) -> _CIVisibilityOrphanItemIdBase:
+        p = self.get_parent_id()
+        s = p.get_session_id()
         return self.get_parent_id().get_session_id()
 
 
-class CIVisibilityChildItemIdType(_CIVisibilityChildItemIdBase):
-    pass
+# class CIVisibilityChildItemIdType(_CIVisibilityChildItemIdBase):
+#     pass
 
 
-CIItemIdType = TypeVar("CIItemIdType", bound=Union[CIVisibilityChildItemIdType, CIVisibilityOrphanItemIdType])
+# CIItemIdType = TypeVar("CIItemIdType", bound=Union[CIVisibilityChildItemIdType, CIVisibilityOrphanItemIdType])
 
 
 class _CIVisibilityAPIBase(abc.ABC):
