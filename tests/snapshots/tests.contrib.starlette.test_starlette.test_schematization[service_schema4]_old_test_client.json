@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "requests.request",
+    "service": "requests",
+    "resource": "GET /sub-app/hello/name",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "mysvc",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e798d800000000",
+      "component": "requests",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "language": "python",
+      "out.host": "testserver",
+      "runtime-id": "b0a4820444ef4909a693646312e7694e",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 44444
+    },
+    "duration": 1363000,
+    "start": 1709676760196040000
+  },
+     {
+       "name": "starlette.request",
+       "service": "mysvc",
+       "resource": "GET /sub-app/hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "65e798d800000000",
+         "component": "starlette",
+         "http.method": "GET",
+         "http.route": "/sub-app/hello/{name}",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 322000,
+       "start": 1709676760196612000
+     },
+        {
+          "name": "starlette.request",
+          "service": "mysvc",
+          "resource": "GET /hello/{name}",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "65e798d800000000",
+            "component": "starlette",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/sub-app/hello/name",
+            "http.useragent": "testclient",
+            "http.version": "1.1",
+            "span.kind": "server"
+          },
+          "duration": 177000,
+          "start": 1709676760196770000
+        }]]

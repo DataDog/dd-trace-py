@@ -14,6 +14,7 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.asgi.middleware import bytes_to_str
 from ddtrace.ext import http
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
@@ -45,6 +46,9 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(starlette, "__version__", "")
+
+
+_STARLETTE_VERSION = tuple(int(x) for x in starlette.__version__.split("."))
 
 
 def traced_init(wrapped, instance, args, kwargs):
@@ -115,7 +119,6 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
     resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
-
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):
@@ -132,6 +135,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             # route should only be in the root span
             if index == 0:
                 span.set_tag_str(http.ROUTE, path)
+
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
@@ -140,6 +144,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         else:
             request_spans[0].resource = route
         request_spans[0].set_tag_str(http.ROUTE, route)
+
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",
@@ -163,7 +168,49 @@ def traced_handler(wrapped, instance, args, kwargs):
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
 
+    if _STARLETTE_VERSION <= (0, 34):
+        _fix_span_url(scope, request_spans)
+
     return wrapped(*args, **kwargs)
+
+
+def _fix_span_url(scope, request_spans):
+    default_ports = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+    host_header = None
+    for key, value in scope["headers"]:
+        if key == b"host":
+            try:
+                host_header = value.decode("ascii")
+            except UnicodeDecodeError:
+                log.warning(
+                    "failed to decode host header, host from http headers will not be considered", exc_info=True
+                )
+            break
+
+    server = scope.get("server")
+    scheme = scope.get("scheme", "http")
+    full_path = scope.get("root_path", "") + scope.get("path", "")
+
+    url = None
+
+    if host_header:
+        url = "{}://{}{}".format(scheme, host_header, full_path)
+    elif server and len(server) == 2:
+        port = server[1]
+        default_port = default_ports.get(scheme, None)
+        server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
+        url = "{}://{}{}".format(scheme, server_host, full_path)
+
+    query_string = scope.get("query_string")
+    if query_string:
+        query_string = bytes_to_str(query_string)
+        if url:
+            url = f"{url}?{query_string}"
+
+    if url:
+        for span in request_spans:
+            span.set_tag_str(http.URL, url)
 
 
 @with_traced_module
