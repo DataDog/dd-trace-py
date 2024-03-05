@@ -51,6 +51,7 @@ class ASMConfig(Env):
     _api_security_sample_rate = 0.0
     _api_security_sample_delay = Env.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
 
