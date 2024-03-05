@@ -151,7 +151,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
 
-            if args and config.botocore["distributed_tracing"]:
+            if config.botocore["distributed_tracing"]:
                 try_inject_DD_context(
                     endpoint_name, operation, params, span, trace_operation, inject_trace_context=True
                 )
