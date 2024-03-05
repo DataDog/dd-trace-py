@@ -365,7 +365,7 @@ class TestKombuDsm(TracerTestCase):
     )
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_data_streams_payload(self):
-        for payload, payload_size in [({"key": "test"}, 15), ({"key2": "你"}, 18)]:
+        for payload, payload_size in [({"key": "test"}, 23), ({"key2": "你"}, 26)]:
             expected_payload_size = payload_size
             expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
             expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
