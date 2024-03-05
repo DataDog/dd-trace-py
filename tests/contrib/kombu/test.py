@@ -16,7 +16,7 @@ from tests.utils import assert_is_measured
 from ..config import RABBITMQ_CONFIG
 
 
-DSM_TEST_PATH_HEADER_SIZE = 20
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class TestKombuPatch(TracerTestCase):

@@ -31,7 +31,7 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-DSM_TEST_PATH_HEADER_SIZE = 20
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class KafkaConsumerPollFilter(TraceFilter):
