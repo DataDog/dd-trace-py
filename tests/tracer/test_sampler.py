@@ -104,12 +104,13 @@ class RateSamplerTest(unittest.TestCase):
                 span.finish()
 
             samples = tracer.pop()
-
+            # non sampled spans do not have sample rate applied
+            sampled_spans = [s for s in samples if s.sampled]
             assert (
-                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
+                sampled_spans[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
             ), "Sampled span should have sample rate properly assigned"
 
-            deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
+            deviation = abs(len(sampled_spans) - (iterations * sample_rate)) / (iterations * sample_rate)
             assert (
                 deviation < 0.05
             ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
@@ -131,7 +132,7 @@ class RateSamplerTest(unittest.TestCase):
             assert (
                 len(samples) <= 1
             ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
-            sampled = 1 == len(samples)
+            sampled = 1 == len([sample for sample in samples if sample.sampled is True])
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
