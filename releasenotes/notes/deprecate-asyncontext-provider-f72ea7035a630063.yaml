@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the asyncio integration and ```ddtrace.contrib.asyncio.AsyncioContextProvider```.
+    Asyncio is fully supported by default and no longer requires additional configurations.
