@@ -1,8 +1,11 @@
 import os
 import time
 
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
 
 
@@ -123,3 +126,64 @@ t.join()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
     assert err.decode().strip() == ""
+
+
+def test_dsm_pathway_codec_encode_base64():
+    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+
+    processor = DataStreamsProcessor()
+    ctx = processor.new_pathway()
+    ctx.hash = 9235368231858162135
+
+    carrier = {}
+    DsmPathwayCodec.encode(ctx, carrier)
+
+    assert PROPAGATION_KEY_BASE_64 in carrier
+    assert carrier[PROPAGATION_KEY_BASE_64] == encoded_string
+
+
+def test_dsm_pathway_codec_decode_base64():
+    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+    decoded_hash = 9235368231858162135
+
+    processor = DataStreamsProcessor()
+
+    carrier = {PROPAGATION_KEY_BASE_64: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+
+
+def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
+    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+    decoded_hash = 9235368231858162135
+
+    processor = DataStreamsProcessor()
+
+    carrier = {PROPAGATION_KEY: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+
+
+def test_dsm_pathway_codec_decode_byte_encoding():
+    encoded_string = (
+        b"\xd7I\xd5\xcdy\x9e*\x80\xe6\x86\x8a\xa6\xb6c\xe6\x86\x8a\xa6\xb6c"  # pathway hash is: 9235368231858162135
+    )
+    decoded_hash = 9235368231858162135
+
+    processor = DataStreamsProcessor()
+
+    carrier = {PROPAGATION_KEY: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+
+
+def test_dsm_pathway_codec_decode_no_context():
+    processor = DataStreamsProcessor()
+
+    carrier = {}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == processor.new_pathway().hash
