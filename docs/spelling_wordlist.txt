@@ -5,10 +5,12 @@ autoreloading
 CPython
 Fargate
 Firehose
+Firstname
 Gunicorn
 HTTPPropagator
 INfo
 IPv
+Lastname
 MySQL
 OpenTracing
 Runtimes
@@ -79,6 +81,7 @@ dogpile.cache
 dogstatsd
 dunder
 dsn
+eg
 elasticsearch
 elasticsearch1
 elasticsearch7
