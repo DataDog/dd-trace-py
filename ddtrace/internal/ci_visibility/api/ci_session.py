@@ -2,11 +2,14 @@ from enum import Enum
 from typing import Dict
 from typing import Optional
 
+from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CIModuleIdType
+from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISessionIdType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModuleType
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.logger import get_logger
@@ -24,7 +27,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
 
     def __init__(
         self,
-        item_id: CISessionIdType,
+        item_id: CISessionId,
         test_command: str,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
@@ -39,7 +42,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
     def finish(self, force_finish_children: bool = False, override_status: Optional[Enum] = None):
         log.warning("Finishing CI Visibility instance %s", self.item_id)
 
-    def add_module(self, module: CIVisibilityModuleType):
+    def add_module(self, module: CIVisibilityModule):
         log.warning("Adding CI Visibility module %s", self.item_id)
         if self._session_settings.reject_duplicates and module.item_id in self.children:
             error_msg = f"Module {module.item_id} already exists in session {self.item_id}"
@@ -47,7 +50,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
             raise CIVisibilityDataError(error_msg)
         self.add_child(module)
 
-    def get_module_by_id(self, module_id: CIModuleIdType) -> CIVisibilityModuleType:
+    def get_module_by_id(self, module_id: CIModuleId) -> CIVisibilityModule:
         return super().get_child_by_id(module_id)
 
     def get_session_settings(self):

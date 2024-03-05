@@ -26,27 +26,23 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.ci_visibility._ci_visibility_base import _CIVisibilityItemIdBase
+from ...ext.ci_visibility._ci_visibility_base import CIItemIdType
 from ...ext.ci_visibility.api import CIModule
 from ...ext.ci_visibility.api import CIModuleId
-from ...ext.ci_visibility.api import CIModuleIdType
 from ...ext.ci_visibility.api import CISession
-from ...ext.ci_visibility.api import CISessionIdType
+from ...ext.ci_visibility.api import CISessionId
 from ...ext.ci_visibility.api import CISuite
-from ...ext.ci_visibility.api import CISuiteIdType
+from ...ext.ci_visibility.api import CISuiteId
 from ...ext.ci_visibility.api import CITest
-from ...ext.ci_visibility.api import CITestIdType
+from ...ext.ci_visibility.api import CITestId
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .api.ci_module import CIVisibilityModule
-from .api.ci_module import CIVisibilityModuleType
 from .api.ci_session import CIVisibilitySession
 from .api.ci_session import CIVisibilitySessionSettings
-from .api.ci_session import CIVisibilitySessionType
-from .api.ci_suite import CIVisibilitySuiteType
+from .api.ci_suite import CIVisibilitySuite
 from .api.ci_test import CIVisibilityTest
-from .api.ci_test import CIVisibilityTestType
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
@@ -652,7 +648,7 @@ class CIVisibility(Service):
         cls._instance._session_data[session.item_id] = session
 
     @classmethod
-    def get_session_by_id(cls, session_id: CISessionIdType) -> CIVisibilitySessionType:
+    def get_session_by_id(cls, session_id: CISessionId) -> CIVisibilitySession:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -663,7 +659,7 @@ class CIVisibility(Service):
         return cls._instance._session_data[session_id]
 
     @classmethod
-    def get_module_by_id(cls, module_id: CIModuleIdType) -> CIVisibilityModuleType:
+    def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -671,7 +667,7 @@ class CIVisibility(Service):
         return cls.get_session_by_id(module_id.parent_id).get_module_by_id(module_id)
 
     @classmethod
-    def get_suite_by_id(cls, suite_id: CISuiteIdType) -> CIVisibilitySuiteType:
+    def get_suite_by_id(cls, suite_id: CISuiteId) -> CIVisibilitySuite:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -679,7 +675,7 @@ class CIVisibility(Service):
         return cls.get_module_by_id(suite_id.parent_id).get_suite_by_id(suite_id)
 
     @classmethod
-    def get_test_by_id(cls, test_id: CITestIdType) -> CIVisibilityTestType:
+    def get_test_by_id(cls, test_id: CITestId) -> CIVisibilityTest:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -687,7 +683,7 @@ class CIVisibility(Service):
         return cls.get_suite_by_id(test_id.parent_id).get_test_by_id(test_id)
 
     @classmethod
-    def get_session_settings(cls, item_id: _CIVisibilityItemIdBase) -> CIVisibilitySessionSettings:
+    def get_session_settings(cls, item_id: CIItemIdType) -> CIVisibilitySessionSettings:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -727,7 +723,7 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
 
 
 @_requires_civisibility_enabled
-def _on_start_session(session_id: CISessionIdType):
+def _on_start_session(session_id: CISessionId):
     log.warning("Handling start for session id %s", session_id)
     session = CIVisibility.get_session_by_id(session_id)
     session.start()
@@ -788,7 +784,7 @@ def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
         return
 
     module.add_suite(
-        CIVisibilitySuiteType(
+        CIVisibilitySuite(
             discover_args.suite_id,
             CIVisibility.get_session_settings(discover_args.suite_id),
             discover_args.codeowner,
@@ -798,7 +794,7 @@ def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
 
 
 @_requires_civisibility_enabled
-def _on_start_suite(suite_id: CISuiteIdType):
+def _on_start_suite(suite_id: CISuiteId):
     log.warning("Handling start for suite id %s", suite_id)
     CIVisibility.get_suite_by_id(suite_id).start()
 
@@ -822,11 +818,12 @@ def _register_suite_handlers():
 def _on_discover_test(discover_args: CITest.DiscoverArgs):
     log.warning("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
+    # breakpoint()
     if discover_args.test_id in suite.children:
         log.warning("Test with id %s already exists", discover_args.test_id)
 
     suite.add_test(
-        CIVisibilityTestType(
+        CIVisibilityTest(
             discover_args.test_id,
             CIVisibility.get_session_settings(discover_args.test_id),
             discover_args.codeowner,
@@ -849,7 +846,7 @@ def _on_discover_test_early_flake_retry(args: CITest.DiscoverEarlyFlakeRetryArgs
 
 
 @_requires_civisibility_enabled
-def _on_start_test(test_id: CITestIdType):
+def _on_start_test(test_id: CITestId):
     log.warning("Handling start for test id %s", test_id)
     CIVisibility.get_test_by_id(test_id).start()
 

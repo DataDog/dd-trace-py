@@ -9,7 +9,8 @@ from typing import Optional
 from typing import TypeVar
 
 from ddtrace import Span
-from ddtrace.ext.ci_visibility._ci_visibility_base import CIVisibilityItemIdType
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemIdType
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIVisibilityChildItemIdType
 from ddtrace.internal.ci_visibility.constants import DEFAULT_OPERATION_NAMES
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.logger import get_logger
@@ -28,17 +29,14 @@ class CIVisibilitySessionSettings:
     reject_duplicates: Optional[bool] = True
 
 
-IDT = TypeVar("IDT", bound=CIVisibilityItemIdType)
-
-
-class CIVisibilityItemBase(abc.ABC, Generic[IDT]):
+class CIVisibilityItemBase(abc.ABC):
     def __init__(
         self,
-        item_id: IDT,
+        item_id: CIItemIdType,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
     ):
-        self.item_id: IDT = item_id
+        self.item_id: CIItemIdType = item_id
         self.name = self.item_id.name
         self._session_settings = session_settings
         self.span: Optional[Span] = None
@@ -109,19 +107,27 @@ class CIVisibilityItemBaseType:
     pass
 
 
-CIDT = TypeVar("CIDT", bound=CIVisibilityItemIdType)
+CIDT = TypeVar("CIDT", bound=CIVisibilityChildItemIdType)
 ITEMT = TypeVar("ITEMT", bound=CIVisibilityItemBaseType)
 
 
-class CIVisibilityParentItem(CIVisibilityItemBase[IDT], Generic[IDT, CIDT, ITEMT]):
+class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemIdType, CIDT, ITEMT]):
     def __init__(
         self,
-        item_id: IDT,
+        item_id: CIItemIdType,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
     ):
         super().__init__(item_id, session_settings, initial_tags)
         self.children: Dict[CIDT, ITEMT] = {}
+
+    @abc.abstractmethod
+    def start(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def finish(self):
+        raise NotImplementedError
 
     def add_child(self, child: ITEMT):
         if self._session_settings.reject_duplicates and child.item_id in self.children:
@@ -163,3 +169,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase[IDT], Generic[IDT, CIDT, ITEMT
         if recurse:
             for child in self.children.values():
                 child.delete_tags(tag_names, recurse=True)
+
+
+class CIVisibilityParentItemType(CIVisibilityParentItem):
+    pass

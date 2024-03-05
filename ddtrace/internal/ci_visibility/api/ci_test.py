@@ -2,9 +2,8 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
-from ddtrace.ext.ci_visibility.api import CITestIdType
+from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.logger import get_logger
 
@@ -12,10 +11,10 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilityTest(CIVisibilityItemBase[CITestIdType]):
+class CIVisibilityTest(CIVisibilityItemBase):
     def __init__(
         self,
-        item_id: CITestIdType,
+        item_id: CITestId,
         session_settings: CIVisibilitySessionSettings,
         codeowner: Optional[str] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
@@ -37,7 +36,7 @@ class CIVisibilityTest(CIVisibilityItemBase[CITestIdType]):
 
     @classmethod
     def make_early_flake_retry_from_test(cls, original_test, retry_number: int):
-        new_test_id = CITestIdType(
+        new_test_id = CITestId(
             original_test.item_id.parent_id, original_test.name, original_test.test_parameters, retry_number
         )
         return cls(
@@ -50,5 +49,5 @@ class CIVisibilityTest(CIVisibilityItemBase[CITestIdType]):
         )
 
 
-class CIVisibilityTestType(CIVisibilityItemBaseType, CIVisibilityTest):
+class CIVisibilityTestType(CIVisibilityTest):
     pass

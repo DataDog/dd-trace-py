@@ -3,11 +3,14 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
+from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CISuiteIdType
+from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.ext.ci_visibility.api import CITestIdType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTestType
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
 from ddtrace.internal.logger import get_logger
@@ -19,7 +22,7 @@ log = get_logger(__name__)
 class CIVisibilitySuite(CIVisibilityParentItem[CISuiteIdType, CITestIdType, CIVisibilityTestType]):
     def __init__(
         self,
-        item_id: CISuiteIdType,
+        item_id: CISuiteId,
         session_settings: CIVisibilitySessionSettings,
         codeowner: Optional[str] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
@@ -35,15 +38,15 @@ class CIVisibilitySuite(CIVisibilityParentItem[CISuiteIdType, CITestIdType, CIVi
     def finish(self, force_finish_children: bool = False, override_status: Optional[Enum] = None):
         log.warning("Finishing CI Visibility suite %s", self.item_id)
 
-    def add_test(self, test: CIVisibilityTestType):
+    def add_test(self, test: CIVisibilityTest):
         log.warning("Adding test %s to suite %s", test.item_id, self.item_id)
         if self._session_settings.reject_duplicates and test.item_id in self.children:
             raise CIVisibilityDataError(f"Test {test.item_id} already exists in suite {self.item_id}")
         self.children[test.item_id] = test
 
-    def get_test_by_id(self, test_id: CITestIdType) -> CIVisibilityTestType:
+    def get_test_by_id(self, test_id: CITestId) -> CIVisibilityTest:
         return super().get_child_by_id(test_id)
 
 
-class CIVisibilitySuiteType(CIVisibilityItemBaseType, CIVisibilitySuite):
+class CIVisibilitySuiteType(CIVisibilityItemBaseType):
     pass
