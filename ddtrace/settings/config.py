@@ -568,7 +568,7 @@ class Config(object):
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
-            except BaseException:  # nosec
+            except Exception:  # nosec
                 pass
 
     def _get_extra_services(self):
@@ -580,7 +580,7 @@ class Config(object):
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
                 if len(self._extra_services) > 64:
                     self._extra_services.pop()
-        except BaseException:  # nosec
+        except Exception:  # nosec
             pass
         return self._extra_services
 

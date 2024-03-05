@@ -60,7 +60,7 @@ def parse_response_body(raw_body):
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return
-    except BaseException:
+    except Exception:
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
