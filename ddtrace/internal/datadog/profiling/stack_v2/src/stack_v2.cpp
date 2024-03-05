@@ -49,8 +49,7 @@ stack_v2_set_interval(PyObject* self, PyObject* args)
         return NULL; // If an error occurs during argument parsing
     }
     Sampler::get().set_interval(new_interval);
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef _stack_v2_methods[] = {
