@@ -153,7 +153,6 @@ def record_data_streams_path_for_kinesis_stream(params, results):
         log.debug("Unable to determine StreamARN for request with params: ", params)
         return
 
-    pathway = processor().new_pathway()
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
         _, data_obj = get_kinesis_data_object(record["Data"])
