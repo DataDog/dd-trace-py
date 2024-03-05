@@ -480,15 +480,15 @@ class DsmPathwayCodec:
             # decode V2 base64 encoding
             ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY_BASE_64])
         elif PROPAGATION_KEY in carrier:
-            try:
-                # decode V1 encoding
-                ctx = data_streams_processor.decode_pathway(carrier[PROPAGATION_KEY])
-            except Exception:
+            # decode V1 encoding
+            ctx = data_streams_processor.decode_pathway(carrier[PROPAGATION_KEY])
+
+            if ctx.hash == 0:
                 try:
                     # cover case where base64 encoding was included under depcreated key
                     ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY])
-                except Exception:  # nosec
-                    pass
+                except Exception:
+                    ctx = None
         if not ctx:
             return data_streams_processor.new_pathway()
         return ctx

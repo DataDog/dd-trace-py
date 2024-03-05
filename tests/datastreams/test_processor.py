@@ -1,6 +1,8 @@
 import os
 import time
 
+import mock
+
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
@@ -128,8 +130,9 @@ t.join()
     assert err.decode().strip() == ""
 
 
+@mock.patch("time.time", mock.MagicMock(return_value=1642544540))
 def test_dsm_pathway_codec_encode_base64():
-    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
 
     ctx = processor.new_pathway()
     ctx.hash = 9235368231858162135
@@ -142,7 +145,7 @@ def test_dsm_pathway_codec_encode_base64():
 
 
 def test_dsm_pathway_codec_decode_base64():
-    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
 
     carrier = {PROPAGATION_KEY_BASE_64: encoded_string}
@@ -152,7 +155,7 @@ def test_dsm_pathway_codec_decode_base64():
 
 
 def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
-    encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
 
     carrier = {PROPAGATION_KEY: encoded_string}
