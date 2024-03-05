@@ -482,7 +482,7 @@ class DsmPathwayCodec:
                 try:
                     # cover case where base64 encoding was included under depcreated key
                     ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY])
-                except Exception: #nosec
+                except Exception:  # nosec
                     pass
         if not ctx:
             return data_streams_processor.new_pathway()
