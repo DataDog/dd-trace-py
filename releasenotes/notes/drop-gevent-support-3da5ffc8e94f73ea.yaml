@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    gevent: Deprecates ``ddtrace.contrib.gevent.provider.GeventContextProvider``. Drops support for `gevent<20.12.0` and `greenlet<1.0`.
