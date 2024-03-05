@@ -2,6 +2,8 @@ import os
 
 import vcr
 
+import ddtrace
+
 
 logs_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
@@ -22,6 +24,7 @@ def _expected_llmobs_tags(error=None, tags=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
         expected_tags.append("error:1")
