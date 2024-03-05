@@ -49,6 +49,7 @@ class ASMConfig(Env):
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
     _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_rate = 0.0
+    _api_security_sample_delay = Env.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
@@ -90,6 +91,7 @@ class ASMConfig(Env):
         "_user_model_name_field",
         "_api_security_enabled",
         "_api_security_sample_rate",
+        "_api_security_sample_delay",
         "_api_security_parse_response_body",
         "_waf_timeout",
         "_iast_redaction_enabled",

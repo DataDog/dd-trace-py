@@ -3,11 +3,19 @@ from .utils import sanitize_string  # noqa: F401
 
 try:
     from ._ddup import *  # noqa: F403, F401
-except Exception:
+
+    is_available = True
+
+except Exception as e:
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.internal.logger import get_logger
+
+    LOG = get_logger(__name__)
+    LOG.debug("Failed to import _ddup: %s", e)
+
+    is_available = False
 
     # Decorator for not-implemented
     def not_implemented(func):
