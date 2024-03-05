@@ -140,8 +140,10 @@ def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    stdout = _git_subprocess_cmd("show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd)
-    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split(",")
+    stdout = _git_subprocess_cmd(
+        "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd
+    )
+    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("|||")
     return {
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),
