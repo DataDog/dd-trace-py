@@ -14,9 +14,12 @@ from flask import request
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.internal import core
+from tests.utils import override_env
 
+
+with override_env({"DD_IAST_ENABLED": "True"}):
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
 import ddtrace.auto  # noqa: F401  # isort: skip
 
