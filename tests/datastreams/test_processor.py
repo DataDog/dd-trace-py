@@ -1,6 +1,7 @@
 import os
 import time
 
+from ddtrace.internal.datastreams import data_streams_processor as dsm_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
@@ -131,7 +132,7 @@ t.join()
 def test_dsm_pathway_codec_encode_base64():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
 
-    processor = DataStreamsProcessor()
+    processor = dsm_processor()
     ctx = processor.new_pathway()
     ctx.hash = 9235368231858162135
 
@@ -146,7 +147,7 @@ def test_dsm_pathway_codec_decode_base64():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
 
-    processor = DataStreamsProcessor()
+    processor = dsm_processor()
 
     carrier = {PROPAGATION_KEY_BASE_64: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
@@ -158,7 +159,7 @@ def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
 
-    processor = DataStreamsProcessor()
+    processor = dsm_processor()
 
     carrier = {PROPAGATION_KEY: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
@@ -172,7 +173,7 @@ def test_dsm_pathway_codec_decode_byte_encoding():
     )
     decoded_hash = 9235368231858162135
 
-    processor = DataStreamsProcessor()
+    processor = dsm_processor()
 
     carrier = {PROPAGATION_KEY: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
@@ -181,7 +182,7 @@ def test_dsm_pathway_codec_decode_byte_encoding():
 
 
 def test_dsm_pathway_codec_decode_no_context():
-    processor = DataStreamsProcessor()
+    processor = dsm_processor()
 
     carrier = {}
     ctx = DsmPathwayCodec.decode(carrier, processor)

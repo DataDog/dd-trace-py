@@ -16,7 +16,7 @@ from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
-from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
@@ -372,7 +372,7 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
         test_header_size += len(k) + len(v)
     expected_payload_size = float(payload_length + key_length)
     expected_payload_size += test_header_size  # to account for headers we add here
-    expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
     try:
@@ -701,8 +701,8 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     # message comes back with expected test string
     assert message.value() == b"context test"
 
-    # DSM header 'dd-pathway-ctx' was propagated in the headers
-    assert message.headers()[0][0] == PROPAGATION_KEY
+    # DSM header 'dd-pathway-ctx-base64' was propagated in the headers
+    assert message.headers()[0][0] == PROPAGATION_KEY_BASE_64
     assert message.headers()[0][1] is not None
 
 

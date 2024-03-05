@@ -8,7 +8,7 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -367,7 +367,7 @@ class TestKombuDsm(TracerTestCase):
     def test_data_streams_payload(self):
         for payload, payload_size in [({"key": "test"}, 15), ({"key2": "你"}, 18)]:
             expected_payload_size = payload_size
-            expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+            expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
             expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
             self.processor._buckets.clear()
             _queue_name = self._publish_consume(message=payload)

@@ -36,12 +36,13 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def inject_trace_to_kinesis_stream_data(record, span):
-    # type: (Dict[str, Any], Span) -> None
+def inject_trace_to_kinesis_stream_data(record, span, stream, inject_trace_context=True):
+    # type: (Dict[str, Any], Span, str, bool) -> None
     """
     :record: contains args for the current botocore action, Kinesis record is at index 1
     :span: the span which provides the trace context to be propagated
-    Inject trace headers into the Kinesis record's Data field in addition to the existing
+    :inject_trace_context: whether to inject DataDog trace context
+    Inject trace headers and DSM headers into the Kinesis record's Data field in addition to the existing
     data. Only possible if the existing data is JSON string or base64 encoded JSON string
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
@@ -49,43 +50,55 @@ def inject_trace_to_kinesis_stream_data(record, span):
         log.warning("Unable to inject context. The kinesis stream has no data")
         return
 
-    data = record["Data"]
-    line_break, data_obj = get_kinesis_data_object(data)
-    if data_obj is not None:
-        data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"])
-        data_json = json.dumps(data_obj)
+    # always inject if Data Stream is enabled, otherwise only inject if distributed tracing is enabled and this is the
+    # first record in the payload
+    if (config.botocore["distributed_tracing"] and inject_trace_context) or config._data_streams_enabled:
+        data = record["Data"]
+        line_break, data_obj = get_kinesis_data_object(data)
+        if data_obj is not None:
+            data_obj["_datadog"] = {}
 
-        # if original string had a line break, add it back
-        if line_break is not None:
-            data_json += line_break
+            if config.botocore["distributed_tracing"] and inject_trace_context:
+                HTTPPropagator.inject(span.context, data_obj["_datadog"])
 
-        # check if data size will exceed max size with headers
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
-            raise TraceInjectionSizeExceed(
-                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-            )
+            core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"]])
 
-        record["Data"] = data_json
+            data_json = json.dumps(data_obj)
+
+            # if original string had a line break, add it back
+            if line_break is not None:
+                data_json += line_break
+
+            # check if data size will exceed max size with headers
+            data_size = len(data_json)
+            if data_size >= MAX_KINESIS_DATA_SIZE:
+                raise TraceInjectionSizeExceed(
+                    "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
+                )
+
+            record["Data"] = data_json
 
 
-def inject_trace_to_kinesis_stream(params, span):
-    # type: (List[Any], Span) -> None
+def inject_trace_to_kinesis_stream(params, span, inject_trace_context=True):
+    # type: (List[Any], Span, bool) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :inject_trace_context: whether to inject DataDog trace context
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
-    core.dispatch("botocore.kinesis.start", [params])
+    stream = params.get("StreamARN", params.get("StreamName", ""))
     if "Records" in params:
         records = params["Records"]
 
         if records:
-            record = records[0]
-            inject_trace_to_kinesis_stream_data(record, span)
+            for i in range(0, len(records)):
+                inject_to_trace = inject_trace_context and i == 0
+                inject_trace_to_kinesis_stream_data(
+                    records[i], span, stream, inject_trace_context=inject_to_trace
+                )  # only inject trace data to first record
     elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(params, span)
+        inject_trace_to_kinesis_stream_data(params, span, stream, inject_trace_context=inject_trace_context)
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
@@ -139,17 +152,15 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 span.start_ns = start_ns
 
             if args and config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                        inject_trace_to_kinesis_stream(params, span)
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="kinesis",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+                try_inject_DD_context(
+                    endpoint_name, operation, params, span, trace_operation, inject_trace_context=True
+                )
+
+            # we still want to inject DSM context (if DSM is enabled) even if distributed tracing is disabled
+            elif not config.botocore["distributed_tracing"] and config._data_streams_enabled:
+                try_inject_DD_context(
+                    endpoint_name, operation, params, span, trace_operation, inject_trace_context=False
+                )
 
             try:
                 if not func_run:
@@ -180,3 +191,17 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
         if func_run_err:
             raise func_run_err
         return result
+
+
+def try_inject_DD_context(endpoint_name, operation, params, span, trace_operation, inject_trace_context):
+    try:
+        if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
+            inject_trace_to_kinesis_stream(params, span, inject_trace_context=inject_trace_context)
+            span.name = schematize_cloud_messaging_operation(
+                trace_operation,
+                cloud_provider="aws",
+                cloud_service="kinesis",
+                direction=SpanDirection.OUTBOUND,
+            )
+    except Exception:
+        log.warning("Unable to inject trace context", exc_info=True)
