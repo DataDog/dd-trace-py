@@ -23,8 +23,6 @@ log = get_logger(__name__)
 metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
 
-# Delay in seconds to avoid sampling the same route too often
-DELAY = 30.0
 
 # Max number of endpoint hashes to keep in the hashtable
 MAX_HASHTABLE_SIZE = 4096
@@ -107,7 +105,7 @@ class APIManager(Service):
         end_point_hash = hash((route, method, status))
         current_time = time.monotonic()
         previous_time = self._hashtable.get(end_point_hash, M_INFINITY)
-        if previous_time >= current_time - DELAY:
+        if previous_time >= current_time - asm_config._api_security_sample_delay:
             return False
         if previous_time is M_INFINITY:
             if len(self._hashtable) >= MAX_HASHTABLE_SIZE:
