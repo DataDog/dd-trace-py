@@ -27,9 +27,7 @@ SampleManager::set_max_nframes(unsigned int _max_nframes)
 Sample*
 SampleManager::start_sample()
 {
-    auto sample = new Sample(type_mask, max_nframes);
-    sample->start_sample();
-    return sample;
+    return new Sample(type_mask, max_nframes);
 }
 
 void

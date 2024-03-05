@@ -83,7 +83,7 @@ def is_blocked() -> bool:
         if not env.active or env.span is None:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
-    except BaseException:
+    except Exception:
         return False
 
 

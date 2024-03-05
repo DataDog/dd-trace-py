@@ -144,6 +144,7 @@ class API_SECURITY(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
     RESPONSE_BODY = "_dd.appsec.s.res.body"
     SAMPLE_RATE = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
+    SAMPLE_DELAY = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 
