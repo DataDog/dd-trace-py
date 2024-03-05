@@ -177,8 +177,7 @@ class SamplingRule(object):
 
         return tag_match
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span):
         """
         Return if this rule chooses to sample the span
 
@@ -192,10 +191,7 @@ class SamplingRule(object):
         elif self.sample_rate == 0:
             return False
 
-        return (
-            not allow_false
-            or ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
-        )
+        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
 
     def _no_rule_or_self(self, val):
         if val is self.NO_RULE:
