@@ -836,9 +836,17 @@ class _TraceContext:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
-            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
-            ts = w3c_tracestate_add_p(span_context._tracestate, span_context.span_id or 0)
-            headers[_HTTP_HEADER_TRACESTATE] = ts
+            if span_context._is_remote is False:
+                # Datadog Span is active, so the current span_id is the last datadog span_id
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
+                    span_context._tracestate, span_context.span_id or 0
+                )
+            elif "_dd.parent_id" in span_context._meta:
+                # Datadog Span is not active, propagate the last datadog span_id
+                span_id = int(span_context._meta["_dd.parent_id"], 16)
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
+            else:
+                headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
 class _NOP_Propagator:

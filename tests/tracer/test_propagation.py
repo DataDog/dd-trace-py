@@ -2161,7 +2161,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "1",
             HTTP_HEADER_ORIGIN: "synthetics",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:1;o:synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
@@ -2173,7 +2173,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "2",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:2",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
@@ -2185,7 +2185,7 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "0",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:0",
+            _HTTP_HEADER_TRACESTATE: "dd=s:0",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
         },
     ),
@@ -2348,6 +2348,7 @@ INJECT_FIXTURES = [
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
                 "_dd.origin": "rum",
+                "_dd.parent_id": "00f067aa0ba902b7",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
             },
             "metrics": {"_sampling_priority_v1": 2},
@@ -2366,7 +2367,7 @@ INJECT_FIXTURES = [
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,),
-            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7",
+            _HTTP_HEADER_TRACESTATE: "",
         },
     ),
     (
@@ -2396,7 +2397,7 @@ INJECT_FIXTURES = [
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
-            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
         },
     ),
     (
@@ -2413,7 +2414,7 @@ INJECT_FIXTURES = [
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
-            _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum,congo=baz123",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
         },
     ),
     # All styles
@@ -2436,7 +2437,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:1;o:synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
         },
     ),
     (
@@ -2457,7 +2458,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_FLAGS: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-d",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:2",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2",
         },
     ),
     (
@@ -2478,7 +2479,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "0",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-0",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370;s:0",
+            _HTTP_HEADER_TRACESTATE: "dd=s:0",
         },
     ),
     (
@@ -2500,7 +2501,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
-            _HTTP_HEADER_TRACESTATE: "dd=p:7197677932a62370",
+            _HTTP_HEADER_TRACESTATE: "",
         },
     ),
 ]
