@@ -355,7 +355,7 @@ class DataStreamsProcessor(PeriodicService):
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
-            payload_size += len(ctx.encode())
+            payload_size += len(ctx.encode_b64())
             payload_size += len(PROPAGATION_KEY_BASE_64)
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
