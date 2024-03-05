@@ -114,3 +114,4 @@ if not config._asm_libddwaf_available:
     config._asm_enabled = False
     config._asm_can_be_enabled = False
     config._iast_enabled = False
+    config._api_security_enabled = False

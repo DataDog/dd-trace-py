@@ -103,81 +103,6 @@ def _start_appsec_processor() -> Optional[Any]:
     return None
 
 
-def _default_span_processors_factory(
-    trace_filters: List[TraceFilter],
-    trace_writer: TraceWriter,
-    partial_flush_enabled: bool,
-    partial_flush_min_spans: int,
-    appsec_enabled: bool,
-    iast_enabled: bool,
-    compute_stats_enabled: bool,
-    single_span_sampling_rules: List[SpanSamplingRule],
-    agent_url: str,
-    profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
-    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
-    """Construct the default list of span processors to use."""
-    trace_processors: List[TraceProcessor] = []
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
-    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
-    trace_processors += trace_filters
-
-    span_processors: List[SpanProcessor] = []
-    span_processors += [TopLevelSpanProcessor()]
-
-    if asm_config._asm_libddwaf_available:
-        if appsec_enabled:
-            if asm_config._api_security_enabled:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.enable()
-
-            appsec_processor = _start_appsec_processor()
-            if appsec_processor:
-                span_processors.append(appsec_processor)
-        else:
-            if asm_config._api_security_enabled:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.disable()
-
-            appsec_processor = None
-    else:
-        appsec_processor = None
-
-    if iast_enabled:
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        span_processors.append(AppSecIastSpanProcessor())
-
-    if compute_stats_enabled:
-        # Inline the import to avoid pulling in ddsketch or protobuf
-        # when importing ddtrace.
-        from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-
-        span_processors.append(
-            SpanStatsProcessorV06(
-                agent_url,
-            ),
-        )
-
-    span_processors.append(profiling_span_processor)
-
-    if single_span_sampling_rules:
-        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
-
-    # These need to run after all the other processors
-    deferred_processors: List[SpanProcessor] = [
-        SpanAggregator(
-            partial_flush_enabled=partial_flush_enabled,
-            partial_flush_min_spans=partial_flush_min_spans,
-            trace_processors=trace_processors,
-            writer=trace_writer,
-        )
-    ]
-    return span_processors, appsec_processor, deferred_processors
-
-
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -251,18 +176,10 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._appsec_processor = None
         self._iast_enabled = asm_config._iast_enabled
+        self._api_security_active = False
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._filters,
-            self._writer,
-            self._partial_flush_enabled,
-            self._partial_flush_min_spans,
-            self._asm_enabled,
-            self._iast_enabled,
-            self._compute_stats,
-            self._single_span_sampling_rules,
-            self._agent_url,
-            self._endpoint_call_counter_span_processor,
+            self
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -490,16 +407,7 @@ class Tracer(object):
             ]
         ):
             self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-                self._filters,
-                self._writer,
-                self._partial_flush_enabled,
-                self._partial_flush_min_spans,
-                self._asm_enabled,
-                self._iast_enabled,
-                self._compute_stats,
-                self._single_span_sampling_rules,
-                self._agent_url,
-                self._endpoint_call_counter_span_processor,
+                self
             )
 
         if context_provider is not None:
@@ -1100,3 +1008,68 @@ class Tracer(object):
                 from ddtrace.contrib.logging import unpatch
 
                 unpatch()
+
+
+def _default_span_processors_factory(tracer: Tracer) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
+    """Construct the default list of span processors to use."""
+    trace_processors: List[TraceProcessor] = []
+    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
+    trace_processors += [TraceSamplingProcessor(tracer._compute_stats)]
+    trace_processors += tracer._filters
+
+    span_processors: List[SpanProcessor] = []
+    span_processors += [TopLevelSpanProcessor()]
+
+    if asm_config._asm_libddwaf_available:
+        if tracer._asm_enabled:
+            if asm_config._api_security_enabled:
+                from ddtrace.appsec._api_security.api_manager import APIManager
+
+                APIManager.enable()
+                tracer._api_security_active = True
+
+            appsec_processor = _start_appsec_processor()
+            if appsec_processor:
+                span_processors.append(appsec_processor)
+        else:
+            if tracer._api_security_active:
+                from ddtrace.appsec._api_security.api_manager import APIManager
+
+                APIManager.disable()
+                tracer._api_security_active = False
+
+            appsec_processor = None
+    else:
+        appsec_processor = None
+
+    if tracer._iast_enabled:
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        span_processors.append(AppSecIastSpanProcessor())
+
+    if tracer._compute_stats:
+        # Inline the import to avoid pulling in ddsketch or protobuf
+        # when importing ddtrace.
+        from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+
+        span_processors.append(
+            SpanStatsProcessorV06(
+                tracer._agent_url,
+            ),
+        )
+
+    span_processors.append(tracer._endpoint_call_counter_span_processor)
+
+    if tracer._single_span_sampling_rules:
+        span_processors.append(SpanSamplingProcessor(tracer._single_span_sampling_rules))
+
+    # These need to run after all the other processors
+    deferred_processors: List[SpanProcessor] = [
+        SpanAggregator(
+            partial_flush_enabled=tracer._partial_flush_enabled,
+            partial_flush_min_spans=tracer._partial_flush_min_spans,
+            trace_processors=trace_processors,
+            writer=tracer._writer,
+        )
+    ]
+    return span_processors, appsec_processor, deferred_processors
