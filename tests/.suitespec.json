@@ -91,6 +91,9 @@
             "ddtrace/settings/dynamic_instrumentation.py",
             "ddtrace/settings/exception_debugging.py"
         ],
+        "ci": [
+            "ddtrace/ext/ci.py"
+        ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
             "ddtrace/ext/test.py"
@@ -122,6 +125,9 @@
         ],
         "gevent": [
             "ddtrace/contrib/gevent/*"
+        ],
+        "git": [
+            "ddtrace/ext/git.py"
         ],
         "graphene": [
             "ddtrace/contrib/graphene/*"
@@ -301,7 +307,8 @@
         ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
-            "ddtrace/contrib/pytest_bdd/*"
+            "ddtrace/contrib/pytest_bdd/*",
+            "ddtrace/contrib/pytest_benchmark/*"
         ],
         "unittest": [
             "ddtrace/contrib/unittest/*"
@@ -409,6 +416,8 @@
             "@core",
             "@tracing",
             "@ci_visibility",
+            "@ci",
+            "@git",
             "@pytest",
             "tests/ci_visibility/*"
         ],
@@ -816,13 +825,17 @@
             "@tracing",
             "@pytest",
             "@ci_visibility",
-            "tests/contrib/pytest/*"
+            "tests/contrib/pytest/*",
+            "tests/contrib/pytest_benchmark/*",
+            "tests/contrib/pytest_bdd/*",
+            "tests/snapshots/tests.contrib.pytest.*"
         ],
         "unittest": [
             "@contrib",
             "@unittest",
             "@ci_visibility",
-            "tests/contrib/unittest_plugin/*"
+            "tests/contrib/unittest_plugin/*",
+            "tests/snapshots/tests.contrib.unittest.*"
         ],
         "asynctest": [
             "@bootstrap",
@@ -831,14 +844,6 @@
             "@tracing",
             "@asynctest",
             "tests/contrib/asynctest/*"
-        ],
-        "pytestbdd": [
-            "@bootstrap",
-            "@core",
-            "@contrib",
-            "@tracing",
-            "@pytest",
-            "tests/contrib/pytest_bdd/*"
         ],
         "pymemcache": [
             "@bootstrap",
