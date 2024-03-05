@@ -16,6 +16,8 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -120,19 +122,7 @@ def test_llmobs_session_id_becomes_top_level_field(LLMObs, mock_llmobs_writer):
     with LLMObs.task(session_id=session_id) as span:
         pass
     mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "trace_id": "{:x}".format(span.trace_id),
-            "span_id": str(span.span_id),
-            "parent_id": "",
-            "session_id": session_id,
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "task"},
-            "metrics": mock.ANY,
-        },
+        _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
     )
 
 
@@ -147,19 +137,7 @@ def test_llmobs_llm_span(LLMObs, mock_llmobs_writer):
         assert span.get_tag(SESSION_ID) is None
 
     mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "trace_id": "{:x}".format(span.trace_id),
-            "span_id": str(span.span_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "llm", "model_name": "test_model", "model_provider": "test_provider"},
-            "metrics": mock.ANY,
-        },
+        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
     )
 
 
@@ -192,21 +170,7 @@ def test_llmobs_tool_span(LLMObs, mock_llmobs_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "tool"
         assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "span_id": str(span.span_id),
-            "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "tool"},
-            "metrics": mock.ANY,
-        },
-    )
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
 def test_llmobs_task_span(LLMObs, mock_llmobs_writer):
@@ -216,21 +180,7 @@ def test_llmobs_task_span(LLMObs, mock_llmobs_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "task"
         assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "span_id": str(span.span_id),
-            "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "task"},
-            "metrics": mock.ANY,
-        },
-    )
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
 def test_llmobs_workflow_span(LLMObs, mock_llmobs_writer):
@@ -240,21 +190,7 @@ def test_llmobs_workflow_span(LLMObs, mock_llmobs_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "workflow"
         assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "span_id": str(span.span_id),
-            "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "workflow"},
-            "metrics": mock.ANY,
-        },
-    )
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
 def test_llmobs_agent_span(LLMObs, mock_llmobs_writer):
@@ -264,21 +200,7 @@ def test_llmobs_agent_span(LLMObs, mock_llmobs_writer):
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "agent"
         assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "span_id": str(span.span_id),
-            "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "agent"},
-            "metrics": mock.ANY,
-        },
-    )
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
 def test_llmobs_annotate_while_disabled_logs_warning(LLMObs, mock_logs):
@@ -389,24 +311,13 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
             raise ValueError("test error message")
     mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "trace_id": "{:x}".format(span.trace_id),
-            "span_id": str(span.span_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": mock.ANY,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 1,
-            "meta": {
-                "span.kind": "llm",
-                "model_name": "test_model",
-                "model_provider": "test_model_provider",
-                "error.message": "test error message",
-            },
-            "metrics": mock.ANY,
-        },
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name="test_model",
+            model_provider="test_model_provider",
+            error="builtins.ValueError",
+            error_message="test error message",
+        )
     )
 
 
@@ -415,26 +326,10 @@ def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypa
     monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_app_name")
     with LLMObs.task(name="test_task") as span:
         pass
-    expected_tags = [
-        "version:1.2.3",
-        "env:test_env",
-        "service:test_service",
-        "source:integration",
-        "ml_app:test_app_name",
-        "error:0",
-    ]
     mock_llmobs_writer.enqueue.assert_called_with(
-        {
-            "span_id": str(span.span_id),
-            "trace_id": "{:x}".format(span.trace_id),
-            "parent_id": "",
-            "session_id": "{:x}".format(span.trace_id),
-            "name": span.name,
-            "tags": expected_tags,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": 0,
-            "meta": {"span.kind": "task"},
-            "metrics": mock.ANY,
-        },
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "task",
+            tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
+        )
     )
