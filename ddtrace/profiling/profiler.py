@@ -170,7 +170,7 @@ class _ProfilerInstance(service.Service):
 
         # It's possible to fail to load the libdatadog collector, so we check.  Any other consumers
         # of libdd can do their own check, so we just log.
-        if self._export_libdd_enabled and not ddup.is_available():
+        if self._export_libdd_enabled and not ddup.is_available:
             LOG.error("Failed to load the libdd collector, falling back to the legacy collector")
             self._export_libdd_enabled = False
         elif self._export_libdd_enabled:

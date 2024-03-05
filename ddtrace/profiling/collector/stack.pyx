@@ -487,7 +487,7 @@ class StackCollector(collector.PeriodicCollector):
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
-            if not ddup.is_available():
+            if not ddup.is_available:
                 # We probably already told the user about this in profiler.py, but let's do it again here.
                 LOG.error("Failed to load the libdd collector from stack.pyx; falling back to the legacy collector")
                 set_use_libdd(False)
@@ -496,7 +496,7 @@ class StackCollector(collector.PeriodicCollector):
 
         # If stack v2 is requested, verify it is loaded properly and that libdd has been enabled.
         if self._stack_collector_v2_enabled:
-            if not stack_v2.is_available():
+            if not stack_v2.is_available:
                 self._stack_collector_v2_enabled = False
                 LOG.error("Failed to load the v2 stack sampler; falling back to the v1 stack sampler")
             if not use_libdd:

@@ -1,9 +1,7 @@
 try:
     from ._stack_v2 import *  # noqa: F401, F403
 
-    def is_available():
-        # type: () -> bool
-        return True
+    is_available = True
 
 except Exception as e:
     from ddtrace.internal.logger import get_logger
@@ -11,9 +9,7 @@ except Exception as e:
     LOG = get_logger(__name__)
     LOG.debug("Failed to import _stack_v2: %s", e)
 
-    def is_available():
-        # type: () -> bool
-        return False
+    is_available = False
 
     # Decorator for not-implemented
     def not_implemented(func):
