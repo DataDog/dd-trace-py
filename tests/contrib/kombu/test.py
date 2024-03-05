@@ -377,7 +377,9 @@ class TestKombuDsm(TracerTestCase):
             first = list(buckets.values())[0].pathway_stats
             for _bucket_name, bucket in first.items():
                 assert bucket.payload_size._count >= 1
-                assert bucket.payload_size._sum == expected_payload_size
+                assert (
+                    bucket.payload_size._sum == expected_payload_size
+                ), f"Actual payload size: {bucket.payload_size._sum} != Expected payload size: {expected_payload_size}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))

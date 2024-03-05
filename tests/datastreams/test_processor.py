@@ -1,7 +1,6 @@
 import os
 import time
 
-from ddtrace.internal.datastreams import data_streams_processor as dsm_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
@@ -10,8 +9,10 @@ from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
 
 
+processor = DataStreamsProcessor("http://localhost:8126")
+
+
 def test_data_streams_processor():
-    processor = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 1)
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 2)
@@ -34,7 +35,6 @@ def test_data_streams_processor():
 
 
 def test_data_streams_loop_protection():
-    processor = DataStreamsProcessor("http://localhost:8126")
     ctx = processor.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
     parent_hash = ctx.hash
     processor.set_checkpoint(["direction:out", "topic:topicB", "type:kafka"])
@@ -46,7 +46,6 @@ def test_data_streams_loop_protection():
 
 
 def test_kafka_offset_monitoring():
-    processor = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
     processor.track_kafka_commit("group1", "topic1", 1, 10, now)
     processor.track_kafka_commit("group1", "topic1", 1, 14, now)
@@ -132,7 +131,6 @@ t.join()
 def test_dsm_pathway_codec_encode_base64():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
 
-    processor = dsm_processor()
     ctx = processor.new_pathway()
     ctx.hash = 9235368231858162135
 
@@ -147,8 +145,6 @@ def test_dsm_pathway_codec_decode_base64():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
 
-    processor = dsm_processor()
-
     carrier = {PROPAGATION_KEY_BASE_64: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
@@ -158,8 +154,6 @@ def test_dsm_pathway_codec_decode_base64():
 def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
     encoded_string = "10nVzXmeKoCM1uautmOM1uautmM="  # pathway hash is: 9235368231858162135
     decoded_hash = 9235368231858162135
-
-    processor = dsm_processor()
 
     carrier = {PROPAGATION_KEY: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
@@ -173,8 +167,6 @@ def test_dsm_pathway_codec_decode_byte_encoding():
     )
     decoded_hash = 9235368231858162135
 
-    processor = dsm_processor()
-
     carrier = {PROPAGATION_KEY: encoded_string}
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
@@ -182,8 +174,6 @@ def test_dsm_pathway_codec_decode_byte_encoding():
 
 
 def test_dsm_pathway_codec_decode_no_context():
-    processor = dsm_processor()
-
     carrier = {}
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
