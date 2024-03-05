@@ -21,8 +21,9 @@ IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import reset_context
+    with override_env({"DD_IAST_ENABLED": "True"}):
+        from ddtrace.appsec._iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import reset_context
 
     yield
     reset_context()
