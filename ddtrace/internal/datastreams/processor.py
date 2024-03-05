@@ -484,6 +484,8 @@ class DsmPathwayCodec:
                     ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY])
                 except Exception:
                     pass
+        if not ctx:
+            return data_streams_processor.new_pathway()
         return ctx
 
 
