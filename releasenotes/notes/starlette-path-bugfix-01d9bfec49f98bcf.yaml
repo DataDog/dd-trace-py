@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    starlette: Fixes issue where older versions of starlette incorrectly set path/root_path causing our ASGI
+    tracing to be incorrect. Now we use the correct path and root_path values by default in ASGI and
+    update any fixes necessary to older versions of starlette.

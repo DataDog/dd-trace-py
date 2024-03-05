@@ -168,6 +168,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
 
+    # If we are on a version of starlette that is less than 0.34, we need to fix the span url
+    # since starlette sets the incorrect values for path/root_path
     if _STARLETTE_VERSION <= (0, 34):
         _fix_span_url(scope, request_spans)
 
