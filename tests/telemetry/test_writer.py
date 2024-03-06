@@ -90,7 +90,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
                     {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
@@ -204,7 +203,6 @@ import ddtrace.auto
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
     env["DD_PROFILING_HEAP_ENABLED"] = "False"
     env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    env["DD_PROFILING_EXPORT_PY_ENABLED"] = "False"
     env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
     env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
@@ -249,7 +247,6 @@ import ddtrace.auto
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_PROFILING_EXPORT_PY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
             {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
             {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},

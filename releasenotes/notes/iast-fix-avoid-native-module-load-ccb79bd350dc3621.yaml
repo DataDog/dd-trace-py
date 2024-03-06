@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Addresses an issue where the IAST native module was imported even though IAST was not enabled.

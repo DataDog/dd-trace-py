@@ -10,9 +10,9 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
-from tests.contrib.openai.utils import _expected_llmobs_span_event
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import iswrapped
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -1883,9 +1883,10 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=model,
+                    model_name=model,
+                    model_provider="openai",
                     input_messages=[{"content": "Hello world"}],
                     output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
                     parameters={"temperature": 0.8, "max_tokens": 10},
@@ -1915,9 +1916,10 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=model,
+                    model_name=model,
+                    model_provider="openai",
                     input_messages=[{"content": "Hello world"}],
                     output_messages=[{"content": expected_completion}],
                     parameters={"temperature": 0},
@@ -1956,9 +1958,10 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=resp.model,
+                    model_name=resp.model,
+                    model_provider="openai",
                     input_messages=input_messages,
                     output_messages=[
                         {"role": "assistant", "content": choice.message.content} for choice in resp.choices
@@ -2001,9 +2004,10 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=resp_model,
+                    model_name=resp_model,
+                    model_provider="openai",
                     input_messages=input_messages,
                     output_messages=[{"content": expected_completion, "role": "assistant"}],
                     parameters={"temperature": 0},
@@ -2035,9 +2039,10 @@ def test_llmobs_chat_completion_function_call(
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=resp.model,
+                    model_name=resp.model,
+                    model_provider="openai",
                     input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                     output_messages=[{"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}],
                     parameters={"temperature": 0},
@@ -2070,9 +2075,10 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=model,
+                    model_name=model,
+                    model_provider="openai",
                     input_messages=[{"content": "Hello world"}],
                     output_messages=[{"content": ""}],
                     parameters={"temperature": 0.8, "max_tokens": 10},
@@ -2111,9 +2117,10 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
         [
             mock.call.start(),
             mock.call.enqueue(
-                _expected_llmobs_span_event(
+                _expected_llmobs_llm_span_event(
                     span,
-                    model=model,
+                    model_name=model,
+                    model_provider="openai",
                     input_messages=input_messages,
                     output_messages=[{"content": ""}],
                     parameters={"temperature": 0},

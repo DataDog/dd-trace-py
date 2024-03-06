@@ -40,6 +40,8 @@ threads:
       current active ``Context`` so that generated traces in the new task are
       attached to the main trace
 """
+from ddtrace.vendor.debtcollector import deprecate
+
 from ...internal.utils.importlib import require_modules
 
 
@@ -49,13 +51,13 @@ with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from ddtrace._trace.provider import DefaultContextProvider
 
-        from ...internal.compat import CONTEXTVARS_IS_AVAILABLE
-        from .provider import AsyncioContextProvider
-
-        if CONTEXTVARS_IS_AVAILABLE:
-            context_provider = DefaultContextProvider()
-        else:
-            context_provider = AsyncioContextProvider()
+        deprecate(
+            "The ddtrace asyncio integration is deprecated."
+            " The ddtrace library fully supports propagating trace contextes to async tasks."
+            " No additional configurations are required.",
+            version="3.0.0",
+        )
+        context_provider = DefaultContextProvider()
 
         from .helpers import ensure_future
         from .helpers import run_in_executor
