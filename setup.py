@@ -40,6 +40,9 @@ HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+# stack_v2 profiling extensions are optional, unless they are made explicitly required by this environment variable
+STACK_V2_REQUIRED = "DD_STACK_V2_REQUIRED" in os.environ
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
@@ -469,6 +472,7 @@ if not IS_PYSTON:
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
                 ],
+                optional=not STACK_V2_REQUIRED,
             )
         )
 
@@ -478,7 +482,8 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
-                )
+                ),
+                optional=not STACK_V2_REQUIRED,
             )
 
 else:
