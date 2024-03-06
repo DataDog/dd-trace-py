@@ -114,9 +114,11 @@ UploaderBuilder::build()
     };
 
     for (const auto& [tag, data] : tag_data) {
-        std::string errmsg;
-        if (!add_tag(tags, tag, data, errmsg)) {
-            reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
+        if (!data.empty()) {
+            std::string errmsg;
+            if (!add_tag(tags, tag, data, errmsg)) {
+                reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
+            }
         }
     }
 
@@ -131,7 +133,7 @@ UploaderBuilder::build()
     // If any mistakes were made, report on them now and throw
     if (!reasons.empty()) {
         ddog_Vec_Tag_drop(tags);
-        throw std::runtime_error("Error initializing exporter: missing or bad configuration: " + join(reasons, ", "));
+        throw std::runtime_error("Error initializing exporter, missing or bad configuration: " + join(reasons, ", "));
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
