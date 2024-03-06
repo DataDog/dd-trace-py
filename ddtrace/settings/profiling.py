@@ -1,5 +1,4 @@
 import math
-import platform
 import typing as t
 
 from envier import En
@@ -36,11 +35,6 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
-
-
-def _is_valid_libdatadog():
-    # type: () -> bool
-    return platform.machine() in ["x86_64", "aarch64"] and "glibc" in platform.libc_ver()[0]
 
 
 class ProfilingConfig(En):
@@ -165,6 +159,17 @@ class ProfilingConfig(En):
             help="Whether to enable the stack profiler",
         )
 
+        class V2(En):
+            __item__ = __prefix__ = "v2"
+
+            enabled = En.v(
+                bool,
+                "enabled",
+                default=False,
+                help_type="Boolean",
+                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+            )
+
     class Lock(En):
         __item__ = __prefix__ = "lock"
 
@@ -218,23 +223,12 @@ class ProfilingConfig(En):
     class Export(En):
         __item__ = __prefix__ = "export"
 
-        _libdd_enabled = En.v(
+        libdd_enabled = En.v(
             bool,
             "libdd_enabled",
             default=False,
             help_type="Boolean",
             help="Enables collection and export using the experimental exporter",
-        )
-
-        # For now, only allow libdd to be enabled if the user asks for it
-        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_valid_libdatadog())
-
-        py_enabled = En.v(
-            bool,
-            "py_enabled",
-            default=True,
-            help_type="Boolean",
-            help="Enables collection and export using the classic Python exporter",
         )
 
 

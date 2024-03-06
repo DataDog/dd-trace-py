@@ -14,6 +14,7 @@ from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import iswrapped
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -1554,6 +1555,8 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
     traces = mock_tracer.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
+    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
+    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
 
     expected_tags = [
         "version:",
@@ -1592,6 +1595,8 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 1
+    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
+    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
 
     expected_tags = [
         "version:",
@@ -1607,12 +1612,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
         "openai.estimated:true",
     ]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", 2, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.total", len(chunks) + 2, tags=expected_tags) in mock_metrics.mock_calls
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 15, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 17, tags=expected_tags) in mock_metrics.mock_calls
 
 
 def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_tracer):
@@ -1638,6 +1641,10 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
             completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
             assert completion == expected_completion
 
+    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
+    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
+    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
+
     expected_tags = [
         "version:",
         "env:",
@@ -1655,15 +1662,10 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
     assert mock.call.gauge("ratelimit.remaining.requests", 2, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 12, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 12 + prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.asyncio
@@ -1689,6 +1691,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
             completion = "".join([c["choices"][0]["delta"].get("content", "") for c in chunks])
             assert completion == expected_completion
 
+    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion[:128] + "..."
+    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
+    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
+
     expected_tags = [
         "version:",
         "env:",
@@ -1708,15 +1714,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.gauge("ratelimit.remaining.tokens", 89971, tags=expected_tags) in mock_metrics.mock_calls
     expected_tags += ["openai.estimated:true"]
     if TIKTOKEN_AVAILABLE:
-        prompt_expected_tags = expected_tags[:-1]
-    else:
-        prompt_expected_tags = expected_tags
-    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=prompt_expected_tags) in mock_metrics.mock_calls
-    assert mock.call.distribution("tokens.completion", len(chunks), tags=expected_tags) in mock_metrics.mock_calls
-    assert (
-        mock.call.distribution("tokens.total", len(chunks) + prompt_tokens, tags=expected_tags)
-        in mock_metrics.mock_calls
-    )
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", 35, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", 35 + prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
 
 
 @pytest.mark.snapshot(
@@ -2190,49 +2191,52 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
     """
     with openai_vcr.use_cassette("completion.yaml"):
         model = "ada"
-        resp = openai.Completion.create(
+        openai.Completion.create(
             model=model, prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
         )
     span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "source:integration",
-        "model_name:{}".format(resp.model),
-        "model_provider:openai",
-        "error:0",
-    ]
-
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span_id),
-                    "trace_id": "{:x}".format(trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 0,
-                    "meta": {
-                        "span.kind": "llm",
-                        "model_name": model,
-                        "model_provider": "openai",
-                        "input": {
-                            "messages": [{"content": "Hello world"}],
-                            "parameters": {"temperature": 0.8, "max_tokens": 10},
-                        },
-                        "output": {"messages": [{"content": ", relax!” I said to my laptop"}, {"content": " (1"}]},
-                    },
-                    "metrics": {"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
-                },
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=model,
+                    model_provider="openai",
+                    input_messages=[{"content": "Hello world"}],
+                    output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
+                    parameters={"temperature": 0.8, "max_tokens": 10},
+                    token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+                )
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        model = "ada"
+        expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+        resp = openai.Completion.create(model=model, prompt="Hello world", stream=True)
+        for _ in resp:
+            pass
+    span = mock_tracer.pop_traces()[0][0]
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=model,
+                    model_provider="openai",
+                    input_messages=[{"content": "Hello world"}],
+                    output_messages=[{"content": expected_completion}],
+                    parameters={"temperature": 0},
+                    token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
+                ),
             ),
         ]
     )
@@ -2262,49 +2266,67 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             user="ddtrace-test",
         )
     span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "source:integration",
-        "model_name:{}".format(resp.model),
-        "model_provider:openai",
-        "error:0",
-    ]
-
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span_id),
-                    "trace_id": "{:x}".format(trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 0,
-                    "meta": {
-                        "span.kind": "llm",
-                        "model_name": resp.model,
-                        "model_provider": "openai",
-                        "input": {
-                            "messages": input_messages,
-                            "parameters": {"temperature": 0},
-                        },
-                        "output": {
-                            "messages": [
-                                {"role": "assistant", "content": choice.message.content} for choice in resp.choices
-                            ]
-                        },
-                    },
-                    "metrics": {"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
-                },
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=resp.model,
+                    model_provider="openai",
+                    input_messages=input_messages,
+                    output_messages=[
+                        {"role": "assistant", "content": choice.message.content} for choice in resp.choices
+                    ],
+                    parameters={"temperature": 0},
+                    token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+                )
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+async def test_llmobs_chat_completion_stream(
+    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+):
+    """Ensure llmobs records are emitted for chat completion endpoints when configured.
+
+    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+    """
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+            resp = openai.ChatCompletion.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+            )
+            for chunk in resp:
+                resp_model = chunk.model
+    span = mock_tracer.pop_traces()[0][0]
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=resp_model,
+                    model_provider="openai",
+                    input_messages=input_messages,
+                    output_messages=[{"content": expected_completion, "role": "assistant"}],
+                    parameters={"temperature": 0},
+                    token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
+                )
             ),
         ]
     )
@@ -2327,49 +2349,63 @@ def test_llmobs_chat_completion_function_call(
             user="ddtrace-test",
         )
     span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "source:integration",
-        "model_name:{}".format(resp.model),
-        "model_provider:openai",
-        "error:0",
-    ]
-
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span_id),
-                    "trace_id": "{:x}".format(trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 0,
-                    "meta": {
-                        "span.kind": "llm",
-                        "model_name": resp.model,
-                        "model_provider": "openai",
-                        "input": {
-                            "messages": [{"content": chat_completion_input_description, "role": "user"}],
-                            "parameters": {"temperature": 0},
-                        },
-                        "output": {
-                            "messages": [
-                                {"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}
-                            ]
-                        },
-                    },
-                    "metrics": {"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
-                },
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=resp.model,
+                    model_provider="openai",
+                    input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+                    output_messages=[{"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}],
+                    parameters={"temperature": 0},
+                    token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+                )
+            ),
+        ]
+    )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+def test_llmobs_chat_completion_function_call_stream(
+    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+):
+    """Test that function call chat completion calls are recorded as LLMObs events correctly."""
+    if not hasattr(openai, "ChatCompletion"):
+        pytest.skip("ChatCompletion not supported for this version of openai")
+    with openai_vcr.use_cassette("chat_completion_function_call_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            resp = openai.ChatCompletion.create(
+                model=model,
+                messages=[{"role": "user", "content": chat_completion_input_description}],
+                functions=chat_completion_custom_functions,
+                function_call="auto",
+                stream=True,
+                user="ddtrace-test",
+            )
+            for chunk in resp:
+                resp_model = chunk.model
+    expected_output = '{"name":"David Nguyen","major":"Computer Science","school":"Stanford University","grades":3.8,"clubs":["Chess Club","South Asian Student Association"]}'  # noqa: E501
+    span = mock_tracer.pop_traces()[0][0]
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.assert_has_calls(
+        [
+            mock.call.start(),
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=resp_model,
+                    model_provider="openai",
+                    input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+                    output_messages=[{"content": expected_output, "role": "assistant"}],
+                    parameters={"temperature": 0},
+                    token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
+                )
             ),
         ]
     )
@@ -2385,47 +2421,22 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
                 model=model, prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
     span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "source:integration",
-        "model_name:babbage-002",
-        "model_provider:openai",
-        "error:1",
-        "error_type:openai.error.AuthenticationError",
-    ]
-
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span_id),
-                    "trace_id": "{:x}".format(trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 1,
-                    "meta": {
-                        "span.kind": "llm",
-                        "error.message": "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
-                        "model_name": model,
-                        "model_provider": "openai",
-                        "input": {
-                            "messages": [{"content": "Hello world"}],
-                            "parameters": {"temperature": 0.8, "max_tokens": 10},
-                        },
-                        "output": {"messages": [{"content": ""}]},
-                    },
-                    "metrics": {},
-                },
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=model,
+                    model_provider="openai",
+                    input_messages=[{"content": "Hello world"}],
+                    output_messages=[{"content": ""}],
+                    parameters={"temperature": 0.8, "max_tokens": 10},
+                    token_metrics={},
+                    error="openai.error.AuthenticationError",
+                    error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
+                )
             ),
         ]
     )
@@ -2453,47 +2464,22 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
                 user="ddtrace-test",
             )
     span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    expected_tags = [
-        "version:",
-        "env:",
-        "service:",
-        "source:integration",
-        "model_name:{}".format(model),
-        "model_provider:openai",
-        "error:1",
-        "error_type:openai.error.AuthenticationError",
-    ]
-
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.start(),
             mock.call.enqueue(
-                {
-                    "span_id": str(span_id),
-                    "trace_id": "{:x}".format(trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(trace_id),
-                    "name": span.name,
-                    "tags": expected_tags,
-                    "start_ns": span.start_ns,
-                    "duration": span.duration_ns,
-                    "error": 1,
-                    "meta": {
-                        "span.kind": "llm",
-                        "error.message": "Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
-                        "model_name": model,
-                        "model_provider": "openai",
-                        "input": {
-                            "messages": input_messages,
-                            "parameters": {"temperature": 0},
-                        },
-                        "output": {"messages": [{"content": ""}]},
-                    },
-                    "metrics": {},
-                },
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=model,
+                    model_provider="openai",
+                    input_messages=input_messages,
+                    output_messages=[{"content": ""}],
+                    parameters={"temperature": 0},
+                    token_metrics={},
+                    error="openai.error.AuthenticationError",
+                    error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
+                )
             ),
         ]
     )

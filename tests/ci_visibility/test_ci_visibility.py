@@ -1123,6 +1123,7 @@ class TestFetchTestsToSkip:
             _civisibility._api_key = "notanapikey"
             _civisibility._dd_site = "notdatadog.notcom"
             _civisibility._service = "test-service"
+            _civisibility._itr_meta = {}
             _civisibility._git_client = None
             _civisibility._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
             _civisibility._tags = {
@@ -1155,6 +1156,9 @@ class TestFetchTestsToSkip:
                 status=200,
                 body=textwrap.dedent(
                     """{
+                        "meta": {
+                            "correlation_id": "testlevelcorrelationid"
+                        },
                         "data": [
                             {
                                 "id": "123456789",
@@ -1190,6 +1194,7 @@ class TestFetchTestsToSkip:
                 "testbundle/test_suite_1.py": ["test_name_1"],
                 "testpackage/testbundle/test_suite_2.py": ["test_name_2"],
             }
+            assert mock_civisibility._itr_meta["itr_correlation_id"] == "testlevelcorrelationid"
 
     def test_fetch_tests_to_skip_suite_level(self, mock_civisibility):
         with mock.patch(
@@ -1198,6 +1203,9 @@ class TestFetchTestsToSkip:
                 status=200,
                 body=textwrap.dedent(
                     """{
+                        "meta": {
+                            "correlation_id": "suitelevelcorrelationid"
+                        },
                         "data": [
                             {
                                 "id": "34640cc7ce80c01e",
@@ -1231,6 +1239,7 @@ class TestFetchTestsToSkip:
                 "testpackage/testbundle/test_suite_2.py",
             ]
             assert mock_civisibility._tests_to_skip == {}
+            assert mock_civisibility._itr_meta["itr_correlation_id"] == "suitelevelcorrelationid"
 
     def test_fetch_tests_to_skip_no_data_test_level(self, mock_civisibility):
         with mock.patch(

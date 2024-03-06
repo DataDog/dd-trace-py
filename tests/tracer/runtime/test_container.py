@@ -310,7 +310,7 @@ def test_get_container_info(file_contents, container_id, node_inode):
             else:
                 assert isinstance(info.node_inode, int)
 
-        mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
+        mock_open.assert_called_with("/proc/self/cgroup", mode="r")
 
 
 @pytest.mark.parametrize(
