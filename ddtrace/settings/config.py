@@ -792,4 +792,7 @@ class Config(object):
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
+        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
