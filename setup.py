@@ -482,8 +482,8 @@ if not IS_PYSTON:
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
+                    optional=not STACK_V2_REQUIRED,
                 ),
-                optional=not STACK_V2_REQUIRED,
             )
 
 else:
