@@ -448,6 +448,27 @@ def test_subapp_snapshot(snapshot_client):
 
 
 @snapshot()
+def test_subapp_two_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-two/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
+def test_subapp_nested_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-nested/nested-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
+def test_subapp_nested_call_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-nested/hello")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
 
@@ -538,14 +559,6 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
         ("mysvc", "v1"),
     ],
 )
-@pytest.mark.snapshot(
-    variants={
-        # TestClient changed after v0.21.0
-        # https://github.com/encode/starlette/releases/tag/0.21.0
-        "old_test_client": starlette_version < (0, 21, 0),
-        "new_test_client": starlette_version >= (0, 21, 0),
-    }
-)
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
     service, schema = service_schema
     code = """
@@ -577,6 +590,7 @@ if __name__ == "__main__":
     env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     env["DD_TRACE_HTTPX_ENABLED"] = "false"
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
