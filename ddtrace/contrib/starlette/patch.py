@@ -47,6 +47,9 @@ def get_version():
     return getattr(starlette, "__version__", "")
 
 
+_STARLETTE_VERSION = tuple(map(int, get_version().split(".")))
+
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
@@ -163,6 +166,12 @@ def traced_handler(wrapped, instance, args, kwargs):
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
 
+    # If we are on a version of starlette that is <= v0.33, we need to fix the span url
+    # since starlette set the incorrect values for path/root_path up until recently:
+    # https://github.com/encode/starlette/issues/1336
+    if _STARLETTE_VERSION <= (0, 33, 0):
+        _fix_span_url(scope, request_spans)
+
     return wrapped(*args, **kwargs)
 
 
@@ -184,3 +193,27 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
     wrapped(*args, **kwargs)
+
+
+def _fix_span_url(scope, request_spans):
+    """
+    Fix the URL tag on the request span for Starlette versions <= 0.33.0
+    """
+
+    root_path = scope.get("root_path", "")
+
+    # Only run if there are child spans that need a valid root to be appended
+    if not request_spans and len(request_spans) > 1 and root_path:
+        return
+
+    # All spans should have the same base URL
+    # We can use the first span to get the location of where the root should start
+    # The first span is the parent with the full proper URL
+    url = request_spans[0].get_tag(http.URL)
+    start_position = url.find(scope.get("root_path", ""))
+
+    if start_position != -1:
+        for span in request_spans[1:]:
+            # Append the `root_path` to the URL referencing shared base URL as starting point
+            fixed_url = span.get_tag(http.URL)
+            span.set_tag(http.URL, fixed_url[:start_position] + root_path + fixed_url[start_position:])

@@ -9,9 +9,9 @@
     "type": "http",
     "error": 0,
     "meta": {
-      "_dd.base_service": "",
+      "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e7e27c00000000",
+      "_dd.p.tid": "65e7e2a900000000",
       "component": "requests",
       "http.method": "GET",
       "http.status_code": "200",
@@ -19,7 +19,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "89213636f6e44ab5ba85ecf3f2b1ac0b",
+      "runtime-id": "002fb65a5d28421b87475d3f26248169",
       "span.kind": "client"
     },
     "metrics": {
@@ -27,14 +27,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85139
+      "process_id": 85441
     },
-    "duration": 1418000,
-    "start": 1709695612946565000
+    "duration": 1538000,
+    "start": 1709695657385232000
   },
      {
        "name": "starlette.request",
-       "service": "starlette",
+       "service": "mysvc",
        "resource": "GET /sub-app/hello/{name}",
        "trace_id": 0,
        "span_id": 2,
@@ -42,8 +42,7 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.base_service": "",
-         "_dd.p.tid": "65e7e27c00000000",
+         "_dd.p.tid": "65e7e2a900000000",
          "component": "starlette",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -56,12 +55,12 @@
        "metrics": {
          "_dd.top_level": 1
        },
-       "duration": 323000,
-       "start": 1709695612947197000
+       "duration": 340000,
+       "start": 1709695657385971000
      },
         {
           "name": "starlette.request",
-          "service": "starlette",
+          "service": "mysvc",
           "resource": "GET /hello/{name}",
           "trace_id": 0,
           "span_id": 3,
@@ -69,8 +68,7 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.base_service": "",
-            "_dd.p.tid": "65e7e27c00000000",
+            "_dd.p.tid": "65e7e2a900000000",
             "component": "starlette",
             "http.method": "GET",
             "http.status_code": "200",
@@ -79,6 +77,6 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 178000,
-          "start": 1709695612947356000
+          "duration": 194000,
+          "start": 1709695657386134000
         }]]

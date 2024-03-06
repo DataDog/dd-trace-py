@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    starlette: Fixes issue where older versions of starlette incorrectly set path/root_path causing our ASGI
+    tracing to be incorrect. Now, we correctly use only `path` in ASGI tracing middleware and fix the URL
+    within the starlette integration when necessary for older versions.
