@@ -60,7 +60,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier):
     path_type = "type:{}".format(endpoint_service)
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    print(f"set checkpoint out {endpoint_service}")
+    log.info(f"set checkpoint out {endpoint_service}")
     ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
     DsmPathwayCodec.encode(ctx, trace_data)
 
@@ -132,10 +132,10 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            print("receive sqs")
-            print(context_json)
+            log.info("receive sqs")
+            log.info(context_json)
             ctx = DsmPathwayCodec.decode(context_json, processor())
-            print("set checkpoint sqs")
+            log.info("set checkpoint sqs")
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
