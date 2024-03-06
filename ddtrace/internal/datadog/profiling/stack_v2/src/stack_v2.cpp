@@ -21,9 +21,7 @@ _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     Sampler::get().start();
-
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
@@ -35,7 +33,7 @@ stack_v2_stop(PyObject* self, PyObject* args)
     (void)self;
     (void)args;
     Sampler::get().stop();
-    Py_RETURN_NONE
+    Py_RETURN_NONE;
 }
 
 static PyObject*
