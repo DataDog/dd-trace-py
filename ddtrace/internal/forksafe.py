@@ -104,9 +104,7 @@ def unregister_before_in_child(before_in_child):
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(
-        before=ddtrace_before_in_child, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked
-    )
+    os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
