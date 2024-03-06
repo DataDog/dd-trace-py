@@ -3,6 +3,7 @@ import os
 import vcr
 
 import ddtrace
+from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
 
 
 logs_vcr = vcr.VCR(
@@ -23,7 +24,7 @@ def _expected_llmobs_tags(error=None, tags=None):
         "env:{}".format(tags.get("env", "")),
         "service:{}".format(tags.get("service", "")),
         "source:integration",
-        "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "ml_app:{}".format(tags.get("ml_app", DEFAULT_ML_APP_NAME)),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
