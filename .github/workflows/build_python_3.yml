@@ -54,6 +54,7 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          DD_STACK_V2_REQUIRED: true
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
