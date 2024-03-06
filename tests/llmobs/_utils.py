@@ -147,7 +147,7 @@ def _llmobs_base_span_event(
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": "",
+        "parent_id": "undefined",
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(tags=tags, error=error),
