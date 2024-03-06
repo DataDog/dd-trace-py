@@ -1231,26 +1231,33 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
-                "sqlalchemy": latest,
+                "sqlalchemy": "<2.0",
                 "aiosqlite": latest,
                 "databases": latest,
                 "pytest-randomly": latest,
+                "anyio": "<4.0",
             },
             venvs=[
+                # starlette added new TestClient after v0.20
+                # starlette added new root_path/path definitions after v0.33
+                Venv(
+                    pys="3.7",
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", latest]},
+                ),
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14", "~=0.20", latest]},
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15", "~=0.20", latest]},
+                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
                     pys="3.11",
-                    pkgs={"starlette": ["~=0.21", latest]},
+                    pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
             ],
         ),
