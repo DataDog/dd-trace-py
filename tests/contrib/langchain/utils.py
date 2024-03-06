@@ -1,5 +1,7 @@
 import os
+
 import vcr
+
 
 # VCR is used to capture and store network requests made to OpenAI and other APIs.
 # This is done to avoid making real calls to the API which could introduce

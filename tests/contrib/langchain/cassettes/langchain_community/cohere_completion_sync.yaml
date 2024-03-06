@@ -1,0 +1,542 @@
+interactions:
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:09 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:13 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:17 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '6'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:22 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:30 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '10'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:40 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:54:50 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:55:00 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:55:10 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '7'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"model": null, "prompt": "What is the secret Krabby Patty recipe?", "prompt_vars":
+      {}, "preset": null, "num_generations": null, "max_tokens": 256, "temperature":
+      0.75, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty": 0.0, "end_sequences":
+      null, "stop_sequences": null, "return_likelihoods": null, "truncate": null,
+      "stream": false}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Request-Source:
+      - python-sdk-4.52:langchain
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 06 Mar 2024 19:55:20 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

@@ -1,0 +1,77 @@
+interactions:
+- request:
+    body: '{"prompt": ["Can you explain what Descartes meant by ''I think, therefore
+      I am''?"], "model": "text-davinci-003", "temperature": 0.7, "max_tokens": 256,
+      "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
+      {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '235'
+      Content-Type:
+      - application/json
+      User-Agent: 
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.13", "platform": "macOS-13.6.4-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Sun Dec 17 22:12:45
+        PST 2023; root:xnu-8796.141.3.703.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+      traceparent:
+      - 00-65e8c8b70000000096b775c8e5b26282-6d028612d8601cce-01
+      tracestate:
+      - dd=p:6d028612d8601cce;s:1;t.dm:-0;t.tid:65e8c8b700000000
+      x-datadog-parent-id:
+      - '7854988115585277134'
+      x-datadog-sampling-priority:
+      - '1'
+      x-datadog-tags:
+      - _dd.p.dm=-0,_dd.p.tid=65e8c8b700000000
+      x-datadog-trace-id:
+      - '10860278532134822530'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604de1de81541e7-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '276'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 06 Mar 2024 19:49:12 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ocLOuHDQ6xBJP1Sq.SLf6z9mw9MNxvBrFvvWRESNWWs-1709754552-1.0.1.1-Bd5ThNKtAIjbm7eDt_Xof1xP_YJRahlUfByg._lZzpsmqOYDbH4pZgczCsxe_SHHe8gQXvBfNXIua5lCKWj0fg;
+        path=/; expires=Wed, 06-Mar-24 20:19:12 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=4EYgtfWLgNKBsuGM7Pfg.zLZjwIK21GmH9bnyPa12h8-1709754552116-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      vary:
+      - Origin
+      x-request-id:
+      - req_b578ebbb5859000c52ce9647531e0ec7
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

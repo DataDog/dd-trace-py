@@ -8,6 +8,7 @@ from typing import Union
 
 import langchain
 import langchain_community  # noqa: F401
+import langchain_core  # noqa: F401
 
 from ddtrace.appsec._iast import _is_iast_enabled
 
@@ -165,9 +166,12 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
+        # try:
         if isinstance(instance, langchain.llms.OpenAI):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
+        # except AttributeError:
+        #     if isin
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
@@ -691,16 +695,22 @@ def patch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
+        import langchain_community.llms  # noqa:F401
+        from langchain_core.language_models.llms import BaseLLM  # noqa:F401
+
+        wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain_community))
+        wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain_community))
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
+        from langchain.llms.base import BaseLLM  # noqa:F401
+
+        wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
+        wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
 
     from langchain.chains.base import Chain  # noqa:F401
     from langchain.chat_models.base import BaseChatModel  # noqa:F401
-    from langchain.llms.base import BaseLLM  # noqa:F401
 
-    wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap(
         "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
     )  # might need to change back to langchain_community
@@ -766,8 +776,12 @@ def unpatch():
         return
     langchain._datadog_patch = False
 
-    unwrap(langchain.llms.base.BaseLLM, "generate")
-    unwrap(langchain.llms.base.BaseLLM, "agenerate")
+    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
+        unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
+    else:
+        unwrap(langchain.llms.base.BaseLLM, "generate")
+        unwrap(langchain.llms.base.BaseLLM, "agenerate")
     unwrap(langchain.chat_models.base.BaseChatModel, "generate")
     unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
     unwrap(langchain.chains.base.Chain, "__call__")

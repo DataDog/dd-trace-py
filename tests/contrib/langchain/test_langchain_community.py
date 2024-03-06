@@ -1,17 +1,23 @@
-import pytest
+import os
+import re
 import sys
 
-from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
+import langchain
+import mock
+import pytest
+
+# from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import flaky
 from tests.utils import override_global_config
 
 
+SHOULD_USE_LANGCHAIN_COMMUNITY = getattr(langchain, "__version__", "") >= "0.1.0"
 SHOULD_USE_LANGCHAIN_OPENAI = SHOULD_USE_LANGCHAIN_COMMUNITY
 
 pytestmark = pytest.mark.skipif(
     not SHOULD_USE_LANGCHAIN_COMMUNITY or sys.version_info <= (3, 9, 0),
-    reason="This module only tests langchain_community and Python 3.10+"
+    reason="This module only tests langchain_community and Python 3.10+",
 )
 
 
@@ -140,7 +146,8 @@ def test_openai_llm_error(langchain, langchain_openai, request_vcr):
 
     llm = langchain_openai.OpenAI(model="text-davinci-003")
 
-    if parse_version(openai.__version__) >= (1, 0, 0):
+    # if parse_version(openai.__version__) >= (1, 0, 0):
+    if getattr(openai, "__version__", "") >= "1.0.0":
         invalid_error = openai.BadRequestError
     else:
         invalid_error = openai.InvalidRequestError
@@ -150,8 +157,8 @@ def test_openai_llm_error(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_cohere_llm_sync(langchain, request_vcr):
-    llm = langchain.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
+def test_cohere_llm_sync(langchain_community, request_vcr):
+    llm = langchain_community.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("cohere_completion_sync.yaml"):
         llm("What is the secret Krabby Patty recipe?")
 
@@ -161,7 +168,7 @@ def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
     llm = langchain_community.llms.HuggingFaceEndpoint(
         repo_id="google/flan-t5-xxl",
         temperature=0.5,
-        max_length=256,
+        kwargs={"max_length": 256},
         huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
     )
     with request_vcr.use_cassette("huggingfacehub_completion_sync.yaml"):
@@ -615,12 +622,12 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_math_chain_sync(langchain, request_vcr):
+def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying OpenAI interface.
     """
-    chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+    chain = langchain.chains.LLMMathChain(llm=langchain_openai.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
@@ -634,12 +641,12 @@ def test_openai_math_chain_sync(langchain, request_vcr):
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost"],
 )
-async def test_openai_math_chain_async(langchain, request_vcr):
+async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying OpenAI interface.
     """
-    chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+    chain = langchain.chains.LLMMathChain(llm=langchain_openai.OpenAI(temperature=0))
     with request_vcr.use_cassette("openai_math_chain_async.yaml"):
         await chain.acall("what is two raised to the fifty-fourth power?")
 
@@ -662,7 +669,7 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
     token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
-def test_openai_sequential_chain(langchain, request_vcr):
+def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
     """
     Test that using a SequentialChain will result in a 4-span trace with
     the overall SequentialChain, TransformChain, LLMChain, and underlying OpenAI interface.
@@ -687,7 +694,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
         Paraphrase: """
     prompt = langchain.PromptTemplate(input_variables=["style", "output_text"], template=template)
     style_paraphrase_chain = langchain.chains.LLMChain(
-        llm=langchain.llms.OpenAI(), prompt=prompt, output_key="final_output"
+        llm=langchain_openai.OpenAI(), prompt=prompt, output_key="final_output"
     )
     sequential_chain = langchain.chains.SequentialChain(
         chains=[clean_extra_spaces_chain, style_paraphrase_chain],
@@ -716,7 +723,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["langchain.tokens.total_cost", "resource"])
-def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
+def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
         {input_text}
@@ -724,7 +731,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
         Paraphrase: """
     prompt = langchain.PromptTemplate(input_variables=["input_text"], template=template)
     style_paraphrase_chain = langchain.chains.LLMChain(
-        llm=langchain.llms.OpenAI(), prompt=prompt, output_key="paraphrased_output"
+        llm=langchain_openai.OpenAI(), prompt=prompt, output_key="paraphrased_output"
     )
     rhyme_template = """Make this text rhyme:
 
@@ -732,7 +739,9 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
 
         Rhyme: """
     rhyme_prompt = langchain.PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
-    rhyme_chain = langchain.chains.LLMChain(llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output")
+    rhyme_chain = langchain.chains.LLMChain(
+        llm=langchain_openai.OpenAI(), prompt=rhyme_prompt, output_key="final_output"
+    )
     sequential_chain = langchain.chains.SequentialChain(
         chains=[style_paraphrase_chain, rhyme_chain],
         input_variables=["input_text"],
@@ -760,8 +769,9 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
         {input_text}
 
         Paraphrase: """
+    prompt = langchain.PromptTemplate(input_variables=["input_text"], template=template)
     style_paraphrase_chain = langchain.chains.LLMChain(
-        llm=langchain_openai.llms.OpenAI(), prompt=prompt, output_key="paraphrased_output"
+        llm=langchain_openai.OpenAI(), prompt=prompt, output_key="paraphrased_output"
     )
     rhyme_template = """Make this text rhyme:
 
@@ -769,7 +779,9 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
 
         Rhyme: """
     rhyme_prompt = langchain.PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
-    rhyme_chain = langchain.chains.LLMChain(llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output")
+    rhyme_chain = langchain.chains.LLMChain(
+        llm=langchain_openai.OpenAI(), prompt=rhyme_prompt, output_key="final_output"
+    )
     sequential_chain = langchain.chains.SequentialChain(
         chains=[style_paraphrase_chain, rhyme_chain],
         input_variables=["input_text"],
@@ -790,7 +802,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
 
 
 def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+    chain = langchain.chains.LLMMathChain(llm=langchain_openai.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
@@ -845,8 +857,10 @@ def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_met
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
-    chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+def test_chain_logs(
+    langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
+):
+    chain = langchain.chains.LLMMathChain(llm=langchain_openai.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
     else:
@@ -931,9 +945,8 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_commu
     """
     import langchain.prompts.chat  # noqa: F401
 
-    # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+        "langchain_community.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
@@ -983,7 +996,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
 @flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
-def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
+def test_pinecone_vectorstore_retrieval_chain(langchain, langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -999,7 +1012,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
-        llm = langchain.llms.OpenAI()
+        llm = langchain_openai.OpenAI()
         qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
             llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
         )
@@ -1009,7 +1022,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
 @flaky(1735812000)
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
-def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
+def test_pinecone_vectorstore_retrieval_chain_39(langchain, langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -1025,7 +1038,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
-        llm = langchain.llms.OpenAI()
+        llm = langchain_openai.OpenAI()
         qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
             llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
         )
@@ -1155,7 +1168,7 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         }
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        f"""
+        """
 from langchain_openai import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
@@ -1200,15 +1213,16 @@ def test_openai_service_name(
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         # TODO: need to correct this
         """
-from langchain.llms import OpenAI
+from langchain_openai import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain_community import get_request_vcr
 llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
-    llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 """,
         env=env,
     )
+    # breakpoint()
     assert status == 0, err
     assert out == b""
     assert err == b""
@@ -1219,14 +1233,12 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_llm_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain_community.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
-            llm = langchain.llms.OpenAI(model="text-davinci-003")
+            llm = langchain_openai.OpenAI(model="text-davinci-003")
             llm("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
     span = mock_tracer.pop_traces()[0][0]
@@ -1239,7 +1251,7 @@ def test_llm_logs_when_response_not_completed(
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
+                    "message": "sampled langchain_community.llms.openai.OpenAI",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
@@ -1264,7 +1276,7 @@ def test_chat_model_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+        "langchain_community.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -1313,7 +1325,7 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        "langchain_community.embeddings.openai.OpenAIEmbeddings._embedding_func",
         side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
@@ -1350,14 +1362,12 @@ def test_embedding_logs_when_response_not_completed(
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_chain_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain_community.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
-            chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
+            chain = langchain.chains.LLMMathChain(llm=langchain_openai.OpenAI(temperature=0))
             chain.run("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
@@ -1395,7 +1405,7 @@ def test_chain_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        "langchain_community.embeddings.openai.OpenAIEmbeddings._embedding_func",
         side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:

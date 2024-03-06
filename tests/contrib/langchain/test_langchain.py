@@ -16,7 +16,6 @@ from tests.utils import override_global_config
 pytestmark = pytest.mark.skipif(SHOULD_USE_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community")
 
 
-
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain")
@@ -1167,7 +1166,7 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         }
     )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        f"""
+        """
 from langchain.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr

@@ -1,0 +1,78 @@
+interactions:
+- request:
+    body: '{"model": "text-davinci-003", "prompt": ["Which team won the 2019 NBA finals?"],
+      "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
+      0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '204'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yOQYoCMRBF932KImu1hdnlHO7bMvlOB5JUrFSLg3j3gQyDLv/jP3jPiYjIQVXU
+        eXqOOVBB7/wN58mdVlCRiExnw8P2ke+phrQ/Hr/OtHKnC1ApoikCG+KOMlgrFVHQCoWn1ax1P88t
+        s11Fy0EaKqdDkDJHCX3+t5PU7nbvDPtpoyHVO+cUF8VtQ7flr/jj2Fi5OE91y/kDB4nDH/1LFVuu
+        stXoxuM1vaZfAAAA//8DAJJDo/MCAQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e47758a0423b-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 06 Mar 2024 19:53:32 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Ww_ov.K5uL8rYqUxOtkCadA4nxgGrTPpvx0oHH1pfc0-1709754812-1.0.1.1-uB8o1QjgbNw6TzcjW1BlsP8o8NKKVNckMnXFEatP9oaEWpGv4lwXSPV.rgYMYtdpzhJmB1LZqOb.jCiREjU3vg;
+        path=/; expires=Wed, 06-Mar-24 20:23:32 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=ptvxVVatP00OXgeJWXeRI9.tlKLL14zU9aWg00kxUMg-1709754812119-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      vary:
+      - Origin
+      x-request-id:
+      - req_12226249853e71b041943f34e550671a
+    status:
+      code: 404
+      message: Not Found
+version: 1

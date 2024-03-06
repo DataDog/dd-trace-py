@@ -1,14 +1,15 @@
-import mock
 import os
+
+import mock
 import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
-from tests.utils import override_config
-from tests.utils import override_global_config
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import override_config
+from tests.utils import override_global_config
 
 
 @pytest.fixture

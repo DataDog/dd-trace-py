@@ -1,0 +1,78 @@
+interactions:
+- request:
+    body: '{"model": "text-davinci-003", "prompt": "Why is Spongebob so bad at driving?",
+      "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
+      0, "stream": true, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '218'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yOQYoCMRBF932KImu1hdnlHO7bMvlOB5JUrFSLg3j3gQyDLv/jP3jPiYjIQVXU
+        eXqOOVBB7/wN58mdVlCRiExnw8P2ke+phrQ/Hr/OtHKnC1ApoikCG+KOMlgrFVHQCoWn1ax1P88t
+        s11Fy0EaKqdDkDJHCX3+t5PU7nbvDPtpoyHVO+cUF8VtQ7flr/jj2Fi5OE91y/kDB4nDH/1LFVuu
+        stXoxuM1vaZfAAAA//8DAJJDo/MCAQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e5062ed543c2-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 06 Mar 2024 19:53:54 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=dgREBCBS6NCubB10dUAlB6Dhbfc05IiwzD9u4SNvmNQ-1709754834-1.0.1.1-D5q5EC9VXLB0yEaCQobqbEzyVkWkC3AXzIKj.iJhL5z62HGXezArxb2hBnLeOgUPmXKi1qyCDW7nmdWFM1.qLg;
+        path=/; expires=Wed, 06-Mar-24 20:23:54 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=wMq1BOv6xMxj.Rhp89c7pK4LknoXY3y3fe_SLXVjr.4-1709754834974-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      vary:
+      - Origin
+      x-request-id:
+      - req_e32cdfad649b502aab449d0df7addcdb
+    status:
+      code: 404
+      message: Not Found
+version: 1

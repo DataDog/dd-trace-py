@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: '{"prompt": "Why does everyone in Bikini Bottom hate Plankton?", "stopSequences":
+      [], "temperature": 0.7, "maxTokens": 256, "minTokens": 0, "topP": 1.0, "presencePenalty":
+      {"scale": 0, "applyToWhitespaces": true, "applyToPunctuations": true, "applyToNumbers":
+      true, "applyToStopwords": true, "applyToEmojis": true}, "countPenalty": {"scale":
+      0, "applyToWhitespaces": true, "applyToPunctuations": true, "applyToNumbers":
+      true, "applyToStopwords": true, "applyToEmojis": true}, "frequencyPenalty":
+      {"scale": 0, "applyToWhitespaces": true, "applyToPunctuations": true, "applyToNumbers":
+      true, "applyToStopwords": true, "applyToEmojis": true}, "numResults": 1, "logitBias":
+      null}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.31.0
+    method: POST
+    uri: https://api.ai21.com/studio/v1/j2-jumbo-instruct/complete
+  response:
+    body:
+      string: '{"detail":"Forbidden: Bad or missing API token."}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e51a6aa18c09-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '49'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:58 GMT
+      NEL:
+      - '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}'
+      Report-To:
+      - '{"endpoints":[{"url":"https:\/\/a.nel.cloudflare.com\/report\/v3?s=L7%2FqF2c5v3rXUzCaWfTcUa%2F4R4OvJfwfT%2Fy%2F8ZF1D2UDd7%2FggBCRBYuG8XQLHfu%2BfYcwI4EXAR0%2FEsriImzcztPiAgoWqBIqWII0KAVroLhiUQQpHYdB0Pw0TaDutA%3D%3D"}],"group":"cf-nel","max_age":604800}'
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=0; includeSubDomains
+      request-id:
+      - e1cf3c0b-9aef-9f70-a935-86ee451e30f2
+      via:
+      - 1.1 google
+    status:
+      code: 401
+      message: Unauthorized
+version: 1
