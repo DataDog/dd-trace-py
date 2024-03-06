@@ -5,6 +5,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 
 
@@ -26,23 +27,7 @@ def test_processor_creates_llmobs_span_event():
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "span_id": str(root_llm_span.span_id),
-                    "trace_id": "{:x}".format(root_llm_span.trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(root_llm_span.trace_id),
-                    "name": root_llm_span.name,
-                    "tags": mock.ANY,
-                    "start_ns": root_llm_span.start_ns,
-                    "duration": root_llm_span.duration_ns,
-                    "error": 0,
-                    "meta": mock.ANY,
-                    "metrics": mock.ANY,
-                },
-            ),
-        ]
+        [mock.call.enqueue(_expected_llmobs_llm_span_event(root_llm_span, "llm"))]
     )
 
 
@@ -61,21 +46,7 @@ def test_processor_only_creates_llmobs_span_event():
     assert mock_llmobs_writer.enqueue.call_count == 2
     mock_llmobs_writer.assert_has_calls(
         [
-            mock.call.enqueue(
-                {
-                    "span_id": str(root_span.span_id),
-                    "trace_id": "{:x}".format(root_span.trace_id),
-                    "parent_id": "",
-                    "session_id": "{:x}".format(root_span.trace_id),
-                    "name": root_span.name,
-                    "tags": mock.ANY,
-                    "start_ns": root_span.start_ns,
-                    "duration": root_span.duration_ns,
-                    "error": 0,
-                    "meta": mock.ANY,
-                    "metrics": mock.ANY,
-                },
-            ),
+            mock.call.enqueue(_expected_llmobs_llm_span_event(root_span, "llm")),
             mock.call.enqueue(
                 {
                     "span_id": str(grandchild_span.span_id),
