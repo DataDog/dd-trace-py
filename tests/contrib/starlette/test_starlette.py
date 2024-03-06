@@ -540,7 +540,9 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
 )
 @pytest.mark.snapshot(
     variants={
-        "old_test_client": starlette_version < (0, 21, 0),  # TestClient changed after v0.21.0
+        # TestClient changed after v0.21.0
+        # https://github.com/encode/starlette/releases/tag/0.21.0
+        "old_test_client": starlette_version < (0, 21, 0),
         "new_test_client": starlette_version >= (0, 21, 0),
     }
 )
