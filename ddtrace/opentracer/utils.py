@@ -19,10 +19,6 @@ def get_context_provider_for_scope_manager(scope_manager):
         import ddtrace.contrib.asyncio
 
         dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
-    elif scope_manager_type == "GeventScopeManager":
-        import ddtrace.contrib.gevent
-
-        dd_context_provider = ddtrace.contrib.gevent.context_provider
     else:
         from ddtrace._trace.provider import DefaultContextProvider
 

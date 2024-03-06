@@ -64,7 +64,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -136,7 +135,10 @@ def _default_span_processors_factory(
             if appsec_processor:
                 span_processors.append(appsec_processor)
         else:
-            if asm_config._api_security_enabled:
+            # api_security_active will keep track of the service status of APIManager
+            # we don't want to import the module if it was not started before due to
+            # one click activation of ASM via Remote Config
+            if asm_config._api_security_active:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
                 APIManager.disable()
@@ -695,7 +697,6 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
                 span._local_root = parent._local_root
 
@@ -750,7 +751,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
+            self._sampler.sample(span)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:

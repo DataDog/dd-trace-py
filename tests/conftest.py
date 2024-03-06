@@ -235,6 +235,11 @@ def run_function_from_file(item, params=None):
         def _subprocess_wrapper():
             out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
+            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+            if xfailed:
+                pytest.xfail("subprocess test resulted in XFail")
+                return
+
             if status != expected_status:
                 raise AssertionError(
                     "Expected status %s, got %s."
