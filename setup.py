@@ -42,7 +42,8 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
-DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling"
+DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
+STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 CURRENT_OS = platform.system()
 
@@ -302,7 +303,6 @@ class CMakeBuild(build_ext):
             "-DPython3_LIBRARIES={}".format(python_lib),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
-            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={}".format(output_dir),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
@@ -314,7 +314,7 @@ class CMakeBuild(build_ext):
             # CMAKE_BUILD_PARALLEL_LEVEL works across all generators
             # self.parallel is a Python 3 only way to set parallel jobs by hand
             # using -j in the build_ext call, not supported by pip or PyPA-build.
-            # DEV: -j is only supported in CMake 3.12+ only.
+            # DEV: -j is supported in CMake 3.12+ only.
             if hasattr(self, "parallel") and self.parallel:
                 build_args += ["-j{}".format(self.parallel)]
 
@@ -353,7 +353,7 @@ class CMakeExtension(Extension):
         build_args=[],
         install_args=[],
         build_type=None,
-        optional=False,
+        optional=True,  # By default, extensions are optional
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -405,7 +405,6 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-# TODO can we specify the exact compiler version less literally?
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -454,24 +453,29 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=True)
-        )
+        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
     if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
-                "ddtrace.internal.datadog.profiling._ddup",
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                optional=True,
                 cmake_args=[
                     "-DPY_MAJOR_VERSION={}".format(sys.version_info.major),
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
-                    "-Ddd_wrapper_INSTALL_DIR={}".format(DDUP_DIR),
                 ],
             )
         )
+
+        # Echion doesn't build on 3.7, so just skip it outright for now
+        if sys.version_info >= (3, 8):
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                    source_dir=STACK_V2_DIR,
+                )
+            )
 
 else:
     ext_modules = []
@@ -507,7 +511,7 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": [str(Path("libddwaf") / "*" / "lib" / "libddwaf.*")],
+        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
@@ -534,6 +538,7 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "openai": ["tiktoken"],
     },
     tests_require=["flake8"],
     cmdclass={

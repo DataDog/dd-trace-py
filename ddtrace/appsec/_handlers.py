@@ -112,7 +112,7 @@ async def _on_asgi_request_parse_body(receive, headers):
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
             return receive, req_body
-        except BaseException:
+        except Exception:
             return receive, None
 
     return receive, None

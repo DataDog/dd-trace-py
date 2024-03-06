@@ -60,7 +60,7 @@ def parse_response_body(raw_body):
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return
-    except BaseException:
+    except Exception:
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
@@ -73,7 +73,7 @@ def _appsec_rc_features_is_enabled() -> bool:
 
 
 def _appsec_apisec_features_is_active() -> bool:
-    return asm_config._asm_enabled and asm_config._api_security_enabled and asm_config._api_security_sample_rate > 0.0
+    return asm_config._asm_libddwaf_available and asm_config._asm_enabled and asm_config._api_security_enabled
 
 
 def _safe_userid(user_id):
