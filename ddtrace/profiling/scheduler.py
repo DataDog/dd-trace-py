@@ -33,6 +33,8 @@ class Scheduler(periodic.PeriodicService):
     def _start_service(self):
         # type: (...) -> None
         """Start the scheduler."""
+        if self._export_libdd_enabled and not ddup.is_available:
+            self._export_libdd_enabled = False
         LOG.debug("Starting scheduler")
         super(Scheduler, self)._start_service()
         self._last_export = compat.time_ns()

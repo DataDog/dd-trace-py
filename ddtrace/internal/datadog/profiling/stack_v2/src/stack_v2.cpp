@@ -2,15 +2,12 @@
 #include "python_headers.hpp"
 #include "sampler.hpp"
 
-#include <iostream>
-
 using namespace Datadog;
 
 static PyObject*
 _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
-    std::cout << "Starting the sampler" << std::endl;
     static const char* const_kwlist[] = { "min_interval", NULL };
     static char** kwlist = const_cast<char**>(const_kwlist);
     double min_interval_s = g_default_sampling_period_s;

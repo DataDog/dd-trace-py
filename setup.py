@@ -1,4 +1,3 @@
-import cmake
 import hashlib
 import os
 import platform
@@ -8,6 +7,8 @@ import subprocess
 import sys
 import sysconfig
 import tarfile
+
+import cmake
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -339,7 +340,9 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
-        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # explicitly use the cmake provided by the cmake package
+        cmake_command = (
+            Path(cmake.CMAKE_BIN_DIR) / "cmake"
+        ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
