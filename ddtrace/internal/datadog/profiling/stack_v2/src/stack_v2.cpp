@@ -2,15 +2,12 @@
 #include "python_headers.hpp"
 #include "sampler.hpp"
 
-#include <iostream>
-
 using namespace Datadog;
 
 static PyObject*
 _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
-    std::cout << "Starting the sampler" << std::endl;
     static const char* const_kwlist[] = { "min_interval", NULL };
     static char** kwlist = const_cast<char**>(const_kwlist);
     double min_interval_s = g_default_sampling_period_s;
@@ -21,9 +18,7 @@ _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     Sampler::get().start();
-
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
@@ -35,7 +30,7 @@ stack_v2_stop(PyObject* self, PyObject* args)
     (void)self;
     (void)args;
     Sampler::get().stop();
-    Py_RETURN_NONE
+    Py_RETURN_NONE;
 }
 
 static PyObject*
