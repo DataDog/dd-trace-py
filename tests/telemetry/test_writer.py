@@ -29,9 +29,7 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     # send request to the agent
     telemetry_writer.periodic()
 
-    requests = [
-        i for i in test_agent_session.get_requests() if i["body"].get("request_type") != "app-dependencies-loaded"
-    ]
+    requests = test_agent_session.get_requests(payload_type)
     assert len(requests) == 1
     assert requests[0]["headers"]["Content-Type"] == "application/json"
     assert requests[0]["headers"]["DD-Client-Library-Language"] == "python"
@@ -351,10 +349,9 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-dependencies-loaded")
     # flaky
-    # assert len([events]) == 1
-    assert not events[0]["payload"]
+    assert len(events) == 1
 
 
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
@@ -375,7 +372,7 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
 
-    assert events[0]["seq_id"] == 2
+    assert events[0]["seq_id"] == 1
     # only one event must be sent with a non empty payload
     # flaky
     # assert sum(e["payload"] != {} for e in events) == 1
@@ -516,6 +513,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
         assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
+@pytest.mark.parametrize("filter_heartbeat_events", [False])
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
@@ -540,6 +538,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         assert len(heartbeat_events) == 1
 
 
+@pytest.mark.parametrize("filter_heartbeat_events", [False])
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
@@ -548,7 +547,6 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
         initial_event_count = len(test_agent_session.get_events())
 
         # Assert a maximum of one heartbeat is queued per flush
-        telemetry_writer._app_heartbeat_event()
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
         assert len(events) == initial_event_count + 1
