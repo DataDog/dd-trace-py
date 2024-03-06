@@ -87,29 +87,17 @@ def _set_waf_request_metrics(*args):
 
         try:
             result = _asm_request_context.get_waf_telemetry_results()
-            if result is not None:
-                is_blocked = result["blocked"]
-                is_triggered = result["triggered"]
-                is_timeout = result["timeout"]
-
+            if result is not None and result["version"] is not None:
                 # TODO: enable it when Telemetry intake accepts this tag
                 # is_truncation = any((result.truncation for result in list_results))
 
-                if result["version"] is not None:
-                    tags_request = (
-                        ("event_rules_version", result["version"]),
-                        ("waf_version", DDWAF_VERSION),
-                        ("rule_triggered", str(is_triggered).lower()),
-                        ("request_blocked", str(is_blocked).lower()),
-                        ("waf_timeout", str(is_timeout).lower()),
-                    )
-                else:
-                    tags_request = (
-                        ("waf_version", DDWAF_VERSION),
-                        ("rule_triggered", str(is_triggered).lower()),
-                        ("request_blocked", str(is_blocked).lower()),
-                        ("waf_timeout", str(is_timeout).lower()),
-                    )
+                tags_request = (
+                    ("event_rules_version", result["version"]),
+                    ("waf_version", DDWAF_VERSION),
+                    ("rule_triggered", str(result["triggered"]).lower()),
+                    ("request_blocked", str(result["blocked"]).lower()),
+                    ("waf_timeout", str(result["timeout"]).lower()),
+                )
 
                 telemetry.telemetry_writer.add_count_metric(
                     TELEMETRY_NAMESPACE_TAG_APPSEC,
