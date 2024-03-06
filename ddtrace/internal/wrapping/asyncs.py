@@ -18,7 +18,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 #             tosend = yield value
 #         except GeneratorExit:
 #             await __ddgen.aclose()
-#         except:
+#         except Exception:
 #             value = await __ddgen.athrow(*sys.exc_info())
 #         else:
 #             value = await __ddgensend(tosend)

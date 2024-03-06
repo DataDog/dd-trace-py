@@ -1,3 +1,8 @@
+# Only add this project if it doesn't already exist
+if (TARGET cppcheck_project)
+    return()
+endif()
+
 include(ExternalProject)
 
 # Build cppcheck from sources
@@ -17,10 +22,20 @@ endif()
 
 # This function will add a cppcheck target for a given directory
 # unless DO_CPPCHECK is set to false, then it will add a target that does nothing
-function(add_cppcheck_target NAME DIRECTORY)
+function(add_cppcheck_target)
+  # Parse additional arguments as lists
+  set(options)
+  set(oneValueArgs TARGET)
+  set(multiValueArgs INCLUDE SRC)
+  cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+
+  # Automatically generate the cppcheck target name
+  set(NAME "cppcheck_dd_${ARGV0}")
+
   if (DO_CPPCHECK)
-    add_custom_target("${NAME}"
-      COMMAND ${CPPCHECK_EXECUTABLE}
+    # Initialize command variable
+    set(cppcheck_cmd
+      ${CPPCHECK_EXECUTABLE}
       --enable=all
       --addon=threadsafety.py
       --addon=misc
@@ -31,18 +46,31 @@ function(add_cppcheck_target NAME DIRECTORY)
       --suppress=missingIncludeSystem
       --inline-suppr
       --error-exitcode=1
-      -I ${CMAKE_SOURCE_DIR}/include
-      -I ${Datadog_INCLUDE_DIRS}
-      ${CMAKE_SOURCE_DIR}/src
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      COMMENT "Running cppcheck"
     )
-    add_dependencies(cppcheck_runner "${NAME}")
+
+    # Append include directories to the command
+    foreach(INCLUDE_DIR ${ARG_INCLUDE})
+      list(APPEND cppcheck_cmd -I ${INCLUDE_DIR})
+    endforeach()
+
+    # Append source directories/files to the command
+    foreach(SRC_FILE ${ARG_SRC})
+      list(APPEND cppcheck_cmd ${SRC_FILE})
+    endforeach()
+
+    # Define the custom target with the constructed command
+    add_custom_target(${NAME}
+      COMMAND ${cppcheck_cmd}
+      COMMENT "Running cppcheck on ${ARGV0}"
+    )
+
+    # Make the cppcheck target a dependent of the specified target
+    add_dependencies(${ARGV0} ${NAME})
   else()
-    # Need to make this function work, but kinda do nothing
-    add_custom_target("${NAME}"
-      COMMAND echo "building ${NAME} without cppcheck"
-      COMMENT "cppcheck is disabled"
+    # Define a do-nothing target if cppcheck is disabled
+    add_custom_target(${NAME}
+      COMMAND echo "Cppcheck target ${NAME} is disabled."
+      COMMENT "cppcheck is disabled for ${ARGV0}"
     )
   endif()
 endfunction()

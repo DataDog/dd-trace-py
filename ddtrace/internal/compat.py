@@ -274,7 +274,7 @@ def is_valid_ip(ip: str) -> bool:
         # try parsing the IP address
         ipaddress.ip_address(str(ip))
         return True
-    except BaseException:
+    except Exception:
         return False
 
 
