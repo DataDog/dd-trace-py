@@ -71,6 +71,9 @@ class MemoryCollector(collector.PeriodicCollector):
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
+        if self._export_libdd_enabled and not ddup.is_available:
+            self._export_libdd_enabled = False
+
         try:
             _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
         except RuntimeError:

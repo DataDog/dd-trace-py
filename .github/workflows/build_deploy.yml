@@ -78,7 +78,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install cython
+          pip install cython cmake
           python setup.py sdist
       - uses: actions/upload-artifact@v3
         with:
