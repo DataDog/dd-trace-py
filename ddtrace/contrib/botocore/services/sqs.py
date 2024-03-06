@@ -133,10 +133,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             start_ns = time_ns()
             func_run = True
             # run the function before in order to extract possible parent context before starting span
-
+            log.info("sqs patch receive message dispatch pre")
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
             core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+            log.info("sqs patch receive message dispatch post, results below:")
+            log.info(result)
         except Exception as e:
             func_run_err = e
         if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
@@ -165,10 +167,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             # we need to ensure the span start time is correct
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
-
+            log.info("sqs patch send message")
             if args and config.botocore["distributed_tracing"]:
+                log.info("sqs patch distributed tracing enabled")
                 try:
                     if endpoint_name == "sqs" and operation == "SendMessage":
+                        log.info("sqs patch pre injecting message")
                         inject_trace_to_sqs_or_sns_message(
                             params,
                             span,
