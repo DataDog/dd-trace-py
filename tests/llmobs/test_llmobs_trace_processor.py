@@ -26,9 +26,7 @@ def test_processor_creates_llmobs_span_event():
     trace = [root_llm_span]
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [mock.call.enqueue(_expected_llmobs_llm_span_event(root_llm_span, "llm"))]
-    )
+    mock_llmobs_writer.assert_has_calls([mock.call.enqueue(_expected_llmobs_llm_span_event(root_llm_span, "llm"))])
 
 
 def test_processor_only_creates_llmobs_span_event():
