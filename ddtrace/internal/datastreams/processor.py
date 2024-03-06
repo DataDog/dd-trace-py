@@ -493,6 +493,7 @@ class DsmPathwayCodec:
         if not ctx:
             return data_streams_processor.new_pathway()
         log.info("ctx receive")
+        log.info("this is a new logging statement")
         log.info(ctx.hash)
         return ctx
 
