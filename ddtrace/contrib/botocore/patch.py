@@ -127,6 +127,8 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 
 @with_traced_module
 def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
+    log.warning("aws patched api call")
+    print("aws patched api call")
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 

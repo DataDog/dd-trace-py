@@ -60,7 +60,9 @@ def inject_context(trace_data, endpoint_service, dsm_identifier):
     path_type = "type:{}".format(endpoint_service)
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    log.info(f"set checkpoint out {endpoint_service}")
+    log.warning(f"set checkpoint out {endpoint_service}")
+    print("inject_context sqs/sns/kinesis")
+    print(endpoint_service)
     ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
     DsmPathwayCodec.encode(ctx, trace_data)
 
@@ -71,7 +73,8 @@ def handle_kinesis_produce(stream, dd_ctx_json):
 
 
 def handle_sqs_sns_produce(endpoint_service, trace_data, params):
-    log.info("handle_sqs_sns_produce")
+    log.warning("handle_sqs_sns_produce")
+    print("handle_sqs_sns_produce")
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
@@ -133,10 +136,13 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            log.info("receive sqs")
-            log.info(context_json)
+            log.warning("receive sqs")
+            print("receive sqs")
+            log.warning(context_json)
+            print(context_json)
             ctx = DsmPathwayCodec.decode(context_json, processor())
-            log.info("set checkpoint sqs")
+            log.warning("set checkpoint sqs")
+            print("set checkpopint sqs")
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
