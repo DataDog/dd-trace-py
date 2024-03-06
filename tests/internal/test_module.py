@@ -451,3 +451,19 @@ def test_module_watchdog_namespace_import_no_warnings():
     # Test that the namespace import does not emit warnings (e.g. fallback to
     # legacy import machinery).
     import namespace_test.ns_module  # noqa:F401
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="importlib.resources.files is not available or broken in Python < 3.10"
+)
+@pytest.mark.subprocess(env=dict(NSPATH=str(Path(__file__).parent)))
+def test_module_watchdog_importlib_resources_files():
+    import os
+    import sys
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    from importlib.readers import MultiplexedPath
+    import importlib.resources as r
+
+    assert isinstance(r.files("namespace_test"), MultiplexedPath)

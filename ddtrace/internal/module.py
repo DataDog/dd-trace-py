@@ -156,6 +156,21 @@ class _ImportHookChainedLoader:
         # Proxy any other attribute access to the underlying loader.
         return getattr(self.loader, name)
 
+    def namespace_module(self, spec: ModuleSpec) -> ModuleType:
+        module = ModuleType(spec.name)
+        # Pretend that we do not have a loader (this would be self), to
+        # allow _init_module_attrs to create the appropriate NamespaceLoader
+        # for the namespace module.
+        spec.loader = None
+
+        _init_module_attrs(spec, module, override=True)
+
+        # Chain the loaders
+        self.loader = spec.loader
+        module.__loader__ = spec.loader = self  # type: ignore[assignment]
+
+        return module
+
     def add_callback(self, key, callback):
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
@@ -165,8 +180,7 @@ class _ImportHookChainedLoader:
         if self.loader is None:
             if self.spec is None:
                 return None
-            sys.modules[self.spec.name] = module = ModuleType(fullname)
-            _init_module_attrs(self.spec, module)
+            sys.modules[self.spec.name] = module = self.namespace_module(self.spec)
         else:
             module = self.loader.load_module(fullname)
 
@@ -180,9 +194,7 @@ class _ImportHookChainedLoader:
             return self.loader.create_module(spec)
 
         if is_namespace_spec(spec):
-            module = ModuleType(spec.name)
-            _init_module_attrs(spec, module)
-            return module
+            return self.namespace_module(spec)
 
         return None
 
