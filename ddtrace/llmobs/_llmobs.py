@@ -369,7 +369,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(self._get_llmobs_parent_id(span) or ""),
+            "parent_id": str(self._get_llmobs_parent_id(span) or "undefined"),
             "session_id": self._get_session_id(span),
             "name": span.name,
             "tags": tags,
