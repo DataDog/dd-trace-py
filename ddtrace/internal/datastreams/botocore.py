@@ -71,6 +71,7 @@ def handle_kinesis_produce(stream, dd_ctx_json):
 
 
 def handle_sqs_sns_produce(endpoint_service, trace_data, params):
+    log.info("handle_sqs_sns_produce")
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
