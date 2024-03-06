@@ -64,7 +64,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -752,7 +751,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
+            self._sampler.sample(span)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
