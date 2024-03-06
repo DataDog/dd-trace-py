@@ -69,9 +69,9 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
 
-      - name: Run
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh
+      # - name: Run
+      #   if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+      #   run: ./run.sh
 
       - name: Run INTEGRATIONS 
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
