@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euox pipefail
+
 ./setup_custom.sh -C || { echo "Failed cppcheck"; exit 1; }
 ./setup_custom.sh -s || { echo "Failed safety tests"; exit 1; }
 ./setup_custom.sh -f || { echo "Failed -fanalyzer"; exit 1; }

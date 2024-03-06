@@ -455,11 +455,9 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": "~=1.5.0",
-                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
-                                # This issue was fixed in gevent v20.9:
-                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "gevent": "~=20.12.0",
+                                # greenlet v1.0.0 adds support for contextvars
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
@@ -2339,31 +2337,24 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": ["~=1.4.0"],
+                                "gevent": ["~=20.12.0"],
                                 # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
                                 # This issue was fixed in gevent v20.9:
                                 # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
                             pys="3.9",
-                            pkgs={
-                                "gevent": "~=21.1.0",
-                                "greenlet": "~=1.0",
-                            },
+                            pkgs={"gevent": "~=21.1.0", "greenlet": "~=1.0"},
                         ),
                         Venv(
                             pys="3.10",
-                            pkgs={
-                                "gevent": "~=21.8.0",
-                            },
+                            pkgs={"gevent": "~=21.8.0"},
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={
-                                "gevent": "~=22.8.0",
-                            },
+                            pkgs={"gevent": "~=22.8.0"},
                         ),
                     ],
                 ),
