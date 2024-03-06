@@ -6,7 +6,6 @@ import langchain
 import mock
 import pytest
 
-# from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import flaky
 from tests.utils import override_global_config
@@ -37,7 +36,7 @@ def test_global_tags(
         The env should be used for all data
         The version should be used for all data
     """
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         with request_vcr.use_cassette("openai_completion_sync.yaml"):
             llm("What does Nietzsche mean by 'God is dead'?")
@@ -80,14 +79,14 @@ def test_global_tags(
 
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
 @pytest.mark.snapshot(ignores=["resource"])
 def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
         llm.generate(
             prompts=[
@@ -100,7 +99,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_v
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
 @pytest.mark.snapshot
 def test_openai_llm_sync_multiple_prompts_39(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt_39.yaml"):
         llm.generate(
             [
@@ -113,7 +112,7 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, langchain_openai, reques
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource", "langchain.request.openai.parameters.request_timeout"])
 async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_async.yaml"
     else:
@@ -124,7 +123,7 @@ async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
 
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream", ignores=["resource"])
 def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(streaming=True, model="text-davinci-003")
+    llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
         llm("Why is Spongebob so bad at driving?")
 
@@ -135,7 +134,7 @@ def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
     ignores=["meta.langchain.response.completions.0.text"],
 )
 async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
-    llm = langchain_openai.OpenAI(streaming=True, model="text-davinci-003")
+    llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
@@ -144,7 +143,7 @@ async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr)
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
 
     # if parse_version(openai.__version__) >= (1, 0, 0):
     if getattr(openai, "__version__", "") >= "1.0.0":
@@ -187,7 +186,7 @@ def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
 
 
 def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
     else:
@@ -245,7 +244,7 @@ def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metri
 def test_llm_logs(
     langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
 ):
-    llm = langchain_openai.OpenAI(model="text-davinci-003")
+    llm = langchain_openai.OpenAI()
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
     else:
@@ -1178,7 +1177,6 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
 """,
         env=env,
     )
-    print("FULL ERR IS", err)
     assert status == 0, err
     assert out == b""
     assert err == b""
@@ -1238,7 +1236,7 @@ def test_llm_logs_when_response_not_completed(
     """Test that errors get logged even if the response is not returned."""
     with mock.patch("langchain_community.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
-            llm = langchain_openai.OpenAI(model="text-davinci-003")
+            llm = langchain_openai.OpenAI()
             llm("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
     span = mock_tracer.pop_traces()[0][0]

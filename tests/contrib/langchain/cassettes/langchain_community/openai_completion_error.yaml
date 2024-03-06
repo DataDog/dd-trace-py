@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"model": "text-davinci-003", "prompt": [12345, 123456], "frequency_penalty":
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": [12345, 123456], "frequency_penalty":
       0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature":
       0.7, "top_p": 1}'
     headers:
@@ -11,7 +11,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '180'
+      - '186'
       content-type:
       - application/json
       host:
@@ -36,34 +36,31 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: !!binary |
-        H4sIAAAAAAAAA0yOQYoCMRBF932KImu1hdnlHO7bMvlOB5JUrFSLg3j3gQyDLv/jP3jPiYjIQVXU
-        eXqOOVBB7/wN58mdVlCRiExnw8P2ke+phrQ/Hr/OtHKnC1ApoikCG+KOMlgrFVHQCoWn1ax1P88t
-        s11Fy0EaKqdDkDJHCX3+t5PU7nbvDPtpoyHVO+cUF8VtQ7flr/jj2Fi5OE91y/kDB4nDH/1LFVuu
-        stXoxuM1vaZfAAAA//8DAJJDo/MCAQAA
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604e4a1aadb4288-EWR
+      - 86052746c9df18ae-EWR
       Connection:
       - keep-alive
-      Content-Encoding:
-      - gzip
+      Content-Length:
+      - '276'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Wed, 06 Mar 2024 19:53:38 GMT
+      - Wed, 06 Mar 2024 20:39:08 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=19pkD_Sjyt7nosysckmtVTjW.nWjdk3fjkje8PjF2gg-1709754818-1.0.1.1-o0ndFiHYzLrky6h9pzyWRAdPipZ3F1i6hqJIKmluvH0eXopIh6z0iSKWWb6ky_3BEFhS4HLb_bJrwySEGuN.Iw;
-        path=/; expires=Wed, 06-Mar-24 20:23:38 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=Tnz9HgOZNODtPHcAA6ETEI0.7laTZW0MUfxTV_BVSBY-1709757548-1.0.1.1-cF75MenBIUw8s3RG4E5hToJt6Veeo9Bo.FfDPAl1uZD6gG5bqQ30DyG3MKdAnnP5g5br64KaX0Vm1YEVbm5NRQ;
+        path=/; expires=Wed, 06-Mar-24 21:09:08 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=09Wr.TAyYhXT0EeT8EZeVUv9ghT5sXxZVNGWwPVfs24-1709754818891-0.0.1.1-604800000;
+      - _cfuvid=rnYzE2Vc9Bzl2N3lU.baHU2i6tRjM4mngRTu_bkB9FY-1709757548674-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
-      Transfer-Encoding:
-      - chunked
       alt-svc:
       - h3=":443"; ma=86400
       strict-transport-security:
@@ -71,8 +68,8 @@ interactions:
       vary:
       - Origin
       x-request-id:
-      - req_38d7822c15aa915c77fa7e01f4e52e37
+      - req_50c7d91ebb80d0304223510215f1bdec
     status:
-      code: 404
-      message: Not Found
+      code: 401
+      message: Unauthorized
 version: 1

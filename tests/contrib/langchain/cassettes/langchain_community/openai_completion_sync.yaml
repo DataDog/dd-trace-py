@@ -1,77 +1,124 @@
 interactions:
 - request:
-    body: '{"prompt": ["Can you explain what Descartes meant by ''I think, therefore
-      I am''?"], "model": "text-davinci-003", "temperature": 0.7, "max_tokens": 256,
-      "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
-      {}}'
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Can you explain what Descartes
+      meant by ''I think, therefore I am''?"], "frequency_penalty": 0, "logit_bias":
+      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
+      1}'
     headers:
-      Accept:
-      - '*/*'
-      Accept-Encoding:
-      - gzip, deflate
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '235'
-      Content-Type:
+      accept:
       - application/json
-      User-Agent: 
-      - OpenAI/v1 PythonBindings/0.27.8
-      X-OpenAI-Client-User-Agent:
-      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
-        "3.10.13", "platform": "macOS-13.6.4-arm64-arm-64bit", "publisher": "openai",
-        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Sun Dec 17 22:12:45
-        PST 2023; root:xnu-8796.141.3.703.2~2/RELEASE_ARM64_T6000 arm64 arm"}'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '241'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
       traceparent:
-      - 00-65e8c8b70000000096b775c8e5b26282-6d028612d8601cce-01
+      - 00-65e8d6800000000063d58894e9a99fd0-8f8262358508fd13-01
       tracestate:
-      - dd=p:6d028612d8601cce;s:1;t.dm:-0;t.tid:65e8c8b700000000
+      - dd=p:8f8262358508fd13;s:1;t.dm:-0;t.tid:65e8d68000000000
+      user-agent:
+      - OpenAI/Python 1.12.0
       x-datadog-parent-id:
-      - '7854988115585277134'
+      - '10340935676400827667'
       x-datadog-sampling-priority:
       - '1'
       x-datadog-tags:
-      - _dd.p.dm=-0,_dd.p.tid=65e8c8b700000000
+      - _dd.p.dm=-0,_dd.p.tid=65e8d68000000000
       x-datadog-trace-id:
-      - '10860278532134822530'
+      - '7193806152950980560'
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
-        \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
-        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
-        \"invalid_api_key\"\n    }\n}\n"
+      string: !!binary |
+        H4sIAAAAAAAAA5RUTW/jRgy9+1cQuuxFDrJdpElzC9KvXFqgDQoUdRGMRrTEekSqQyqOs9j/vuDI
+        sbzdUy8CPCQfH9+j+XEFUFFb3UIVhzGtb1718e7+9e46Xf3EdP8b/0m/3P2+2/0w/RF+rWrPluYf
+        jOYVhi/2FGUYExoJz+GYMRg64vvry++ur24uby5LYJAWk5d1o60/XFytbcqNrInV8hTtWN0LRdTq
+        Fv5aAQB8LF+Ye3nxhjf8PWoM2VBrCPD+2vp1RLYpH+DHjBx7GHtKojL2mGsghR3LnmErGXpS2IZB
+        JgW1YDggG2yqe+nIpAbMnYBOw6aCfU+x92LZGjJYDqzJJ4OgsKkewHriXQ3WY8atZIQHCMOmuoBH
+        b7Kgk3oObGXiNrhOINvC48TyAIFbzwtJ5Ug2zFWb6r5MSoEhYrZAbIdNdfGFDNBgInzGFohLFQ2j
+        ZAsc0XvpDkejSDqUPq1MjY+Bz5gPPkQHPcKOcV8DcUxTW5588j0DvpAacsQL+Fn2XlN7esaQ6BVb
+        sD6YQ/Fb7xDNm5YuxF3JHia1GQlMoBVQOcqUsIWeBn/24ihOQF2kAuxvTvMNtWju9E6D+I8xyzNq
+        oXxG94FB3BzYS261nk1wnILsKimEJuHcm3hXQP+dUItJX6CB9rLXU+XZPMSgMri9eSiuPL7tQw0h
+        RslFTRM4W1pnIpwOMKtfUGNgaPBo/p6sh9CopMlw8b1sI+O7/zhT+7Lgy5hRddmB8/X+H8s6jIlQ
+        F/UXCWQLYTGgQf8ed7sMs9B0HRWze3JcY7WQZ6uE2Mo/MaRUpk3YdlhKJm4xqwV2yYqWDwyhbcn9
+        qBcBIeRuels9Rx+I24LQSHuAkBEUx5CDISAbGbnoRdNT9ky/UJMpz9NFYY0kkzKqFjyPF8w5PcDY
+        H5RiSDAfwa/kK3/grzQsHY9SuUdsFBKMIdss6ohZhd/p3MbtLMew3D3iFl+qW7g8vSTpxiyN30ie
+        Ujq9b4lJ+6eMQYX9VCbkzvqqxD+tAP4uF3bS0GF1e7ys1ZhlGO3JZIes5WjPgNVy15fgN1ffHqMm
+        FtJZ4PrDypt8Wn0GAAD//wMAI+t2QFEGAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604de1de81541e7-EWR
+      - 860534418ace179d-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
       Connection:
       - keep-alive
-      Content-Length:
-      - '276'
+      Content-Encoding:
+      - gzip
       Content-Type:
-      - application/json; charset=utf-8
+      - application/json
       Date:
-      - Wed, 06 Mar 2024 19:49:12 GMT
+      - Wed, 06 Mar 2024 20:48:02 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=ocLOuHDQ6xBJP1Sq.SLf6z9mw9MNxvBrFvvWRESNWWs-1709754552-1.0.1.1-Bd5ThNKtAIjbm7eDt_Xof1xP_YJRahlUfByg._lZzpsmqOYDbH4pZgczCsxe_SHHe8gQXvBfNXIua5lCKWj0fg;
-        path=/; expires=Wed, 06-Mar-24 20:19:12 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=7KLuTNm1QghUYFo3ybI9wHTrJ7B1tDPYAaf4A_15hWA-1709758082-1.0.1.1-e4T69yW7yR9LwR1AJbkBXQ8oqHm8hxki.YHf0S7BRZCBjrKT2A1yOC_aZHcBmegOaYQ4t7kSNYDkhxItrUWHLQ;
+        path=/; expires=Wed, 06-Mar-24 21:18:02 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=4EYgtfWLgNKBsuGM7Pfg.zLZjwIK21GmH9bnyPa12h8-1709754552116-0.0.1.1-604800000;
+      - _cfuvid=RKlfnJR4hEerxJSlhfZVXvy7Oh9IhnX8jCOhnRX03Ek-1709758082775-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
       alt-svc:
       - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2393'
+      openai-version:
+      - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
-      vary:
-      - Origin
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249727'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 65ms
       x-request-id:
-      - req_b578ebbb5859000c52ce9647531e0ec7
+      - req_3dcf41b395618fed435addea9552a689
     status:
-      code: 401
-      message: Unauthorized
+      code: 200
+      message: OK
 version: 1

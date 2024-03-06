@@ -1,8 +1,8 @@
 interactions:
 - request:
-    body: '{"model": "text-davinci-003", "prompt": ["Which team won the 2019 NBA finals?"],
-      "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
-      0, "temperature": 0.7, "top_p": 1}'
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Which team won the 2019
+      NBA finals?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256,
+      "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
     headers:
       accept:
       - application/json
@@ -11,7 +11,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '204'
+      - '210'
       content-type:
       - application/json
       host:
@@ -37,42 +37,66 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0yOQYoCMRBF932KImu1hdnlHO7bMvlOB5JUrFSLg3j3gQyDLv/jP3jPiYjIQVXU
-        eXqOOVBB7/wN58mdVlCRiExnw8P2ke+phrQ/Hr/OtHKnC1ApoikCG+KOMlgrFVHQCoWn1ax1P88t
-        s11Fy0EaKqdDkDJHCX3+t5PU7nbvDPtpoyHVO+cUF8VtQ7flr/jj2Fi5OE91y/kDB4nDH/1LFVuu
-        stXoxuM1vaZfAAAA//8DAJJDo/MCAQAA
+        H4sIAAAAAAAAA0yQS2/CMBCE7/kVK58blKQPmtwogmMPFYdKpULBbBMHx2vZa5WH+O+VQwS97GFm
+        Z77VnhMAoXaiAiF7q9PXE89Px3k/W+QdeeyWoVyETO6Lp+NnEA9xm7YdSo4JxgNvJPVWIysyV1s6
+        rBljYz7NyulLVhb5YPS0Qx1jjeX0cfKccnBbSpXx7ILkMd2SkuhFBV8JAMB5mHBlxfDarM2qRViR
+        I8MEH7Vlch5+yQC3CEWWl/D+NoOlMrX2k6F2aFBmhwdRQXZTNDXW0TbSTND6pv8oo3y7cVh7MhHq
+        mawY3EsC8D1cGnzdoKjGC4V11FveMO3RxMJ8xIj7f/6ZxWgyca3velEkEXFJ/gAAAP//AwCv9Cfv
+        lwEAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 8604e47758a0423b-EWR
+      - 8605799edd1c439c-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
       Connection:
       - keep-alive
       Content-Encoding:
       - gzip
       Content-Type:
-      - application/json; charset=utf-8
+      - application/json
       Date:
-      - Wed, 06 Mar 2024 19:53:32 GMT
+      - Wed, 06 Mar 2024 21:35:21 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=Ww_ov.K5uL8rYqUxOtkCadA4nxgGrTPpvx0oHH1pfc0-1709754812-1.0.1.1-uB8o1QjgbNw6TzcjW1BlsP8o8NKKVNckMnXFEatP9oaEWpGv4lwXSPV.rgYMYtdpzhJmB1LZqOb.jCiREjU3vg;
-        path=/; expires=Wed, 06-Mar-24 20:23:32 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=b3USpOEpxhNmxOpiE1tm1IBKxyK4GLbflVs_hrhdwyg-1709760921-1.0.1.1-XHi7Vc8d_yC6totIzrZZ2GZ9Z69DDu2BHzSFbJ7qO8iWjpastKBBYZgh1que28TnJtYDbNsHrDg5i0S8m8hc0Q;
+        path=/; expires=Wed, 06-Mar-24 22:05:21 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=ptvxVVatP00OXgeJWXeRI9.tlKLL14zU9aWg00kxUMg-1709754812119-0.0.1.1-604800000;
+      - _cfuvid=3rH34R5zCyRzeipsUfJ8XN.xIRLRFwVvhJ7dtzI7d40-1709760921708-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
+      access-control-allow-origin:
+      - '*'
       alt-svc:
       - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '159'
+      openai-version:
+      - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
-      vary:
-      - Origin
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249735'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 63ms
       x-request-id:
-      - req_12226249853e71b041943f34e550671a
+      - req_508bebac21bca4d530c6942400386c31
     status:
-      code: 404
-      message: Not Found
+      code: 200
+      message: OK
 version: 1
