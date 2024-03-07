@@ -641,6 +641,7 @@ class Tracer(object):
                     sampling_priority=child_of.context.sampling_priority,
                     span_id=child_of.span_id,
                     trace_id=child_of.trace_id,
+                    is_remote=False,
                 )
 
                 # If the child_of span was active then activate the new context
@@ -658,7 +659,7 @@ class Tracer(object):
                 context = child_of.context
                 parent = child_of
         else:
-            context = Context()
+            context = Context(is_remote=False)
 
         trace_id = context.trace_id
         parent_id = context.span_id
