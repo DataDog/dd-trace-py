@@ -213,7 +213,7 @@ def w3c_tracestate_add_p(tracestate, span_id):
         return tracestate.replace("dd=", f"dd={p_member};")
     elif tracestate:
         return f"dd={p_member},{tracestate}"
-     return f"dd={p_member}"
+    return f"dd={p_member}"
 
 
 class Response(object):
