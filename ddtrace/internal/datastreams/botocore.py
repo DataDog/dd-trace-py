@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 
 from ddtrace import config
-from ddtrace.contrib.botocore.utils import get_kinesis_data_object
+# from ddtrace.contrib.botocore.utils import get_kinesis_data_object
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
@@ -160,7 +160,7 @@ def record_data_streams_path_for_kinesis_stream(params, results):
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
 
-        _, data_obj = get_kinesis_data_object(record["Data"])
+        # _, data_obj = get_kinesis_data_object(record["Data"])
         data_obj = data_obj if data_obj else {}
 
         ctx = DsmPathwayCodec.decode(data_obj.get("_datadog"), processor())
