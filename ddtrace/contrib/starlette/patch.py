@@ -47,6 +47,9 @@ def get_version():
     return getattr(starlette, "__version__", "")
 
 
+_STARLETTE_VERSION = tuple(map(int, get_version().split(".")))
+
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
@@ -162,6 +165,10 @@ def traced_handler(wrapped, instance, args, kwargs):
     core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
+
+    # https://github.com/encode/starlette/issues/1336
+    if _STARLETTE_VERSION <= (0, 33, 0) and len(request_spans) > 1:
+        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)
 
