@@ -283,6 +283,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         self->_stopped->set();
     });
 
+    // Detach the thread. We will make our own joinable mechanism.
+    self->_thread->detach();
+
     // Wait for the thread to start
     {
         AllowThreads _;
@@ -334,12 +337,13 @@ static PyObject*
 PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
     if (self->_thread == nullptr) {
-        PyErr_SetString(PyExc_RuntimeError, "Thread not started");
+        PyErr_SetString(PyExc_RuntimeError, "Periodic thread not started");
         return NULL;
     }
 
-    if (!self->_thread->joinable()) {
-        Py_RETURN_NONE;
+    if (self->_thread->get_id() == std::this_thread::get_id()) {
+        PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
+        return NULL;
     }
 
     PyObject* timeout = Py_None;
@@ -351,8 +355,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     if (timeout == Py_None) {
         AllowThreads _;
 
-        if (self->_thread->joinable())
-            self->_thread->join();
+        self->_stopped->wait();
     } else {
         double timeout_value = 0.0;
 
@@ -369,8 +372,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
         auto interval = std::chrono::milliseconds((long long)(timeout_value * 1000));
 
-        if (self->_stopped->wait(interval) && self->_thread->joinable())
-            self->_thread->join();
+        self->_stopped->wait(interval);
     }
 
     Py_RETURN_NONE;
@@ -381,29 +383,7 @@ static void
 PeriodicThread_dealloc(PeriodicThread* self)
 {
     // Since the native thread holds a strong reference to this object, we
-    // can only get here if the thread has actually stopped. Therefore, the
-    // call to join should not block.
-
-    if (_Py_IsFinalizing()) {
-        // Don't bother joining the thread if we are finalizing.
-        if (self->_thread->joinable())
-            self->_thread->detach();
-    } else {
-        try {
-            AllowThreads _;
-
-            if (self->_thread->joinable())
-                self->_thread->join();
-        } catch (std::system_error&) {
-            // We have tried joining the thread from within itself. This is because
-            // the only reference left was the one acquired by the thread itself,
-            // and the thread was not joined. In this case we simply detach the
-            // thread. Note that this will cause a memory leak.
-            if (self->_thread->joinable())
-                self->_thread->detach();
-            return;
-        }
-    }
+    // can only get here if the thread has actually stopped.
 
     // Unmap the PeriodicThread
     if (self->ident != NULL && PyDict_Contains(_periodic_threads, self->ident))
