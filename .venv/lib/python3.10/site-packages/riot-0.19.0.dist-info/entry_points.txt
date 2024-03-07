@@ -1,0 +1,2 @@
+[console_scripts]
+riot = riot.__main__:main
