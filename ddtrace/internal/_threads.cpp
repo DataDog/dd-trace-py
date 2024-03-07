@@ -385,6 +385,16 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Since the native thread holds a strong reference to this object, we
     // can only get here if the thread has actually stopped.
 
+    if (_Py_IsFinalizing())
+        // Do nothing. We are about to terminate and release resources anyway.
+        return;
+
+    // If we are trying to stop from the same thread, then we are still running.
+    // This should happen rarely, so we don't worry about the memory leak this
+    // will cause.
+    if (self->_thread != nullptr && self->_thread->get_id() == std::this_thread::get_id())
+        return;
+
     // Unmap the PeriodicThread
     if (self->ident != NULL && PyDict_Contains(_periodic_threads, self->ident))
         PyDict_DelItem(_periodic_threads, self->ident);
