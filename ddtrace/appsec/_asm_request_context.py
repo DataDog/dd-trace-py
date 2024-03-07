@@ -156,7 +156,7 @@ class _DataHandler:
                 if len(callbacks) > 0:
                     for function in callbacks:
                         function(env)
-                    self.execution_context.end()
+                self.execution_context.end()
             self.active = False
 
 
