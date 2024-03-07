@@ -2,6 +2,9 @@ import os
 
 import vcr
 
+import ddtrace
+from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
+
 
 logs_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
@@ -21,7 +24,8 @@ def _expected_llmobs_tags(error=None, tags=None):
         "env:{}".format(tags.get("env", "")),
         "service:{}".format(tags.get("service", "")),
         "source:integration",
-        "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "ml_app:{}".format(tags.get("ml_app", DEFAULT_ML_APP_NAME)),
+        "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
         expected_tags.append("error:1")
@@ -138,7 +142,7 @@ def _llmobs_base_span_event(
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": "",
+        "parent_id": "undefined",
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(tags=tags, error=error),

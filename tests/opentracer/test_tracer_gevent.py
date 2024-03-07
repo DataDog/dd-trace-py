@@ -5,7 +5,6 @@ import pytest
 import ddtrace
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
-from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 
 @pytest.fixture()
@@ -192,20 +191,3 @@ class TestTracerGeventCompatibility(object):
         assert worker_2.resource == "greenlet.worker"
         assert worker_2.parent_id == parent_span.span_id
 
-
-class TestUtilsGevent(object):
-    """Test the util routines of the opentracer with gevent specific
-    configuration.
-    """
-
-    def test_get_context_provider_for_scope_manager_asyncio(self):
-        scope_manager = GeventScopeManager()
-        ctx_prov = get_context_provider_for_scope_manager(scope_manager)
-        assert isinstance(ctx_prov, ddtrace.contrib.gevent.provider.GeventContextProvider)
-
-    def test_tracer_context_provider_config(self):
-        tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=GeventScopeManager())
-        assert isinstance(
-            tracer._dd_tracer.context_provider,
-            ddtrace.contrib.gevent.provider.GeventContextProvider,
-        )
