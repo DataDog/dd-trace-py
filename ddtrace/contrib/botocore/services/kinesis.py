@@ -129,7 +129,9 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             for record in records:
                 _, data_obj = get_kinesis_data_object(record["Data"])
                 time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-                core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, time_estimate, data_obj])
+                core.dispatch(
+                    f"botocore.{endpoint_name}.{operation}.post", [params, time_estimate, data_obj.get("_datadog")]
+                )
 
         except Exception as e:
             func_run_err = e
