@@ -37,7 +37,7 @@ machine_executor: &machine_executor
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
     - PYTHONUNBUFFERED: 1
   steps:
-    - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git
+    - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" --force-yes -y --no-install-recommends openssh-client git gdb
     - &pyenv-set-global
       run:
         name: Set global pyenv
@@ -141,12 +141,22 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
+            - run: ulimit -c unlimited
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - unless:
           condition:
               << parameters.snapshot >>
@@ -167,11 +177,21 @@ commands:
                       command: |
                         echo 'export DD_TRACE_AGENT_URL=<< parameters.trace_agent_url >>' >> "$BASH_ENV"
                         source "$BASH_ENV"
+            - run: ulimit -c unlimited
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - when:
           condition:
             and:
@@ -253,12 +273,22 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
+            - run: ulimit -c unlimited
             - run:
                 name: Run tests
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                 command: |
                   ./scripts/run-test-suite-hatch '<<parameters.env>>' 1
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - unless:
           condition:
               << parameters.snapshot >>
@@ -626,11 +656,21 @@ jobs:
       - setup_riot
       - start_docker_services:
           services: ddagent
+      - run: ulimit -c unlimited
       - run:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
             ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
+      - run:
+          command: |
+            mkdir -p /tmp/core_dumps
+            cp core.* /tmp/core_dumps
+            ./scripts/bt
+          when: on_fail
+      - store_artifacts:
+          name: "Store core dumps"
+          path: /tmp/core_dumps
 
   integration_testagent:
     <<: *machine_executor
