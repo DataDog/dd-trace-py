@@ -9,7 +9,6 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.contrib.requests.patch import patch
 from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -62,31 +61,30 @@ def test_ssrf(tracer, iast_span_defaults):
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_ssrf_deduplication(num_vuln_expected, tracer, iast_span_defaults):
-    with override_global_config(dict(_iast_enabled=True)), override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
-        patch()
-        import requests
-        from requests.exceptions import ConnectionError
+def test_ssrf_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+    patch()
+    import requests
+    from requests.exceptions import ConnectionError
 
-        tainted_path = taint_pyobject(
-            pyobject="forbidden_dir/",
-            source_name="test_ssrf",
-            source_value="forbidden_dir/",
-            source_origin=OriginType.PARAMETER,
-        )
-        url = add_aspect("http://localhost/", tainted_path)
-        for _ in range(0, 5):
-            try:
-                # label test_ssrf
-                requests.get(url)
-            except ConnectionError:
-                pass
+    tainted_path = taint_pyobject(
+        pyobject="forbidden_dir/",
+        source_name="test_ssrf",
+        source_value="forbidden_dir/",
+        source_origin=OriginType.PARAMETER,
+    )
+    url = add_aspect("http://localhost/", tainted_path)
+    for _ in range(0, 5):
+        try:
+            # label test_ssrf
+            requests.get(url)
+        except ConnectionError:
+            pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
 
-        if num_vuln_expected == 0:
-            assert span_report is None
-        else:
-            assert span_report
+    if num_vuln_expected == 0:
+        assert span_report is None
+    else:
+        assert span_report
 
-            assert len(span_report.vulnerabilities) == num_vuln_expected
+        assert len(span_report.vulnerabilities) == num_vuln_expected

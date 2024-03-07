@@ -13,6 +13,8 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
@@ -27,15 +29,14 @@ from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
@@ -137,11 +138,6 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-                if asm_config._api_security_enabled:
-                    with open(DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
-                        processors = json.load(f_apisec)
-                        rules["processors"] = processors["processors"]
-                        rules["scanners"] = processors["scanners"]
                 self._update_actions(rules)
 
         except EnvironmentError as err:
@@ -173,12 +169,16 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
             raise
+        self._update_required()
+
+    def _update_required(self):
+        self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
-            self._mark_needed(address)
+            self._addresses_to_keep.add(address)
         # we always need the request headers
-        self._mark_needed(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
-        self._mark_needed(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
+        self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_actions(self, rules: Dict[str, Any]) -> None:
         new_actions = rules.get("actions", [])
@@ -204,6 +204,7 @@ class AppSecSpanProcessor(SpanProcessor):
             error_msg = "Error updating ASM rules. Invalid rules"
             log.debug(error_msg)
             _set_waf_error_metric(error_msg, "", self._ddwaf.info)
+        self._update_required()
         return result
 
     def on_span_start(self, span: Span) -> None:
@@ -289,7 +290,8 @@ class AppSecSpanProcessor(SpanProcessor):
                     value = custom_data.get(key)
                 elif key in SPAN_DATA_NAMES:
                     value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
-                if value is not None:
+                # if value is a callable, it's a lazy value for api security that should not be sent now
+                if value is not None and not hasattr(value, "__call__"):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
@@ -366,15 +368,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 if headers_req:
                     _set_headers(span, headers_req, kind=kind)
 
-            if waf_results and waf_results.data:
-                span.set_tag_str(
-                    APPSEC.JSON,
-                    '{"triggers":%s}'
-                    % (json.dumps(waf_results.data, sort_keys=True, indent=2, separators=(",", ": ")),),
-                )
+            _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
-                _set_waf_request_metrics()
 
             # Partial DDAS-011-00
             span.set_tag_str(APPSEC.EVENT, "true")
@@ -392,9 +388,6 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results.derivatives
 
-    def _mark_needed(self, address: str) -> None:
-        self._addresses_to_keep.add(address)
-
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
 
@@ -407,7 +400,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="response")
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if span.get_tag(APPSEC.JSON) is None and _asm_request_context.in_context():
+                if not has_triggers(span) and _asm_request_context.in_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 

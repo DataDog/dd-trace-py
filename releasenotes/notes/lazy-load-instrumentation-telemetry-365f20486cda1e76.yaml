@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Optionally lazy loads and disables Instrumentation Telemetry. Users must explicitly set "DD_INSTRUMENTATION_TELEMETRY_ENABLED=false".

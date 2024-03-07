@@ -1,11 +1,13 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.chains.qa_with_sources.retrieval.RetrievalQAWithSourcesChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -21,7 +23,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 107,
       "langchain.tokens.prompt_tokens": 2889,
@@ -34,11 +35,13 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.vectorstores.pinecone.Pinecone",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.api_key": "...key>",
@@ -71,7 +74,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.response.document_count": 4
        },
        "duration": 24933899,
@@ -79,11 +81,13 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.embeddings.openai.OpenAIEmbeddings",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
@@ -94,7 +98,6 @@
           },
           "metrics": {
             "_dd.measured": 1,
-            "_sample_rate": 1.0,
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
@@ -103,11 +106,13 @@
         },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.combine_documents.stuff.StuffDocumentsChain",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
@@ -119,7 +124,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 107,
          "langchain.tokens.prompt_tokens": 2889,
          "langchain.tokens.total_cost": 0.05992,
@@ -130,11 +134,13 @@
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.chains.llm.LLMChain",
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.inputs.question": "Who was Alan Turing?",
@@ -147,7 +153,6 @@
           },
           "metrics": {
             "_dd.measured": 1,
-            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 107,
             "langchain.tokens.prompt_tokens": 2889,
             "langchain.tokens.total_cost": 0.05992,
@@ -158,11 +163,13 @@
         },
            {
              "name": "langchain.request",
-             "service": null,
+             "service": "",
              "resource": "langchain.llms.openai.OpenAI",
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 5,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.p.tid": "654a694400000000",
                "langchain.request.api_key": "...key>",
@@ -184,7 +191,6 @@
              },
              "metrics": {
                "_dd.measured": 1,
-               "_sample_rate": 1.0,
                "langchain.tokens.completion_tokens": 107,
                "langchain.tokens.prompt_tokens": 2889,
                "langchain.tokens.total_cost": 0.05992,

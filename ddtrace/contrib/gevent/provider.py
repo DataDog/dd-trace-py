@@ -1,8 +1,9 @@
 import gevent
 
-from ...provider import BaseContextProvider
-from ...provider import DatadogContextMixin
-from ...span import Span
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.provider import DatadogContextMixin
+from ddtrace._trace.span import Span
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class GeventContextProvider(BaseContextProvider, DatadogContextMixin):
@@ -14,6 +15,10 @@ class GeventContextProvider(BaseContextProvider, DatadogContextMixin):
 
     # Greenlet attribute used to set/get the context
     _CONTEXT_ATTR = "__datadog_context"
+
+    def __init__(self) -> None:
+        deprecate("GeventContextProvider is deprecated and will be removed in a future version.", "3.0.0")
+        super().__init__()
 
     def _get_current_context(self):
         """Helper to get the active context from the current greenlet."""

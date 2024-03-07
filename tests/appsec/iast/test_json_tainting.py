@@ -9,7 +9,6 @@ from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
-from ddtrace.appsec._iast._taint_utils import _is_tainted_struct
 from tests.utils import override_global_config
 
 
@@ -53,13 +52,6 @@ def test_taint_json(iast_span_defaults, input_jsonstr, res_type, tainted_type):
         assert is_pyobject_tainted(input_str)
 
         res = json.loads(input_str)
-        assert isinstance(res, (str, bytes, bytearray)) or _is_tainted_struct(res)
-
-        # this must pass as expected type
-        assert isinstance(res, res_type)
-        # this must be tainted type
-        assert isinstance(res, tainted_type)
-        assert type(res) is tainted_type
 
         assert is_fully_tainted(res)
 

@@ -7,29 +7,30 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "65e2cd9000000000",
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/sub-app/hello/{name}",
       "http.status_code": "200",
-      "http.url": "http://testserver/sub-app/hello/name",
+      "http.url": "http://testserver/sub-app/hello/foo",
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "00711884dae84cab958adda67a7be9b6",
+      "runtime-id": "a89de0282259441ba89e19dca313cc1f",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 42682
+      "process_id": 73182
     },
-    "duration": 730584,
-    "start": 1692709944143176043
+    "duration": 1111000,
+    "start": 1709362576024858000
   },
      {
        "name": "fastapi.request",
@@ -39,19 +40,19 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
-         "_dd.p.tid": "654a694400000000",
          "component": "fastapi",
          "http.method": "GET",
          "http.status_code": "200",
-         "http.url": "http://testserver/sub-app/hello/name",
+         "http.url": "http://testserver/sub-app/hello/foo",
          "http.useragent": "testclient",
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 520875,
-       "start": 1692709944143403002
+       "duration": 870000,
+       "start": 1709362576025112000
      },
         {
           "name": "fastapi.serialize_response",
@@ -60,10 +61,11 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
-            "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000"
+            "_dd.base_service": ""
           },
-          "duration": 45250,
-          "start": 1692709944143732585
+          "duration": 42000,
+          "start": 1709362576025776000
         }]]

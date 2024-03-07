@@ -3,11 +3,8 @@ from __future__ import absolute_import
 from functools import wraps
 from itertools import repeat
 import random
-import sys
 from time import sleep
 import typing as t
-
-import six
 
 
 class RetryError(Exception):
@@ -24,13 +21,13 @@ def retry(
         def retry_wrapped(*args, **kwargs):
             sleep(initial_wait)
             after_iter = repeat(after) if isinstance(after, (int, float)) else after
-            exc_info = None
+            exception = None
 
             for s in after_iter:
                 try:
                     result = f(*args, **kwargs)
                 except Exception as e:
-                    exc_info = sys.exc_info()
+                    exception = e
                     result = e
 
                 if until(result):
@@ -42,14 +39,14 @@ def retry(
             try:
                 result = f(*args, **kwargs)
             except Exception as e:
-                exc_info = sys.exc_info()
+                exception = e
                 result = e
 
             if until(result):
                 return result
 
-            if exc_info is not None:
-                six.reraise(*exc_info)
+            if exception is not None:
+                raise exception
 
             raise RetryError(result)
 

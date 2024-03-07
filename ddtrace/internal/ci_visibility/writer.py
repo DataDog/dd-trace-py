@@ -28,8 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
 
-    from ...sampler import BaseSampler  # noqa:F401
-
 
 class CIVisibilityEventClient(WriterClientBase):
     def __init__(self):
@@ -80,7 +78,6 @@ class CIVisibilityWriter(HTTPWriter):
     def __init__(
         self,
         intake_url="",  # type: str
-        sampler=None,  # type: Optional[BaseSampler]
         processing_interval=None,  # type: Optional[float]
         timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
@@ -128,7 +125,6 @@ class CIVisibilityWriter(HTTPWriter):
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
-            sampler=sampler,
             processing_interval=processing_interval,
             timeout=timeout,
             dogstatsd=dogstatsd,
@@ -145,7 +141,6 @@ class CIVisibilityWriter(HTTPWriter):
         # type: () -> HTTPWriter
         return self.__class__(
             intake_url=self.intake_url,
-            sampler=self._sampler,
             processing_interval=self._interval,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,

@@ -8,6 +8,7 @@ import ddtrace
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -108,9 +109,16 @@ class PytestTestCase(TracerTestCase):
         )
 
         with override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, False)
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(True, False, False, True),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
@@ -195,7 +203,8 @@ class PytestTestCase(TracerTestCase):
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
             }
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=(True, True)
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(True, True, False, True),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
         ), mock.patch.object(
@@ -205,7 +214,13 @@ class PytestTestCase(TracerTestCase):
                 "test_cov_second.py",
             ],
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath), os.path.basename(py_cov_file2.strpath))
+            self.inline_run(
+                "-p",
+                "no:randomly",
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                os.path.basename(py_cov_file2.strpath),
+            )
         spans = self.pop_spans()
 
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]

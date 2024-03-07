@@ -15,6 +15,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -43,7 +44,15 @@ log = get_logger(__name__)
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
-    import ddtrace.profiling.auto  # noqa: F401
+    try:
+        import ddtrace.profiling.auto  # noqa: F401
+    except Exception:
+        log.error("failed to enable profiling", exc_info=True)
+
+if symdb_config.enabled:
+    from ddtrace.internal import symbol_db
+
+    symbol_db.bootstrap()
 
 if di_config.enabled or ed_config.enabled:
     from ddtrace.debugging import DynamicInstrumentation
@@ -60,12 +69,14 @@ if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
+        log.debug("IAST enabled")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
 
 if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     remoteconfig_poller.enable()
+    config.enable_remote_configuration()
 
 if asm_config._asm_enabled or config._remote_config_enabled:
     from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
@@ -82,6 +93,11 @@ if config._otel_enabled:
 
         set_tracer_provider(TracerProvider())
 
+
+if config._llmobs_enabled:
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable()
 
 if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     from ddtrace import patch_all

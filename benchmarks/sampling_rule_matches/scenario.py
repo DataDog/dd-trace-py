@@ -4,7 +4,7 @@ import string
 
 import bm
 
-from ddtrace import Span
+from ddtrace._trace.span import Span
 from ddtrace.sampling_rule import SamplingRule
 
 
@@ -37,19 +37,21 @@ class SamplingRules(bm.Scenario):
         resource_names = [rands() for _ in range(self.num_resources)]
         tag_names = [rands() for _ in range(self.num_tags)]
 
-        # Generate all possible permutations of service and operation names
-        spans = [
-            Span(service=service, name=name, resource=resource, tags={tag: tag})
-            for service, name, resource, tag in itertools.product(services, operation_names, resource_names, tag_names)
-        ]
+        # Generate all possible permutations of service, operation name, resource, and tag
+        spans = []
+        for service, name, resource, tag in itertools.product(services, operation_names, resource_names, tag_names):
+            span = Span(service=service, name=name, resource=resource)
+            span.set_tag(tag, tag)
+            spans.append(span)
 
         # Create a single rule to use for all matches
-        # Pick a random service/operation name
+        # Pick a random service/operation name/resource/tag to use for the rule
+        tag = random.choice(tag_names)
         rule = SamplingRule(
             service=random.choice(services),
             name=random.choice(operation_names),
             resource=random.choice(resource_names),
-            tags=random.choice(tag_names),
+            tags={tag: tag},
             sample_rate=1.0,
         )
 

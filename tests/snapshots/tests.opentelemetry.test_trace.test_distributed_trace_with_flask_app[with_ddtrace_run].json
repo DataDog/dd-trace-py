@@ -1,11 +1,13 @@
 [[
   {
     "name": "internal",
-    "service": null,
+    "service": "",
     "resource": "test-otel-distributed-trace",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655535db00000000",
@@ -29,6 +31,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.dm": "-0",
@@ -65,6 +68,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "component": "flask",
@@ -81,6 +86,8 @@
              "trace_id": 0,
              "span_id": 5,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -95,6 +102,8 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -109,6 +118,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -123,6 +134,8 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
+                "type": "",
+                "error": 0,
                 "meta": {
                   "_dd.base_service": "",
                   "component": "flask"
@@ -137,6 +150,8 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 11,
+                   "type": "",
+                   "error": 0,
                    "meta": {
                      "_dd.base_service": ""
                    },
@@ -150,6 +165,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -164,6 +181,8 @@
              "trace_id": 0,
              "span_id": 9,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -178,6 +197,8 @@
              "trace_id": 0,
              "span_id": 10,
              "parent_id": 3,
+             "type": "",
+             "error": 0,
              "meta": {
                "_dd.base_service": "",
                "component": "flask"
@@ -192,6 +213,8 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.base_service": "",
             "component": "flask"

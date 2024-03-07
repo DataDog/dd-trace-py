@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c3e1300000000",
+      "bedrock.request.max_tokens": "50",
+      "bedrock.request.model": "titan-tg1-large",
+      "bedrock.request.model_provider": "amazon",
+      "bedrock.request.prompt": "Command: can you explain what Datadog is to someone not in the tech industry?",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.temperature": "0",
+      "bedrock.request.top_p": "0.9",
+      "bedrock.response.choices.0.finish_reason": "LENGTH",
+      "bedrock.response.choices.0.text": "\\nDatadog is a monitoring and analytics platform that helps businesses track and optimize their digital infrastructure. It provi...",
+      "bedrock.response.duration": "1835",
+      "bedrock.response.id": "758fa023-a298-48d0-89e6-0208306cb76d",
+      "bedrock.usage.completion_tokens": "50",
+      "bedrock.usage.prompt_tokens": "18",
+      "language": "python",
+      "runtime-id": "13983704e2404c4a911b0cc558662a8f"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 14088
+    },
+    "duration": 2147082000,
+    "start": 1704738323893681000
+  }]]

@@ -4,8 +4,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-import six
-
 
 class ArgumentError(Exception):
     """
@@ -77,7 +75,8 @@ def set_argument_value(
 def _get_metas_to_propagate(context):
     # type: (Any) -> List[Tuple[str, str]]
     metas_to_propagate = []
-    for k, v in context._meta.items():
-        if isinstance(k, six.string_types) and k.startswith("_dd.p."):
+    # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
+    for k, v in list(context._meta.items()):
+        if isinstance(k, str) and k.startswith("_dd.p."):
             metas_to_propagate.append((k, v))
     return metas_to_propagate

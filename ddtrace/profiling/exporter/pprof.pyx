@@ -11,8 +11,9 @@ import six
 from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
-from ddtrace.internal.compat import ensure_str
-from ddtrace.internal.datadog.profiling.utils import sanitize_string
+from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -21,6 +22,9 @@ from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
+
+
+log = get_logger(__name__)
 
 
 if hasattr(typing, "TypedDict"):
@@ -129,7 +133,10 @@ cdef groupby(object collection, object key):
     cdef dict groups = {}
 
     for item in collection:
-        groups.setdefault(key(item), []).append(item)
+        try:
+            groups.setdefault(key(item), []).append(item)
+        except Exception:
+            log.warning("Failed to group item %r", item, exc_info=True)
 
     return groups.items()
 
@@ -638,7 +645,7 @@ class PprofExporter(exporter.Exporter):
         # Do not export trace_resource for non Web spans for privacy concerns.
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
-        return ensure_str(trace_resource, errors="backslashreplace")
+        return ensure_text(trace_resource, errors="backslashreplace")
 
     def export(
         self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int

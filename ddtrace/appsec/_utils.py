@@ -1,9 +1,11 @@
 import os
+from typing import Any
 import uuid
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
@@ -20,6 +22,7 @@ def parse_response_body(raw_body):
 
     import xmltodict
 
+    from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._constants import SPAN_DATA_NAMES
     from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
 
@@ -33,7 +36,7 @@ def parse_response_body(raw_body):
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
-        dict(headers),
+        {to_unicode(k): to_unicode(v) for k, v in dict(headers).items()},
         "content-type",
     )
     if not content_type:
@@ -57,7 +60,7 @@ def parse_response_body(raw_body):
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return
-    except BaseException:
+    except Exception:
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
@@ -70,7 +73,7 @@ def _appsec_rc_features_is_enabled() -> bool:
 
 
 def _appsec_apisec_features_is_active() -> bool:
-    return asm_config._asm_enabled and asm_config._api_security_enabled and asm_config._api_security_sample_rate > 0.0
+    return asm_config._asm_libddwaf_available and asm_config._asm_enabled and asm_config._api_security_enabled
 
 
 def _safe_userid(user_id):
@@ -173,3 +176,23 @@ class _UserInfoRetriever:
             return None, {}
 
         return user_id, user_extra_info
+
+
+def has_triggers(span) -> bool:
+    if asm_config._use_metastruct_for_triggers:
+        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
+    return span.get_tag(APPSEC.JSON) is not None
+
+
+def get_triggers(span) -> Any:
+    import json
+
+    if asm_config._use_metastruct_for_triggers:
+        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
+    json_payload = span.get_tag(APPSEC.JSON)
+    if json_payload:
+        try:
+            return json.loads(json_payload).get("triggers", None)
+        except Exception:
+            log.debug("Failed to parse triggers", exc_info=True)
+    return None

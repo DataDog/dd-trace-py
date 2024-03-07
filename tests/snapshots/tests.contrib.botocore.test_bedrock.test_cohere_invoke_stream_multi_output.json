@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65a0359000000000",
+      "bedrock.request.max_tokens": "10",
+      "bedrock.request.model": "command-light-text-v14",
+      "bedrock.request.model_provider": "cohere",
+      "bedrock.request.n": "2",
+      "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: Can you explain what a LLM chain is?",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.stream": "True",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_k": "0",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.0.text": " In machine learning and natural language processing, Long Short",
+      "bedrock.response.choices.1.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.1.text": " A large language model (LLM) chain refers",
+      "bedrock.response.duration": "597",
+      "bedrock.response.id": "2501c28f-0a40-49ec-9b59-5d58313c05f3",
+      "bedrock.usage.completion_tokens": "20",
+      "bedrock.usage.prompt_tokens": "40",
+      "language": "python",
+      "runtime-id": "e2468c635ce44f8788acce3e9e569237"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 21816
+    },
+    "duration": 980170000,
+    "start": 1704998288813204000
+  }]]

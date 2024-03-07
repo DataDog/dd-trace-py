@@ -19,7 +19,7 @@ feat/fix/docs/refactor/ci(xxx): commit title here
 # CircleCI:django,flask,wsgi
 
 # CircleCI suites are:
-# aiobotocore, aiohttp, aiomysql, aiopg, aioredis, algoliasearch, appsec, appsec_iast,
+# aiobotocore, aiohttp, aiomysql, aiopg, algoliasearch, appsec, appsec_iast,
 # appsec_iast_memcheck, appsec_integrations, aredis, asgi, asyncpg, asynctest, aws_lambda,
 # botocore, bottle, cassandra, celery, cherrypy, ci_visibility, consul, datastreams,
 # ddtracerun, debugger, django, django_hosts, djangorestframework, dogpile_cache,

@@ -1,0 +1,60 @@
+[[
+  {
+    "name": "starlette.background_task",
+    "service": "",
+    "resource": "custom_task",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e7e28000000000",
+      "_dd.span_links": "[{\"trace_id\": \"65e7e27f0000000002d19f6cebbac350\", \"span_id\": \"61fccfc1f9d153b9\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
+      "language": "python",
+      "runtime-id": "5444022027b74fcead7ac4f888aaa621"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 85074
+    },
+    "duration": 2001259000,
+    "start": 1709695616000325000
+  }],
+[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /backgroundtask",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e7e27f00000000",
+      "component": "starlette",
+      "http.method": "GET",
+      "http.route": "/backgroundtask",
+      "http.status_code": "200",
+      "http.url": "http://testserver/backgroundtask",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "5444022027b74fcead7ac4f888aaa621",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 85074
+    },
+    "duration": 314000,
+    "start": 1709695615999912000
+  }]]

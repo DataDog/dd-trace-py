@@ -8,8 +8,6 @@ from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Set  # noqa:F401
 
-from six import iteritems
-
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
@@ -25,6 +23,13 @@ CODE_TYPE_DD = "datadog"
 CODE_TYPE_SITE_PACKAGES = "site_packages"
 CODE_TYPE_STDLIB = "stdlib"
 TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
+
+
+def _mark_avoid_convert_recursively(node):
+    if node is not None:
+        node.avoid_convert = True
+        for child in ast.iter_child_nodes(node):
+            _mark_avoid_convert_recursively(child)
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -50,6 +55,7 @@ class AstVisitor(ast.NodeTransformer):
                 "extend": "ddtrace_aspects.bytearray_extend_aspect",
                 "upper": "ddtrace_aspects.upper_aspect",
                 "lower": "ddtrace_aspects.lower_aspect",
+                "replace": "ddtrace_aspects.replace_aspect",
                 "swapcase": "ddtrace_aspects.swapcase_aspect",
                 "title": "ddtrace_aspects.title_aspect",
                 "capitalize": "ddtrace_aspects.capitalize_aspect",
@@ -67,7 +73,7 @@ class AstVisitor(ast.NodeTransformer):
             },
             # Replacement functions for modules
             "module_functions": {
-                "BytesIO": "ddtrace_aspects.stringio_aspect",
+                # "BytesIO": "ddtrace_aspects.stringio_aspect",
                 # "StringIO": "ddtrace_aspects.stringio_aspect",
                 # "format": "ddtrace_aspects.format_aspect",
                 # "format_map": "ddtrace_aspects.format_map_aspect",
@@ -150,7 +156,7 @@ class AstVisitor(ast.NodeTransformer):
         self._taint_sink_replace_disabled = self._aspects_spec["taint_sinks"]["disabled"]
 
         self.dont_patch_these_functionsdefs = set()
-        for _, v in iteritems(self.excluded_functions):
+        for _, v in self.excluded_functions.items():
             if v:
                 for i in v:
                     self.dont_patch_these_functionsdefs.add(i)
@@ -415,6 +421,31 @@ class AstVisitor(ast.NodeTransformer):
         """
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
+        if hasattr(def_node.args, "vararg") and def_node.args.vararg:
+            if def_node.args.vararg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.vararg.annotation)
+
+        if hasattr(def_node.args, "kwarg") and def_node.args.kwarg:
+            if def_node.args.kwarg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.kwarg.annotation)
+
+        if hasattr(def_node, "returns"):
+            _mark_avoid_convert_recursively(def_node.returns)
+
+        for i in def_node.args.args:
+            if hasattr(i, "annotation"):
+                _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "kwonlyargs"):
+            for i in def_node.args.kwonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "posonlyargs"):
+            for i in def_node.args.posonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
+
         self.generic_visit(def_node)
         self._current_function_name = None
 
@@ -607,26 +638,25 @@ class AstVisitor(ast.NodeTransformer):
 
     def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
         """
-        Decompose multiple assignment into single ones and
-        check if any item in the targets list is if type Subscript and if
-        that's the case further decompose it to use a temp variable to
-        avoid assigning to a function call.
+        Add the ignore marks for left-side subscripts or list/tuples to avoid problems
+        later with the visit_Subscript node.
         """
-        # a = b = c
-        # __dd_tmp = c
-        # a = __dd_tmp
-
-        ret_nodes = []
-
-        if len(assign_node.targets) > 1:
-            # Multiple assignments, assign the value to a temporal variable
-            tmp_var_left = self._name_node(assign_node, "__dd_tmp", ctx=ast.Store())
-            assign_value = self._name_node(assign_node, "__dd_tmp", ctx=ast.Load())
-            assign_to_tmp = self._assign_node(from_node=assign_node, targets=[tmp_var_left], value=assign_node.value)
-            ret_nodes.append(assign_to_tmp)
-            self.ast_modified = True
-        else:
-            assign_value = assign_node.value  # type: ignore
+        if isinstance(assign_node.value, ast.Subscript):
+            if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
+                # Best effort to avoid converting type definitions
+                if assign_node.value.value.id in (
+                    "Callable",
+                    "Dict",
+                    "Generator",
+                    "List",
+                    "Optional",
+                    "Sequence",
+                    "Tuple",
+                    "Type",
+                    "TypeVar",
+                    "Union",
+                ):
+                    _mark_avoid_convert_recursively(assign_node.value)
 
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
@@ -640,22 +670,8 @@ class AstVisitor(ast.NodeTransformer):
                         element.avoid_convert = True  # type: ignore[attr-defined]
 
             # Create a normal assignment. This way we decompose multiple assignments
-            # like (a = b = c) into a = b and a = c so the transformation above
-            # is possible.
-            # Decompose it into a normal, not multiple, assignment
-            new_assign_value = copy.copy(assign_value)
-
-            new_target = copy.copy(target)
-
-            single_assign = self._assign_node(assign_node, [new_target], new_assign_value)
-
-            self.generic_visit(single_assign)
-            ret_nodes.append(single_assign)
-
-        if len(ret_nodes) == 1:
-            return ret_nodes[0]
-
-        return ret_nodes
+        self.generic_visit(assign_node)
+        return assign_node
 
     def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
         # del replaced_index(foo, bar) would fail so avoid converting the right hand side
@@ -668,6 +684,20 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(assign_node)
         return assign_node
 
+    def visit_AnnAssign(self, node):  # type: (ast.AnnAssign) -> Any
+        # AnnAssign is a type annotation, we don't need to convert it
+        # and we avoid converting any subscript inside it.
+        _mark_avoid_convert_recursively(node)
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):  # type: (ast.ClassDef) -> Any
+        for i in node.bases:
+            _mark_avoid_convert_recursively(i)
+
+        self.generic_visit(node)
+        return node
+
     def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
         """
         Turn an indexes[1] and slices[0:1:2] into the replacement function call
@@ -678,6 +708,11 @@ class AstVisitor(ast.NodeTransformer):
         # We mark nodes to avoid_convert (check visit_Delete, visit_AugAssign, visit_Assign) due to complex
         # expressions that raise errors when try to replace with index aspects
         if hasattr(subscr_node, "avoid_convert"):
+            return subscr_node
+
+        # We only want to convert subscript nodes that are being used as a load.
+        # That means, no Delete or Store contexts.
+        if not isinstance(subscr_node.ctx, ast.Load):
             return subscr_node
 
         # Optimization: String literal slices and indexes are not patched

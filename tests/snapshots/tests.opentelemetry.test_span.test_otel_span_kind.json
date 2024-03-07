@@ -1,11 +1,13 @@
 [[
   {
     "name": "client",
-    "service": null,
+    "service": "",
     "resource": "otel-client",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -25,11 +27,13 @@
 [
   {
     "name": "server",
-    "service": null,
+    "service": "",
     "resource": "otel-server",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -49,11 +53,13 @@
 [
   {
     "name": "producer",
-    "service": null,
+    "service": "",
     "resource": "otel-producer",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -73,11 +79,13 @@
 [
   {
     "name": "consumer",
-    "service": null,
+    "service": "",
     "resource": "otel-consumer",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
@@ -97,11 +105,13 @@
 [
   {
     "name": "internal",
-    "service": null,
+    "service": "",
     "resource": "otel-internal",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",

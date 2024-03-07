@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: Upgrades the trace encoding format to v0.5. This change improves the performance of encoding and sending spans.

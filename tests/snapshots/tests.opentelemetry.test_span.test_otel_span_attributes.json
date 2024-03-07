@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -35,6 +37,8 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -53,6 +57,49 @@
       "tag2": 2,
       "tag3": 3.1415
     },
-    "duration": 118958,
-    "start": 1700080043693385092
+    "duration": 68000,
+    "start": 1704737749273699000
+  }],
+[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "otel-list-tags",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c3bd500000000",
+      "language": "python",
+      "moon.0": "True",
+      "moon.2.0": "hello",
+      "moon.2.2.0": "5",
+      "moon.2.2.1": "6asda",
+      "runtime-id": "4b2f5598b7cb468fab14c8b0b52221bc"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "gamer421.0": 1,
+      "gamer421.1": 2,
+      "gamer421.2": 3,
+      "moon.1": 2,
+      "moon.2.1": 4,
+      "moon1.0": 1,
+      "moon1.1": 2,
+      "moon1.2": 3,
+      "process_id": 47933,
+      "sunk.0": 1,
+      "sunk.1": 2,
+      "sunk.2": 3,
+      "teardrop68.0": 1,
+      "teardrop68.1": 2,
+      "teardrop68.2": 3
+    },
+    "duration": 242000,
+    "start": 1704737749273824000
   }]]

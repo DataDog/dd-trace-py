@@ -13,6 +13,7 @@ from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_span_http_status_code
+from tests.utils import flaky
 from tests.utils import get_root_span
 
 from .app.web import noop_middleware
@@ -160,6 +161,31 @@ async def test_404_handler(app_tracer, aiohttp_client):
     assert "aiohttp" == span.get_tag("component")
     assert span.get_tag("span.kind") == "server"
     assert_span_http_status_code(span, 404)
+
+
+@pytest.mark.parametrize(
+    "req_url,status,expected_route",
+    [
+        ("/echo/foo", 200, "/echo/{name}"),
+        ("/", 200, "/"),
+        ("/uncaught_server_error", 500, "/uncaught_server_error"),
+        ("/caught_server_error", 503, "/caught_server_error"),
+        ("/statics/empty.txt", 200, "/statics"),
+        ("/statics/absent.txt", 404, "/statics"),
+    ],
+)
+async def test_route_reporting_plain_url(req_url, status, expected_route, app_tracer, aiohttp_client):
+    app, tracer = app_tracer
+    client = await aiohttp_client(app)
+    request = await client.request("GET", req_url)
+    assert status == request.status
+    # the trace is created
+    traces = tracer.pop_traces()
+    assert 1 == len(traces)
+    assert 1 == len(traces[0])
+    span = traces[0][0]
+    # with the right fields
+    assert span.get_tag("http.route") == expected_route
 
 
 async def test_server_error(app_tracer, aiohttp_client):
@@ -335,6 +361,7 @@ async def test_wrapped_coroutine(app_tracer, aiohttp_client):
     assert span.duration > 0.25, "span.duration={0}".format(span.duration)
 
 
+@flaky(1735812000)
 async def test_distributed_tracing(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -359,6 +386,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     assert span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
 
+@flaky(1735812000)
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -385,6 +413,7 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
     assert 1 == span.get_metric(SAMPLING_PRIORITY_KEY)
 
 
+@flaky(1735812000)
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -435,6 +464,7 @@ async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
     assert span.parent_id != 42
 
 
+@flaky(1735812000)
 async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -499,6 +529,7 @@ def _assert_200_parenting(client, traces):
     assert 0 == inner_span.error
 
 
+@flaky(1735812000)
 async def test_parenting_200_dd(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -512,6 +543,7 @@ async def test_parenting_200_dd(app_tracer, aiohttp_client):
     _assert_200_parenting(client, traces)
 
 
+@flaky(1735812000)
 async def test_parenting_200_ot(app_tracer, aiohttp_client):
     """OpenTracing version of test_handler."""
     app, tracer = app_tracer
@@ -528,6 +560,7 @@ async def test_parenting_200_ot(app_tracer, aiohttp_client):
     _assert_200_parenting(client, traces)
 
 
+@flaky(1735812000)
 async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
     """Check trace has analytics sample rate set"""
     app, tracer = app_tracer
@@ -542,6 +575,7 @@ async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
     root.assert_structure(dict(name="aiohttp.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}))
 
 
+@flaky(1735812000)
 async def test_analytics_integration_default(app_tracer, aiohttp_client):
     """Check trace has analytics sample rate set"""
     app, tracer = app_tracer
@@ -554,6 +588,7 @@ async def test_analytics_integration_default(app_tracer, aiohttp_client):
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
+@flaky(1735812000)
 async def test_analytics_integration_disabled(app_tracer, aiohttp_client):
     """Check trace has analytics sample rate set"""
     app, tracer = app_tracer

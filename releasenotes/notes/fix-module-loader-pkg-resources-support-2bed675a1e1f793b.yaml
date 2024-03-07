@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an issue that caused an exception to be raised when trying to access
+    resource files via ``pkg_resources``.

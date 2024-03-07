@@ -492,6 +492,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         )
 
     def setUp(self):
+        config.cherrypy.http.trace_headers(["Host", "my-header"])
         self.traced_app = TraceMiddleware(
             cherrypy,
             tracer=ddtrace.tracer,

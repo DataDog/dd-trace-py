@@ -1,11 +1,13 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.chains.llm_math.base.LLMMathChain",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -21,7 +23,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 10515
     },
@@ -30,11 +31,13 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.chains.llm.LLMChain",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
@@ -46,19 +49,20 @@
          "langchain.response.outputs.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_sample_rate": 1.0
+         "_dd.measured": 1
        },
        "duration": 4724777,
        "start": 1694032467489617732
      },
         {
           "name": "langchain.request",
-          "service": null,
+          "service": "",
           "resource": "langchain.llms.cohere.Cohere",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
@@ -76,8 +80,7 @@
             "langchain.response.completions.0.text": "```text\\n13**(0.3432)\\n```\\n...numexpr.evaluate(\"13**(0.3432)\")...\\n"
           },
           "metrics": {
-            "_dd.measured": 1,
-            "_sample_rate": 1.0
+            "_dd.measured": 1
           },
           "duration": 4302827,
           "start": 1694032467489888358

@@ -3,7 +3,7 @@ name: System Tests
 on:
   push:
     branches:
-      - 2.x
+      - main
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -67,6 +67,14 @@ jobs:
       - name: Build
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
+
+      - name: Run INTEGRATIONS 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh INTEGRATIONS 
+
+      - name: Run CROSSED_TRACING_LIBRARIES 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh CROSSED_TRACING_LIBRARIES 
 
       - name: Run
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
@@ -140,10 +148,6 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh SAMPLING
 
-      - name: Run INTEGRATIONS 
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh INTEGRATIONS 
-
       # even on failures, we want to have artifact to be able to investigate
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -162,14 +166,18 @@ jobs:
     needs: needs-run
     env:
       TEST_LIBRARY: python
-      PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
-
+      - name: Checkout dd-trace-py
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        uses: actions/checkout@v3
+        with:
+          path: 'binaries/dd-trace-py'
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
@@ -184,12 +192,12 @@ jobs:
         run: ./run.sh PARAMETRIC
 
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() || github.event_name == 'schedule'
         with:
           name: logs_parametric
           path: artifact.tar.gz

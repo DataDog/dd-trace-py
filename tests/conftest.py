@@ -7,6 +7,7 @@ import json
 import os
 from os.path import split
 from os.path import splitext
+import random
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
@@ -18,7 +19,6 @@ from unittest import mock
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
-import attr
 import pytest
 
 import ddtrace
@@ -26,6 +26,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
@@ -234,6 +235,11 @@ def run_function_from_file(item, params=None):
         def _subprocess_wrapper():
             out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
+            xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+            if xfailed:
+                pytest.xfail("subprocess test resulted in XFail")
+                return
+
             if status != expected_status:
                 raise AssertionError(
                     "Expected status %s, got %s."
@@ -393,14 +399,23 @@ def telemetry_writer():
     telemetry_writer = TelemetryWriter(is_periodic=False)
     telemetry_writer.enable()
 
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
-        yield telemetry_writer
+    # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
+    try:
+        ddtrace.internal.telemetry.telemetry_writer.disable()
+
+        with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
+            yield telemetry_writer
+
+    finally:
+        if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
+            telemetry_writer.disable()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
 
 
-@attr.s
 class TelemetryTestSession(object):
-    token = attr.ib(type=str)
-    telemetry_writer = attr.ib(type=TelemetryWriter)
+    def __init__(self, token, telemetry_writer) -> None:
+        self.token = token
+        self.telemetry_writer = telemetry_writer
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
@@ -409,12 +424,19 @@ class TelemetryTestSession(object):
     def _request(self, method, url):
         # type: (str, str) -> Tuple[int, bytes]
         conn = self.create_connection()
-        try:
-            conn.request(method, url)
-            r = conn.getresponse()
-            return r.status, r.read()
-        finally:
-            conn.close()
+        MAX_RETRY = 9
+        exp_time = 1.618034
+        for try_nb in range(MAX_RETRY):
+            try:
+                conn.request(method, url)
+                r = conn.getresponse()
+                return r.status, r.read()
+            except BaseException:
+                if try_nb == MAX_RETRY - 1:
+                    pytest.xfail("Failed to connect to test agent")
+                time.sleep(pow(exp_time, try_nb))
+            finally:
+                conn.close()
 
     def clear(self):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
@@ -452,19 +474,26 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    token = request_token(request)
+    token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token=token, telemetry_writer=telemetry_writer)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
-    try:
-        conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-        conn.getresponse()
-    finally:
-        conn.close()
-
+    MAX_RETRY = 9
+    exp_time = 1.618034
+    for try_nb in range(MAX_RETRY):
+        try:
+            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+            conn.getresponse()
+            break
+        except BaseException:
+            if try_nb == MAX_RETRY - 1:
+                pytest.xfail("Failed to connect to test agent")
+            time.sleep(pow(exp_time, try_nb))
+        finally:
+            conn.close()
     try:
         yield requests
     finally:

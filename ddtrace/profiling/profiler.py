@@ -128,7 +128,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -169,26 +168,50 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
+        # It's possible to fail to load the libdatadog collector, so we check.  Any other consumers
+        # of libdd can do their own check, so we just log.
+        if self._export_libdd_enabled and not ddup.is_available:
+            LOG.error("Failed to load the libdd collector, falling back to the legacy collector")
+            self._export_libdd_enabled = False
+        elif self._export_libdd_enabled:
+            LOG.debug("Using the libdd collector")
+
+        # Build the list of enabled Profiling features and send along as a tag
+        configured_features = []
+        if self._stack_collector_enabled:
+            if config.stack.v2.enabled:
+                configured_features.append("stack_v2")
+            else:
+                configured_features.append("stack")
+        if self._lock_collector_enabled:
+            configured_features.append("lock")
+        if self._memory_collector_enabled:
+            configured_features.append("mem")
+        if config.heap.sample_size > 0:
+            configured_features.append("heap")
+
+        if self._export_libdd_enabled:
+            configured_features.append("exp_dd")
+        else:
+            configured_features.append("exp_py")
+        configured_features.append("CAP" + str(config.capture_pct))
+        configured_features.append("MAXF" + str(config.max_frames))
+        self.tags.update({"profiler_config": "_".join(configured_features)})
+
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
         if self._export_libdd_enabled:
-            versionname = (
-                "{}.libdd".format(self.version)
-                if self._export_py_enabled and self.version is not None
-                else self.version
-            )
             ddup.init(
                 env=self.env,
                 service=self.service,
-                version=versionname,
+                version=self.version,
                 tags=self.tags,
                 max_nframes=config.max_frames,
                 url=endpoint,
             )
-
-        if self._export_py_enabled:
+        else:
             # DEV: Import this only if needed to avoid importing protobuf
             # unnecessarily
             from ddtrace.profiling.exporter import http
@@ -229,13 +252,18 @@ class _ProfilerInstance(service.Service):
         self._collectors = []
 
         if self._stack_collector_enabled:
-            self._collectors.append(
-                stack.StackCollector(
-                    r,
-                    tracer=self.tracer,
-                    endpoint_collection_enabled=self.endpoint_collection_enabled,
-                )  # type: ignore[call-arg]
-            )
+            LOG.debug("Profiling collector (stack) enabled")
+            try:
+                self._collectors.append(
+                    stack.StackCollector(
+                        r,
+                        tracer=self.tracer,
+                        endpoint_collection_enabled=self.endpoint_collection_enabled,
+                    )  # type: ignore[call-arg]
+                )
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
@@ -248,6 +276,7 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
+                            LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
@@ -356,4 +385,4 @@ class _ProfilerInstance(service.Service):
                 col.join()
 
     def visible_events(self):
-        return self._export_py_enabled
+        return not self._export_libdd_enabled

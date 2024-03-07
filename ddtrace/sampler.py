@@ -10,11 +10,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-import six
-
 from .constants import ENV_KEY
-from .constants import SAMPLE_RATE_METRIC_KEY
-from .internal.compat import iteritems
 from .internal.constants import _PRIORITY_CATEGORY
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -34,7 +30,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -52,11 +48,12 @@ class SamplingError(Exception):
     pass
 
 
-class BaseSampler(six.with_metaclass(abc.ABCMeta)):
+class BaseSampler(metaclass=abc.ABCMeta):
     __slots__ = ()
 
     @abc.abstractmethod
-    def sample(self, span, allow_false=True):
+    def sample(self, span):
+        # type: (Span) -> bool
         pass
 
 
@@ -71,9 +68,8 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
-        return not allow_false or True
+    def sample(self, span):
+        return True
 
 
 class RateSampler(BaseSampler):
@@ -99,15 +95,13 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span):
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
-        # NB allow_false has weird functionality here, doing something other than "allowing false" to be returned
-        # this is an artifact of this library's sampler abstractions having fallen out of alignment
-        # with the functional specification over time.
-        if sampled and allow_false:
-            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
         return sampled
+
+
+class _AgentRateSampler(RateSampler):
+    pass
 
 
 class RateByServiceSampler(BasePrioritySampler):
@@ -145,37 +139,40 @@ class RateByServiceSampler(BasePrioritySampler):
         env="",  # type: str
     ):
         # type: (...) -> None
-        self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
+        self._by_service_samplers[self._key(service, env)] = _AgentRateSampler(sample_rate)
 
-    def sample(self, span, allow_false=True):
+    def sample(self, span):
         sampled, sampler = self._make_sampling_decision(span)
         _set_sampling_tags(
             span,
             sampled,
             sampler.sample_rate,
-            self._choose_priority_category(sampler is self._default_sampler),
+            self._choose_priority_category(sampler),
         )
-        return not allow_false or sampled
+        return sampled
 
-    def _choose_priority_category(self, default_was_used):
-        # type: (bool) -> str
-        if default_was_used:
+    def _choose_priority_category(self, sampler):
+        # type: (BaseSampler) -> str
+        if sampler is self._default_sampler:
             return _PRIORITY_CATEGORY.DEFAULT
-        return _PRIORITY_CATEGORY.AUTO
+        elif isinstance(sampler, _AgentRateSampler):
+            return _PRIORITY_CATEGORY.AUTO
+        else:
+            return _PRIORITY_CATEGORY.RULE
 
     def _make_sampling_decision(self, span):
         # type: (Span) -> Tuple[bool, BaseSampler]
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span, allow_false=False)
+        sampled = sampler.sample(span)
         return sampled, sampler
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
-        samplers = {}
-        for key, sample_rate in iteritems(rate_by_service):
-            samplers[key] = RateSampler(sample_rate)
+        samplers = {}  # type: Dict[str, RateSampler]
+        for key, sample_rate in rate_by_service.items():
+            samplers[key] = _AgentRateSampler(sample_rate)
 
         self._by_service_samplers = samplers
 
@@ -295,34 +292,33 @@ class DatadogSampler(RateByServiceSampler):
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
-        """
-        If allow_false is False, this function will return True regardless of the sampling decision
-        """
+    def sample(self, span):
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
+        sampler = self._default_sampler  # type: BaseSampler
+        sample_rate = self.sample_rate
         if matched_rule:
             sampled = matched_rule.sample(span)
+            sample_rate = matched_rule.sample_rate
         else:
-            sampled, _ = super(DatadogSampler, self)._make_sampling_decision(span)
+            sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
+            if isinstance(sampler, RateSampler):
+                sample_rate = sampler.sample_rate
 
         _set_sampling_tags(
             span,
             sampled,
-            matched_rule.sample_rate if matched_rule else self.sample_rate,
-            self._choose_priority_category(bool(matched_rule)),
+            sample_rate,
+            self._choose_priority_category_with_rule(matched_rule, sampler),
         )
         cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
-        if not allow_false:
-            return True
-        return not cleared_rate_limit or sampled
+        return cleared_rate_limit and sampled
 
-    def _choose_priority_category(self, matched_rule):
-        # type: (bool) -> str
-        if matched_rule:
+    def _choose_priority_category_with_rule(self, rule, sampler):
+        # type: (Optional[SamplingRule], BaseSampler) -> str
+        if rule:
             return _PRIORITY_CATEGORY.RULE
         if self.limiter._has_been_configured:
             return _PRIORITY_CATEGORY.USER
-        return super(DatadogSampler, self)._choose_priority_category(True)
+        return super(DatadogSampler, self)._choose_priority_category(sampler)

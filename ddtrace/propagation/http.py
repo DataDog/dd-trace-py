@@ -1,4 +1,5 @@
 import re
+import sys
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
@@ -7,20 +8,29 @@ from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # noqa:F401
+else:
+    from typing_extensions import Literal  # noqa:F401
+
+
 from ddtrace import config
-from ddtrace.tracing._span_link import SpanLink
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
+from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
+from ddtrace._trace.span import _MetaDictType
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
-from ..context import Context
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
 from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
-from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -32,10 +42,9 @@ from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
+from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
+from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
-from ..span import _get_64_highest_order_bits_as_hex
-from ..span import _get_64_lowest_order_bits_as_int
-from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 
@@ -44,6 +53,7 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
+_HTTP_BAGGAGE_PREFIX = "ot-baggage-"
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
@@ -100,9 +110,16 @@ def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
         if header in headers:
-            return ensure_str(headers[header], errors="backslashreplace")
+            return ensure_text(headers[header], errors="backslashreplace")
 
     return default
+
+
+def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+    if context is not None:
+        for key, value in headers.items():
+            if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
+                context._set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):
@@ -236,7 +253,7 @@ class _DatadogMultiHeader:
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
             # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
-            ensure_str(k): ensure_str(v)
+            ensure_text(k): ensure_text(v)
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }  # type: Dict[Text, Text]
@@ -278,10 +295,7 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(
-            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
-            headers,
-        )
+        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -305,6 +319,12 @@ class _DatadogMultiHeader:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+
+        if sampling_priority == USER_KEEP:
+            if not meta:
+                meta = {}
+            if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+                meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
@@ -628,7 +648,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(tp):
-        # type: (str) -> Tuple[int, int, int]
+        # type: (str) -> Tuple[int, int, Literal[0,1]]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -667,13 +687,14 @@ class _TraceContext:
         # there's currently only one trace flag, which denotes sampling priority
         # was set to keep "01" or drop "00"
         # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-        sampling_priority = trace_flags & 0x1
+        # if statement is required to cast traceflags to a Literal
+        sampling_priority = 1 if trace_flags & 0x1 else 0  # type: Literal[0, 1]
 
         return trace_id, span_id, sampling_priority
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -698,30 +719,45 @@ class _TraceContext:
             if origin:
                 # we encode "=" as "~" in tracestate so need to decode here
                 origin = _TraceContext.decode_tag_val(origin)
+
+            # Get last datadog parent id, this field is used to reconnect traces with missing spans
+            lpid = dd.get("p", "0000000000000000")
+
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
                 "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
-            return sampling_priority_ts_int, other_propagated_tags, origin
+            return sampling_priority_ts_int, other_propagated_tags, origin, lpid
         else:
-            return None, {}, None
+            return None, {}, None, None
 
     @staticmethod
-    def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
-        # type: (int, Optional[int]) -> int
+    def _get_sampling_priority(
+        traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str] = None
+    ):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
 
         When the traceparent sampled flag is not set, the Datadog sampling priority is either
         0 or a negative value of sampling priority if propagated in tracestate.
+
+        When origin is "rum" and there is no sampling priority propagated in tracestate, the above rules do not apply.
         """
+        from_rum_wo_priority = not tracestate_sampling_priority and origin == "rum"
 
-        if traceparent_sampled == 0 and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0):
+        if (
+            not from_rum_wo_priority
+            and traceparent_sampled == 0
+            and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0)
+        ):
             sampling_priority = 0
-
-        elif traceparent_sampled == 1 and (not tracestate_sampling_priority or tracestate_sampling_priority < 0):
+        elif (
+            not from_rum_wo_priority
+            and traceparent_sampled == 1
+            and (not tracestate_sampling_priority or tracestate_sampling_priority < 0)
+        ):
             sampling_priority = 1
         else:
             # The two other options provided for clarity:
@@ -740,15 +776,23 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
+            trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
-        origin = None
+
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
+    @staticmethod
+    def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
+        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        if meta is None:
+            meta = {}
+        origin = None
+        sampling_priority = trace_flag  # type: int
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -768,10 +812,12 @@ class _TraceContext:
                     tracestate_values = None
 
                 if tracestate_values:
-                    sampling_priority_ts, other_propagated_tags, origin = tracestate_values
+                    sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
+                    if lpid:
+                        meta["_dd.parent_id"] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
@@ -791,8 +837,13 @@ class _TraceContext:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
             # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
             ts = span_context._tracestate
-            if ts:
-                headers[_HTTP_HEADER_TRACESTATE] = ts
+            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
+            if "dd=" in ts:
+                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
+            else:
+                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
+
+            headers[_HTTP_HEADER_TRACESTATE] = ts
 
 
 class _NOP_Propagator:
@@ -891,6 +942,10 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
+            for key in span_context._baggage:
+                headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
@@ -935,14 +990,18 @@ class HTTPPropagator(object):
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)  # type: ignore
-                    if context is not None:
-                        return context
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
 
                 if contexts:
-                    return HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    if config.propagation_http_baggage_enabled is True:
+                        _attach_baggage_to_context(normalized_headers, context)
+                    return context
 
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)

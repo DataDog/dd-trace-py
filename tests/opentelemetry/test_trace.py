@@ -16,7 +16,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_with_default_args(oteltracer):
     otel_span = oteltracer.start_span("test-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
@@ -36,7 +36,7 @@ def test_otel_start_span_with_default_args(oteltracer):
     otel_span.end()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
     otel_span = oteltracer.start_span(
@@ -84,14 +84,14 @@ def test_otel_start_span_with_span_links(oteltracer):
         pass
 
     # assert that span3 has the expected links
-    links = span3._ddspan._links
-    assert len(links) == 2
-    for i, span_context, attributes in ((0, span1_context, attributes1), (1, span2_context, attributes2)):
-        assert links[i].trace_id == span_context.trace_id
-        assert links[i].span_id == span_context.span_id
-        assert links[i].tracestate == span_context.trace_state.to_header()
-        assert links[i].flags == span_context.trace_flags
-        assert links[i].attributes == attributes
+    ddspan3 = span3._ddspan
+    for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
+        link = ddspan3._links.get(span_context.span_id)
+        assert link.trace_id == span_context.trace_id
+        assert link.span_id == span_context.span_id
+        assert link.tracestate == span_context.trace_state.to_header()
+        assert link.flags == span_context.trace_flags
+        assert link.attributes == attributes
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])

@@ -1,4 +1,4 @@
-from http import cookies
+import os
 import sys
 from typing import Any
 from typing import Mapping
@@ -6,20 +6,20 @@ from typing import Optional
 from urllib import parse
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
-from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .. import trace_utils
 from .utils import guarantee_single_callable
@@ -29,7 +29,12 @@ log = get_logger(__name__)
 
 config._add(
     "asgi",
-    dict(service_name=config._get_service(default="asgi"), request_span_name="asgi.request", distributed_tracing=True),
+    dict(
+        service_name=config._get_service(default="asgi"),
+        request_span_name="asgi.request",
+        distributed_tracing=True,
+        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+    ),
 )
 
 ASGI_VERSION = "asgi.version"
@@ -41,7 +46,7 @@ def get_version() -> str:
 
 
 def bytes_to_str(str_or_bytes):
-    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
+    return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope, integration_config):
@@ -110,7 +115,11 @@ class TraceMiddleware:
         self.span_modifier = span_modifier
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
+        if scope["type"] == "http":
+            method = scope["method"]
+        elif scope["type"] == "websocket" and self.integration_config._trace_asgi_websocket:
+            method = "WEBSOCKET"
+        else:
             return await self.app(scope, receive, send)
         try:
             headers = _extract_headers(scope)
@@ -121,10 +130,13 @@ class TraceMiddleware:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
+        resource = " ".join([method, scope["path"]])
 
-        resource = " ".join((scope["method"], scope["path"]))
+        # in the case of websockets we don't currently schematize the operation names
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
-        operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+        if scope["type"] == "http":
+            operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+
         pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
         with pin.tracer.trace(
             name=operation_name,
@@ -159,7 +171,6 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            request_cookies = None
             for key, value in scope["headers"]:
                 if key == b"host":
                     try:
@@ -168,15 +179,12 @@ class TraceMiddleware:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
                         )
-                elif key == b"cookie":
-                    c = cookies.SimpleCookie(bytes_to_str(value))
-                    request_cookies = {k: v.value for k, v in c.items()}
-
+                    break
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
-            full_path = scope.get("root_path", "") + scope.get("path", "")
+            full_path = scope.get("path", "")
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
             elif server and len(server) == 2:
@@ -193,10 +201,13 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            receive, body = await core.dispatch("asgi.request.parse.body", receive, headers)[0][0]
+            body = None
+            result = core.dispatch_with_results("asgi.request.parse.body", (receive, headers)).await_receive_and_body
+            if result:
+                receive, body = await result.value
 
             client = scope.get("client")
-            if isinstance(client, list) and len(client):
+            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
                 peer_ip = client[0]
             else:
                 peer_ip = None
@@ -209,10 +220,10 @@ class TraceMiddleware:
                 query=query_string,
                 request_headers=headers,
                 raw_uri=url,
-                request_cookies=request_cookies,
                 parsed_query=parsed_query,
                 request_body=body,
                 peer_ip=peer_ip,
+                headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
@@ -229,7 +240,8 @@ class TraceMiddleware:
                     trace_utils.set_http_meta(
                         span, self.integration_config, status_code=status_code, response_headers=response_headers
                     )
-                    core.dispatch("asgi.start_response", "asgi")
+                    core.dispatch("asgi.start_response", ("asgi",))
+                core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
 
                 if core.get_item(HTTP_REQUEST_BLOCKED):
                     raise trace_utils.InterruptException("wrapped_send")
@@ -249,13 +261,21 @@ class TraceMiddleware:
                         span.finish()
 
             async def wrapped_blocked_send(message):
-                status, headers, content = core.dispatch("asgi.block.started", ctx, url)[0][0]
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], b""
                 if span and message.get("type") == "http.response.start":
                     message["headers"] = headers
                     message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
                 elif message.get("type") == "http.response.body":
-                    message["body"] = content
+                    message["body"] = (
+                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                    )
                     message["more_body"] = False
+                    core.dispatch("asgi.finalize_response", (content, None))
                 try:
                     return await send(message)
                 finally:
@@ -266,9 +286,7 @@ class TraceMiddleware:
                         span.finish()
 
             try:
-                core.dispatch("asgi.start_request", "asgi")
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                core.dispatch("asgi.start_request", ("asgi",))
                 return await self.app(scope, receive, wrapped_send)
             except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
@@ -276,7 +294,7 @@ class TraceMiddleware:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
-                reraise(exc_type, exc_val, exc_tb)
+                raise
             finally:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

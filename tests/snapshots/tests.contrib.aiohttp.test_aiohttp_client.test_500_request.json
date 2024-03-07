@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -32,11 +32,13 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "component": "aiohttp"

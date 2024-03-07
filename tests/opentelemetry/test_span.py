@@ -12,9 +12,10 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
+from tests.utils import flaky
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=3)
 def test_otel_span_attributes(oteltracer):
     with oteltracer.start_span("otel-string-tags") as span1:
         span1.set_attribute("service.name", "moons-service-str")
@@ -30,6 +31,13 @@ def test_otel_span_attributes(oteltracer):
         span2.set_attribute("float_tag", 2.111)
         span2.set_attributes({"tag1": 1, "tag2": 2, "tag3": 3.1415})
         span2.end()
+
+    with oteltracer.start_span("otel-list-tags") as span:
+        span.set_attribute("moon1", [1, 2, 3])
+        span.set_attribute("moon", [True, 2, ["hello", 4, ["5", "6asda"]]])
+        span.set_attribute("sunk", (1, 2, 3))
+        span.set_attribute("teardrop68", {1, 2, 3})
+        span.set_attribute("gamer421", frozenset({1, 2, 3}))
 
     # Attributes should not be set on a closed span
     for span in [span1, span2]:
@@ -53,6 +61,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):

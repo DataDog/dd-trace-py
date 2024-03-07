@@ -7,6 +7,8 @@ from unittest.case import SkipTest
 import mock
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -16,8 +18,6 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.span import Span
-from ddtrace.tracing._span_link import SpanLink
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -93,6 +93,23 @@ class SpanTestCase(TracerTestCase):
 
         assert s.get_tags() == dict(true="True", false="False")
         assert len(s.get_metrics()) == 0
+
+    def test_set_baggage_item(self):
+        s = Span(name="test.span")
+        s._set_baggage_item("custom.key", "123")
+        assert s._get_baggage_item("custom.key") == "123"
+
+    def test_baggage_propagation(self):
+        span1 = Span(name="test.span1")
+        span1._set_baggage_item("item1", "123")
+
+        span2 = Span(name="test.span2", context=span1.context)
+        span2._set_baggage_item("item2", "456")
+
+        assert span2._get_baggage_item("item1") == "123"
+        assert span2._get_baggage_item("item2") == "456"
+        assert span1._get_baggage_item("item1") == "123"
+        assert span1._get_baggage_item("item2") is None
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
@@ -245,7 +262,7 @@ class SpanTestCase(TracerTestCase):
 
         assert s.span_type == "web"
 
-    @mock.patch("ddtrace.span.log")
+    @mock.patch("ddtrace._trace.span.log")
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
@@ -350,18 +367,57 @@ class SpanTestCase(TracerTestCase):
         s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
         s2.context.sampling_priority = 1
 
-        link_attributes = {"link.name": "s1_to_s2", "link.kind": "scheduled_by", "key1": "value2"}
+        link_attributes = {
+            "link.name": "s1_to_s2",
+            "link.kind": "scheduled_by",
+            "key1": "value2",
+            "key2": [True, 2, ["hello", 4, ["5", "6asda"]]],
+        }
         s1.link_span(s2.context, link_attributes)
 
-        assert s1._links == [
-            SpanLink(
-                trace_id=2,
-                span_id=1,
-                tracestate="dd=s:1,congo=t61rcWkgMzE",
-                flags=1,
-                attributes=link_attributes,
-            )
+        assert s1._links.get(s2.span_id) == SpanLink(
+            trace_id=s2.trace_id,
+            span_id=s2.span_id,
+            tracestate="dd=s:1,congo=t61rcWkgMzE",
+            flags=1,
+            attributes=link_attributes,
+        )
+
+    def test_init_with_span_links(self):
+        links = [
+            SpanLink(trace_id=1, span_id=10),
+            SpanLink(trace_id=1, span_id=20),
+            SpanLink(trace_id=2, span_id=30, flags=0),
+            SpanLink(trace_id=2, span_id=30, flags=1),
         ]
+        s = Span(name="test.span", links=links)
+
+        assert len(s._links) == 3
+        assert s._links.get(10) == links[0]
+        assert s._links.get(20) == links[1]
+        # duplicate links are overwritten (last one wins)
+        assert s._links.get(30) == links[3]
+
+    def test_set_span_link(self):
+        s = Span(name="test.span")
+        s.set_link(trace_id=1, span_id=10)
+        s.set_link(trace_id=1, span_id=20)
+        s.set_link(trace_id=2, span_id=30, flags=0)
+
+        with mock.patch("ddtrace._trace.span.log") as log:
+            s.set_link(trace_id=2, span_id=30, flags=1)
+        log.debug.assert_called_once_with(
+            "Span %d already linked to span %d. Overwriting existing link: %s",
+            s.span_id,
+            30,
+            mock.ANY,
+        )
+
+        assert len(s._links) == 3
+        assert s._links.get(10) == SpanLink(trace_id=1, span_id=10)
+        assert s._links.get(20) == SpanLink(trace_id=1, span_id=20)
+        # duplicate links are overwritten (last one wins)
+        assert s._links.get(30) == SpanLink(trace_id=2, span_id=30, flags=1)
 
     # span links cannot have a span_id or trace_id value of 0 or less
     def test_span_links_error_with_id_0(self):
@@ -419,7 +475,7 @@ def test_set_tag_measured_change_value():
     assert_is_measured(s)
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_key(span_log):
     # Span tag keys must be strings
     s = Span(name="test.span")
@@ -467,7 +523,7 @@ def test_span_unicode_set_tag():
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_binary_unicode_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", "🤔")
@@ -479,7 +535,7 @@ def test_span_binary_unicode_set_tag(span_log):
 
 
 @pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
@@ -489,7 +545,7 @@ def test_span_bytes_string_set_tag(span_log):
     span_log.warning.assert_not_called()
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
     span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
@@ -504,7 +560,7 @@ def test_span_nonstring_set_str_tag_exc():
     assert "foo" not in span.get_tags()
 
 
-@mock.patch("ddtrace.span.log")
+@mock.patch("ddtrace._trace.span.log")
 def test_span_nonstring_set_str_tag_warning(span_log):
     with override_global_config(dict(_raise=False)):
         span = Span(None)

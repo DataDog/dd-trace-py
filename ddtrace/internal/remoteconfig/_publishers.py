@@ -3,8 +3,6 @@ import copy
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 
-import six
-
 from ddtrace.internal.logger import get_logger
 
 
@@ -24,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-class RemoteConfigPublisherBase(six.with_metaclass(abc.ABCMeta)):
+class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
     _preprocess_results_func = None  # type: Optional[PreprocessFunc]
 
     def __init__(self, data_connector, preprocess_func=None):
@@ -90,9 +88,8 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
             self._configs[target] = {}
 
         if config_content is False:
-            # Remove old config from the configs dict. _remove_previously_applied_configurations function should
-            # call to this method
-            del self._configs[target]
+            # clear lists but keep the keys active so it can be updated accordingly
+            self._configs[target] = {k: [] for k, v in self._configs[target].items() if isinstance(v, list)}
         elif config_content is not None:
             # Append the new config to the configs dict. _load_new_configurations function should
             # call to this method

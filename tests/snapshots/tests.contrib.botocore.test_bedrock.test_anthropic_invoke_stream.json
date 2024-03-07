@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModelWithResponseStream",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c3d8c00000000",
+      "bedrock.request.max_tokens": "50",
+      "bedrock.request.model": "claude-instant-v1",
+      "bedrock.request.model_provider": "anthropic",
+      "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: What makes you better than Chat-GPT or LLAMA?",
+      "bedrock.request.stop_sequences": "['\\n\\nHuman:']",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_k": "250",
+      "bedrock.request.top_p": "1",
+      "bedrock.response.choices.0.finish_reason": "stop_sequence",
+      "bedrock.response.choices.0.text": "",
+      "bedrock.response.duration": "266",
+      "bedrock.response.id": "710b14d5-164f-460d-bfc6-d3b31e794691",
+      "bedrock.usage.completion_tokens": "4",
+      "bedrock.usage.prompt_tokens": "25",
+      "language": "python",
+      "runtime-id": "5e8e1855ea8f4eefaa631b5691eb5e62"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 13707
+    },
+    "duration": 624710000,
+    "start": 1704738188776436000
+  }]]

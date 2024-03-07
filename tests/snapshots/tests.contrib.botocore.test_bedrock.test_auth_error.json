@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659dea8c00000000",
+      "bedrock.request.max_tokens": "60",
+      "bedrock.request.model": "llama2-13b-chat-v1",
+      "bedrock.request.model_provider": "meta",
+      "bedrock.request.prompt": "What does 'lorem ipsum' mean?",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_p": "1.0",
+      "error.message": "An error occurred (ExpiredTokenException) when calling the InvokeModel operation: The security token included in the request is expired",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/botocore/services/bedrock.py\", line 276, in patched_bedrock_api_call\n    result = original_func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]_botocore_pytest-randomly_vcrpy/lib/python3.10/site-packages/botocore/client.py\", line 1009, in _make_api_call\n    raise error_class(parsed_response, operation_name)\nbotocore.exceptions.ClientError: An error occurred (ExpiredTokenException) when calling the InvokeModel operation: The security token included in the request is expired\n",
+      "error.type": "botocore.exceptions.ClientError",
+      "language": "python",
+      "runtime-id": "5e97a84a83514f5383132eed9df2755f"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 42139
+    },
+    "duration": 3145000,
+    "start": 1704848012692327000
+  }]]

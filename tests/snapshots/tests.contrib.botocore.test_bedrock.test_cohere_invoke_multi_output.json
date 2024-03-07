@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659d9e8200000000",
+      "bedrock.request.max_tokens": "10",
+      "bedrock.request.model": "command-light-text-v14",
+      "bedrock.request.model_provider": "cohere",
+      "bedrock.request.n": "2",
+      "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: Can you explain what a LLM chain is?",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.stream": "False",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_k": "0",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.0.id": "325cf647-69f5-424d-a82b-ae233013127b",
+      "bedrock.response.choices.0.text": " A large language model (LLM) chain can",
+      "bedrock.response.choices.1.finish_reason": "MAX_TOKENS",
+      "bedrock.response.choices.1.id": "0339158b-6ba9-40f9-9818-d1f9df198d17",
+      "bedrock.response.choices.1.text": " Sure! A Long Short-Term Memory (L",
+      "bedrock.response.duration": "346",
+      "bedrock.response.id": "c158207e-8168-4e9f-927c-971b9e2d9d38",
+      "bedrock.usage.completion_tokens": "20",
+      "bedrock.usage.prompt_tokens": "40",
+      "language": "python",
+      "runtime-id": "88ca69f6cc694697b1289399e130da4e"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 3568
+    },
+    "duration": 810213000,
+    "start": 1704828546765926000
+  }]]

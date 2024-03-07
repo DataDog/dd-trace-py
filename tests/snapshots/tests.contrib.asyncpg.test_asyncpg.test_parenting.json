@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -33,11 +34,13 @@
 [
   {
     "name": "parent",
-    "service": null,
+    "service": "",
     "resource": "parent",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -61,6 +64,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",
@@ -82,11 +86,13 @@
 [
   {
     "name": "parent2",
-    "service": null,
+    "service": "",
     "resource": "parent2",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -111,6 +117,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",

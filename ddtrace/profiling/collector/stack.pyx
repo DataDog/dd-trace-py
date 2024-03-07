@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+import logging
 import sys
 import typing
 
@@ -12,6 +13,7 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -21,25 +23,23 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.settings.profiling import config
 
 
+LOG = logging.getLogger(__name__)
+
+
 # These are special features that might not be available depending on your Python version and platform
 FEATURES = {
     "cpu-time": False,
-    "stack-exceptions": False,
+    "stack-exceptions": True,
     "transparent_events": False,
 }
 
-# These are flags indicating the enablement of the profiler.  This is handled at the level of
-# a global rather than a passed parameter because this is a time of transition
+# Switch to use libdd (ddup) collector/exporter.  Handled as a global since we're transitioning into
+# the now-experimental interface.
 cdef bint use_libdd = False
-cdef bint use_py = True
 
 cdef void set_use_libdd(bint flag):
     global use_libdd
     use_libdd = flag
-
-cdef void set_use_py(bint flag):
-    global use_py
-    use_py = flag
 
 IF UNAME_SYSNAME == "Linux":
     FEATURES['cpu-time'] = True
@@ -149,12 +149,16 @@ ELSE:
 
 
 from cpython.object cimport PyObject
+from cpython.ref cimport Py_DECREF
 
+cdef extern from "<pystate.h>":
+    PyObject* _PyThread_CurrentFrames()
 
-# The head lock (the interpreter mutex) is only exposed in a data structure in Python ≥ 3.7
-IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
-    FEATURES['stack-exceptions'] = True
+IF PY_VERSION_HEX >= 0x030b0000:
+    cdef extern from "<pystate.h>":
+        PyObject* _PyThread_CurrentExceptions()
 
+ELIF UNAME_SYSNAME != "Windows":
     from cpython cimport PyInterpreterState
     from cpython cimport PyInterpreterState_Head
     from cpython cimport PyInterpreterState_Next
@@ -166,9 +170,6 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
     from cpython.pythread cimport PyThread_type_lock
     from cpython.pythread cimport WAIT_LOCK
 
-    IF PY_VERSION_HEX >= 0x030b0000:
-        from cpython.ref cimport Py_XDECREF
-
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
         # but we need to access some of its fields so we redefine it here.
@@ -178,14 +179,10 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
 
-        IF PY_VERSION_HEX >= 0x030b0000:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_value
-        ELSE:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_type
-                PyObject* exc_value
-                PyObject* exc_traceback
+        ctypedef struct _PyErr_StackItem:
+            PyObject* exc_type
+            PyObject* exc_value
+            PyObject* exc_traceback
 
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
@@ -221,24 +218,35 @@ IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
             cdef extern from "<Python.h>":
                 PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
 ELSE:
-    from cpython.ref cimport Py_DECREF
-
-    cdef extern from "<pystate.h>":
-        PyObject* _PyThread_CurrentFrames()
-
+    FEATURES['stack-exceptions'] = False
 
 
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
-    cdef dict current_exceptions = {}
+    cdef dict running_threads = <dict>_PyThread_CurrentFrames()
+    Py_DECREF(running_threads)
 
-    IF UNAME_SYSNAME != "Windows" and PY_VERSION_HEX >= 0x03070000:
+    IF PY_VERSION_HEX >= 0x030b0000:
+        cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
+        Py_DECREF(current_exceptions)
+
+        for thread_id, exc_info in current_exceptions.items():
+            if exc_info is None:
+                continue
+            IF PY_VERSION_HEX >= 0x030c0000:
+                exc_type = type(exc_info)
+                exc_traceback = getattr(exc_info, "__traceback__", None)
+            ELSE:
+                exc_type, exc_value, exc_traceback = exc_info
+            current_exceptions[thread_id] = exc_type, exc_traceback
+
+    ELIF UNAME_SYSNAME != "Windows":
         cdef PyInterpreterState* interp
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
         cdef PyThread_type_lock lmutex = _PyRuntime.interpreters.mutex
         cdef PyObject* exc_type
         cdef PyObject* exc_tb
-        cdef dict running_threads = {}
+        cdef dict current_exceptions = {}
 
         # This is an internal lock but we do need it.
         # See https://bugs.python.org/issue1021318
@@ -252,40 +260,16 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                 while interp:
                     tstate = PyInterpreterState_ThreadHead(interp)
                     while tstate:
-                        # The frame can be NULL
-                        # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-                        IF PY_VERSION_HEX >= 0x030b0000:
-                            frame = PyThreadState_GetFrame(tstate)
-                            if frame:
-                                running_threads[tstate.thread_id] = <object>frame
-                            exc_info = _PyErr_GetTopmostException(tstate)
-                            if exc_info and exc_info.exc_value and <object> exc_info.exc_value is not None:
-                                # Python 3.11 removed exc_type, exc_traceback from exception representations,
-                                # can instead derive exc_type and exc_traceback from remaining exc_value field
-                                exc_type = Py_TYPE(exc_info.exc_value)
-                                exc_tb = PyException_GetTraceback(exc_info.exc_value)
-                                if exc_tb:
-                                    current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
-                                Py_XDECREF(exc_tb)
-                            Py_XDECREF(frame)
-                        ELSE:
-                            frame = tstate.frame
-                            if frame:
-                                running_threads[tstate.thread_id] = <object>frame
-                            exc_info = _PyErr_GetTopmostException(tstate)
-                            if exc_info and exc_info.exc_type and exc_info.exc_traceback:
-                                current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
+                        exc_info = _PyErr_GetTopmostException(tstate)
+                        if exc_info and exc_info.exc_type and exc_info.exc_traceback:
+                            current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
                         tstate = PyThreadState_Next(tstate)
 
                     interp = PyInterpreterState_Next(interp)
             finally:
                 PyThread_release_lock(lmutex)
     ELSE:
-        cdef dict running_threads = <dict>_PyThread_CurrentFrames()
-
-        # Now that we own the ref via <dict> casting, we can safely decrease the default refcount
-        # so we don't leak the object
-        Py_DECREF(running_threads)
+        cdef dict current_exceptions = {}
 
     cdef dict cpu_times = thread_time(running_threads.keys())
 
@@ -302,7 +286,6 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
         for (pthread_id, native_thread_id), cpu_time in cpu_times.items()
         if pthread_id not in thread_id_ignore_list
     )
-
 
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
@@ -340,89 +323,89 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
             frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
-            if use_libdd and nframes:
-                ddup.start_sample(nframes)
-                ddup.push_walltime(wall_time, 1)
-                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_task_id(task_id)
-                ddup.push_task_name(task_name)
-                ddup.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.flush_sample()
-
-            if use_py and nframes:
-                stack_events.append(
-                    stack_event.StackSampleEvent(
-                        thread_id=thread_id,
-                        thread_native_id=thread_native_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        nframes=nframes, frames=frames,
-                        wall_time_ns=wall_time,
-                        sampling_period=int(interval * 1e9),
+            if nframes:
+                if use_libdd:
+                    handle = ddup.SampleHandle()
+                    handle.push_walltime(wall_time, 1)
+                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    handle.push_task_id(task_id)
+                    handle.push_task_name(task_name)
+                    handle.push_class_name(frames[0].class_name)
+                    for frame in frames:
+                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    handle.flush_sample()
+                else:
+                    stack_events.append(
+                        stack_event.StackSampleEvent(
+                            thread_id=thread_id,
+                            thread_native_id=thread_native_id,
+                            thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
+                            nframes=nframes, frames=frames,
+                            wall_time_ns=wall_time,
+                            sampling_period=int(interval * 1e9),
+                        )
                     )
-                )
 
         frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-        if use_libdd and nframes:
-            ddup.start_sample(nframes)
-            ddup.push_cputime(cpu_time, 1)
-            ddup.push_walltime(wall_time, 1)
-            ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-            ddup.push_class_name(frames[0].class_name)
-            for frame in frames:
-                ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-            ddup.push_span(span, collect_endpoint)
-            ddup.flush_sample()
-
-        if use_py and nframes:
-            event = stack_event.StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=None,
-                task_name=None,
-                nframes=nframes,
-                frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            )
-            event.set_trace_info(span, collect_endpoint)
-            stack_events.append(event)
+        if nframes:
+            if use_libdd:
+                handle = ddup.SampleHandle()
+                handle.push_cputime( cpu_time, 1)
+                handle.push_walltime( wall_time, 1)
+                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                handle.push_class_name(frames[0].class_name)
+                for frame in frames:
+                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                handle.push_span(span, collect_endpoint)
+                handle.flush_sample()
+            else:
+                event = stack_event.StackSampleEvent(
+                    thread_id=thread_id,
+                    thread_native_id=thread_native_id,
+                    thread_name=thread_name,
+                    task_id=None,
+                    task_name=None,
+                    nframes=nframes,
+                    frames=frames,
+                    wall_time_ns=wall_time,
+                    cpu_time_ns=cpu_time,
+                    sampling_period=int(interval * 1e9),
+                )
+                event.set_trace_info(span, collect_endpoint)
+                stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
 
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
 
-            if use_libdd and nframes:
-                ddup.start_sample(nframes)
-                ddup.push_threadinfo(thread_id, thread_native_id, thread_name)
-                ddup.push_exceptioninfo(exc_type, 1)
-                ddup.push_class_name(frames[0].class_name)
-                for frame in frames:
-                    ddup.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                ddup.push_span(span, collect_endpoint)
-                ddup.flush_sample()
-
-            if use_py and nframes:
-                exc_event = stack_event.StackExceptionSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    thread_native_id=thread_native_id,
-                    task_id=None,
-                    task_name=None,
-                    nframes=nframes,
-                    frames=frames,
-                    sampling_period=int(interval * 1e9),
-                    exc_type=exc_type,
-                )
-                exc_event.set_trace_info(span, collect_endpoint)
-                exc_events.append(exc_event)
+            if nframes:
+                if use_libdd:
+                    handle = ddup.SampleHandle()
+                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    handle.push_exceptioninfo(exc_type, 1)
+                    handle.push_class_name(frames[0].class_name)
+                    for frame in frames:
+                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    handle.push_span(span, collect_endpoint)
+                    handle.flush_sample()
+                else:
+                    exc_event = stack_event.StackExceptionSampleEvent(
+                        thread_id=thread_id,
+                        thread_name=thread_name,
+                        thread_native_id=thread_native_id,
+                        task_id=None,
+                        task_name=None,
+                        nframes=nframes,
+                        frames=frames,
+                        sampling_period=int(interval * 1e9),
+                        exc_type=exc_type,
+                    )
+                    exc_event.set_trace_info(span, collect_endpoint)
+                    exc_events.append(exc_event)
 
     return stack_events, exc_events
 
@@ -487,6 +470,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):
@@ -500,20 +484,53 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
-        set_use_libdd(config.export.libdd_enabled)
-        set_use_py(config.export.py_enabled)
+
+        # If libdd is enabled, propagate the configuration
+        if config.export.libdd_enabled:
+            if not ddup.is_available:
+                # We don't report on this, since it's already been reported in profiler.py
+                set_use_libdd(False)
+
+                # If the user had also set stack.v2.enabled, then we need to disable that as well.
+                if self._stack_collector_v2_enabled:
+                    self._stack_collector_v2_enabled = False
+                    LOG.error("Stack v2 was requested, but the libdd collector could not be enabled.  Falling back to the v1 stack sampler.")
+            else:
+                set_use_libdd(True)
+
+        # If stack v2 is requested, verify it is loaded properly and that libdd has been enabled.
+        if self._stack_collector_v2_enabled:
+            if not stack_v2.is_available:
+                self._stack_collector_v2_enabled = False
+                LOG.error("Stack v2 was requested, but it could not be enabled.  Check debug logs for more information.")
+            if not use_libdd:
+                self._stack_collector_v2_enabled = False
+
+        # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
+        if self._stack_collector_v2_enabled:
+            LOG.debug("Starting the stack v2 sampler")
+            stack_v2.start()
+
 
     def _start_service(self):
         # type: (...) -> None
         # This is split in its own function to ease testing
+        LOG.debug("Profiling StackCollector starting")
         self._init()
         super(StackCollector, self)._start_service()
+        LOG.debug("Profiling StackCollector started")
 
     def _stop_service(self):
         # type: (...) -> None
+        LOG.debug("Profiling StackCollector stopping")
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
+        LOG.debug("Profiling StackCollector stopped")
+
+        # Also tell the native thread running the v2 sampler to stop, if needed
+        if self._stack_collector_v2_enabled:
+            stack_v2.stop()
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
@@ -524,18 +541,24 @@ class StackCollector(collector.PeriodicCollector):
         now = compat.monotonic_ns()
         wall_time = now - self._last_wall_time
         self._last_wall_time = now
+        all_events = []
 
-        all_events = stack_collect(
-            self.ignore_profiler,
-            self._thread_time,
-            self.nframes,
-            self.interval,
-            wall_time,
-            self._thread_span_links,
-            self.endpoint_collection_enabled,
-        )
+        # If the stack v2 collector is enabled, then do not collect the stack samples here.
+        if not self._stack_collector_v2_enabled:
+            all_events = stack_collect(
+                self.ignore_profiler,
+                self._thread_time,
+                self.nframes,
+                self.interval,
+                wall_time,
+                self._thread_span_links,
+                self.endpoint_collection_enabled,
+            )
 
         used_wall_time_ns = compat.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
+
+        if self._stack_collector_v2_enabled:
+            stack_v2.set_interval(self.interval)
 
         return all_events

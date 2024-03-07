@@ -4,12 +4,12 @@
 *                                   @DataDog/apm-core-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
-tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations-reviewers-py
+ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations
+ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations
+ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
@@ -46,10 +46,12 @@ ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
 ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/symbol_db/         @DataDog/debugger-python
 tests/debugging/                    @DataDog/debugger-python
 tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
 ddtrace/appsec/                     @DataDog/asm-python
@@ -70,12 +72,16 @@ tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
-# LLM Obs
-ddtrace/internal/llmobs/           @DataDog/ml-observability
-ddtrace/contrib/openai             @DataDog/ml-observability
-ddtrace/contrib/langchain          @DataDog/ml-observability
-tests/contrib/openai               @DataDog/ml-observability
-tests/contrib/langchain            @DataDog/ml-observability
+# MLObs
+ddtrace/llmobs/                                     @DataDog/ml-observability
+ddtrace/contrib/openai                              @DataDog/ml-observability
+ddtrace/contrib/langchain                           @DataDog/ml-observability
+ddtrace/contrib/botocore/services/bedrock.py        @DataDog/ml-observability
+tests/llmobs                                        @DataDog/ml-observability
+tests/contrib/openai                                @DataDog/ml-observability
+tests/contrib/langchain                             @DataDog/ml-observability
+tests/contrib/botocore/test_bedrock.py              @DataDog/ml-observability
+tests/contrib/botocore/bedrock_cassettes            @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python

@@ -9,9 +9,6 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
-size_t
-get_pyobject_size(PyObject* obj);
-
 // Calls the specified method and applies the same ranges to the result. Used
 // for wrapping simple methods that doesn't change the string size like upper(),
 // lower() and similar.

@@ -49,6 +49,10 @@ SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 # Intelligent Test Runner constants
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
+ITR_CORRELATION_ID_TAG_NAME = "itr_correlation_id"
+
+# Tracer configuration defaults:
+TRACER_PARTIAL_FLUSH_MIN_SPANS = 1
 
 
 class REQUESTS_MODE(IntEnum):
@@ -59,3 +63,5 @@ class REQUESTS_MODE(IntEnum):
 
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
+
+CIVISIBILITY_LOG_FILTER_RE = r"^ddtrace\.(contrib\.(coverage|pytest|unittest)|internal\.ci_visibility|ext\.git)"

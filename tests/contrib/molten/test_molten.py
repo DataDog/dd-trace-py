@@ -1,5 +1,6 @@
 import molten
 from molten.testing import TestClient
+import pytest
 
 from ddtrace import Pin
 from ddtrace import config
@@ -22,11 +23,22 @@ def hello(name: str, age: int) -> str:
     return f"Hello {age} year old named {name}!"
 
 
-def molten_client(headers=None, params=None):
-    app = molten.App(routes=[molten.Route("/hello/{name}/{age}", hello)])
-    client = TestClient(app)
-    uri = app.reverse_uri("hello", name="Jim", age=24)
-    return client.request("GET", uri, headers=headers, params=params)
+def greet():
+    return "Greetings"
+
+
+def reply_404():
+    raise molten.HTTPError(molten.HTTP_404, {"error": "Nope"})
+
+
+def molten_app():
+    return molten.App(
+        routes=[
+            molten.Route("/hello/{name}/{age}", hello),
+            molten.Route("/greet", greet),
+            molten.Route("/404", reply_404),
+        ]
+    )
 
 
 class TestMolten(TracerTestCase):
@@ -34,18 +46,25 @@ class TestMolten(TracerTestCase):
 
     TEST_SERVICE = "molten-patch"
 
+    @pytest.mark.usefixtures("molten_app")
     def setUp(self):
         super(TestMolten, self).setUp()
         patch()
         Pin.override(molten, tracer=self.tracer)
+        self.app = molten_app()
+        self.client = TestClient(self.app)
 
     def tearDown(self):
         super(TestMolten, self).setUp()
         unpatch()
 
+    def make_request(self, headers=None, params=None):
+        uri = self.app.reverse_uri("hello", name="Jim", age=24)
+        return self.client.request("GET", uri, headers=headers, params=params)
+
     def test_route_success(self):
         """Tests request was a success with the expected span tags"""
-        response = molten_client()
+        response = self.make_request()
         spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
         # TestResponse from TestClient is wrapper around Response so we must
@@ -72,13 +91,35 @@ class TestMolten(TracerTestCase):
 
         # test override of service name
         Pin.override(molten, service=self.TEST_SERVICE)
-        response = molten_client()
+        response = self.make_request()
         spans = self.pop_spans()
         self.assertEqual(spans[0].service, "molten-patch")
 
+    def make_route_reporting_test(self, endpoint, status_code, expected_route):
+        self.client.request("GET", endpoint)
+        spans = self.pop_spans()
+        span = spans[0]
+        self.assertEqual(span.service, "molten")
+        self.assertEqual(span.name, "molten.request")
+        self.assertEqual(span.span_type, "web")
+        assert_span_http_status_code(span, status_code)
+        self.assertEqual(span.get_tag("http.route"), expected_route)
+
+    def test_route_dynamic(self):
+        return self.make_route_reporting_test("/hello/foo/42", 200, "/hello/{name}/{age}")
+
+    def test_route_static(self):
+        return self.make_route_reporting_test("/greet", 200, "/greet")
+
+    def test_route_exists_404(self):
+        return self.make_route_reporting_test("/404", 404, "/404")
+
+    def test_route_absent_404(self):
+        return self.make_route_reporting_test("/not_found", 404, None)
+
     def test_route_success_query_string(self):
         with self.override_http_config("molten", dict(trace_query_string=True)):
-            response = molten_client(params={"foo": "bar"})
+            response = self.make_request(params={"foo": "bar"})
         spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
         # TestResponse from TestClient is wrapper around Response so we must
@@ -103,7 +144,7 @@ class TestMolten(TracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics_enabled=True)):
-            response = molten_client()
+            response = self.make_request()
             self.assertEqual(response.status_code, 200)
             # TestResponse from TestClient is wrapper around Response so we must
             # access data property
@@ -123,7 +164,7 @@ class TestMolten(TracerTestCase):
         """
         with self.override_global_config(dict(analytics_enabled=True)):
             with self.override_config("molten", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                response = molten_client()
+                response = self.make_request()
                 self.assertEqual(response.status_code, 200)
                 # TestResponse from TestClient is wrapper around Response so we must
                 # access data property
@@ -142,7 +183,7 @@ class TestMolten(TracerTestCase):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics_enabled=False)):
-            response = molten_client()
+            response = self.make_request()
             self.assertEqual(response.status_code, 200)
             # TestResponse from TestClient is wrapper around Response so we must
             # access data property
@@ -159,7 +200,7 @@ class TestMolten(TracerTestCase):
         """
         with self.override_global_config(dict(analytics_enabled=False)):
             with self.override_config("molten", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-                response = molten_client()
+                response = self.make_request()
                 self.assertEqual(response.status_code, 200)
                 # TestResponse from TestClient is wrapper around Response so we must
                 # access data property
@@ -212,7 +253,7 @@ class TestMolten(TracerTestCase):
 
     def test_resources(self):
         """Tests request has expected span resources"""
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
 
         # `can_handle_parameter` appears twice since two parameters are in request
@@ -249,7 +290,7 @@ class TestMolten(TracerTestCase):
     def test_distributed_tracing(self):
         """Tests whether span IDs are propagated when distributed tracing is on"""
         # Default: distributed tracing enabled
-        response = molten_client(
+        response = self.make_request(
             headers={
                 HTTP_HEADER_TRACE_ID: "100",
                 HTTP_HEADER_PARENT_ID: "42",
@@ -266,7 +307,7 @@ class TestMolten(TracerTestCase):
 
         # Explicitly enable distributed tracing
         with self.override_config("molten", dict(distributed_tracing=True)):
-            response = molten_client(
+            response = self.make_request(
                 headers={
                     HTTP_HEADER_TRACE_ID: "100",
                     HTTP_HEADER_PARENT_ID: "42",
@@ -283,7 +324,7 @@ class TestMolten(TracerTestCase):
 
         # Now without tracing on
         with self.override_config("molten", dict(distributed_tracing=False)):
-            response = molten_client(
+            response = self.make_request(
                 headers={
                     HTTP_HEADER_TRACE_ID: "100",
                     HTTP_HEADER_PARENT_ID: "42",
@@ -302,7 +343,7 @@ class TestMolten(TracerTestCase):
         """Tests unpatch-patch cycle"""
         unpatch()
         self.assertIsNone(Pin.get_from(molten))
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
@@ -310,7 +351,7 @@ class TestMolten(TracerTestCase):
         # Need to override Pin here as we do in setUp
         Pin.override(molten, tracer=self.tracer)
         self.assertTrue(Pin.get_from(molten) is not None)
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
@@ -318,14 +359,14 @@ class TestMolten(TracerTestCase):
         """Tests repatch-unpatch cycle"""
         # Already call patch in setUp
         self.assertTrue(Pin.get_from(molten) is not None)
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
         # Test unpatch
         unpatch()
         self.assertTrue(Pin.get_from(molten) is None)
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
@@ -333,7 +374,7 @@ class TestMolten(TracerTestCase):
         """Tests repatching"""
         # Already call patch in setUp but patch again
         patch()
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
@@ -343,7 +384,7 @@ class TestMolten(TracerTestCase):
         default: When a service name is specified by the user
             The molten integration should use it as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
@@ -354,7 +395,7 @@ class TestMolten(TracerTestCase):
         v0: When a service name is specified by the user
             The molten integration should use it as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
@@ -365,7 +406,7 @@ class TestMolten(TracerTestCase):
         v1: When a service name is specified by the user
             The molten integration should use it as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc", "Expected 'mysvc' but got {}".format(span.service)
@@ -376,7 +417,7 @@ class TestMolten(TracerTestCase):
         default: When a service name is not specified by the user
             The molten integration should use 'molten' as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "molten", "Expected 'molten' but got {}".format(span.service)
@@ -387,7 +428,7 @@ class TestMolten(TracerTestCase):
         v0: When a service name is not specified by the user
             The molten integration should use 'molten' as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == "molten", "Expected 'molten' but got {}".format(span.service)
@@ -398,7 +439,7 @@ class TestMolten(TracerTestCase):
         v1: When a service name is not specified by the user
             The molten integration should use internal.schema.DEFAULT_SPAN_SERVICE_NAME as the service name
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         for span in spans:
             assert span.service == DEFAULT_SPAN_SERVICE_NAME, "Expected '{}' but got {}".format(
@@ -410,7 +451,7 @@ class TestMolten(TracerTestCase):
         """
         v0: The molten span name should be "request.span"
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.name == "molten.request", "Expected 'molten.request' but got {}".format(root_span.name)
@@ -420,7 +461,7 @@ class TestMolten(TracerTestCase):
         """
         v0: The molten span name should be "request.span"
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.name == "molten.request", "Expected 'molten.request' but got {}".format(root_span.name)
@@ -430,7 +471,7 @@ class TestMolten(TracerTestCase):
         """
         v1: The molten span name should be "http.server.request"
         """
-        molten_client()
+        self.make_request()
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.name == "http.server.request", "Expected 'http.server.request' but got {}".format(
@@ -439,7 +480,7 @@ class TestMolten(TracerTestCase):
 
     def test_http_request_header_tracing(self):
         config.molten.http.trace_headers(["my-header"])
-        response = molten_client(
+        response = self.make_request(
             headers={
                 "my-header": "my_value",
             }

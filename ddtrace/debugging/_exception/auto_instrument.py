@@ -8,15 +8,15 @@ import uuid
 
 import attr
 
+from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
-from ddtrace.span import Span
 
 
 GLOBAL_RATE_LIMITER = RateLimiter(
@@ -105,7 +105,7 @@ class SpanExceptionSnapshot(Snapshot):
 
     @property
     def data(self) -> t.Dict[str, t.Any]:
-        data = super(SpanExceptionSnapshot, self).data
+        data = super().data
 
         data.update({"exception-id": str(self.exc_id)})
 

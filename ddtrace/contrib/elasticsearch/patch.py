@@ -2,7 +2,7 @@ from importlib import import_module
 from typing import List  # noqa:F401
 
 from ddtrace import config
-from ddtrace._tracing import _limits
+from ddtrace._trace import _limits
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import net
@@ -132,6 +132,9 @@ def _get_perform_request_coro(transport):
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            if pin.tags:
+                span.set_tags(pin.tags)
+
             span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
 
             # set span.kind to the type of request being performed
@@ -139,8 +142,8 @@ def _get_perform_request_coro(transport):
 
             span.set_tag(SPAN_MEASURED_KEY)
 
-            # Don't instrument if the trace is not sampled
-            if not span.sampled:
+            # Only instrument if trace is sampled or if we haven't tried to sample yet
+            if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
                 yield func(*args, **kwargs)
                 return
 

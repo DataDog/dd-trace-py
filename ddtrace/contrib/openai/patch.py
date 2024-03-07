@@ -1,30 +1,21 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
 
 from openai import version
 
 from ddtrace import config
-from ddtrace.contrib._trace_utils_llm import BaseLLMIntegration
-from ddtrace.internal.agent import get_stats_url
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import wrap
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._integrations import OpenAIIntegration
 
 from ...pin import Pin
 from . import _endpoint_hooks
 from .utils import _format_openai_api_key
-
-
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -38,7 +29,6 @@ config._add(
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
         "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
-        "_api_key": os.getenv("DD_API_KEY"),
     },
 )
 
@@ -147,104 +137,6 @@ else:
     }
 
 
-class _OpenAIIntegration(BaseLLMIntegration):
-    _integration_name = "openai"
-
-    def __init__(self, config, openai, stats_url, site, api_key):
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
-        super().__init__(config, stats_url, site, api_key)
-        self._openai = openai
-        self._user_api_key = None
-        self._client = None
-        if self._openai.api_key is not None:
-            self.user_api_key = self._openai.api_key
-
-    @property
-    def user_api_key(self):
-        # type: () -> Optional[str]
-        """Get a representation of the user API key for tagging."""
-        return self._user_api_key
-
-    @user_api_key.setter
-    def user_api_key(self, value):
-        # Match the API key representation that OpenAI uses in their UI.
-        self._user_api_key = "sk-...%s" % value[-4:]
-
-    def _set_base_span_tags(self, span, **kwargs):
-        # type: (Span, Dict[str, Any]) -> None
-        span.set_tag_str(COMPONENT, self._config.integration_name)
-        if self._user_api_key is not None:
-            span.set_tag_str("openai.user.api_key", self._user_api_key)
-
-        # Do these dynamically as openai users can set these at any point
-        # not necessarily before patch() time.
-        # organization_id is only returned by a few endpoints, grab it when we can.
-        if OPENAI_VERSION >= (1, 0, 0):
-            source = self._client
-            base_attrs = ("base_url", "organization")
-        else:
-            source = self._openai
-            base_attrs = ("api_base", "api_version", "api_type", "organization")
-        for attr in base_attrs:
-            v = getattr(source, attr, None)
-            if v is not None:
-                if attr == "organization":
-                    span.set_tag_str("openai.organization.id", v or "")
-                else:
-                    span.set_tag_str("openai.%s" % attr, str(v))
-
-    @classmethod
-    def _logs_tags(cls, span):
-        tags = (
-            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s,"
-            "openai.user.api_key:%s"
-            % (  # noqa: E501
-                (config.env or ""),
-                (config.version or ""),
-                (span.get_tag("openai.request.endpoint") or ""),
-                (span.get_tag("openai.request.method") or ""),
-                (span.get_tag("openai.request.model") or ""),
-                (span.get_tag("openai.organization.name") or ""),
-                (span.get_tag("openai.user.api_key") or ""),
-            )
-        )
-        return tags
-
-    @classmethod
-    def _metrics_tags(cls, span):
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % (span.get_tag("openai.request.model") or ""),
-            "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
-            "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
-            "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
-            "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
-            "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
-
-    def record_usage(self, span, usage):
-        if not usage or not self._config.metrics_enabled:
-            return
-        tags = self._metrics_tags(span)
-        tags.append("openai.estimated:false")
-        for token_type in ("prompt", "completion", "total"):
-            num_tokens = getattr(usage, token_type + "_tokens", None)
-            if not num_tokens:
-                continue
-            span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-            self._statsd.distribution("tokens.%s" % token_type, num_tokens, tags=tags)
-
-
 def _wrap_classmethod(obj, wrapper):
     wrap(obj.__func__, wrapper)
 
@@ -256,25 +148,18 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
-    ddsite = os.getenv("DD_SITE", "datadoghq.com")
-    ddapikey = os.getenv("DD_API_KEY", config.openai._api_key)
+    if config._llmobs_enabled:
+        LLMObs.enable()
 
     Pin().onto(openai)
-    integration = _OpenAIIntegration(
-        config=config.openai,
-        openai=openai,
-        stats_url=get_stats_url(),
-        site=ddsite,
-        api_key=ddapikey,
-    )
-
-    if config.openai.logs_enabled:
-        if not ddapikey:
-            raise ValueError("DD_API_KEY is required for sending logs from the OpenAI integration")
-        integration.start_log_writer()
+    integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
 
     if OPENAI_VERSION >= (1, 0, 0):
-        wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
+        if OPENAI_VERSION >= (1, 8, 0):
+            wrap(openai._base_client.SyncAPIClient._process_response, _patched_convert(openai, integration))
+            wrap(openai._base_client.AsyncAPIClient._process_response, _patched_convert(openai, integration))
+        else:
+            wrap(openai._base_client.BaseClient._process_response, _patched_convert(openai, integration))
         wrap(openai.OpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AsyncOpenAI.__init__, _patched_client_init(openai, integration))
         wrap(openai.AzureOpenAI.__init__, _patched_client_init(openai, integration))
@@ -317,7 +202,8 @@ def patch():
 def unpatch():
     # FIXME: add unpatching. The current wrapping.unwrap method requires
     #        the wrapper function to be provided which we don't keep a reference to.
-    pass
+    if LLMObs.enabled:
+        LLMObs.disable()
 
 
 def _patched_client_init(openai, integration):
@@ -468,7 +354,6 @@ def _patched_convert(openai, integration):
         else:
             resp = kwargs.get("response", {})
             headers = resp.headers
-
         # This function is called for each chunk in the stream.
         # To prevent needlessly setting the same tags for each chunk, short-circuit here.
         if span.get_tag("openai.organization.name") is not None:
@@ -482,11 +367,12 @@ def _patched_convert(openai, integration):
             v = headers.get("x-ratelimit-limit-requests")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.requests", int(v))
+                span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
         if headers.get("x-ratelimit-limit-tokens"):
             v = headers.get("x-ratelimit-limit-tokens")
             if v is not None:
                 integration.metric(span, "gauge", "ratelimit.tokens", int(v))
-
+                span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
         # Gauge and set span info for remaining requests and tokens
         if headers.get("x-ratelimit-remaining-requests"):
             v = headers.get("x-ratelimit-remaining-requests")

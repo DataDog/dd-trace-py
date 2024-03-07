@@ -1,0 +1,38 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "659c394300000000",
+      "bedrock.request.max_tokens": "60",
+      "bedrock.request.model": "llama2-13b-chat-v1",
+      "bedrock.request.model_provider": "meta",
+      "bedrock.request.prompt": "What does 'lorem ipsum' mean?",
+      "bedrock.request.temperature": "0.9",
+      "bedrock.request.top_p": "1.0",
+      "bedrock.response.choices.0.finish_reason": "length",
+      "bedrock.response.choices.0.text": "\\n\\n\"Lorem ipsum\" is a commonly used phrase in the graphic design and publishing industries. It refers to a piece of pretend tex...",
+      "bedrock.response.duration": "1686",
+      "bedrock.response.id": "491ad1a3-45d8-4d84-b92c-eb8e79cc79d3",
+      "bedrock.usage.completion_tokens": "60",
+      "bedrock.usage.prompt_tokens": "10",
+      "language": "python",
+      "runtime-id": "63a32fa9ed86471383f1355fba7356d8"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 10703
+    },
+    "duration": 2120703000,
+    "start": 1704737091420517000
+  }]]

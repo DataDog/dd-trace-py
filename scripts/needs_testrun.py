@@ -59,6 +59,16 @@ def get_merge_base(pr_number: int) -> str:
 
 
 @cache
+def get_latest_commit_message() -> str:
+    """Get the commit message of the last commit."""
+    try:
+        return check_output(["git", "log", "-1", "--pretty=%B"]).decode("utf-8").strip()
+    except Exception:
+        pass
+    return ""
+
+
+@cache
 def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
     """Get the files changed in a PR
 
@@ -100,6 +110,8 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     >>> needs_testrun("foobar", 6412)
     True
     """
+    if "itr:noskip" in get_latest_commit_message().lower():
+        return True
     try:
         patterns = get_patterns(suite)
     except Exception as exc:

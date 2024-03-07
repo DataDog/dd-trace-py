@@ -246,12 +246,8 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == "doesnotexist.google.com"
         assert s.error == 1
-        if sys.version_info >= (3, 12, 0):
-            assert "Failed to resolve 'doesnotexist.google.com'" in s.get_tag(ERROR_MSG)
-            assert "Failed to resolve 'doesnotexist.google.com'" in s.get_tag(ERROR_STACK)
-        else:
-            assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
-            assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
+        assert "Name or service not known" in s.get_tag(ERROR_MSG)
+        assert "Name or service not known" in s.get_tag(ERROR_STACK)
         assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
         assert "requests.exception" in s.get_tag(ERROR_TYPE)
 

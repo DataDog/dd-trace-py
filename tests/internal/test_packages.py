@@ -1,18 +1,18 @@
 import os
+import pathlib
 
 import mock
 import pytest
 
 from ddtrace.internal import packages
 from ddtrace.internal.packages import get_distributions
-from ddtrace.internal.packages import pathlib
 
 
 def test_get_distributions():
     """use pkg_resources to validate package names and versions returned by get_distributions()"""
     import pkg_resources
 
-    pkg_resources_ws = {pkg.project_name for pkg in pkg_resources.working_set}
+    pkg_resources_ws = {pkg.project_name.lower() for pkg in pkg_resources.working_set}
 
     importlib_pkgs = set()
     for pkg in get_distributions():
@@ -84,3 +84,5 @@ def test_filename_to_package():
 
     package = packages.filename_to_package(gp.__file__)
     assert package is None or package.name == "protobuf"
+
+    del packages._package_file_mapping.__closure__[0].cell_contents.__callonce_result__

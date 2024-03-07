@@ -7,7 +7,6 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 from ddtrace.internal import core
-from tests.utils import override_env
 
 
 def test_insecure_cookies(iast_span_defaults):
@@ -21,9 +20,9 @@ def test_insecure_cookies(iast_span_defaults):
     assert VULN_INSECURE_COOKIE in vulnerabilities_types
     assert VULN_NO_SAMESITE_COOKIE in vulnerabilities_types
 
-    assert vulnerabilities[0].evidence.value == "foo=bar"
-    assert vulnerabilities[1].evidence.value == "foo=bar"
-    assert vulnerabilities[2].evidence.value == "foo=bar"
+    assert vulnerabilities[0].evidence.value == "foo"
+    assert vulnerabilities[1].evidence.value == "foo"
+    assert vulnerabilities[2].evidence.value == "foo"
 
     assert vulnerabilities[0].location.line is None
     assert vulnerabilities[0].location.path is None
@@ -40,8 +39,8 @@ def test_nohttponly_cookies(iast_span_defaults):
     assert VULN_NO_HTTPONLY_COOKIE in vulnerabilities_types
     assert VULN_NO_SAMESITE_COOKIE in vulnerabilities_types
 
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure"
-    assert vulnerabilities[1].evidence.value == "foo=bar;secure"
+    assert vulnerabilities[0].evidence.value == "foo"
+    assert vulnerabilities[1].evidence.value == "foo"
 
     assert vulnerabilities[0].location.line is None
     assert vulnerabilities[0].location.path is None
@@ -62,7 +61,7 @@ def test_nosamesite_cookies_missing(iast_span_defaults):
 
     assert len(vulnerabilities) == 1
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_none(iast_span_defaults):
@@ -75,7 +74,7 @@ def test_nosamesite_cookies_none(iast_span_defaults):
     assert len(vulnerabilities) == 1
 
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_other(iast_span_defaults):
@@ -88,7 +87,7 @@ def test_nosamesite_cookies_other(iast_span_defaults):
     assert len(vulnerabilities) == 1
 
     assert vulnerabilities[0].type == VULN_NO_SAMESITE_COOKIE
-    assert vulnerabilities[0].evidence.value == "foo=bar;secure;httponly;samesite=none"
+    assert vulnerabilities[0].evidence.value == "foo"
 
 
 def test_nosamesite_cookies_lax_no_error(iast_span_defaults):
@@ -106,15 +105,14 @@ def test_nosamesite_cookies_strict_no_error(iast_span_defaults):
 
 
 @pytest.mark.parametrize("num_vuln_expected", [3, 0, 0])
-def test_insecure_cookies_deduplication(num_vuln_expected, iast_span_defaults):
-    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
-        cookies = {"foo": "bar"}
-        asm_check_cookies(cookies)
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+def test_insecure_cookies_deduplication(num_vuln_expected, iast_span_deduplication_enabled):
+    cookies = {"foo": "bar"}
+    asm_check_cookies(cookies)
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
 
-        if num_vuln_expected == 0:
-            assert span_report is None
-        else:
-            assert span_report
+    if num_vuln_expected == 0:
+        assert span_report is None
+    else:
+        assert span_report
 
-            assert len(span_report.vulnerabilities) == num_vuln_expected
+        assert len(span_report.vulnerabilities) == num_vuln_expected

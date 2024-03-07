@@ -4,10 +4,12 @@ import json
 
 import xmltodict
 
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._patch import if_iast_taint_returned_object_for
 from ddtrace.appsec._iast._patch import if_iast_taint_yield_tuple_for
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.logger import get_logger
@@ -34,6 +36,57 @@ def _get_content_length(environ):
         return 0
 
 
+# set_http_meta
+
+
+def _on_set_http_meta(
+    span,
+    request_ip,
+    raw_uri,
+    route,
+    method,
+    request_headers,
+    request_cookies,
+    parsed_query,
+    request_path_params,
+    request_body,
+    status_code,
+    response_headers,
+    response_cookies,
+):
+    if _is_iast_enabled():
+        from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
+
+        if response_cookies:
+            asm_check_cookies(response_cookies)
+
+    if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
+        # avoid circular import
+        from ddtrace.appsec._asm_request_context import set_waf_address
+
+        status_code = str(status_code) if status_code is not None else None
+
+        addresses = [
+            (SPAN_DATA_NAMES.REQUEST_HTTP_IP, request_ip),
+            (SPAN_DATA_NAMES.REQUEST_URI_RAW, raw_uri),
+            (SPAN_DATA_NAMES.REQUEST_ROUTE, route),
+            (SPAN_DATA_NAMES.REQUEST_METHOD, method),
+            (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, request_headers),
+            (SPAN_DATA_NAMES.REQUEST_COOKIES, request_cookies),
+            (SPAN_DATA_NAMES.REQUEST_QUERY, parsed_query),
+            (SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, request_path_params),
+            (SPAN_DATA_NAMES.REQUEST_BODY, request_body),
+            (SPAN_DATA_NAMES.RESPONSE_STATUS, status_code),
+            (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers),
+        ]
+        for k, v in addresses:
+            if v is not None:
+                set_waf_address(k, v, span)
+
+
+core.on("set_http_meta_for_asm", _on_set_http_meta)
+
+
 # ASGI
 
 
@@ -47,8 +100,11 @@ async def _on_asgi_request_parse_body(receive, headers):
 
         content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
-            if content_type == "application/json" or content_type == "text/json":
-                req_body = json.loads(body.decode())
+            if content_type in ("application/json", "text/json"):
+                if body is None or body == b"":
+                    req_body = None
+                else:
+                    req_body = json.loads(body.decode())
             elif content_type in ("application/xml", "text/xml"):
                 req_body = xmltodict.parse(body)
             elif content_type == "text/plain":
@@ -56,7 +112,7 @@ async def _on_asgi_request_parse_body(receive, headers):
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
             return receive, req_body
-        except BaseException:
+        except Exception:
             return receive, None
 
     return receive, None
@@ -92,9 +148,11 @@ def _on_request_span_modifier(
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:
-            if content_type == "application/json" or content_type == "text/json":
+            if content_type in ("application/json", "text/json"):
                 if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                     req_body = request.json
+                elif request.data is None or request.data == b"":
+                    req_body = None
                 else:
                     req_body = json.loads(request.data.decode("UTF-8"))
             elif content_type in ("application/xml", "text/xml"):
@@ -114,7 +172,7 @@ def _on_request_span_modifier(
             xmltodict.expat.ExpatError,
             xmltodict.ParsingInterrupted,
         ):
-            log.warning("Failed to parse request body", exc_info=True)
+            log.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
@@ -132,6 +190,13 @@ def _on_request_init(wrapped, instance, args, kwargs):
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -146,8 +211,6 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -210,16 +273,17 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return
 
         http_req = fn_args[0]
 
-        if not isinstance(http_req.COOKIES, LazyTaintDict):
-            http_req.COOKIES = LazyTaintDict(http_req.COOKIES, origins=(OriginType.COOKIE_NAME, OriginType.COOKIE))
-        if not isinstance(http_req.GET, LazyTaintDict):
-            http_req.GET = LazyTaintDict(http_req.GET, origins=(OriginType.PARAMETER_NAME, OriginType.PARAMETER))
-        if not isinstance(http_req.POST, LazyTaintDict):
-            http_req.POST = LazyTaintDict(http_req.POST, origins=(OriginType.BODY, OriginType.BODY))
+        http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
+        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+        http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
         if not is_pyobject_tainted(getattr(http_req, "_body", None)):
             http_req._body = taint_pyobject(
                 http_req.body,
@@ -228,10 +292,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 source_origin=OriginType.BODY,
             )
 
-        if not isinstance(http_req.META, LazyTaintDict):
-            http_req.META = LazyTaintDict(http_req.META, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
-        if not isinstance(http_req.headers, LazyTaintDict):
-            http_req.headers = LazyTaintDict(http_req.headers, origins=(OriginType.HEADER_NAME, OriginType.HEADER))
+        http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
         )
@@ -247,6 +308,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             source_value=http_req.path,
             source_origin=OriginType.PATH,
         )
+        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
         if fn_kwargs:
             try:
                 for k, v in fn_kwargs.items():
@@ -264,7 +326,8 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
-        from ddtrace.appsec._iast._taint_utils import LazyTaintDict
+        from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -277,9 +340,10 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
         _set_metric_iast_instrumented_source(OriginType.BODY)
 
-        return wrapped(
-            *((LazyTaintDict(args[0], origins=(OriginType.HEADER_NAME, OriginType.HEADER)),) + args[1:]), **kwargs
-        )
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return wrapped(*args, **kwargs)
+
+        return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
 
@@ -300,14 +364,14 @@ def _on_django_patch():
 
 
 def listen():
-    core.on("flask.request_call_modifier", _on_request_span_modifier)
+    core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
     core.on("flask.request_init", _on_request_init)
     core.on("flask.blocked_request_callable", _on_flask_blocked_request)
 
 
 core.on("django.func.wrapped", _on_django_func_wrapped)
-core.on("django.wsgi_environ", _on_wsgi_environ)
+core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
 core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
-core.on("asgi.request.parse.body", _on_asgi_request_parse_body)
+core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")

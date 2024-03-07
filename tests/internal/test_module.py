@@ -208,6 +208,7 @@ def test_module_deleted():
 
     del sys.modules[name]
     gc.collect()
+    assert name not in sys.modules
 
     assert str(path) not in ModuleWatchdog._instance._origin_map
 
@@ -415,3 +416,89 @@ def test_module_watchdog_weakref():
     instance = ModuleWatchdog._instance
     instance._om = None
     assert ModuleWatchdog._instance._origin_map
+
+
+def test_module_watchdog_namespace_import():
+    ModuleWatchdog.install()
+
+    ns_imported = False
+
+    def ns_hook(module):
+        nonlocal ns_imported
+        ns_imported = True
+
+    ModuleWatchdog.register_module_hook("namespace_test", ns_hook)
+
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+
+        import namespace_test.ns_module  # noqa:F401
+
+        assert ns_imported
+    finally:
+        sys.path.pop(0)
+        ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        PYTHONPATH=os.pathsep.join((str(Path(__file__).parent), os.environ.get("PYTHONPATH", ""))),
+        PYTHONDEVMODE="1",
+    ),
+)
+def test_module_watchdog_namespace_import_no_warnings():
+    # Test that the namespace import does not emit warnings (e.g. fallback to
+    # legacy import machinery).
+    import namespace_test.ns_module  # noqa:F401
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)))
+def test_module_watchdog_pkg_resources_support():
+    # Test that we can access resource files with pkg_resources without raising
+    # an exception.
+    import os
+    import sys
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    import pkg_resources as p
+
+    p.resource_listdir("namespace_test.ns_module", ".")
+
+
+@pytest.mark.subprocess(
+    env=dict(NSPATH=str(Path(__file__).parent)),
+    err=lambda _: "Can't perform this operation for unregistered loader type" not in _,
+)
+def test_module_watchdog_pkg_resources_support_already_imported():
+    # Test that we can access resource files with pkg_resources without raising
+    # an exception.
+    import os
+    import sys
+
+    assert "ddtrace" not in sys.modules
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    import pkg_resources as p
+
+    import ddtrace  # noqa
+
+    p.resource_listdir("namespace_test.ns_module", ".")
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="importlib.resources.files is not available or broken in Python < 3.10"
+)
+@pytest.mark.subprocess(env=dict(NSPATH=str(Path(__file__).parent)))
+def test_module_watchdog_importlib_resources_files():
+    import os
+    import sys
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    from importlib.readers import MultiplexedPath
+    import importlib.resources as r
+
+    assert isinstance(r.files("namespace_test"), MultiplexedPath)

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where custom event boolean properties were not reported as `true` and `false`
+    like other tracers but as `True` and `False`.

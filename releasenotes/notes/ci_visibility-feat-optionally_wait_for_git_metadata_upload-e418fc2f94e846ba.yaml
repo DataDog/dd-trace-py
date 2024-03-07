@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    CI Visibility: allows for waiting for the git metadata upload to complete
+    before deciding whether or not to enable coverage (based on API response).

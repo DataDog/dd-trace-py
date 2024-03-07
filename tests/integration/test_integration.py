@@ -10,6 +10,7 @@ import six
 
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import BadEncoder
@@ -94,7 +95,6 @@ t.join()
 
 
 @parametrize_with_all_encodings
-@pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
 def test_single_trace_uds():
     import mock
 
@@ -127,7 +127,7 @@ def test_uds_wrong_socket_path():
         mock.call(
             "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             3,
         )
     ]
@@ -403,7 +403,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
         mock.call(
             "failed to send, dropping %d traces to intake at %s after %d retries",
             1,
-            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             3,
         )
     ]
@@ -430,6 +430,26 @@ def test_validate_headers_in_payload_to_intake():
     assert headers.get("X-Datadog-Trace-Count") == "1"
     if container.get_container_info():
         assert "Datadog-Container-Id" in headers
+        assert "Datadog-Entity-ID" in headers
+        assert headers["Datadog-Entity-ID"].startswith("cid")
+
+
+@skip_if_testagent
+@parametrize_with_all_encodings
+def test_inode_entity_id_header_present():
+    import mock
+
+    from ddtrace import tracer as t
+
+    t._writer._put = mock.Mock(wraps=t._writer._put)
+    with mock.patch("container.get_container_info") as gcimock:
+        gcimock.return_value = container.CGroupInfo(node_inode=12345)
+        t.trace("op").finish()
+        t.shutdown()
+    assert t._writer._put.call_count == 1
+    headers = t._writer._put.call_args[0][1]
+    assert "Datadog-Entity-ID" in headers
+    assert headers["Datadog-Entity-ID"].startswith("in")
 
 
 @skip_if_testagent
@@ -492,7 +512,7 @@ def test_trace_with_invalid_payload_generates_error_log():
         [
             mock.call(
                 "failed to send traces to intake at %s: HTTP error status %s, reason %s",
-                "http://localhost:8126/v0.4/traces",
+                "http://localhost:8126/v0.5/traces",
                 400,
                 "Bad Request",
             )
@@ -571,7 +591,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
     from ddtrace import tracer as t
 
-    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.4"
+    encoding = os.environ["DD_TRACE_API_VERSION"] or "v0.5"
     t._writer._downgrade(None, None, t._writer._clients[0])
     assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -597,7 +617,6 @@ def test_writer_flush_queue_generates_debug_log():
 
     from ddtrace.internal import agent
     from ddtrace.internal.writer import AgentWriter
-    from tests.integration.utils import AGENT_VERSION
     from tests.utils import AnyFloat
     from tests.utils import AnyStr
 
@@ -608,7 +627,7 @@ def test_writer_flush_queue_generates_debug_log():
         writer.write([])
         writer.flush_queue(raise_exc=True)
         # for latest agent, default to v0.3 since no priority sampler is set
-        expected_encoding = "v0.3" if AGENT_VERSION == "v5" else (encoding or "v0.3")
+        expected_encoding = encoding or "v0.3"
         calls = [
             mock.call(
                 logging.DEBUG,
@@ -719,7 +738,7 @@ def test_partial_flush_log():
     s3 = t.trace("3")
     t_id = s3.trace_id
 
-    with mock.patch("ddtrace.internal.processor.trace.log") as log:
+    with mock.patch("ddtrace._trace.processor.log") as log:
         s3.finish()
         s2.finish()
 

@@ -64,6 +64,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
         assert applied_configs == client_configs
 
 
+# TODO: split this test into smaller tests that operate independently from each other
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
 def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_file):
     with override_global_config(dict(_remote_config_poll_interval=0.1, _remote_config_enabled=True)):
@@ -110,6 +111,127 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
         assert applied_configs == client_configs
         rc_client._products = {}
         asm_callback.stop()
+
+        mock_callback = mock.MagicMock()
+
+        def _mock_appsec_callback(features, test_tracer=None):
+            mock_callback(features)
+
+        callback_content = {"b": [1, 2, 3]}
+        target = "1/ASM/2"
+        config = {"Config": "data"}
+        test_list_callbacks = []
+        callback = RCClientMockPubSub(None, _mock_appsec_callback)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
+        callback.start_subscriber()
+        for callback_to_dispach in test_list_callbacks:
+            callback_to_dispach.publish()
+        time.sleep(0.5)
+
+        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": 2})
+        assert len(test_list_callbacks) > 0
+        callback.stop()
+
+        class callbackClass:
+            result = None
+
+            @classmethod
+            def _mock_appsec_callback(cls, *args, **kwargs):
+                cls.result = dict(args[0])
+
+        callback1 = RCClientMockPubSub(None, callbackClass._mock_appsec_callback)
+        callback2 = RCClientMockPubSub2(None, callbackClass._mock_appsec_callback)
+        callback_content1 = {"d": [1]}
+        callback_content2 = {"e": [2]}
+        target = "1/ASM/3"
+        config = {"Config": "data"}
+        test_list_callbacks = []
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
+        callback1.start_subscriber()
+        callback2.start_subscriber()
+        assert len(test_list_callbacks) == 1
+        test_list_callbacks[0].publish()
+        time.sleep(0.5)
+
+        assert callbackClass.result == {"config": {"d": [1], "e": [2]}, "metadata": {}, "shared_data_counter": ANY}
+        callback1.stop()
+        callback2.stop()
+
+    class Callback1And2Class:
+        result = None
+
+        @classmethod
+        def _mock_appsec_callback(cls, *args, **kwargs):
+            cls.result = dict(args[0])
+
+    class Callback3Class:
+        result = None
+
+        @classmethod
+        def _mock_appsec_callback(cls, *args, **kwargs):
+            cls.result = dict(args[0])
+
+    with override_global_config(dict(_remote_config_poll_interval=0.1)):
+        callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+        callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
+        callback_content1 = {"f": [1]}
+        callback_content2 = {"g": [2]}
+        callback_content3 = {"g": [3]}
+        target = "1/ASM/2"
+        config = {"Config": "data"}
+        test_list_callbacks = []
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
+        callback1.start_subscriber()
+        callback3.start_subscriber()
+        assert len(test_list_callbacks) == 2
+        test_list_callbacks[0].publish()
+        test_list_callbacks[1].publish()
+        time.sleep(0.5)
+
+        assert Callback3Class.result == {"config": {"g": [3]}, "metadata": {}, "shared_data_counter": ANY}
+        assert Callback1And2Class.result == {"config": {"f": [1], "g": [2]}, "metadata": {}, "shared_data_counter": ANY}
+        callback1.stop()
+        callback3.stop()
+
+        class Callback1And2Class:
+            result = None
+
+            @classmethod
+            def _mock_appsec_callback(cls, *args, **kwargs):
+                cls.result = dict(args[0])
+
+        class Callback3Class:
+            result = None
+
+            @classmethod
+            def _mock_appsec_callback(cls, *args, **kwargs):
+                cls.result = dict(args[0])
+
+        callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
+        callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
+        callback_content1 = {"a": [1]}
+        callback_content2 = {"b": [2]}
+        callback_content3 = {"c": [2]}
+        target = "1/ASM/2"
+        config = {"Config": "data"}
+        test_list_callbacks = []
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
+        RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
+        callback1.start_subscriber()
+        callback3.start_subscriber()
+        assert len(test_list_callbacks) == 2
+        test_list_callbacks[0].publish()
+        test_list_callbacks[1].publish()
+        time.sleep(0.5)
+
+        assert Callback3Class.result == {"config": {"c": [2]}, "metadata": {}, "shared_data_counter": ANY}
+        assert Callback1And2Class.result == {"config": {"a": [1], "b": [2]}, "metadata": {}, "shared_data_counter": ANY}
+        callback1.stop()
+        callback3.stop()
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
@@ -342,137 +464,3 @@ def test_apply_default_callback():
     assert CallbackClass.config == config
     assert CallbackClass.result == callback_content
     assert test_list_callbacks == [callback]
-
-
-def test_apply_merge_callback():
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
-        mock_callback = mock.MagicMock()
-
-        def _mock_appsec_callback(features, test_tracer=None):
-            mock_callback(features)
-
-        callback_content = {"b": [1, 2, 3]}
-        target = "1/ASM/2"
-        config = {"Config": "data"}
-        test_list_callbacks = []
-        callback = RCClientMockPubSub(None, _mock_appsec_callback)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback, callback_content, target, config)
-        callback.start_subscriber()
-        for callback_to_dispach in test_list_callbacks:
-            callback_to_dispach.publish()
-        time.sleep(0.5)
-
-        mock_callback.assert_called_with({"metadata": {}, "config": {"b": [1, 2, 3]}, "shared_data_counter": 2})
-        assert len(test_list_callbacks) > 0
-        callback.stop()
-
-
-def test_apply_merge_multiple_callback():
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
-
-        class callbackClass:
-            result = None
-
-            @classmethod
-            def _mock_appsec_callback(cls, *args, **kwargs):
-                cls.result = dict(args[0])
-
-        callback1 = RCClientMockPubSub(None, callbackClass._mock_appsec_callback)
-        callback2 = RCClientMockPubSub2(None, callbackClass._mock_appsec_callback)
-        callback_content1 = {"d": [1]}
-        callback_content2 = {"e": [2]}
-        target = "1/ASM/3"
-        config = {"Config": "data"}
-        test_list_callbacks = []
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
-        callback1.start_subscriber()
-        callback2.start_subscriber()
-        assert len(test_list_callbacks) == 1
-        test_list_callbacks[0].publish()
-        time.sleep(0.5)
-
-        assert callbackClass.result == {"config": {"d": [1], "e": [2]}, "metadata": {}, "shared_data_counter": ANY}
-        callback1.stop()
-        callback2.stop()
-
-
-def test_apply_merge_different_callback():
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
-
-        class Callback1And2Class:
-            result = None
-
-            @classmethod
-            def _mock_appsec_callback(cls, *args, **kwargs):
-                cls.result = dict(args[0])
-
-        class Callback3Class:
-            result = None
-
-            @classmethod
-            def _mock_appsec_callback(cls, *args, **kwargs):
-                cls.result = dict(args[0])
-
-        callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
-        callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
-        callback_content1 = {"a": [1]}
-        callback_content2 = {"b": [2]}
-        callback_content3 = {"c": [2]}
-        target = "1/ASM/2"
-        config = {"Config": "data"}
-        test_list_callbacks = []
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
-        callback1.start_subscriber()
-        callback3.start_subscriber()
-        assert len(test_list_callbacks) == 2
-        test_list_callbacks[0].publish()
-        test_list_callbacks[1].publish()
-        time.sleep(0.5)
-
-        assert Callback3Class.result == {"config": {"c": [2]}, "metadata": {}, "shared_data_counter": ANY}
-        assert Callback1And2Class.result == {"config": {"a": [1], "b": [2]}, "metadata": {}, "shared_data_counter": ANY}
-        callback1.stop()
-        callback3.stop()
-
-
-def test_apply_merge_different_target_callback():
-    class Callback1And2Class:
-        result = None
-
-        @classmethod
-        def _mock_appsec_callback(cls, *args, **kwargs):
-            cls.result = dict(args[0])
-
-    class Callback3Class:
-        result = None
-
-        @classmethod
-        def _mock_appsec_callback(cls, *args, **kwargs):
-            cls.result = dict(args[0])
-
-    with override_global_config(dict(_remote_config_poll_interval=0.1)):
-        callback1 = RCClientMockPubSub(None, Callback1And2Class._mock_appsec_callback)
-        callback3 = RCClientMockPubSub2(None, Callback3Class._mock_appsec_callback)
-        callback_content1 = {"f": [1]}
-        callback_content2 = {"g": [2]}
-        callback_content3 = {"g": [3]}
-        target = "1/ASM/2"
-        config = {"Config": "data"}
-        test_list_callbacks = []
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content1, target, config)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback1, callback_content2, target, config)
-        RemoteConfigClient._apply_callback(test_list_callbacks, callback3, callback_content3, target, config)
-        callback1.start_subscriber()
-        callback3.start_subscriber()
-        assert len(test_list_callbacks) == 2
-        test_list_callbacks[0].publish()
-        test_list_callbacks[1].publish()
-        time.sleep(0.5)
-
-        assert Callback3Class.result == {"config": {"g": [3]}, "metadata": {}, "shared_data_counter": ANY}
-        assert Callback1And2Class.result == {"config": {"f": [1], "g": [2]}, "metadata": {}, "shared_data_counter": ANY}
-        callback1.stop()
-        callback3.stop()

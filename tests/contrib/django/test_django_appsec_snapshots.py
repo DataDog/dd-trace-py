@@ -5,14 +5,15 @@ import subprocess
 import django
 import pytest
 
+from ddtrace.appsec._constants import APPSEC
 import ddtrace.internal.constants as constants
-from tests.appsec.appsec.test_processor import _IP
-from tests.appsec.appsec.test_processor import RULES_GOOD_PATH
+import tests.appsec.rules as rules
 from tests.utils import snapshot
 from tests.webclient import Client
 
 
 SERVER_PORT = 8000
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @contextmanager
@@ -62,11 +63,15 @@ def daphne_client(django_asgi, additional_env=None):
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
+        "type",
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        APPSEC_JSON_TAG,
     ]
 )
 def test_appsec_enabled():
@@ -79,12 +84,16 @@ def test_appsec_enabled():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
+        "type",
         "meta.error.stack",
         "meta.http.request.headers.user-agent",
         "meta.http.response.headers.content-type",  # depends of the Django version
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        APPSEC_JSON_TAG,
     ]
 )
 def test_appsec_enabled_attack():
@@ -96,11 +105,15 @@ def test_appsec_enabled_attack():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
+        "type",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        APPSEC_JSON_TAG,
         "metrics._dd.appsec.event_rules.loaded",
     ]
 )
@@ -110,10 +123,10 @@ def test_request_ipblock_nomatch_200():
         additional_env={
             "DD_DJANGO_INSTRUMENT_TEMPLATES": "false",
             "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
+            "DD_APPSEC_RULES": rules.RULES_GOOD_PATH,
         },
     ) as client:
-        result = client.get("/", headers={"X-Real-Ip": _IP.DEFAULT})
+        result = client.get("/", headers={"X-Real-Ip": rules._IP.DEFAULT})
         assert result.status_code == 200
         assert result.content == b"Hello, test app."
 
@@ -121,11 +134,15 @@ def test_request_ipblock_nomatch_200():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        APPSEC_JSON_TAG,
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",
@@ -136,13 +153,13 @@ def test_request_ipblock_match_403():
         "application",
         additional_env={
             "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
+            "DD_APPSEC_RULES": rules.RULES_GOOD_PATH,
         },
     ) as client:
         result = client.get(
             "/",
             headers={
-                "X-Real-Ip": _IP.BLOCKED,
+                "X-Real-Ip": rules._IP.BLOCKED,
                 "Accept": "text/html",
             },
         )
@@ -154,11 +171,15 @@ def test_request_ipblock_match_403():
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
+        APPSEC_JSON_TAG,
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.user-agent",
         "meta.http.useragent",
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
         "metrics._dd.appsec.event_rules.loaded",
@@ -169,13 +190,13 @@ def test_request_ipblock_match_403_json():
         "application",
         additional_env={
             "DD_APPSEC_ENABLED": "true",
-            "DD_APPSEC_RULES": RULES_GOOD_PATH,
+            "DD_APPSEC_RULES": rules.RULES_GOOD_PATH,
         },
     ) as client:
         result = client.get(
             "/",
             headers={
-                "X-Real-Ip": _IP.BLOCKED,
+                "X-Real-Ip": rules._IP.BLOCKED,
             },
         )
         assert result.status_code == 403

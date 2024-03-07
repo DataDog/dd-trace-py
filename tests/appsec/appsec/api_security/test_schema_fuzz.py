@@ -10,7 +10,7 @@ import ddtrace.appsec._ddwaf as ddwaf
 
 def build_schema(obj):
     rules = {}
-    with open(constants.DEFAULT.API_SECURITY_PARAMETERS, "r") as f_apisec:
+    with open(constants.DEFAULT.RULES, "r") as f_apisec:
         rules.update(json.load(f_apisec))
     waf = ddwaf.DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()

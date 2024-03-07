@@ -36,6 +36,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "_dd.base_service": "",
          "_dd.p.tid": "654a694400000000",

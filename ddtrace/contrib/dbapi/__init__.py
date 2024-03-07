@@ -1,8 +1,6 @@
 """
 Generic dbapi tracing code.
 """
-import six
-
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.constants import COMPONENT
@@ -183,7 +181,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
-        if isinstance(row_count, six.integer_types) and row_count >= 0:
+        if isinstance(row_count, int) and row_count >= 0:
             span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):

@@ -21,6 +21,12 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.coverage.data import _coverage_data
+from ddtrace.contrib.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.coverage.patch import run_coverage_report
+from ddtrace.contrib.coverage.patch import unpatch as unpatch_coverage
+from ddtrace.contrib.coverage.utils import _is_coverage_invoked_by_coverage_run
+from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest.constants import DDTRACE_HELP_MSG
 from ddtrace.contrib.pytest.constants import DDTRACE_INCLUDE_CLASS_HELP_MSG
 from ddtrace.contrib.pytest.constants import FRAMEWORK
@@ -31,8 +37,8 @@ from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import MODULE_ID as _MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE as _MODULE_TYPE
@@ -43,10 +49,17 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _initialize_coverage
-from ddtrace.internal.ci_visibility.coverage import build_payload as build_coverage_payload
+from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
+from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
+from ddtrace.internal.ci_visibility.coverage import _start_coverage
+from ddtrace.internal.ci_visibility.coverage import _stop_coverage
+from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
+from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
+from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
@@ -56,6 +69,12 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
 _global_skipped_elements = 0
+
+
+def _is_pytest_8_or_later():
+    if hasattr(pytest, "version_tuple"):
+        return pytest.version_tuple >= (8, 0, 0)
+    return False
 
 
 def encode_test_parameter(parameter):
@@ -70,6 +89,18 @@ def is_enabled(config):
     return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if type(cov_option) == list and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
+
+
 def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
     return getattr(item, "_datadog_span", None)
@@ -78,25 +109,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     item._datadog_span = span
-
-
-def _attach_coverage(item):
-    coverage = _initialize_coverage(str(item.config.rootdir))
-    item._coverage = coverage
-    coverage.start()
-
-
-def _detach_coverage(item, span):
-    if not hasattr(item, "_coverage"):
-        log.warning("No coverage object found for item")
-        return
-    span_id = str(span.trace_id)
-    item._coverage.stop()
-    if not item._coverage._collector or len(item._coverage._collector.data) == 0:
-        log.warning("No coverage collector or data found for item")
-    span.set_tag(COVERAGE_TAG_NAME, build_coverage_payload(item._coverage, item.config.rootdir, test_id=span_id))
-    item._coverage.erase()
-    del item._coverage
 
 
 def _extract_module_span(item):
@@ -110,7 +122,16 @@ def _extract_ancestor_module_span(item):
         module_span = _extract_module_span(item) or _extract_span(item)
         if module_span is not None and module_span.name == "pytest.test_module":
             return module_span
-        item = item.parent
+        item = _get_parent(item)
+
+
+def _extract_ancestor_suite_span(item):
+    """Return the first ancestor suite span found"""
+    while item:
+        suite_span = _extract_span(item)
+        if suite_span is not None and suite_span.name == "pytest.test_suite":
+            return suite_span
+        item = _get_parent(item)
 
 
 def _store_module_span(item, span):
@@ -120,8 +141,9 @@ def _store_module_span(item, span):
 
 def _mark_failed(item):
     """Store test failed status at `pytest.Item` instance."""
-    if item.parent:
-        _mark_failed(item.parent)
+    item_parent = _get_parent(item)
+    if item_parent:
+        _mark_failed(item_parent)
     item._failed = True
 
 
@@ -132,9 +154,42 @@ def _check_failed(item):
 
 def _mark_not_skipped(item):
     """Mark test suite/module/session `pytest.Item` as not skipped."""
-    if item.parent:
-        _mark_not_skipped(item.parent)
+    item_parent = _get_parent(item)
+    if item_parent:
+        _mark_not_skipped(item_parent)
     item._fully_skipped = False
+
+
+def _mark_not_skipped(item):
+    """Mark test suite/module/session `pytest.Item` as not skipped."""
+
+    item_parent = _get_parent(item)
+
+    if item_parent:
+        _mark_not_skipped(item_parent)
+    item._fully_skipped = False
+
+
+def _get_parent(item):
+    """Fetches the nearest parent that is not a directory.
+
+    This is introduced as a workaround for pytest 8.0's introduction pytest.Dir objects.
+    """
+    if item is None or item.parent is None:
+        return None
+
+    if _is_pytest_8_or_later():
+        # In pytest 8.0, the parent of a Package can be another Package. In previous versions, the parent was always
+        # a session.
+        if isinstance(item, pytest.Package):
+            while item.parent is not None and not isinstance(item.parent, pytest.Session):
+                item = item.parent
+            return item.parent
+
+        while item.parent is not None and isinstance(item.parent, pytest.Dir):
+            item = item.parent
+
+    return item.parent
 
 
 def _mark_test_forced(test_item):
@@ -142,7 +197,7 @@ def _mark_test_forced(test_item):
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
-    suite_span = _extract_span(test_item.parent)
+    suite_span = _extract_ancestor_suite_span(test_item)
     suite_span.set_tag_str(test.ITR_FORCED_RUN, "true")
 
     module_span = _extract_ancestor_module_span(test_item)
@@ -157,7 +212,7 @@ def _mark_test_unskippable(test_item):
     test_span = _extract_span(test_item)
     test_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
-    suite_span = _extract_span(test_item.parent)
+    suite_span = _extract_ancestor_suite_span(test_item)
     suite_span.set_tag_str(test.ITR_UNSKIPPABLE, "true")
 
     module_span = _extract_ancestor_module_span(test_item)
@@ -176,19 +231,21 @@ def _mark_test_status(item, span):
     """
     Given a `pytest.Item`, determine and set the test status of the corresponding span.
     """
+    item_parent = _get_parent(item)
+
     # If any child has failed, mark span as failed.
     if _check_failed(item):
         status = test.Status.FAIL.value
-        if item.parent:
-            _mark_failed(item.parent)
-            _mark_not_skipped(item.parent)
+        if item_parent:
+            _mark_failed(item_parent)
+            _mark_not_skipped(item_parent)
     # If all children have been skipped, mark span as skipped.
     elif _check_fully_skipped(item):
         status = test.Status.SKIP.value
     else:
         status = test.Status.PASS.value
-        if item.parent:
-            _mark_not_skipped(item.parent)
+        if item_parent:
+            _mark_not_skipped(item_parent)
     span.set_tag_str(test.STATUS, status)
 
 
@@ -210,15 +267,14 @@ def _get_module_path(item):
     # type (pytest.Item) -> str
     if not isinstance(item, (pytest.Package, pytest.Module)):
         return None
-    return item.nodeid.rpartition("/")[0]
 
+    if _is_pytest_8_or_later() and isinstance(item, pytest.Package):
+        module_path = item.nodeid
 
-def _get_module_name(item, is_package=True):
-    """Extract module name (fully qualified) from a `pytest.Item` instance."""
-    # type (pytest.Item) -> str
-    if is_package:
-        return item.module.__name__
-    return item.nodeid.rpartition("/")[0].replace("/", ".")
+    else:
+        module_path = item.nodeid.rpartition("/")[0]
+
+    return module_path
 
 
 def _is_test_unskippable(item):
@@ -234,6 +290,10 @@ def _is_test_unskippable(item):
 
 
 def _module_is_package(pytest_package_item=None, pytest_module_item=None):
+    # Pytest 8+ module items have a pytest.Dir object as their parent instead of the session object
+    if _is_pytest_8_or_later():
+        return isinstance(pytest_module_item.parent, pytest.Package)
+
     if pytest_package_item is None and pytest_module_item is not None:
         return False
     return True
@@ -326,16 +386,19 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     if test_session_span:
         test_suite_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
     test_suite_span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
+    test_module_path = ""
     if test_module_span is not None:
         test_suite_span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         test_suite_span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
         test_module_path = test_module_span.get_tag(test.MODULE_PATH)
         test_suite_span.set_tag_str(test.MODULE_PATH, test_module_path)
-    test_suite_span.set_tag_str(test.SUITE, item.config.hook.pytest_ddtrace_get_item_suite_name(item=item))
+    test_suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
+    test_suite_span.set_tag_str(test.SUITE, test_suite_name)
     _store_span(pytest_module_item, test_suite_span)
 
-    if should_enable_coverage:
-        _attach_coverage(pytest_module_item)
+    if should_enable_coverage and _module_has_dd_coverage_enabled(pytest):
+        fqn_module = _generate_fully_qualified_module_name(test_module_path, test_suite_name)
+        _switch_coverage_context(pytest._dd_coverage, fqn_module)
     return test_suite_span
 
 
@@ -385,7 +448,10 @@ def pytest_configure(config):
     unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
+        take_over_logger_stream_handler()
         _CIVisibility.enable(config=ddtrace.config.pytest)
+    if _is_pytest_cov_enabled(config):
+        patch_coverage()
 
 
 def pytest_sessionstart(session):
@@ -420,6 +486,12 @@ def pytest_sessionstart(session):
             test.ITR_TEST_CODE_COVERAGE_ENABLED,
             "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
         )
+        if _is_coverage_invoked_by_coverage_run():
+            patch_coverage()
+        if _CIVisibility._instance._collect_coverage_enabled and not _module_has_dd_coverage_enabled(
+            pytest, silent_mode=True
+        ):
+            pytest._dd_coverage = _start_coverage(session.config.rootdir)
 
         _store_span(session, test_session_span)
 
@@ -432,13 +504,20 @@ def pytest_sessionfinish(session, exitstatus):
             if _CIVisibility.test_skipping_enabled():
                 test_session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, _global_skipped_elements)
             _mark_test_status(session, test_session_span)
+            pytest_cov_status = _is_pytest_cov_enabled(session.config)
+            invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
+            if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
+                if invoked_by_coverage_run_status and not pytest_cov_status:
+                    run_coverage_report()
+                _add_pct_covered_to_span(_coverage_data, test_session_span)
+                unpatch_coverage()
             test_session_span.finish()
         _CIVisibility.disable()
 
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    """Return the :class:`ddtrace.span.Span` instance associated with the
+    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     if _CIVisibility.enabled:
@@ -473,7 +552,7 @@ def _find_pytest_item(item, pytest_item_type):
         return None
     if pytest_item_type not in [pytest.Package, pytest.Module]:
         return None
-    parent = item.parent
+    parent = _get_parent(item)
     while not isinstance(parent, pytest_item_type) and parent is not None:
         parent = parent.parent
     return parent
@@ -484,7 +563,7 @@ def _get_test_class_hierarchy(item):
     Given a `pytest.Item` function item, traverse upwards to collect and return a string listing the
     test class hierarchy, or an empty string if there are no test classes.
     """
-    parent = item.parent
+    parent = _get_parent(item)
     test_class_hierarchy = []
     while parent is not None:
         if isinstance(parent, pytest.Class):
@@ -506,7 +585,12 @@ def pytest_collection_modifyitems(session, config, items):
             item_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
             if test_is_unskippable:
-                log.debug("Test %s in module %s is marked as unskippable", (item_name, item.module))
+                log.debug(
+                    "Test %s in module %s (file: %s ) is marked as unskippable",
+                    item_name,
+                    item.module.__name__,
+                    item.module.__file__,
+                )
                 item._dd_itr_test_unskippable = True
 
             # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has been
@@ -580,7 +664,7 @@ def pytest_runtest_protocol(item, nextitem):
         )
         test_module_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, 0)
 
-    test_suite_span = _extract_span(pytest_module_item)
+    test_suite_span = _extract_ancestor_suite_span(item)
     if pytest_module_item is not None and test_suite_span is None:
         # Start coverage for the test suite if coverage is enabled
         # In ITR suite skipping mode, all tests in a skipped suite should be marked
@@ -617,6 +701,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag_str(test.FRAMEWORK, FRAMEWORK)
         span.set_tag_str(_EVENT_TYPE, SpanTypes.TEST)
         test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
+        test_module_path = test_module_span.get_tag(test.MODULE_PATH)
         span.set_tag_str(test.NAME, test_name)
         span.set_tag_str(test.COMMAND, _get_pytest_command(item.config))
         if test_session_span:
@@ -624,16 +709,18 @@ def pytest_runtest_protocol(item, nextitem):
 
         span.set_tag_str(_MODULE_ID, str(test_module_span.span_id))
         span.set_tag_str(test.MODULE, test_module_span.get_tag(test.MODULE))
-        span.set_tag_str(test.MODULE_PATH, test_module_span.get_tag(test.MODULE_PATH))
+        span.set_tag_str(test.MODULE_PATH, test_module_path)
 
         span.set_tag_str(_SUITE_ID, str(test_suite_span.span_id))
         test_class_hierarchy = _get_test_class_hierarchy(item)
         if test_class_hierarchy:
             span.set_tag_str(test.CLASS_HIERARCHY, test_class_hierarchy)
         if hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
-            span.set_tag_str(test.SUITE, "{}.py".format(item.dtest.globs["__name__"]))
+            test_suite_name = "{}.py".format(item.dtest.globs["__name__"])
+            span.set_tag_str(test.SUITE, test_suite_name)
         else:
-            span.set_tag_str(test.SUITE, test_suite_span.get_tag(test.SUITE))
+            test_suite_name = test_suite_span.get_tag(test.SUITE)
+            span.set_tag_str(test.SUITE, test_suite_name)
 
         span.set_tag_str(test.TYPE, SpanTypes.TEST)
         span.set_tag_str(test.FRAMEWORK_VERSION, pytest.__version__)
@@ -660,6 +747,16 @@ def pytest_runtest_protocol(item, nextitem):
                     log.warning("Failed to encode %r", param_name, exc_info=True)
             span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
 
+        if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:
+            if _CIVisibility._instance._suite_skipping_mode:
+                test_suite_span.set_tag_str(
+                    ITR_CORRELATION_ID_TAG_NAME, _CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME]
+                )
+            else:
+                span.set_tag_str(
+                    ITR_CORRELATION_ID_TAG_NAME, _CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME]
+                )
+
         markers = [marker.kwargs for marker in item.iter_markers(name="dd_tags")]
         for tags in markers:
             span.set_tags(tags)
@@ -677,14 +774,16 @@ def pytest_runtest_protocol(item, nextitem):
             and _CIVisibility._instance._collect_coverage_enabled
             and not is_skipped
         )
-        if coverage_per_test:
-            _attach_coverage(item)
+        root_directory = str(item.config.rootdir)
+        if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
+            fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
+            _switch_coverage_context(pytest._dd_coverage, fqn_test)
         # Run the actual test
         yield
 
         # Finish coverage for the test suite if coverage is enabled
-        if coverage_per_test:
-            _detach_coverage(item, span)
+        if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
+            _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:
@@ -696,8 +795,9 @@ def pytest_runtest_protocol(item, nextitem):
                 _CIVisibility._instance._suite_skipping_mode
                 and _CIVisibility._instance._collect_coverage_enabled
                 and not is_skipped_by_itr
+                and _module_has_dd_coverage_enabled(pytest)
             ):
-                _detach_coverage(pytest_module_item, test_suite_span)
+                _report_coverage_to_span(pytest._dd_coverage, test_suite_span, root_directory)
             test_suite_span.finish()
 
             if not module_is_package:
@@ -712,6 +812,13 @@ def pytest_runtest_protocol(item, nextitem):
                 ):
                     _mark_test_status(pytest_package_item, test_module_span)
                     test_module_span.finish()
+
+        if (
+            nextitem is None
+            and _CIVisibility._instance._collect_coverage_enabled
+            and _module_has_dd_coverage_enabled(pytest)
+        ):
+            _stop_coverage(pytest)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -742,7 +849,7 @@ def pytest_runtest_makereport(item, call):
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag_str(test.STATUS, test.Status.PASS.value)
-            _mark_not_skipped(item.parent)
+            _mark_not_skipped(_get_parent(item))
             if not item.config.option.runxfail:
                 span.set_tag_str(test.RESULT, test.Status.XFAIL.value)
                 span.set_tag_str(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
@@ -753,12 +860,12 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.SKIP_REASON, str(reason))
             if str(reason) == SKIPPED_BY_ITR_REASON:
                 if _CIVisibility._instance._suite_skipping_mode:
-                    suite_span = _extract_span(item.parent)
+                    suite_span = _extract_ancestor_suite_span(item)
                     if suite_span is not None:
                         suite_span.set_tag_str(test.ITR_SKIPPED, "true")
                 span.set_tag_str(test.ITR_SKIPPED, "true")
     elif result.passed:
-        _mark_not_skipped(item.parent)
+        _mark_not_skipped(_get_parent(item))
         span.set_tag_str(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
@@ -766,8 +873,8 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
     else:
         # Store failure in test suite `pytest.Item` to propagate to test suite spans
-        _mark_failed(item.parent)
-        _mark_not_skipped(item.parent)
+        _mark_failed(_get_parent(item))
+        _mark_not_skipped(_get_parent(item))
         span.set_tag_str(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
@@ -790,7 +897,20 @@ def pytest_ddtrace_get_item_module_name(item):
     pytest_package_item = _find_pytest_item(pytest_module_item, pytest.Package)
 
     if _module_is_package(pytest_package_item, pytest_module_item):
+        if _is_pytest_8_or_later():
+            # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by concatenating
+            # parent package names in reverse until we hit a non-Package-type item
+            # https://github.com/pytest-dev/pytest/issues/11137
+            package_names = []
+            current_package = pytest_package_item
+            while isinstance(current_package, pytest.Package):
+                package_names.append(str(current_package.name))
+                current_package = current_package.parent
+
+            return ".".join(package_names[::-1])
+
         return pytest_package_item.module.__name__
+
     return pytest_module_item.nodeid.rpartition("/")[0].replace("/", ".")
 
 
@@ -800,7 +920,6 @@ def pytest_ddtrace_get_item_suite_name(item):
     Extract suite name from a `pytest.Item` instance.
     If the module path doesn't exist, the suite path will be reported in full.
     """
-    # breakpoint()
     pytest_module_item = _find_pytest_item(item, pytest.Module)
     test_module_path = _get_module_path(pytest_module_item)
     if test_module_path:

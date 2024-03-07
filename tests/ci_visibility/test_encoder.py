@@ -1,20 +1,23 @@
 import json
 import os
+from unittest import mock
 
 import msgpack
 import pytest
 
 import ddtrace
+from ddtrace._trace.span import Span
 from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
-from ddtrace.internal.compat import msgpack_type
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.span import Span
+from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -48,7 +51,7 @@ def test_encode_traces_civisibility_v0():
     for trace in traces:
         encoder.put(trace)
     payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 1
     assert len(decoded[b"metadata"]) == 1
@@ -105,7 +108,7 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     for trace in traces:
         encoder.put(trace)
     payload = encoder._build_data(traces)
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
 
@@ -164,7 +167,7 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
 
     payload = encoder._build_data(traces)
     complete_payload = encoder.encode()
-    assert isinstance(payload, msgpack_type)
+    assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
 
@@ -240,7 +243,11 @@ class PytestEncodingTestCase(TracerTestCase):
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        with override_env(dict(DD_API_KEY="foobar.baz")):
+        with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client(), mock.patch.object(
+            CIVisibility,
+            "_check_settings_api",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args):
@@ -266,6 +273,9 @@ class PytestEncodingTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
+        for span in spans:
+            if span.get_tag("type") == "test":
+                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         event_payload = ci_agentless_encoder.encode()
@@ -280,6 +290,7 @@ class PytestEncodingTestCase(TracerTestCase):
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
         expected_meta.pop(b"test_module_id")
+        expected_meta.pop(b"itr_correlation_id")
         expected_metrics = {
             "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_span._metrics.items())
         }
@@ -300,6 +311,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"test_suite_id": int(given_test_span.get_tag("test_suite_id")),
                 b"trace_id": given_test_span._trace_id_64bits,
                 b"type": given_test_span.span_type.encode("utf-8"),
+                b"itr_correlation_id": given_test_span.get_tag("itr_correlation_id").encode("utf-8"),
             },
             b"type": given_test_span.span_type.encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION,
@@ -322,6 +334,9 @@ class PytestEncodingTestCase(TracerTestCase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
+        for span in spans:
+            if span.get_tag("type") == "test_suite_end":
+                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         event_payload = ci_agentless_encoder.encode()
@@ -337,6 +352,7 @@ class PytestEncodingTestCase(TracerTestCase):
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_suite_id")
         expected_meta.pop(b"test_module_id")
+        expected_meta.pop(b"itr_correlation_id")
         expected_metrics = {
             "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_suite_span._metrics.items())
         }
@@ -354,6 +370,7 @@ class PytestEncodingTestCase(TracerTestCase):
                 b"test_session_id": int(given_test_suite_span.get_tag("test_session_id")),
                 b"test_suite_id": int(given_test_suite_span.get_tag("test_suite_id")),
                 b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
+                b"itr_correlation_id": given_test_suite_span.get_tag("itr_correlation_id").encode("utf-8"),
             },
             b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,

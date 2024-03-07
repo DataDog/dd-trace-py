@@ -44,6 +44,7 @@ class APPSEC(metaclass=Constant_Class):
     ENV = "DD_APPSEC_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
+    STRUCT = "appsec"
     EVENT_RULE_VERSION = "_dd.appsec.event_rules.version"
     EVENT_RULE_ERRORS = "_dd.appsec.event_rules.errors"
     EVENT_RULE_LOADED = "_dd.appsec.event_rules.loaded"
@@ -75,12 +76,14 @@ class IAST(metaclass=Constant_Class):
     ENV = "DD_IAST_ENABLED"
     ENV_DEBUG = "_DD_IAST_DEBUG"
     TELEMETRY_REPORT_LVL = "DD_IAST_TELEMETRY_VERBOSITY"
+    LAZY_TAINT = "_DD_IAST_LAZY_TAINT"
     JSON = "_dd.iast.json"
     ENABLED = "_dd.iast.enabled"
     CONTEXT_KEY = "_iast_data"
     PATCH_MODULES = "_DD_IAST_PATCH_MODULES"
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
+    REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -130,7 +133,9 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
 class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
-    ENV_VAR_ENABLED = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
+    ENABLED = "_dd.appsec.api_security.enabled"
+    ENV_VAR_ENABLED = "DD_API_SECURITY_ENABLED"
+    PARSE_RESPONSE_BODY = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES = "_dd.appsec.s.req.headers"
     REQUEST_COOKIES = "_dd.appsec.s.req.cookies"
     REQUEST_QUERY = "_dd.appsec.s.req.query"
@@ -139,7 +144,7 @@ class API_SECURITY(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
     RESPONSE_BODY = "_dd.appsec.s.res.body"
     SAMPLE_RATE = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
-    ENABLED = "_dd.appsec.api_security.enabled"
+    SAMPLE_DELAY = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 
@@ -198,7 +203,6 @@ class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
 class DEFAULT(metaclass=Constant_Class):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     RULES = os.path.join(ROOT_DIR, "rules.json")
-    API_SECURITY_PARAMETERS = os.path.join(ROOT_DIR, "_api_security/processors.json")
     TRACE_RATE_LIMIT = 100
     WAF_TIMEOUT = 5.0  # float (milliseconds)
     APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (

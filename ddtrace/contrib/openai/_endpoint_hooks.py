@@ -1,7 +1,15 @@
-from .utils import _compute_prompt_token_count
+from ddtrace.ext import SpanTypes
+
+from .utils import _construct_completion_from_streamed_chunks
+from .utils import _construct_message_from_streamed_chunks
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
 from .utils import _is_generator
+from .utils import _loop_handler
+from .utils import _set_metrics_on_request
+from .utils import _set_metrics_on_streamed_response
+from .utils import _tag_streamed_chat_completion_response
+from .utils import _tag_streamed_completion_response
 from .utils import _tag_tool_calls
 
 
@@ -71,6 +79,11 @@ class _EndpointHook:
     def handle_request(self, pin, integration, span, args, kwargs):
         self._record_request(pin, integration, span, args, kwargs)
         resp, error = yield
+        if hasattr(resp, "parse"):
+            # Users can request the raw response, in which case we need to process on the parsed response
+            # and return the original raw APIResponse.
+            self._record_response(pin, integration, span, args, kwargs, resp.parse(), error)
+            return resp
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -81,13 +94,9 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    """
-    Share streamed response handling logic between Completion and ChatCompletion endpoints.
-    """
-
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
-    def _handle_streamed_response(self, integration, span, args, kwargs, resp):
+    def _handle_streamed_response(self, integration, span, kwargs, resp, operation_id):
         """Handle streamed response objects returned from endpoint calls.
 
         This method helps with streamed responses by wrapping the generator returned with a
@@ -95,57 +104,50 @@ class _BaseCompletionHook(_EndpointHook):
         """
 
         def shared_gen():
+            completions = None
+            messages = None
             try:
-                num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
-                num_completion_tokens = yield
-                span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
-                total_tokens = num_prompt_tokens + num_completion_tokens
-                span.set_metric("openai.response.usage.total_tokens", total_tokens)
-                if span.get_metric("openai.request.prompt_tokens_estimated") == 0:
-                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
-                else:
-                    integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
-                integration.metric(
-                    span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"]
+                streamed_chunks = yield
+                _set_metrics_on_request(
+                    integration, span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
                 )
-                integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+                else:
+                    messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+                _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
             finally:
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    if integration.is_pc_sampled_span(span):
+                        _tag_streamed_completion_response(integration, span, completions)
+                    if integration.is_pc_sampled_llmobs(span):
+                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_resp=streamed_chunks)
+                else:
+                    if integration.is_pc_sampled_span(span):
+                        _tag_streamed_chat_completion_response(integration, span, messages)
+                    if integration.is_pc_sampled_llmobs(span):
+                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_resp=streamed_chunks)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
-        num_prompt_tokens = 0
-        estimated = False
-        prompt = kwargs.get("prompt", None)
-        messages = kwargs.get("messages", None)
-        if prompt is not None:
-            if isinstance(prompt, str) or isinstance(prompt, list) and isinstance(prompt[0], int):
-                prompt = [prompt]
-            for p in prompt:
-                estimated, prompt_tokens = _compute_prompt_token_count(p, kwargs.get("model"))
-                num_prompt_tokens += prompt_tokens
-        if messages is not None:
-            for m in messages:
-                estimated, prompt_tokens = _compute_prompt_token_count(m.get("content", ""), kwargs.get("model"))
-                num_prompt_tokens += prompt_tokens
-        span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
-        span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
-
-        # A chunk corresponds to a token:
-        #  https://community.openai.com/t/how-to-get-total-tokens-from-a-stream-of-completioncreaterequests/110700
-        #  https://community.openai.com/t/openai-api-get-usage-tokens-in-response-when-set-stream-true/141866
         if _is_async_generator(resp):
 
             async def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                num_completion_tokens = 0
+                n = kwargs.get("n", 1)
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
                 try:
                     async for chunk in resp:
-                        num_completion_tokens += 1
+                        _loop_handler(span, chunk, streamed_chunks)
                         yield chunk
                 finally:
                     try:
-                        g.send(num_completion_tokens)
+                        g.send(streamed_chunks)
                     except StopIteration:
                         pass
 
@@ -156,14 +158,19 @@ class _BaseCompletionHook(_EndpointHook):
             def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                num_completion_tokens = 0
+                n = kwargs.get("n", 1)
+                if operation_id == _CompletionHook.OPERATION_ID:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
                 try:
                     for chunk in resp:
-                        num_completion_tokens += 1
+                        _loop_handler(span, chunk, streamed_chunks)
                         yield chunk
                 finally:
                     try:
-                        g.send(num_completion_tokens)
+                        g.send(streamed_chunks)
                     except StopIteration:
                         pass
 
@@ -198,6 +205,7 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
+        span.span_type = SpanTypes.LLM
         if integration.is_pc_sampled_span(span):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
@@ -207,27 +215,32 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+        if integration.is_pc_sampled_log(span):
+            attrs_dict = {"prompt": kwargs.get("prompt", "")}
+            if error is None:
+                log_choices = resp.choices
+                if hasattr(resp.choices[0], "model_dump"):
+                    log_choices = [choice.model_dump() for choice in resp.choices]
+                attrs_dict.update({"choices": log_choices})
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("completion", resp, span, kwargs, err=error)
         if not resp:
             return
-        if kwargs.get("stream"):
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             span.set_tag_str("openai.response.choices.%d.finish_reason" % choice.index, str(choice.finish_reason))
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str("openai.response.choices.%d.text" % choice.index, integration.trunc(choice.text))
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"prompt": kwargs.get("prompt", ""), "choices": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
         return resp
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
+    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = (
         "model",
         "engine",
@@ -249,22 +262,36 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
+        span.span_type = SpanTypes.LLM
         for idx, m in enumerate(kwargs.get("messages", [])):
             if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(m.get("content", "")))
+                span.set_tag_str(
+                    "openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", "")))
+                )
             span.set_tag_str("openai.request.messages.%d.role" % idx, m.get("role", ""))
             span.set_tag_str("openai.request.messages.%d.name" % idx, m.get("name", ""))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+        if integration.is_pc_sampled_log(span):
+            log_choices = resp.choices
+            if hasattr(resp.choices[0], "model_dump"):
+                log_choices = [choice.model_dump() for choice in resp.choices]
+            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
+            integration.log(
+                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
+            )
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("chat", resp, span, kwargs, err=error)
         if not resp:
             return
-        if kwargs.get("stream"):
-            return self._handle_streamed_response(integration, span, args, kwargs, resp)
         for choice in resp.choices:
             idx = choice.index
+            finish_reason = getattr(choice, "finish_reason", None)
             message = choice.message
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(choice.finish_reason))
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
             span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice.message.role)
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str(
@@ -275,14 +302,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if getattr(message, "tool_calls", None):
                 _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
         return resp
 
 
@@ -538,14 +557,6 @@ class _EditHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        choices = resp.choices
-        if integration.is_pc_sampled_span(span):
-            for choice in choices:
-                idx = choice.index
-                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
-        integration.record_usage(span, resp.usage)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
             if hasattr(resp.choices[0], "model_dump"):
@@ -560,6 +571,14 @@ class _EditHook(_EndpointHook):
                     "choices": log_choices,
                 },
             )
+        if not resp:
+            return
+        choices = resp.choices
+        if integration.is_pc_sampled_span(span):
+            for choice in choices:
+                idx = choice.index
+                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
+        integration.record_usage(span, resp.usage)
         return resp
 
 
@@ -574,16 +593,6 @@ class _ImageHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        choices = resp.data
-        span.set_metric("openai.response.images_count", len(choices))
-        if integration.is_pc_sampled_span(span):
-            for idx, choice in enumerate(choices):
-                if getattr(choice, "b64_json", None) is not None:
-                    span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
-                else:
-                    span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.url))
         if integration.is_pc_sampled_log(span):
             attrs_dict = {}
             if kwargs.get("response_format", "") == "b64_json":
@@ -604,6 +613,16 @@ class _ImageHook(_EndpointHook):
             integration.log(
                 span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
             )
+        if not resp:
+            return
+        choices = resp.data
+        span.set_metric("openai.response.images_count", len(choices))
+        if integration.is_pc_sampled_span(span):
+            for idx, choice in enumerate(choices):
+                if getattr(choice, "b64_json", None) is not None:
+                    span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
+                else:
+                    span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.url))
         return resp
 
 
@@ -674,19 +693,17 @@ class _BaseAudioHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
-        if isinstance(resp_to_tag, str):
-            text = resp
-        elif isinstance(resp_to_tag, dict):
-            text = resp_to_tag.get("text", "")
-            if "segments" in resp_to_tag:
-                span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
-        else:
-            text = ""
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str("openai.response.text", integration.trunc(text))
+        text = ""
+        if resp:
+            resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
+            if isinstance(resp_to_tag, str):
+                text = resp
+            elif isinstance(resp_to_tag, dict):
+                text = resp_to_tag.get("text", "")
+                if "segments" in resp_to_tag:
+                    span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
+            if integration.is_pc_sampled_span(span):
+                span.set_tag_str("openai.response.text", integration.trunc(text))
         if integration.is_pc_sampled_log(span):
             file_input = args[2] if len(args) >= 3 else kwargs.get("file", "")
             integration.log(

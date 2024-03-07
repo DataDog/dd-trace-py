@@ -1,11 +1,13 @@
 [[
   {
     "name": "langchain.request",
-    "service": null,
+    "service": "",
     "resource": "langchain.vectorstores.pinecone.Pinecone",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -29,7 +31,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
       "process_id": 10515
@@ -39,11 +40,13 @@
   },
      {
        "name": "langchain.request",
-       "service": null,
+       "service": "",
        "resource": "langchain.embeddings.openai.OpenAIEmbeddings",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.tid": "654a694400000000",
          "langchain.request.api_key": "...key>",
@@ -54,7 +57,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.request.input_count": 1,
          "langchain.response.outputs.embedding_length": 1536
        },

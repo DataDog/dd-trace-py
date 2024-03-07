@@ -6,7 +6,7 @@
       {
         "Name": "operation",
         "Resource": "operation",
-        "Service": null,
+        "service": "",
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
