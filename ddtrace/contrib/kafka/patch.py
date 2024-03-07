@@ -1,4 +1,5 @@
 import os
+import sys
 
 import confluent_kafka
 
@@ -115,8 +116,11 @@ def patch():
     for producer in (TracedProducer, TracedSerializingProducer):
         trace_utils.wrap(producer, "produce", traced_produce)
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        trace_utils.wrap(consumer, "poll", traced_poll)
+        trace_utils.wrap(consumer, "poll", traced_poll_or_consume)
         trace_utils.wrap(consumer, "commit", traced_commit)
+
+    # Consume is not implemented in deserializing consumers
+    trace_utils.wrap(TracedConsumer, "consume", traced_poll_or_consume)
     Pin().onto(confluent_kafka.Producer)
     Pin().onto(confluent_kafka.Consumer)
     Pin().onto(confluent_kafka.SerializingProducer)
@@ -135,6 +139,10 @@ def unpatch():
             trace_utils.unwrap(consumer, "poll")
         if trace_utils.iswrapped(consumer.commit):
             trace_utils.unwrap(consumer, "commit")
+
+    # Consume is not implemented in deserializing consumers
+    if trace_utils.iswrapped(TracedConsumer.consume):
+        trace_utils.unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
@@ -194,7 +202,7 @@ def traced_produce(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def traced_poll(func, instance, args, kwargs):
+def traced_poll_or_consume(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -204,62 +212,79 @@ def traced_poll(func, instance, args, kwargs):
     start_ns = time_ns()
     # wrap in a try catch and raise exception after span is started
     err = None
+    result = None
     try:
-        message = func(*args, **kwargs)
+        result = func(*args, **kwargs)
+        return result
     except Exception as e:
         err = e
+        raise err
+    finally:
+        if isinstance(result, confluent_kafka.Message):
+            # poll returns a single message
+            _instrument_message([result], pin, start_ns, instance, err)
+        elif isinstance(result, list):
+            # consume returns a list of messages,
+            _instrument_message(result, pin, start_ns, instance, err)
+        elif config.kafka.trace_empty_poll_enabled:
+            _instrument_message([None], pin, start_ns, instance, err)
+
+
+def _instrument_message(messages, pin, start_ns, instance, err):
     ctx = None
-    if message and config.kafka.distributed_tracing_enabled and message.headers():
-        ctx = Propagator.extract(dict(message.headers()))
-    if message or config.kafka.trace_empty_poll_enabled:
-        with pin.tracer.start_span(
-            name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-            service=trace_utils.ext_service(pin, config.kafka),
-            span_type=SpanTypes.WORKER,
-            child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
-            activate=True,
-        ) as span:
-            # reset span start time to before function call
-            span.start_ns = start_ns
+    # First message is used to extract context and enrich datadog spans
+    # This approach aligns with the opentelemetry confluent kafka semantics
+    first_message = messages[0]
+    if first_message and config.kafka.distributed_tracing_enabled and first_message.headers():
+        ctx = Propagator.extract(dict(first_message.headers()))
+    with pin.tracer.start_span(
+        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        service=trace_utils.ext_service(pin, config.kafka),
+        span_type=SpanTypes.WORKER,
+        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        activate=True,
+    ) as span:
+        # reset span start time to before function call
+        span.start_ns = start_ns
 
-            span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-            span.set_tag_str(COMPONENT, config.kafka.integration_name)
-            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-            span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(message is not None))
-            span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+        for message in messages:
             if message is not None:
-                core.set_item("kafka_topic", message.topic())
-                core.dispatch("kafka.consume.start", (instance, message, span))
+                core.set_item("kafka_topic", first_message.topic())
+                core.dispatch("kafka.consume.start", (instance, first_message, span))
 
-                message_key = message.key() or ""
-                message_offset = message.offset() or -1
-                span.set_tag_str(kafkax.TOPIC, message.topic())
+        span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
+        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
+        span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
+        if messages[0] is not None:
+            message_key = messages[0].key() or ""
+            message_offset = messages[0].offset() or -1
+            span.set_tag_str(kafkax.TOPIC, messages[0].topic())
 
-                # If this is a deserializing consumer, do not set the key as a tag since we
-                # do not have the serialization function
-                if (
-                    (_DeserializingConsumer is not None and not isinstance(instance, _DeserializingConsumer))
-                    or isinstance(message_key, str)
-                    or isinstance(message_key, bytes)
-                ):
-                    span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
-                span.set_tag(kafkax.PARTITION, message.partition())
-                span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
-                span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-            span.set_tag(SPAN_MEASURED_KEY)
-            rate = config.kafka.get_analytics_sample_rate()
-            if rate is not None:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+            # If this is a deserializing consumer, do not set the key as a tag since we
+            # do not have the serialization function
+            if (
+                (_DeserializingConsumer is not None and not isinstance(instance, _DeserializingConsumer))
+                or isinstance(message_key, str)
+                or isinstance(message_key, bytes)
+            ):
+                span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
+            span.set_tag(kafkax.PARTITION, messages[0].partition())
+            is_tombstone = False
+            try:
+                is_tombstone = len(messages[0]) == 0
+            except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
+                pass
+            span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
+            span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
+        span.set_tag(SPAN_MEASURED_KEY)
+        rate = config.kafka.get_analytics_sample_rate()
+        if rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-            # raise exception if one was encountered
-            if err is not None:
-                raise err
-            return message
-    else:
         if err is not None:
-            raise err
-        else:
-            return message
+            span.set_exc_info(*sys.exc_info())
 
 
 def traced_commit(func, instance, args, kwargs):

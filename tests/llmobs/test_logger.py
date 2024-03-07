@@ -3,33 +3,8 @@ import time
 
 import mock
 import pytest
-import vcr
 
 from ddtrace.llmobs._log_writer import V2LogWriter
-from tests.utils import request_token
-
-
-logs_vcr = vcr.VCR(
-    cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
-    record_mode="once",
-    match_on=["path"],
-    filter_headers=[("DD-API-KEY", "XXXXXX")],
-    # Ignore requests to the agent
-    ignore_localhost=True,
-)
-
-
-@pytest.fixture(autouse=True)
-def vcr_logs(request):
-    marks = [m for m in request.node.iter_markers(name="vcr_logs")]
-    assert len(marks) < 2
-    if marks:
-        mark = marks[0]
-        cass = mark.kwargs.get("cassette", request_token(request).replace(" ", "_").replace(os.path.sep, "_"))
-        with logs_vcr.use_cassette("%s.yaml" % cass):
-            yield
-    else:
-        yield
 
 
 @pytest.fixture
@@ -119,7 +94,7 @@ def test_send_on_exit():
     import time
 
     from ddtrace.llmobs._log_writer import V2LogWriter
-    from tests.llmobs.test_logger import logs_vcr
+    from tests.llmobs._utils import logs_vcr
 
     ctx = logs_vcr.use_cassette("tests.llmobs.test_logger.test_send_on_exit.yaml")
     ctx.__enter__()

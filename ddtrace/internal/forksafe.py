@@ -63,38 +63,15 @@ def register(after_in_child):
 
 def unregister(after_in_child):
     # type: (typing.Callable[[], None]) -> None
-    """Unregister a function to be called after fork in the child process.
+    try:
+        _registry.remove(after_in_child)
+    except ValueError:
+        log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
-    Raises `ValueError` if the function was not registered.
-    """
-    _registry.remove(after_in_child)
 
-
+# should always be true on unix systems with Python 3.7+. This check is for if we're on Windows
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
-elif hasattr(os, "fork"):
-    # DEV: This "should" be the correct way of implementing this, but it doesn't
-    # work if hooks create new threads.
-    _threading_after_fork = threading._after_fork  # type: ignore
-
-    def _after_fork():
-        # type: () -> None
-        _threading_after_fork()
-        if not _soft:
-            ddtrace_after_in_child()
-
-    threading._after_fork = _after_fork  # type: ignore[attr-defined]
-
-    # DEV: If hooks create threads, we should do this instead.
-    _os_fork = os.fork
-
-    def _fork():
-        pid = _os_fork()
-        if pid == 0 and _soft:
-            ddtrace_after_in_child()
-        return pid
-
-    os.fork = _fork
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 

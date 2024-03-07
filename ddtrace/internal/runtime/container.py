@@ -83,9 +83,9 @@ class CGroupInfo(object):
                 pod_id = match.group(1)
 
         try:
-            node_inode = os.stat(f"/sys/fs/cgroup/{path}").st_ino
+            node_inode = os.stat(f"/sys/fs/cgroup/{path.strip('/')}").st_ino
         except Exception:
-            log.debug("Failed to stat cgroup node file for path %r", path, exc_info=True)
+            log.debug("Failed to stat cgroup node file for path %r", path)
             node_inode = None
 
         return cls(
@@ -120,7 +120,7 @@ def get_container_info(pid="self"):
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
-                if info and info.container_id:
+                if info and (info.container_id or info.node_inode):
                     return info
     except IOError as e:
         if e.errno != errno.ENOENT:

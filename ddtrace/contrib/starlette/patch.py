@@ -1,4 +1,5 @@
 import inspect
+import os
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -11,6 +12,7 @@ from starlette.middleware import Middleware
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.ext import http
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -19,7 +21,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.span import Span  # noqa:F401
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -36,6 +37,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
+        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 
@@ -43,6 +45,9 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(starlette, "__version__", "")
+
+
+_STARLETTE_VERSION = tuple(map(int, get_version().split(".")))
 
 
 def traced_init(wrapped, instance, args, kwargs):
@@ -160,6 +165,10 @@ def traced_handler(wrapped, instance, args, kwargs):
     core.dispatch("asgi.start_request", ("starlette",))
     if core.get_item(HTTP_REQUEST_BLOCKED):
         raise trace_utils.InterruptException("starlette")
+
+    # https://github.com/encode/starlette/issues/1336
+    if _STARLETTE_VERSION <= (0, 33, 0) and len(request_spans) > 1:
+        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)
 

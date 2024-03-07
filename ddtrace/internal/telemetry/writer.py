@@ -34,6 +34,7 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..packages import Distribution
 from ..periodic import PeriodicService
+from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
@@ -58,7 +59,6 @@ from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
 from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
-from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
 from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
 from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
 from .constants import TELEMETRY_PROFILING_MAX_FRAMES
@@ -165,6 +165,7 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
+        container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
 
 
@@ -447,7 +448,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
                 (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
                 (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
-                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
                 (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),

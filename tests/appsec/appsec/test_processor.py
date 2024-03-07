@@ -12,6 +12,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -28,6 +29,9 @@ try:
 except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
+
+
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @pytest.fixture
@@ -104,7 +108,7 @@ def test_valid_json(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+    assert get_triggers(span)
 
 
 def test_header_attack(tracer_appsec):
@@ -122,7 +126,7 @@ def test_header_attack(tracer_appsec):
                 },
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert get_triggers(span)
         assert span.get_tag("actor.ip") == "8.8.8.8"
 
 
@@ -156,9 +160,10 @@ def test_headers_collection(tracer_appsec):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -175,15 +180,16 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
                 request_cookies={"cookie1": "im the cookie1"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert get_triggers(span)
 
 
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -198,7 +204,7 @@ def test_appsec_body_no_collection_snapshot(tracer):
                 request_body={"somekey": "somekey value"},
             )
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert get_triggers(span)
 
 
 def test_ip_block(tracer):
@@ -211,7 +217,7 @@ def test_ip_block(tracer):
                     rules.Config(),
                 )
 
-            assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+            assert get_triggers(span)
             assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
             assert core.get_item("http.request.blocked", span)
 
@@ -288,9 +294,10 @@ def test_ip_update_rules_expired_no_block(tracer):
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -302,16 +309,17 @@ def test_appsec_span_tags_snapshot(tracer):
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag(APPSEC.JSON))
+        assert get_triggers(span)
 
 
 @flaky(1735812000)
 @snapshot(
     include_tracer=True,
     ignores=[
+        "meta_struct",
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta._dd.appsec.event_rules.errors",
     ],
 )
@@ -325,7 +333,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
                 span.set_tag("http.url", "http://example.com/.git")
                 set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-        assert span.get_tag(APPSEC.JSON) is None
+        assert get_triggers(span) is None
 
 
 def test_appsec_span_rate_limit(tracer):
@@ -342,9 +350,9 @@ def test_appsec_span_rate_limit(tracer):
             set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 2
 
-        assert span1.get_tag(APPSEC.JSON) is not None
-        assert span2.get_tag(APPSEC.JSON) is None
-        assert span3.get_tag(APPSEC.JSON) is None
+        assert get_triggers(span1)
+        assert get_triggers(span2) is None
+        assert get_triggers(span3) is None
 
 
 def test_ddwaf_not_raises_exception():
@@ -409,11 +417,17 @@ def test_obfuscation_parameter_value_unconfigured_not_matching(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-    assert "hello" in span.get_tag("_dd.appsec.json")
-    assert "goodbye" in span.get_tag("_dd.appsec.json")
-    assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+    triggers = get_triggers(span)
+    assert triggers
+    values = [
+        value.get("value")
+        for rule in triggers
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert any("hello" in value for value in values)
+    assert any("goodbye" in value for value in values)
+    assert all("<Redacted>" not in value for value in values)
 
 
 def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
@@ -422,11 +436,17 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer_appsec):
     with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-    assert "password" not in span.get_tag("_dd.appsec.json")
-    assert "goodbye" not in span.get_tag("_dd.appsec.json")
-    assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+    triggers = get_triggers(span)
+    assert triggers
+    values = [
+        value.get("value")
+        for rule in triggers
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert all("password" not in value for value in values)
+    assert all("goodbye" not in value for value in values)
+    assert any("<Redacted>" in value for value in values)
 
 
 def test_obfuscation_parameter_value_configured_not_matching(tracer):
@@ -438,11 +458,17 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-        assert "password" in span.get_tag("_dd.appsec.json")
-        assert "goodbye" in span.get_tag("_dd.appsec.json")
-        assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+    triggers = get_triggers(span)
+    assert triggers
+    values = [
+        value.get("value")
+        for rule in triggers
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert any("password" in value for value in values)
+    assert any("goodbye" in value for value in values)
+    assert all("<Redacted>" not in value for value in values)
 
 
 def test_obfuscation_parameter_value_configured_matching(tracer):
@@ -454,11 +480,17 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, rules.Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
 
-        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-        assert "token" not in span.get_tag("_dd.appsec.json")
-        assert "goodbye" not in span.get_tag("_dd.appsec.json")
-        assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+    triggers = get_triggers(span)
+    assert triggers
+    values = [
+        value.get("value")
+        for rule in triggers
+        for match in rule.get("rule_matches", [])
+        for value in match.get("parameters", [])
+    ]
+    assert all("token" not in value for value in values)
+    assert all("goodbye" not in value for value in values)
+    assert any("<Redacted>" in value for value in values)
 
 
 def test_ddwaf_run():
@@ -606,7 +638,7 @@ def test_ddwaf_run_contained_typeerror(tracer_appsec, caplog):
                 request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
-    assert span.get_tag(APPSEC.JSON) is None
+    assert get_triggers(span) is None
     assert "TypeError: expected c_long instead of int" in caplog.text
 
 
@@ -644,7 +676,7 @@ def test_ddwaf_run_contained_oserror(tracer_appsec, caplog):
                 request_body={"_authentication_token": "2b0297348221f294de3a047e2ecf1235abb866b6"},
             )
 
-    assert span.get_tag(APPSEC.JSON) is None
+    assert get_triggers(span) is None
     assert "OSError: ddwaf run failed" in caplog.text
 
 
@@ -661,3 +693,56 @@ def test_asm_context_registration(tracer_appsec):
         span.span_type = SpanTypes.HTTP
         assert core.get_item("asm_env") is not None
     assert core.get_item("asm_env") is None
+
+
+def test_required_addresses():
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        processor = AppSecSpanProcessor()
+
+    assert processor._addresses_to_keep == {
+        "grpc.server.request.message",
+        "http.client_ip",
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.headers.no_cookies",
+        "server.request.path_params",
+        "server.request.query",
+        "server.response.headers.no_cookies",
+        "usr.id",
+    }
+
+    processor._update_rules(
+        {
+            "custom_rules": [
+                {
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "server.request.method"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-adf4-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                }
+            ]
+        }
+    )
+
+    assert processor._addresses_to_keep == {
+        "grpc.server.request.message",
+        "http.client_ip",
+        "server.request.body",
+        "server.request.cookies",
+        "server.request.headers.no_cookies",
+        "server.request.method",  # New required address
+        "server.request.path_params",
+        "server.request.query",
+        "server.response.headers.no_cookies",
+        "usr.id",
+    }

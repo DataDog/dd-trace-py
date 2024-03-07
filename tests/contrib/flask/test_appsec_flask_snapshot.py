@@ -11,6 +11,7 @@ from typing import List  # noqa:F401
 import pytest
 import six
 
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
@@ -24,6 +25,8 @@ from tests.webclient import Client
 DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
+
+APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 
 
 @pytest.fixture
@@ -110,14 +113,17 @@ def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_ar
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -141,14 +147,17 @@ def test_flask_ipblock_match_403(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -172,14 +181,17 @@ def test_flask_ipblock_match_403_json(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -202,14 +214,17 @@ def test_flask_userblock_match_403_json(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -228,14 +243,17 @@ def test_flask_userblock_match_200_json(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -255,14 +273,17 @@ def test_flask_processexec_ossystem(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -283,14 +304,17 @@ def test_flask_processexec_osspawn(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",
@@ -310,14 +334,17 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
 
 @pytest.mark.snapshot(
     ignores=[
+        "error",
+        "type",
         "meta._dd.appsec.waf.duration",
         "meta._dd.appsec.waf.duration_ext",
-        "meta._dd.appsec.json",
+        APPSEC_JSON_TAG,
         "meta.flask.version",
         "meta.http.request.headers.accept",
         "meta.http.request.headers.accept-encoding",
         "meta.http.request.headers.host",
         "meta.http.request.headers.user-agent",
+        "meta_struct",
         "http.response.headers.content-length",
         "http.response.headers.content-type",
         "meta.http.useragent",

@@ -1,5 +1,6 @@
 import psycopg2
 import pytest
+from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 from ddtrace.constants import ERROR_MSG
@@ -33,7 +34,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, TracerTestCase):
         # ensures that SQL errors are reported
         with pytest.raises(ProgrammingError):
             with self.connection() as conn:
-                conn.execute("SELECT * FROM a_wrong_table").fetchall()
+                conn.execute(text("SELECT * FROM a_wrong_table")).fetchall()
 
         traces = self.pop_traces()
         # trace composition

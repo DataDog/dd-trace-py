@@ -47,6 +47,10 @@ def wrapped_loads(wrapped, instance, args, kwargs):
             from .._taint_tracking import get_tainted_ranges
             from .._taint_tracking import is_pyobject_tainted
             from .._taint_tracking import taint_pyobject
+            from ..processor import AppSecIastSpanProcessor
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return obj
 
             if is_pyobject_tainted(args[0]) and obj:
                 # tainting object

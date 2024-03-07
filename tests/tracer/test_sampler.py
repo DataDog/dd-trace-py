@@ -7,9 +7,9 @@ import mock
 import pytest
 
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
 from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -24,7 +24,6 @@ from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampling_rule import SamplingRule
-from ddtrace.span import Span
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
@@ -94,7 +93,9 @@ class RateSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
 
-            tracer._sampler = RateSampler(sample_rate)
+            # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+            # with rate limiting disabled.
+            tracer._sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
 
             iterations = int(1e4 / sample_rate)
 
@@ -103,12 +104,14 @@ class RateSamplerTest(unittest.TestCase):
                 span.finish()
 
             samples = tracer.pop()
+            # non sampled spans do not have sample rate applied
+            sampled_spans = [s for s in samples if s.context.sampling_priority > 0]
+            if sample_rate != 1:
+                assert len(sampled_spans) != len(samples)
+            else:
+                assert len(sampled_spans) == len(samples)
 
-            assert (
-                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
-            ), "Sampled span should have sample rate properly assigned"
-
-            deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
+            deviation = abs(len(sampled_spans) - (iterations * sample_rate)) / (iterations * sample_rate)
             assert (
                 deviation < 0.05
             ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
@@ -119,8 +122,9 @@ class RateSamplerTest(unittest.TestCase):
     def test_deterministic_behavior(self):
         """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
-
-        tracer._sampler = RateSampler(0.5)
+        # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+        # with rate limiting disabled.
+        tracer._sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
 
         for i in range(10):
             span = tracer.trace(str(i))
@@ -128,9 +132,9 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
             assert (
-                len(samples) <= 1
-            ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
-            sampled = 1 == len(samples)
+                len(samples) == 1
+            ), f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
+            sampled = len(samples) == 1 and samples[0].context.sampling_priority > 0
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
@@ -193,20 +197,16 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(str(i))
                 span.finish()
 
-            samples = tracer._writer.pop()
+            samples = tracer.pop()
             samples_with_high_priority = 0
             for sample in samples:
-                sample_priority = sample.get_metric(SAMPLING_PRIORITY_KEY)
-                if sample_priority is not None:
-                    samples_with_high_priority += int(bool(sample_priority > 0))
+                sample_priority = sample.context.sampling_priority
+                samples_with_high_priority += int(bool(sample_priority > 0))
                 assert_sampling_decision_tags(
                     sample,
                     agent=sample_rate,
                     trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
                 )
-            assert (
-                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
-            ), "A sampled span should not have the SAMPLE_RATE_METRIC_KEY tag set"
 
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
             assert (
@@ -258,7 +258,7 @@ def test_sampling_rule_init():
     )
 
     assert rule.sample_rate == 0.0, "SamplingRule should store the rate it's initialized with"
-    assert rule.service == a_string, "SamplingRule should store the service it's initialized with"
+    assert rule.service.pattern == a_string, "SamplingRule should store the service it's initialized with"
     assert rule.name == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
@@ -349,8 +349,8 @@ def test_sampling_rule_init_via_env():
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes one rule from envvar"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
         assert len(sampling_rule) == 1
 
     with override_global_config(
@@ -361,12 +361,12 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
         assert len(sampling_rule) == 2
 
     with override_global_config(
@@ -377,14 +377,14 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
+        assert sampling_rule[0].resource.pattern == "def"
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
-        assert sampling_rule[1].resource == "ghi"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
+        assert sampling_rule[1].resource.pattern == "ghi"
         assert len(sampling_rule) == 2
 
     with override_global_config(
@@ -396,15 +396,15 @@ def test_sampling_rule_init_via_env():
     ):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[0].service == "xyz"
-        assert sampling_rule[0].name == "abc"
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].service.pattern == "xyz"
+        assert sampling_rule[0].name.pattern == "abc"
+        assert sampling_rule[0].resource.pattern == "def"
         assert sampling_rule[0].tags == {"ghi": "jkl"}
 
         assert sampling_rule[1].sample_rate == 0.5, "DatadogSampler initializes from envvar containing multiple rules"
-        assert sampling_rule[1].service == "my-service"
-        assert sampling_rule[1].name == "my-name"
-        assert sampling_rule[1].resource == "ghi"
+        assert sampling_rule[1].service.pattern == "my-service"
+        assert sampling_rule[1].name.pattern == "my-name"
+        assert sampling_rule[1].resource.pattern == "ghi"
         assert sampling_rule[1].tags == SamplingRule.NO_RULE
         assert len(sampling_rule) == 2
 
@@ -418,7 +418,7 @@ def test_sampling_rule_init_via_env():
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz"}]')):
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without name set"
-        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].service.pattern == "xyz"
         assert sampling_rule[0].name == SamplingRule.NO_RULE
         assert len(sampling_rule) == 1
 
@@ -426,7 +426,7 @@ def test_sampling_rule_init_via_env():
         sampling_rule = DatadogSampler().rules
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar without service set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
-        assert sampling_rule[0].name == "abc"
+        assert sampling_rule[0].name.pattern == "abc"
         assert len(sampling_rule) == 1
 
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"resource":"def"}]')):
@@ -434,7 +434,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0, "DatadogSampler initializes from envvar with only resource set"
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == SamplingRule.NO_RULE
-        assert sampling_rule[0].resource == "def"
+        assert sampling_rule[0].resource.pattern == "def"
         assert len(sampling_rule) == 1
 
     with override_global_config(dict(_trace_sampling_rules='[{"sample_rate":1.0,"tags":{"def": "def"}}]')):
@@ -633,8 +633,8 @@ def test_sampling_rule_matches_exception():
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
+    from ddtrace._trace.span import Span
     from ddtrace.sampling_rule import SamplingRule
-    from ddtrace.span import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
         rule = SamplingRule(sample_rate=sample_rate)
@@ -779,7 +779,7 @@ class MatchSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return True
 
 
@@ -787,7 +787,7 @@ class NoMatch(SamplingRule):
     def matches(self, span):
         return False
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return True
 
 
@@ -795,7 +795,7 @@ class MatchNoSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return False
 
 
@@ -915,10 +915,11 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
     dummy_tracer.configure(sampler=sampler)
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
-
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
     span = spans[0]
-    assert span.sampled, "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
+    assert (
+        span.context.sampling_priority is not None
+    ), "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
     assert_sampling_decision_tags(
         span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag

@@ -25,6 +25,13 @@ CODE_TYPE_STDLIB = "stdlib"
 TAINT_SINK_FUNCTION_REPLACEMENT = "ddtrace_taint_sinks.ast_function"
 
 
+def _mark_avoid_convert_recursively(node):
+    if node is not None:
+        node.avoid_convert = True
+        for child in ast.iter_child_nodes(node):
+            _mark_avoid_convert_recursively(child)
+
+
 class AstVisitor(ast.NodeTransformer):
     def __init__(
         self,
@@ -414,6 +421,31 @@ class AstVisitor(ast.NodeTransformer):
         """
         self.replacements_disabled_for_functiondef = def_node.name in self.dont_patch_these_functionsdefs
 
+        if hasattr(def_node.args, "vararg") and def_node.args.vararg:
+            if def_node.args.vararg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.vararg.annotation)
+
+        if hasattr(def_node.args, "kwarg") and def_node.args.kwarg:
+            if def_node.args.kwarg.annotation:
+                _mark_avoid_convert_recursively(def_node.args.kwarg.annotation)
+
+        if hasattr(def_node, "returns"):
+            _mark_avoid_convert_recursively(def_node.returns)
+
+        for i in def_node.args.args:
+            if hasattr(i, "annotation"):
+                _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "kwonlyargs"):
+            for i in def_node.args.kwonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
+
+        if hasattr(def_node.args, "posonlyargs"):
+            for i in def_node.args.posonlyargs:
+                if hasattr(i, "annotation"):
+                    _mark_avoid_convert_recursively(i.annotation)
+
         self.generic_visit(def_node)
         self._current_function_name = None
 
@@ -609,6 +641,23 @@ class AstVisitor(ast.NodeTransformer):
         Add the ignore marks for left-side subscripts or list/tuples to avoid problems
         later with the visit_Subscript node.
         """
+        if isinstance(assign_node.value, ast.Subscript):
+            if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
+                # Best effort to avoid converting type definitions
+                if assign_node.value.value.id in (
+                    "Callable",
+                    "Dict",
+                    "Generator",
+                    "List",
+                    "Optional",
+                    "Sequence",
+                    "Tuple",
+                    "Type",
+                    "TypeVar",
+                    "Union",
+                ):
+                    _mark_avoid_convert_recursively(assign_node.value)
+
         for target in assign_node.targets:
             if isinstance(target, ast.Subscript):
                 # We can't assign to a function call, which is anyway going to rewrite
@@ -635,6 +684,20 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(assign_node)
         return assign_node
 
+    def visit_AnnAssign(self, node):  # type: (ast.AnnAssign) -> Any
+        # AnnAssign is a type annotation, we don't need to convert it
+        # and we avoid converting any subscript inside it.
+        _mark_avoid_convert_recursively(node)
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):  # type: (ast.ClassDef) -> Any
+        for i in node.bases:
+            _mark_avoid_convert_recursively(i)
+
+        self.generic_visit(node)
+        return node
+
     def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
         """
         Turn an indexes[1] and slices[0:1:2] into the replacement function call
@@ -645,6 +708,11 @@ class AstVisitor(ast.NodeTransformer):
         # We mark nodes to avoid_convert (check visit_Delete, visit_AugAssign, visit_Assign) due to complex
         # expressions that raise errors when try to replace with index aspects
         if hasattr(subscr_node, "avoid_convert"):
+            return subscr_node
+
+        # We only want to convert subscript nodes that are being used as a load.
+        # That means, no Delete or Store contexts.
+        if not isinstance(subscr_node.ctx, ast.Load):
             return subscr_node
 
         # Optimization: String literal slices and indexes are not patched

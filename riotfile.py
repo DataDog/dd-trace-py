@@ -455,11 +455,9 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": "~=1.5.0",
-                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
-                                # This issue was fixed in gevent v20.9:
-                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "gevent": "~=20.12.0",
+                                # greenlet v1.0.0 adds support for contextvars
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
@@ -784,6 +782,7 @@ venv = Venv(
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
+                "django-q": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -967,6 +966,7 @@ venv = Venv(
                 "werkzeug": "~=2.0",
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
+                "importlib_metadata": latest,
             },
             venvs=[
                 # Flask 1.x.x
@@ -1003,43 +1003,31 @@ venv = Venv(
                         "werkzeug": "<2.0",
                     },
                 ),
-                # Flask >= 2.0.0
+                # Flask 2.x.x
                 Venv(
-                    # flask dropped support for Python 2.7/3.5 in 2.0
-                    # flask added support for Python 3.10/3.11 in 2.0
                     pys=select_pys(min_version="3.7"),
-                    pkgs={
-                        "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
-                        ],
-                        "importlib_metadata": "<=6.0",
-                    },
+                    pkgs={"flask": "~=2.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(max_version="3.7"),
                     command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={
-                        "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
-                        ],
-                        "importlib_metadata": "<=6.0",
-                    },
+                    pkgs={"flask": "~=2.0"},
                 ),
+                # Flask 3.x.x
                 Venv(
-                    # flask dropped support for Python 3.7 in 2.3.0
+                    # Flask 3.x.x dropped support for Python 3.7
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
+                            "~=3.0.0",
+                            latest,
                         ],
-                        "importlib_metadata": "<=6.0",
+                        # Flask 3.x.x requires Werkzeug >= 3.0.0
+                        "werkzeug": ">=3.0",
                     },
                 ),
                 Venv(
@@ -1051,9 +1039,11 @@ venv = Venv(
                     },
                     pkgs={
                         "flask": [
-                            "~=2.0.0",
-                            "~=2.2.0",  # latest 2.2
+                            "~=3.0.0",
+                            latest,
                         ],
+                        # Flask 3.x.x requires Werkzeug >= 3.0.0
+                        "werkzeug": ">=3.0",
                     },
                 ),
             ],
@@ -1239,26 +1229,33 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
-                "sqlalchemy": latest,
+                "sqlalchemy": "<2.0",
                 "aiosqlite": latest,
                 "databases": latest,
                 "pytest-randomly": latest,
+                "anyio": "<4.0",
             },
             venvs=[
+                # starlette added new TestClient after v0.20
+                # starlette added new root_path/path definitions after v0.33
+                Venv(
+                    pys="3.7",
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", latest]},
+                ),
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14", "~=0.20", latest]},
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15", "~=0.20", latest]},
+                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
                     pys="3.11",
-                    pkgs={"starlette": ["~=0.21", latest]},
+                    pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
             ],
         ),
@@ -1279,35 +1276,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.9"),
-                            pkgs={
-                                "sqlalchemy": ["~=1.3", "~=1.4"],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        Venv(
-                            # sqlalchemy added support for Python 3.10 in 1.4.26
-                            pys="3.10",
-                            pkgs={
-                                "sqlalchemy": "~=1.4",
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        # FIXME: tests fail with sqlalchemy 2.0
-                        # Venv(
-                        #     # sqlalchemy added support for Python 3.11 in 2.0
-                        #     pys="3.11",
-                        #     pkgs={
-                        #         "sqlalchemy": ["~=2.0.0", latest],
-                        #         "psycopg2-binary": latest,
-                        #         "mysql-connector-python": latest,
-                        #     },
-                        # ),
-                    ],
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "sqlalchemy": ["~=1.3.0", latest],
+                        "psycopg2-binary": latest,
+                        "mysql-connector-python": latest,
+                    },
                 ),
             ],
         ),
@@ -1319,13 +1293,35 @@ venv = Venv(
                 "urllib3": "~=1.0",
             },
             venvs=[
+                # requests added support for Python 3.7 in 2.20
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys="3.7",
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
-                            "~=2.20",
-                            "~=2.26",
+                            "~=2.20.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.8 in 2.23
+                    pys="3.8",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.23.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # requests added support for Python 3.9 in 2.25
+                    pys="3.9",
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
+                            "~=2.25.0",
                             latest,
                         ],
                     },
@@ -1347,6 +1343,7 @@ venv = Venv(
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
+                            "~=2.28.0",
                             latest,
                         ],
                     },
@@ -1370,17 +1367,14 @@ venv = Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={
-                "moto[all]": latest,
-                "botocore": latest,
+                "moto[all]": "<5.0",
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    # vcrpy, which is required for Bedrock tests, only supports Python 3.8+.
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"vcrpy": latest},
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={"botocore": ["~=1.13", latest], "vcrpy": latest},
                 ),
-                Venv(pys="3.7"),
             ],
         ),
         Venv(
@@ -1540,7 +1534,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -1568,7 +1562,7 @@ venv = Venv(
                         ),
                         Venv(
                             pkgs={
-                                "pytest": [latest],
+                                "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
                         ),
@@ -1578,7 +1572,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest": [
-                            ">=6.0,<7.0",
+                            "~=6.0",
+                            "~=7.0",
                             latest,
                         ],
                         "msgpack": latest,
@@ -1684,18 +1679,23 @@ venv = Venv(
                 # See https://github.com/grpc/grpc/issues/18994
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"grpcio": ["~=1.34.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.34.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.10 in 1.41
                     # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                     pys="3.10",
-                    pkgs={"grpcio": ["~=1.42.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.42.0", latest]},
                 ),
                 Venv(
                     # grpcio added support for Python 3.11 in 1.49
                     pys="3.11",
-                    pkgs={"grpcio": ["~=1.49.0", "~=1.59.0"]},
+                    pkgs={"grpcio": ["~=1.49.0", latest]},
+                ),
+                Venv(
+                    # grpcio added support for Python 3.12 in 1.59
+                    pys="3.12",
+                    pkgs={"grpcio": ["~=1.59.0", latest]},
                 ),
             ],
         ),
@@ -1808,23 +1808,35 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.8"),
-                    pkgs={"urllib3": ["~=1.26.4"]},
+                    # Support added for Python 3.7 in 1.25.0
+                    # Support removed for Python 3.7 after 1.26.0
+                    pys="3.7",
+                    pkgs={"urllib3": ["==1.25.0", "~=1.26.0"]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.9 in 1.25.8
+                    # Support added for Python 3.8 in 1.25.0
+                    pys="3.8",
+                    pkgs={"urllib3": ["==1.25.0", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.9 in 1.25.8
                     pys="3.9",
-                    pkgs={"urllib3": ["~=1.25.8", "~=1.26.12"]},
+                    pkgs={"urllib3": ["==1.25.8", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.10 in 1.26.6
+                    # Support added for Python 3.10 in 1.26.6
                     pys="3.10",
-                    pkgs={"urllib3": ["~=1.26.6"]},
+                    pkgs={"urllib3": ["==1.26.6", latest]},
                 ),
                 Venv(
-                    # urllib3 added support for Python 3.11 in 1.26.8
+                    # Support added for Python 3.11 in 1.26.8
                     pys="3.11",
-                    pkgs={"urllib3": ["~=1.26.8"]},
+                    pkgs={"urllib3": ["==1.26.8", latest]},
+                ),
+                Venv(
+                    # Support added for Python 3.12 in 2.0.0
+                    pys="3.12",
+                    pkgs={"urllib3": ["==2.0.0", latest]},
                 ),
             ],
         ),
@@ -2174,8 +2186,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.8")),
-                Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
+                # sqlite3 is tied to the Python version and is not installable via pip
+                # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
+                # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
+                Venv(pys=select_pys(min_version="3.9"), pkgs={"pysqlite3-binary": [latest]}),
+                Venv(pys=select_pys(max_version="3.8"), pkgs={"importlib-metadata": latest}),
             ],
         ),
         Venv(
@@ -2329,31 +2344,24 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": ["~=1.4.0"],
+                                "gevent": ["~=20.12.0"],
                                 # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
                                 # This issue was fixed in gevent v20.9:
                                 # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
                             pys="3.9",
-                            pkgs={
-                                "gevent": "~=21.1.0",
-                                "greenlet": "~=1.0",
-                            },
+                            pkgs={"gevent": "~=21.1.0", "greenlet": "~=1.0"},
                         ),
                         Venv(
                             pys="3.10",
-                            pkgs={
-                                "gevent": "~=21.8.0",
-                            },
+                            pkgs={"gevent": "~=21.8.0"},
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={
-                                "gevent": "~=22.8.0",
-                            },
+                            pkgs={"gevent": "~=22.8.0"},
                         ),
                     ],
                 ),

@@ -11,16 +11,17 @@ from typing import Set
 from typing import Tuple
 from urllib import parse
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.span import Span
 
 
 log = get_logger(__name__)
@@ -82,7 +83,7 @@ def is_blocked() -> bool:
         if not env.active or env.span is None:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -109,19 +110,15 @@ def unregister(span: Span) -> None:
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
         root_span = env.span._local_root or env.span
-        old_tags = root_span.get_tag(APPSEC.JSON)
-        if old_tags is not None:
-            try:
-                new_json = json.loads(old_tags)
-                if "triggers" not in new_json:
-                    new_json["triggers"] = []
-                new_json["triggers"].extend(env.waf_triggers)
-            except BaseException:
-                new_json = {"triggers": env.waf_triggers}
+        report_list = get_triggers(root_span)
+        if report_list is not None:
+            report_list.extend(env.waf_triggers)
         else:
-            new_json = {"triggers": env.waf_triggers}
-        root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
-
+            report_list = env.waf_triggers
+        if asm_config._use_metastruct_for_triggers:
+            root_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+        else:
+            root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
 
 
@@ -436,6 +433,10 @@ def _on_wrapped_view(kwargs):
     if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return return_value
 
         _kwargs = {}
         for k, v in kwargs.items():
@@ -451,9 +452,14 @@ def _on_set_request_tags(request, span, flask_config):
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
+
+        if not AppSecIastSpanProcessor.is_span_analyzed(span._local_root or span):
+            return
+
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,

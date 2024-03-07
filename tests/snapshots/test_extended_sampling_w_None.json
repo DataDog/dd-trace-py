@@ -1,0 +1,80 @@
+[[
+  {
+    "name": "should_send1",
+    "service": "",
+    "resource": "banana",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65cce0ee00000000",
+      "language": "python",
+      "runtime-id": "07be192aacd94df1a67482ebde627263",
+      "test": "None"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 26424
+    },
+    "duration": 306277000,
+    "start": 1707925742969927000
+  }],
+[
+  {
+    "name": "should_not_send2",
+    "service": "",
+    "resource": "mycoolre$ource",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65cce0ee00000000",
+      "language": "python",
+      "runtime-id": "07be192aacd94df1a67482ebde627263",
+      "test": "None"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 26424
+    },
+    "duration": 347624000,
+    "start": 1707925742611318000
+  }],
+[
+  {
+    "name": "should_not_send",
+    "service": "",
+    "resource": "mycoolre$ource",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65cce0ee00000000",
+      "language": "python",
+      "runtime-id": "07be192aacd94df1a67482ebde627263",
+      "test": "None"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 26424
+    },
+    "duration": 339420000,
+    "start": 1707925742260452000
+  }]]

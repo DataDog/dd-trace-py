@@ -134,7 +134,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     command.store(command.obj)
             else:
                 command.store(build_new_tainted_object_from_generic_object(command.obj, command.struct))
-    except BaseException:
+    except Exception:
         log.debug("taint_structure error", exc_info=True)
         pass
     finally:

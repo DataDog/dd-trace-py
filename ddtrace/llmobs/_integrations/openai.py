@@ -1,15 +1,21 @@
-import time
+import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-import uuid
 
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
@@ -96,22 +102,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             tags.append("error_type:%s" % err_type)
         return tags
 
-    @classmethod
-    def _llmobs_tags(cls, span: Span) -> List[str]:
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "source:integration",
-            "model_name:%s" % (span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or ""),
-            "model_provider:openai",
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
-
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage or not self.metrics_enabled:
             return
@@ -123,93 +113,113 @@ class OpenAIIntegration(BaseLLMIntegration):
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
             self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
-    def generate_completion_llm_records(self, resp: Any, err: Any, span: Span, kwargs: Dict[str, Any]) -> None:
-        """Generate payloads for the LLM Obs API from a completion."""
+    def llmobs_set_tags(
+        self,
+        record_type: str,
+        resp: Any,
+        span: Span,
+        kwargs: Dict[str, Any],
+        streamed_resp: Optional[Any] = None,
+        err: Optional[Any] = None,
+    ) -> None:
+        """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-        if err is not None:
-            attrs_dict = self._llmobs_record(span, kwargs, resp, err, "completion")
-            self.llm_record(span, attrs_dict)
-            return
-        n = kwargs.get("n", 1)
-        # Note: LLMObs ingest endpoint only accepts a 1:1 prompt-response mapping per record,
-        #  so we need to deduplicate and send unique prompt-response records if n > 1.
-        for i in range(n):
-            unique_choices = resp.choices[i::n]
-            attrs_dict = self._llmobs_record(span, kwargs, resp, err, "completion")
-            attrs_dict["output"]["durations"] = [time.time() - span.start for _ in unique_choices]
-            attrs_dict["output"]["completions"] = [{"content": choice.text} for choice in unique_choices]
-            self.llm_record(span, attrs_dict)
-
-    def generate_chat_llm_records(self, resp: Any, err: Any, span: Span, kwargs: Dict[str, Any]) -> None:
-        """Generate payloads for the LLM Obs API from a chat completion."""
-        if not self.llmobs_enabled:
-            return
-        if err is not None:
-            attrs_dict = self._llmobs_record(span, kwargs, resp, err, "chat")
-            self.llm_record(span, attrs_dict)
-            return
-        # Note: LLMObs ingest endpoint only accepts a 1:1 prompt-response mapping per record,
-        #  so we need to send unique prompt-response records if there are multiple responses (n > 1).
-        for choice in resp.choices:
-            content = getattr(choice.message, "content", None)
-            if getattr(choice.message, "function_call", None):
-                content = choice.message.function_call.arguments
-            elif getattr(choice.message, "tool_calls", None):
-                content = choice.message.tool_calls.function.arguments
-            attrs_dict = self._llmobs_record(span, kwargs, resp, err, "chat")
-            attrs_dict["output"]["durations"] = [time.time() - span.start]
-            attrs_dict["output"]["completions"] = [{"content": str(content), "role": choice.message.role}]
-            self.llm_record(span, attrs_dict)
-
-    def _llmobs_record(
-        self, span: Span, kwargs: Dict[str, Any], resp: Any, err: Any, record_type: str
-    ) -> Dict[str, Any]:
-        """LLMObs record template for OpenAI."""
-        attrs_dict = {
-            "type": record_type,
-            "id": str(uuid.uuid4()),
-            "timestamp": int(span.start * 1000),
-            "model": span.get_tag("openai.request.model"),
-            "model_provider": "openai",
-            "input": {
-                "temperature": kwargs.get("temperature"),
-                "max_tokens": kwargs.get("max_tokens"),
-            },
-        }
+        span.set_tag_str(SPAN_KIND, "llm")
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        span.set_tag_str(MODEL_NAME, model_name or "")
+        span.set_tag_str(MODEL_PROVIDER, "openai")
         if record_type == "completion":
-            prompt = kwargs.get("prompt", "")
-            if isinstance(prompt, str):
-                prompt = [prompt]
-            attrs_dict["input"]["prompts"] = prompt  # type: ignore[index]
+            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_resp, span)
         elif record_type == "chat":
-            messages = kwargs.get("messages", [])
-            attrs_dict["input"]["messages"] = [  # type: ignore[index]
-                {"content": str(m.get("content", "")), "role": m.get("role", "")} for m in messages
-            ]
+            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_resp, span)
+        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp is not None)))
+
+    @staticmethod
+    def _llmobs_set_meta_tags_from_completion(
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+    ) -> None:
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
+        prompt = kwargs.get("prompt", "")
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(p)} for p in prompt]))
+        parameters = {"temperature": kwargs.get("temperature", 0)}
+        if kwargs.get("max_tokens"):
+            parameters["max_tokens"] = kwargs.get("max_tokens")
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
-            attrs_dict["output"] = {
-                "completions": [{"content": ""}],
-                "error": [span.get_tag("error.message")],
-                "durations": [time.time() - span.start],
-            }
-        elif resp is not None:
-            choices = resp.choices
-            # OpenAI only returns the aggregate token count for the entire response if n>1. This means we can only
-            #  provide a rough estimate of the number of tokens used for individual completions by taking the average.
-            prompt_tokens = int(resp.usage.prompt_tokens / len(choices))
-            completion_tokens = int(resp.usage.completion_tokens / len(choices))
-            attrs_dict["input"]["prompt_tokens"] = [prompt_tokens]  # type: ignore[index]
-            attrs_dict.update(
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+        elif streamed_resp:
+            span.set_tag_str(
+                OUTPUT_MESSAGES,
+                json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]),
+            )
+        else:
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
+
+    @staticmethod
+    def _llmobs_set_meta_tags_from_chat(
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+    ) -> None:
+        """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
+        span.set_tag_str(
+            INPUT_MESSAGES,
+            json.dumps(
+                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
+            ),
+        )
+        parameters = {"temperature": kwargs.get("temperature", 0)}
+        if kwargs.get("max_tokens"):
+            parameters["max_tokens"] = kwargs.get("max_tokens")
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        if err is not None:
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+        elif streamed_resp:
+            output_messages = []
+            for idx, choice in enumerate(streamed_resp):
+                content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
+                if getattr(choice[0].delta, "tool_calls", None):
+                    content = "".join(
+                        c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
+                    )
+                elif getattr(choice[0].delta, "function_call", None):
+                    content = "".join(
+                        c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
+                    )
+                output_messages.append({"content": content, "role": choice[0].delta.role})
+                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+        else:
+            output_messages = []
+            for idx, choice in enumerate(resp.choices):
+                content = getattr(choice.message, "content", "")
+                if getattr(choice.message, "function_call", None):
+                    content = choice.message.function_call.arguments
+                elif getattr(choice.message, "tool_calls", None):
+                    content = choice.message.tool_calls.function.arguments
+                output_messages.append({"content": str(content), "role": choice.message.role})
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+
+    @staticmethod
+    def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
+        """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
+        metrics = {}
+        if streamed:
+            prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
+            completion_tokens = span.get_metric("openai.response.usage.completion_tokens") or 0
+            metrics.update(
                 {
-                    "id": resp.id,
-                    "model": resp.model or span.get_tag("openai.request.model"),
-                    "output": {
-                        "completion_tokens": [completion_tokens],
-                        "total_tokens": [prompt_tokens + completion_tokens],
-                        "rate_limit_requests": [span.get_metric("openai.organization.ratelimit.requests.limit")],
-                        "rate_limit_tokens": [span.get_metric("openai.organization.ratelimit.tokens.limit")],
-                    },
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
                 }
             )
-        return attrs_dict
+        elif resp:
+            metrics.update(
+                {
+                    "prompt_tokens": resp.usage.prompt_tokens,
+                    "completion_tokens": resp.usage.completion_tokens,
+                    "total_tokens": resp.usage.prompt_tokens + resp.usage.completion_tokens,
+                }
+            )
+        return metrics

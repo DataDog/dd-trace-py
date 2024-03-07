@@ -1,80 +1,56 @@
-import time
+import json
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
-import uuid
 
-from ddtrace import Span
-from ddtrace import config
-
-from .base import BaseLLMIntegration
+from ddtrace._trace.span import Span
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._integrations import BaseLLMIntegration
 
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
-    @classmethod
-    def _llmobs_tags(cls, span: Span) -> List[str]:
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "source:integration",
-            "model_name:%s" % (span.get_tag("bedrock.request.model") or ""),
-            "model_provider:%s" % (span.get_tag("bedrock.request.model_provider") or ""),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
-
-    def generate_llm_record(
+    def llmobs_set_tags(
         self,
         span: Span,
         formatted_response: Optional[Dict[str, Any]] = None,
         prompt: Optional[str] = None,
         err: bool = False,
     ) -> None:
-        """Generate payloads for the LLM Obs API from a completion."""
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
-        if err or formatted_response is None:
-            record = _llmobs_record(span, prompt)
-            record["id"] = str(uuid.uuid4())
-            record["output"]["completions"] = [{"content": ""}]
-            record["output"]["errors"] = [span.get_tag("error.message")]
-            self.llm_record(span, record)
-            return
-        for i in range(len(formatted_response["text"])):
-            prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
-            completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
-            record = _llmobs_record(span, prompt)
-            record["id"] = span.get_tag("bedrock.response.id")
-            record["input"]["prompt_tokens"] = [prompt_tokens]
-            record["output"]["completions"] = [{"content": formatted_response["text"][i]}]
-            record["output"]["completion_tokens"] = [completion_tokens]
-            record["output"]["total_tokens"] = [prompt_tokens + completion_tokens]
-            self.llm_record(span, record)
-
-
-def _llmobs_record(span: Span, prompt: Optional[str]) -> Dict[str, Any]:
-    """LLMObs bedrock record template."""
-    now = time.time()
-    record = {
-        "type": "completion",
-        "id": str(uuid.uuid4()),
-        "timestamp": int(span.start * 1000),
-        "model": span.get_tag("bedrock.request.model"),
-        "model_provider": span.get_tag("bedrock.request.model_provider"),
-        "input": {
-            "prompts": [prompt],
+        parameters = {
             "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
             "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
-        },
-        "output": {
-            "durations": [now - span.start],
-        },
-    }
-    return record
+        }
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
+        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": prompt}]))
+        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        if err or formatted_response is None:
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
+        else:
+            span.set_tag_str(
+                OUTPUT_MESSAGES, json.dumps([{"content": completion} for completion in formatted_response["text"]])
+            )
+        span.set_tag_str(METRICS, json.dumps(self._llmobs_metrics(span, formatted_response)))
+
+    @staticmethod
+    def _llmobs_metrics(span: Span, formatted_response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        metrics = {}
+        if formatted_response and formatted_response.get("text"):
+            prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
+            completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
+            metrics["prompt_tokens"] = prompt_tokens
+            metrics["completion_tokens"] = completion_tokens
+            metrics["total_tokens"] = prompt_tokens + completion_tokens
+        return metrics

@@ -54,7 +54,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
             assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
     def test_flask_userblock_json(self):
@@ -74,7 +74,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).startswith("werkzeug/")
+            assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
             assert root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
