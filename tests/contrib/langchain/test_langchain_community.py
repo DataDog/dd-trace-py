@@ -167,7 +167,7 @@ def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
     llm = langchain_community.llms.HuggingFaceEndpoint(
         repo_id="google/flan-t5-xxl",
         temperature=0.5,
-        kwargs={"max_length": 256},
+        model_kwargs={"max_length": 256},
         huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
     )
     with request_vcr.use_cassette("huggingfacehub_completion_sync.yaml"):
@@ -651,13 +651,13 @@ async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr)
 
 
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_cohere_math_chain")
-def test_cohere_math_chain_sync(langchain, request_vcr):
+def test_cohere_math_chain_sync(langchain, langchain_community, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying Cohere interface.
     """
     chain = langchain.chains.LLMMathChain(
-        llm=langchain.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
+        llm=langchain_community.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     )
     with request_vcr.use_cassette("cohere_math_chain_sync.yaml"):
         chain.run("what is thirteen raised to the .3432 power?")
@@ -1231,14 +1231,16 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_llm_logs_when_response_not_completed(
-    langchain, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain, langchain_openai, langchain_community, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain_community.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch("langchain_openai.llms.base.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
+            # breakpoint()
             llm = langchain_openai.OpenAI()
             llm("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
+    # breakpoint()
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
@@ -1249,12 +1251,12 @@ def test_llm_logs_when_response_not_completed(
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": "sampled langchain_community.llms.openai.OpenAI",
+                    "message": "sampled langchain_openai.llms.base.OpenAI",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
                     "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo-instruct,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
                     "dd.trace_id": hex(trace_id)[2:],
                     "dd.span_id": str(span_id),
                     "prompts": ["Can you please not return an error?"],
