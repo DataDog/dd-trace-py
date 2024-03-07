@@ -699,8 +699,16 @@ def patch():
         import langchain_community.llms  # noqa:F401
         from langchain_core.language_models.llms import BaseLLM  # noqa:F401
 
-        wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate([langchain, langchain_community]))
-        wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate([langchain, langchain_community]))
+        wrap(
+            "langchain_core",
+            "language_models.llms.BaseLLM.generate",
+            traced_llm_generate([langchain, langchain_community]),
+        )
+        wrap(
+            "langchain_core",
+            "language_models.llms.BaseLLM.agenerate",
+            traced_llm_agenerate([langchain, langchain_community]),
+        )
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
