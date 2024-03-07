@@ -37,6 +37,7 @@
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
+            "ddtrace/internal/_threads.*",
             "ddtrace/internal/agent.py",
             "ddtrace/internal/assembly.py",
             "ddtrace/internal/atexit.py",
