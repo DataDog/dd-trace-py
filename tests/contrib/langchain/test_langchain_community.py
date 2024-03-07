@@ -637,7 +637,7 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain_community.test_openai_math_chain",
+    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost"],
 )
 async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
@@ -1170,7 +1170,7 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
         """
 from langchain_openai import OpenAI
 import ddtrace
-from tests.contrib.langchain.test_langchain import get_request_vcr
+from tests.contrib.langchain.test_langchain_community import get_request_vcr
 llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
     llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
