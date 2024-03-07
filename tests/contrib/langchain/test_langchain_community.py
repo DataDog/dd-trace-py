@@ -618,7 +618,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
+    token="tests.contrib.langchain.test_langchain_community.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
@@ -637,7 +637,7 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
+    token="tests.contrib.langchain.test_langchain_community.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost"],
 )
 async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
@@ -650,7 +650,7 @@ async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr)
         await chain.acall("what is two raised to the fifty-fourth power?")
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_cohere_math_chain")
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_cohere_math_chain")
 def test_cohere_math_chain_sync(langchain, langchain_community, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
