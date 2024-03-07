@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    various: This fix improves the static TLS usage of native extensions.
