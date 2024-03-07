@@ -1,9 +1,7 @@
 import base64
-from datetime import datetime
 import json
 
 from ddtrace import config
-# from ddtrace.contrib.botocore.utils import get_kinesis_data_object
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -27,8 +25,6 @@ def get_pathway(endpoint_service, dsm_identifier):
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
 
-    print(f"botocore checkpointing for {endpoint_service} is working")
-    log.info(f"botocore checkpointing for {endpoint_service} is working")
     pathway = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
     return pathway.encode_b64()
 
@@ -149,7 +145,7 @@ def handle_sqs_receive(params, result):
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, results):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json):
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -158,27 +154,22 @@ def record_data_streams_path_for_kinesis_stream(params, results):
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    for record in results.get("Records", []):
-        # _, data_obj = get_kinesis_data_object(record["Data"])
-        data_obj = json.loads(record["Data"])
-        if data_obj:
-            context_json = data_obj.get("_datadog")
-            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-            ctx = processor().decode_pathway_b64(pathway)
-        else:
-            ctx = processor().new_pathway()
+    if context_json:
+        pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
+        ctx = processor().decode_pathway_b64(pathway)
+    else:
+        ctx = processor().new_pathway()
 
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        ctx.set_checkpoint(
-            ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-        )
+    ctx.set_checkpoint(
+        ["direction:in", "topic:" + stream, "type:kinesis"],
+        edge_start_sec_override=time_estimate,
+        pathway_start_sec_override=time_estimate,
+    )
 
 
-def handle_kinesis_receive(params, result):
+def handle_kinesis_receive(params, time_estimate, context_json):
     try:
-        record_data_streams_path_for_kinesis_stream(params, result)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 

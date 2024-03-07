@@ -1,3 +1,4 @@
+import datetime
 import json
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -121,7 +122,15 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             func_run = True
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+
+            records = result["Records"]
+
+            # dispatch to DSM to set checkpoints
+            for record in records:
+                _, data_obj = get_kinesis_data_object(record["Data"])
+                time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
+                core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, time_estimate, data_obj])
+
         except Exception as e:
             func_run_err = e
         if result is not None and "Records" in result and len(result["Records"]) >= 1:
