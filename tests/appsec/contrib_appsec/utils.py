@@ -981,6 +981,25 @@ class Contrib_TestClass_For_Threats:
             else:
                 raise AssertionError("extra service not found")
 
+    def test_global_callback_list_length(self, interface):
+        from ddtrace.appsec import _asm_request_context
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _telemetry_enabled=True,
+            )
+        ):
+            self.update_tracer(interface)
+            assert ddtrace.config._remote_config_enabled
+            for _ in range(20):
+                response = interface.client.get("/new_service/awesome_test")
+            assert self.status(response) == 200
+            assert self.body(response) == "awesome_test"
+            # only two global callbacks are expected for API Security and Nested Events
+            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
+
 
 @contextmanager
 def test_tracer():
