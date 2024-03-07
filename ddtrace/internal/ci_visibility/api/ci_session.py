@@ -1,17 +1,17 @@
 from enum import Enum
+from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CIModuleIdType
 from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISessionIdType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModuleType
-from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
+from ddtrace.internal.ci_visibility.constants import SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.logger import get_logger
 
 
@@ -25,33 +25,31 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
     instances.
     """
 
+    event_type = SESSION_TYPE
+
     def __init__(
         self,
         item_id: CISessionId,
-        test_command: str,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
         log.warning("Initializing CI Visibility session %s", item_id)
         super().__init__(item_id, session_settings, initial_tags)
-        self._test_command = test_command
+        self._test_command = self._session_settings.test_command
+        self._operation_name = self._session_settings.session_operation_name
 
     def start(self):
         log.warning("Starting CI Visibility instance %s", self.item_id)
+        super().start()
 
     def finish(self, force_finish_children: bool = False, override_status: Optional[Enum] = None):
         log.warning("Finishing CI Visibility instance %s", self.item_id)
+        super().finish()
 
-    def add_module(self, module: CIVisibilityModule):
-        log.warning("Adding CI Visibility module %s", self.item_id)
-        if self._session_settings.reject_duplicates and module.item_id in self.children:
-            error_msg = f"Module {module.item_id} already exists in session {self.item_id}"
-            log.warning(error_msg)
-            raise CIVisibilityDataError(error_msg)
-        self.add_child(module)
-
-    def get_module_by_id(self, module_id: CIModuleId) -> CIVisibilityModule:
-        return super().get_child_by_id(module_id)
+    def _get_hierarchy_tags(self) -> Dict[str, Any]:
+        return {
+            SESSION_ID: str(self.get_span_id()),
+        }
 
     def get_session_settings(self):
         return self._session_settings

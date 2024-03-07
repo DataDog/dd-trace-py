@@ -1,6 +1,10 @@
 """
 Provides the API necessary to interacting with the CI Visibility service.
 
+NOTE: BETA - this API is currently in development and is subject to change.
+
+This API supports the agentless, and agent-proxied (EVP) modes. It does not support the APM protocol.
+
 All functions in this module are meant to be called in a stateless manner. Test runners (or custom implementations) that
 rely on this API are not expected to keep CI Visibility-related state for each session, module, suite or test.
 
@@ -10,11 +14,14 @@ All types and methods for interacting with the API are provided and documented i
 """
 import dataclasses
 from enum import Enum
+from types import TracebackType
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
+from typing import Type
 
 from typing_extensions import Unpack
 
@@ -32,14 +39,22 @@ log = get_logger(__name__)
 
 
 class CITestStatus(Enum):
-    PASS = TestStatus.PASS
-    FAIL = TestStatus.FAIL
-    SKIP = TestStatus.SKIP
-    XFAIL = TestStatus.XFAIL
-    XPASS = TestStatus.XPASS
+    PASS = TestStatus.PASS.value
+    FAIL = TestStatus.FAIL.value
+    SKIP = TestStatus.SKIP.value
+    XFAIL = TestStatus.XFAIL.value
+    XPASS = TestStatus.XPASS.value
 
 
 DEFAULT_SESSION_NAME = "ci_visibility_session"
+
+
+class DEFAULT_OPERATION_NAMES(Enum):
+    SESSION = "ci_visibility.session"
+    MODULE = "ci_visibility.module"
+    SUITE = "ci_visibility.suite"
+    TEST = "ci_visibility.test"
+    UNSET = "ci_visibility.unset"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -107,21 +122,30 @@ class CITestIdType(CIVisibilityChildItemIdType):
 
 @dataclasses.dataclass(frozen=True)
 class CISourceFileInfo:
-    source_file_path: str
-    source_file_line_start: int
-    source_file_line_end: int
+    path: str
+    start_line: Optional[int] = None
+    end_line: Optional[int] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class CIExcInfo:
+    exc_type: Type[BaseException]
+    exc_value: BaseException
+    exc_traceback: TracebackType
 
 
 class CISession(_CIVisibilityAPIBase):
     class DiscoverArgs(NamedTuple):
         session_id: CISessionIdType
         test_command: str
+        reject_unknown_items: bool
+        reject_duplicates: bool
+        test_framework: Optional[str]
+        test_framework_version: Optional[str]
         session_operation_name: Optional[str]
         module_operation_name: Optional[str]
         suite_operation_name: Optional[str]
         test_operation_name: Optional[str]
-        reject_unknown_items: bool
-        reject_duplicates: bool
 
     class FinishArgs(NamedTuple):
         session_id: CISessionIdType
@@ -133,12 +157,14 @@ class CISession(_CIVisibilityAPIBase):
     def discover(
         item_id: Optional[CISessionIdType],
         test_command: str,
-        session_operation_name: Optional[str] = None,
-        module_operation_name: Optional[str] = None,
-        suite_operation_name: Optional[str] = None,
-        test_operation_name: Optional[str] = None,
+        test_framework: str,
+        test_framework_version: str,
         reject_unknown_items: bool = True,
         reject_duplicates: bool = True,
+        session_operation_name: Optional[str] = DEFAULT_OPERATION_NAMES.SESSION.value,
+        module_operation_name: Optional[str] = DEFAULT_OPERATION_NAMES.MODULE.value,
+        suite_operation_name: Optional[str] = DEFAULT_OPERATION_NAMES.SUITE.value,
+        test_operation_name: Optional[str] = DEFAULT_OPERATION_NAMES.TEST.value,
     ):
         item_id = item_id or CISessionIdType()
 
@@ -156,12 +182,14 @@ class CISession(_CIVisibilityAPIBase):
                 CISession.DiscoverArgs(
                     item_id,
                     test_command,
+                    reject_unknown_items,
+                    reject_duplicates,
+                    test_framework,
+                    test_framework_version,
                     session_operation_name,
                     module_operation_name,
                     suite_operation_name,
                     test_operation_name,
-                    reject_unknown_items,
-                    reject_duplicates,
                 ),
             ),
         )
@@ -187,6 +215,10 @@ class CISession(_CIVisibilityAPIBase):
         core.dispatch(
             "ci_visibility.session.finish", (CISession.FinishArgs(item_id, force_finish_children, override_status),)
         )
+
+        from ddtrace.internal.ci_visibility import CIVisibility
+
+        CIVisibility.disable()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -237,7 +269,7 @@ class CIModule(_CIVisibilityAPIBase):
     @_catch_and_log_exceptions
     def discover(item_id: CIModuleIdType):
         log.debug("Registered module %s", item_id)
-        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(module_id=item_id),))
+        core.dispatch("ci_visibility.module.discover", (CIModule.DiscoverArgs(item_id),))
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -266,22 +298,25 @@ class CIModule(_CIVisibilityAPIBase):
 class CISuite(_CIVisibilityAPIBase):
     class DiscoverArgs(NamedTuple):
         suite_id: CISuiteIdType
-        codeowner: Optional[str] = None
+        codeowners: Optional[List[str]] = None
         source_file_info: Optional[CISourceFileInfo] = None
 
     class FinishArgs(NamedTuple):
         suite_id: CISuiteIdType
         force_finish_children: bool = False
         override_status: Optional[CITestStatus] = None
+        is_itr_skipped: bool = False
 
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
-        item_id: CISuiteIdType, codeowner: Optional[str] = None, source_file_info: Optional[CISourceFileInfo] = None
+        item_id: CISuiteIdType,
+        codeowners: Optional[List[str]] = None,
+        source_file_info: Optional[CISourceFileInfo] = None,
     ):
         """Registers a test suite with the CI Visibility service."""
         log.debug("Registering suite %s, source: %s", item_id, source_file_info)
-        core.dispatch("ci_visibility.suite.discover", (CISuite.DiscoverArgs(item_id, codeowner, source_file_info),))
+        core.dispatch("ci_visibility.suite.discover", (CISuite.DiscoverArgs(item_id, codeowners, source_file_info),))
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -295,6 +330,7 @@ class CISuite(_CIVisibilityAPIBase):
         item_id: CISuiteIdType,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
+        is_itr_skipped: bool = False,
     ):
         log.debug(
             "Finishing suite %s, override_status: %s, force_finish_children: %s",
@@ -303,8 +339,15 @@ class CISuite(_CIVisibilityAPIBase):
             override_status,
         )
         core.dispatch(
-            "ci_visibility.suite.finish", (CISuite.FinishArgs(item_id, force_finish_children, override_status),)
+            "ci_visibility.suite.finish",
+            (CISuite.FinishArgs(item_id, force_finish_children, override_status, is_itr_skipped),),
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_itr_skipped(item_id: CITestId, force_finish_children: bool = False):
+        log.debug("Marking test %s as skipped by ITR", item_id)
+        CISuite.finish(item_id, force_finish_children, CITestStatus.SKIP, is_itr_skipped=True)
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -315,33 +358,29 @@ class CISuite(_CIVisibilityAPIBase):
 class CITest(_CIVisibilityAPIBase):
     class DiscoverArgs(NamedTuple):
         test_id: CITestId
-        codeowner: Optional[str] = None
+        codeowners: Optional[List[str]] = None
         source_file_info: Optional[CISourceFileInfo] = None
-
-    class DiscoverEarlyFlakeRetryArgs(NamedTuple):
-        test_id: CITestId
-        retry_number: int
-
-    class FinishArgs(NamedTuple):
-        test_id: CITestId
-        override_status: Optional[CITestStatus] = None
 
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
         item_id: CITestId,
-        codeowner: Optional[str] = None,
+        codeowners: Optional[List[str]] = None,
         source_file_info: Optional[CISourceFileInfo] = None,
         is_early_flake_detection: bool = False,
     ):
         """Registers a test with the CI Visibility service."""
         log.debug(
-            "Discovering test %s, codeowner: %s, source file: %s",
+            "Discovering test %s, codeowners: %s, source file: %s",
             item_id,
-            codeowner,
+            codeowners,
             source_file_info,
         )
-        core.dispatch("ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowner, source_file_info),))
+        core.dispatch("ci_visibility.test.discover", (CITest.DiscoverArgs(item_id, codeowners, source_file_info),))
+
+    class DiscoverEarlyFlakeRetryArgs(NamedTuple):
+        test_id: CITestId
+        retry_number: int
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -363,11 +402,62 @@ class CITest(_CIVisibilityAPIBase):
         log.debug("Starting test %s", item_id)
         core.dispatch("ci_visibility.test.start", (item_id,))
 
+    class FinishArgs(NamedTuple):
+        test_id: CITestId
+        status: CITestStatus
+        skip_reason: Optional[str] = None
+        exc_info: Optional[CIExcInfo] = None
+        is_itr_skipped: bool = False
+
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(item_id: CITestId, status: CITestStatus, reason: Optional[str] = None, exc_info: Optional[Any] = None):
-        log.debug("Finishing test %s, status: %s, reason: %s", item_id, status, reason, exc_info)
-        core.dispatch("ci_visibility.test.finish", (CITest.FinishArgs(item_id, status),))
+    def finish(
+        item_id: CITestId,
+        status: CITestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[CIExcInfo] = None,
+        is_itr_skipped: bool = False,
+    ):
+        log.warning(
+            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s, is_itr_skipped: %s",
+            item_id,
+            status,
+            skip_reason,
+            exc_info,
+            is_itr_skipped,
+        )
+        core.dispatch(
+            "ci_visibility.test.finish",
+            (
+                CITest.FinishArgs(
+                    item_id, status, skip_reason=skip_reason, exc_info=exc_info, is_itr_skipped=is_itr_skipped
+                ),
+            ),
+        )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_pass(item_id: CITestId):
+        log.debug("Marking test %s as passed", item_id)
+        CITest.finish(item_id, CITestStatus.PASS)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_fail(item_id: CITestId, exc_info: CIExcInfo):
+        log.debug("Marking test %s as failed, exc_info: %s", item_id, exc_info)
+        CITest.finish(item_id, CITestStatus.FAIL, exc_info=exc_info)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_skip(item_id: CITestId, skip_reason: Optional[str] = None):
+        log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
+        CITest.finish(item_id, CITestStatus.SKIP, skip_reason=skip_reason)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_itr_skipped(item_id: CITestId):
+        log.debug("Marking test %s as skipped by ITR", item_id)
+        CITest.finish(item_id, CITestStatus.SKIP, is_itr_skipped=True)
 
     @staticmethod
     @_catch_and_log_exceptions

@@ -1,4 +1,3 @@
-from enum import Enum
 from enum import IntEnum
 import re
 
@@ -76,11 +75,6 @@ CIVISIBILITY_LOG_FILTER_RE = re.compile(
 )
 
 
-class DEFAULT_OPERATION_NAMES(Enum):
-    SESSION = "ci_visibility.session"
-    MODULE = "ci_visibility.module"
-    SUITE = "ci_visibility.suite"
-    TEST = "ci_visibility.test"
-
+CIVISIBILITY_SPAN_TYPE = "ci_visibility"
 
 DEFAULT_CI_VISIBILITY_SERVICE = "default_ci_visibility_service"
