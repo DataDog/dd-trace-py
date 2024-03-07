@@ -1,6 +1,9 @@
 ---
 features:
   - |
-    tracing: Makes ``tracer.sampler`` public, now named ``tracer.sampler``. This should not be called
-    in most circumstances, but will be useful for advanced users who want to access the sampler directly,
-    once lazy sampling is implemented.
+    tracing: Adds ``tracer.sample`` public method. This should not be called  in most circumstances, 
+    but will be useful for advanced users who want to run sampling manually, once lazy sampling is implemented.
+deprecations:
+  - |
+    tracing: deprecates passing a sampler to ``tracer.configure()`` that is not an instance of ``DatadogSampler``.
+    The passing of custom sampler instances is largely unusued and will be removed in the next major version update.
