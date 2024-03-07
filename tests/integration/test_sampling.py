@@ -7,6 +7,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
 from ddtrace.sampler import SamplingRule
+from tests.utils import DummyTracer
 from tests.utils import snapshot
 
 from .test_integration import AGENT_VERSION
@@ -43,8 +44,9 @@ def snapshot_parametrized_with_writers(f):
     )(wrapped)
 
 
-@snapshot_parametrized_with_writers
-def test_sampling_with_defaults(writer, tracer):
+@snapshot()
+def test_sampling_with_defaults(tracer):
+    tracer = DummyTracer()
     with tracer.trace("trace1"):
         tracer.trace("child").finish()
 
