@@ -72,6 +72,10 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh INTEGRATIONS 
 
+      - name: Run CROSSED_TRACING_LIBRARIES 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh CROSSED_TRACING_LIBRARIES 
+
       - name: Run
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh
