@@ -144,7 +144,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    ctx = DsmPathwayCodec.decode(context_json.get("_datadog"), processor())
+    ctx = DsmPathwayCodec.decode(context_json, processor())
     ctx.set_checkpoint(
         ["direction:in", "topic:" + stream, "type:kinesis"],
         edge_start_sec_override=time_estimate,
