@@ -69,7 +69,9 @@ def unregister(after_in_child):
         log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
 
-os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
+# should always be true on unix systems with Python 3.7+. This check is for if we're on Windows
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 

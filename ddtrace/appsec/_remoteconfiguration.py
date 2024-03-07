@@ -244,5 +244,5 @@ def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Opti
             try:
                 sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
                 asm_config._api_security_sample_rate = sample_rate
-            except BaseException:  # nosec
+            except Exception:  # nosec
                 pass

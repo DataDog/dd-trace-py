@@ -1,3 +1,4 @@
+DEFAULT_ML_APP_NAME = "unnamed-ml-app"
 SPAN_KIND = "_ml_obs.meta.span.kind"
 SESSION_ID = "_ml_obs.session_id"
 METRICS = "_ml_obs.metrics"
