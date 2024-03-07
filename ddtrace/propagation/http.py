@@ -35,6 +35,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
@@ -816,7 +817,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
                     if lpid:
-                        meta["_dd.parent_id"] = lpid
+                        meta[LAST_DD_PARENT_ID_KEY] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
@@ -841,9 +842,9 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
                     span_context._tracestate, span_context.span_id or 0
                 )
-            elif "_dd.parent_id" in span_context._meta:
+            elif LAST_DD_PARENT_ID_KEY in span_context._meta:
                 # Datadog Span is not active, propagate the last datadog span_id
-                span_id = int(span_context._meta["_dd.parent_id"], 16)
+                span_id = int(span_context._meta[LAST_DD_PARENT_ID_KEY], 16)
                 headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
             else:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate

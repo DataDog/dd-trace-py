@@ -6,11 +6,13 @@ import pickle
 
 import pytest
 
+from ddtrace import tracer as ddtracer
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -428,6 +430,38 @@ def test_extract_128bit_trace_ids_tracecontext():
             assert span.parent_id == span_id
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == trace_id
+
+
+def test_last_dd_span_id():
+    non_dd_remote_context = HTTPPropagator.extract(
+        {
+            "traceparent": "00-70f198ee56343ba864fe8b2a57d4eff7-34f067aa0ba902b9-01",
+            "tracestate": "dd=p:123067aa0ba902a6;s:2;o:rum",
+        }
+    )
+
+    with ddtracer.start_span("local-root", child_of=non_dd_remote_context) as local_root:
+        with ddtracer.start_span("child1", child_of=local_root) as child1:
+            pass
+
+    with ddtracer.start_span("child2", child_of=local_root) as chunk_root:
+        pass
+
+    with ddtracer.start_span("root", child_of=None) as root:
+        pass
+
+    # The last parent span_id tag should be set ONLY on the local root spans
+    assert local_root.get_tag(LAST_DD_PARENT_ID_KEY) == "123067aa0ba902a6"
+    for span in (root, child1, chunk_root):
+        assert span.get_tag(LAST_DD_PARENT_ID_KEY) is None
+    # `p` value in tracestate is set using the current active datadog span
+    headers = {}
+    HTTPPropagator.inject(root.context, headers)
+    assert "p:{:016x}".format(root.span_id) in headers["tracestate"]
+    # `p` value is set to the last datadog span in the trace (via non_dd_remote_context's tracestate)
+    headers = {}
+    HTTPPropagator.inject(local_root.context, headers)
+    assert "p:123067aa0ba902a6" in headers["tracestate"]
 
 
 def test_extract_unicode(tracer):  # noqa: F811
@@ -997,7 +1031,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
-                    "_dd.parent_id": "0000000000000000",
+                    LAST_DD_PARENT_ID_KEY: "0000000000000000",
                     "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
@@ -1010,7 +1044,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "span_id": 67667974448284343,
                 "meta": {
                     "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
-                    "_dd.parent_id": "00f067aa0ba902b7",
+                    LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
                     "_dd.origin": "rum",
                     "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
                 },
@@ -1753,7 +1787,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "meta": {
                 "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
-                "_dd.parent_id": "00f067aa0ba902b7",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
             },
         },
     ),
@@ -1768,7 +1802,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "meta": {
                 "tracestate": "dd=o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
-                "_dd.parent_id": "0000000000000000",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
     ),
@@ -1922,7 +1956,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                "_dd.parent_id": "0000000000000000",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[],
@@ -1949,7 +1983,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                "_dd.parent_id": "0000000000000000",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -1983,7 +2017,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                "_dd.parent_id": "0000000000000000",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2348,7 +2382,7 @@ INJECT_FIXTURES = [
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
                 "_dd.origin": "rum",
-                "_dd.parent_id": "00f067aa0ba902b7",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
             },
             "metrics": {"_sampling_priority_v1": 2},
