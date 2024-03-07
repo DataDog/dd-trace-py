@@ -1,9 +1,7 @@
 import base64
-from datetime import datetime
 import json
 
 from ddtrace import config
-# from ddtrace.contrib.botocore.utils import get_kinesis_data_object
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
@@ -60,9 +58,6 @@ def inject_context(trace_data, endpoint_service, dsm_identifier):
     path_type = "type:{}".format(endpoint_service)
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    log.warning(f"set checkpoint out {endpoint_service}")
-    print("inject_context sqs/sns/kinesis")
-    print(endpoint_service)
     ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
     DsmPathwayCodec.encode(ctx, trace_data)
 
@@ -73,8 +68,6 @@ def handle_kinesis_produce(stream, dd_ctx_json):
 
 
 def handle_sqs_sns_produce(endpoint_service, trace_data, params):
-    log.warning("handle_sqs_sns_produce")
-    print("handle_sqs_sns_produce")
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
@@ -136,19 +129,13 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            log.warning("receive sqs")
-            print("receive sqs")
-            log.warning(context_json)
-            print(context_json)
             ctx = DsmPathwayCodec.decode(context_json, processor())
-            log.warning("set checkpoint sqs")
-            print("set checkpopint sqs")
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, results):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json):
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -157,23 +144,17 @@ def record_data_streams_path_for_kinesis_stream(params, results):
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    for record in results.get("Records", []):
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-
-        # _, data_obj = get_kinesis_data_object(record["Data"])
-        data_obj = data_obj if data_obj else {}
-
-        ctx = DsmPathwayCodec.decode(data_obj.get("_datadog"), processor())
-        ctx.set_checkpoint(
-            ["direction:in", "topic:" + stream, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-        )
+    ctx = DsmPathwayCodec.decode(context_json.get("_datadog"), processor())
+    ctx.set_checkpoint(
+        ["direction:in", "topic:" + stream, "type:kinesis"],
+        edge_start_sec_override=time_estimate,
+        pathway_start_sec_override=time_estimate,
+    )
 
 
-def handle_kinesis_receive(params, result):
+def handle_kinesis_receive(params, time_estimate, context_json):
     try:
-        record_data_streams_path_for_kinesis_stream(params, result)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 

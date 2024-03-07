@@ -101,13 +101,7 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
-    log.warning("dispatch sqs dsm inject")
-    print("dispatch sqs dsm inject")
     core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
-    log.warning("received sqs dsm inject, new trace data:")
-    print("received sqs dsm inject, new trace data:")
-    log.warning(trace_data)
-    print(trace_data)
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
@@ -170,15 +164,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             # we need to ensure the span start time is correct
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
-            log.warning("sqs patch send message")
-            print("sqs patch send message")
             if args and config.botocore["distributed_tracing"]:
-                log.warning("sqs patch distributed tracing enabled")
-                print("sqs patch distributed tracing enabled")
                 try:
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        log.warning("sqs patch pre injecting message")
-                        print("sqs patch pre injecting message")
                         inject_trace_to_sqs_or_sns_message(
                             params,
                             span,
