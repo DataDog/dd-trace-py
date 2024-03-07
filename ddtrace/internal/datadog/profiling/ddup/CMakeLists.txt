@@ -51,6 +51,11 @@ target_compile_options(${EXTENSION_NAME} PRIVATE
   "$<$<CONFIG:Release>:-Os>"
   -ffunction-sections -fno-semantic-interposition
 )
+
+# Set TLS model to global-dynamic for everything we build
+add_compile_options(-ftls-model=global-dynamic)
+
+
 target_link_options(${EXTENSION_NAME} PRIVATE
   "$<$<CONFIG:Release>:-s>"
   -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,--gc-sections

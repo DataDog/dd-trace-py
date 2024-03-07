@@ -36,6 +36,9 @@ add_ddup_config(dd_wrapper)
 # and overall binary size.
 target_compile_features(dd_wrapper PUBLIC cxx_std_17)
 
+# Limit the TLS model in everything we build.
+add_compile_options(-ftls-model=global-dynamic
+
 # Statically link libstdc++ to avoid manylinux2014 conflicts
 target_link_options(dd_wrapper PRIVATE -static-libstdc++)
 

@@ -51,6 +51,9 @@ add_cppcheck_target(${EXTENSION_NAME}
   SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Reduce static TLS for everyone
+add_compile_option(-ftls-model=global-dynamic)
+
 # This project is build with C++17, even though the underlying repo adheres to the manylinux 2014 standard.
 # This isn't currently a problem, but if it becomes one, we may have to structure the library differently.
 target_compile_features(${EXTENSION_NAME} PUBLIC cxx_std_17)
