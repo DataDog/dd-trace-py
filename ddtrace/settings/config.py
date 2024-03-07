@@ -391,6 +391,7 @@ class Config(object):
                 "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
             )
         )
+        self._tracer_flare_enabled = asbool(os.getenv("DD_TRACER_FLARE_ENABLED", default=False))
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
@@ -738,8 +739,38 @@ class Config(object):
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        product_type = data.get("metadata", [])[0].get("product_name")
+        configs = data["config"]
+
+        if product_type == "APM_TRACING":
+            self._handle_apm_tracing_product(configs[0])
+        elif product_type == "AGENT_CONFIG":
+            self._handle_agent_config_product(configs)
+        elif product_type == "AGENT_TASK":
+            self._handle_agent_task_product(configs)
+        else:
+            log.warning("unexpected RC product name: %s", product_type)
+
+    def _handle_agent_config_product(self, configs: List[dict]) -> None:
+        for config in configs:
+            if config and config.get("name", "").startswith("flare-log-level"):
+                _ = config.get("config", {}).get("log_level")
+                # retain original log level
+                # set log level
+                # clean up?
+                return
+
+    def _handle_agent_task_product(self, configs: List[dict]) -> None:
+        for config in configs:
+            if config and config.get("task_type") == "tracer_flare":
+                # collect log file
+                # collect config files
+                # zip
+                # send back to agent
+                return
+
+    def _handle_apm_tracing_product(self, config: dict) -> None:
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
         if config:

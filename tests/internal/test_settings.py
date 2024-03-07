@@ -14,7 +14,7 @@ def config():
 
 def _base_rc_config(cfg):
     return {
-        "metadata": [],
+        "metadata": [{"product_name": "APM_TRACING"}],
         "config": [
             {
                 "action": "enable",
@@ -27,7 +27,7 @@ def _base_rc_config(cfg):
 
 def _deleted_rc_config():
     return {
-        "metadata": [],
+        "metadata": [{"product_name": "APM_TRACING"}],
         "config": [False],
     }
 
