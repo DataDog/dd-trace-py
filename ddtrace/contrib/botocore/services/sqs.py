@@ -130,12 +130,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             start_ns = time_ns()
             func_run = True
             # run the function before in order to extract possible parent context before starting span
-            log.warning("sqs patch receive message dispatch pre")
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
             core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
-            log.error("sqs patch receive message dispatch post, results below:")
-            log.error(result)
         except Exception as e:
             func_run_err = e
         if result is not None and "Messages" in result and len(result["Messages"]) >= 1:

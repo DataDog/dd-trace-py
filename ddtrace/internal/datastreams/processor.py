@@ -468,7 +468,6 @@ class DsmPathwayCodec:
         if not isinstance(ctx, DataStreamsCtx) or not ctx or not ctx.hash:
             return
         carrier[PROPAGATION_KEY_BASE_64] = ctx.encode_b64()
-        log.info(carrier)
 
     @staticmethod
     def decode(carrier, data_streams_processor):
@@ -492,9 +491,6 @@ class DsmPathwayCodec:
                     ctx = None
         if not ctx:
             return data_streams_processor.new_pathway()
-        log.info("ctx receive")
-        log.info("this is a new logging statement")
-        log.info(ctx.hash)
         return ctx
 
 
