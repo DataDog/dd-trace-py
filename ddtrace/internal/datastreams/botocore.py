@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 
 from ddtrace import config
-from ddtrace.contrib.botocore.utils import get_kinesis_data_object
+# from ddtrace.contrib.botocore.utils import get_kinesis_data_object
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -27,6 +27,8 @@ def get_pathway(endpoint_service, dsm_identifier):
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
 
+    print(f"botocore checkpointing for {endpoint_service} is working")
+    log.info(f"botocore checkpointing for {endpoint_service} is working")
     pathway = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
     return pathway.encode_b64()
 
@@ -157,7 +159,8 @@ def record_data_streams_path_for_kinesis_stream(params, results):
         return
 
     for record in results.get("Records", []):
-        _, data_obj = get_kinesis_data_object(record["Data"])
+        # _, data_obj = get_kinesis_data_object(record["Data"])
+        data_obj = json.loads(record["Data"])
         if data_obj:
             context_json = data_obj.get("_datadog")
             pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None

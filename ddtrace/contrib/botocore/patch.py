@@ -127,6 +127,8 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 
 @with_traced_module
 def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
+    print("botocore tracing is working")
+    log.info("botocore tracing is working")
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
