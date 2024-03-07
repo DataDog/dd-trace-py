@@ -22,7 +22,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 255,
       "langchain.tokens.prompt_tokens": 331,
@@ -51,7 +50,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 140,
          "langchain.tokens.prompt_tokens": 172,
          "langchain.tokens.total_cost": 0.006240000000000001,
@@ -90,7 +88,6 @@
           },
           "metrics": {
             "_dd.measured": 1,
-            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 140,
             "langchain.tokens.prompt_tokens": 172,
             "langchain.tokens.total_cost": 0.006240000000000001,
@@ -118,7 +115,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 115,
          "langchain.tokens.prompt_tokens": 159,
          "langchain.tokens.total_cost": 0.0054800000000000005,
@@ -157,7 +153,6 @@
           },
           "metrics": {
             "_dd.measured": 1,
-            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 115,
             "langchain.tokens.prompt_tokens": 159,
             "langchain.tokens.total_cost": 0.0054800000000000005,

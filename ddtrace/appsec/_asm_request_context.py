@@ -83,7 +83,7 @@ def is_blocked() -> bool:
         if not env.active or env.span is None:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -151,7 +151,7 @@ class _DataHandler:
             callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
             env.must_call_globals = False
             if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks += env.callbacks.get(_CONTEXT_CALL)
+                callbacks = callbacks + env.callbacks.get(_CONTEXT_CALL)
             if callbacks:
                 if env is not None:
                     for function in callbacks:
