@@ -208,9 +208,12 @@ def w3c_encode_tag(args):
 
 def w3c_tracestate_add_p(tracestate, span_id):
     # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
+    p_member = "{}:{:016x}".format(W3C_TRACESTATE_PARENT_ID_KEY, span_id)
     if "dd=" in tracestate:
-        return tracestate.replace("dd=", "dd={}:{:016x};".format(W3C_TRACESTATE_PARENT_ID_KEY, span_id))
-    return "dd=p:{:016x}".format(span_id)
+        return tracestate.replace("dd=", f"dd={p_member};")
+    elif tracestate:
+        return f"dd={p_member},{tracestate}"
+     return f"dd={p_member}"
 
 
 class Response(object):
