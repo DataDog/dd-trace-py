@@ -23,6 +23,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateByServiceSampler
 from ddtrace.sampler import RateSampler
+from ddtrace.sampler import _sampler
 from ddtrace.sampling_rule import SamplingRule
 
 from ..subprocesstest import run_in_subprocess
@@ -95,7 +96,7 @@ class RateSamplerTest(unittest.TestCase):
 
             # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
             # with rate limiting disabled.
-            tracer.sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
+            _sampler.current_sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
 
             iterations = int(1e4 / sample_rate)
 
@@ -124,7 +125,7 @@ class RateSamplerTest(unittest.TestCase):
         tracer = DummyTracer()
         # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
         # with rate limiting disabled.
-        tracer.sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
+        _sampler.current_sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
 
         for i in range(10):
             span = tracer.trace(str(i))
@@ -137,20 +138,18 @@ class RateSamplerTest(unittest.TestCase):
             sampled = len(samples) == 1 and samples[0].context.sampling_priority > 0
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
-                assert sampled == tracer.sampler.sample(
+                assert sampled == _sampler.current_sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
     def test_negative_sample_rate_raises_error(self):
-        tracer = DummyTracer()
         with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
-            tracer.sampler = RateSampler(sample_rate=-0.5)
+            _sampler.current_sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
-        tracer = DummyTracer()
-        tracer.sampler = RateSampler(sample_rate=0)
+        _sampler.current_sampler = RateSampler(sample_rate=0)
         assert (
-            tracer.sampler.sample_rate == 0
+            _sampler.current_sampler.sample_rate == 0
         ), "Setting the sample rate to zero should result in the sample rate being zero"
 
 
@@ -189,7 +188,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
             tracer.configure(sampler=RateByServiceSampler())
-            tracer.sampler.set_sample_rate(sample_rate)
+            _sampler.current_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 

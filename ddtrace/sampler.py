@@ -23,6 +23,11 @@ from .sampling_rule import SamplingRule
 from .settings import _config as ddconfig
 
 
+if TYPE_CHECKING:
+    from ddtrace.internal.writer import AgentResponse  # noqa: F401
+    from ddtrace.settings import Config  # noqa: F401
+
+
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
@@ -322,3 +327,51 @@ class DatadogSampler(RateByServiceSampler):
         if self.limiter._has_been_configured:
             return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)
+
+
+class Sampler:
+    def __init__(self) -> None:
+        self._user_sampler: Optional[BaseSampler] = None
+        self.current_sampler: BaseSampler = DatadogSampler()
+
+        ddconfig._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+
+    def configure(self, sampler=None):
+        if sampler is not None:
+            self.current_sampler = sampler
+            self._user_sampler = self.current_sampler
+
+    def _agent_response_callback(self, resp):
+        # type: (AgentResponse) -> None
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            if isinstance(self.current_sampler, BasePrioritySampler):
+                self.current_sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
+        except ValueError:
+            log.error("sample_rate is negative, cannot update the rate samplers")
+
+    def _on_global_config_update(self, cfg, items):
+        # type: (Config, List) -> None
+        if "_trace_sample_rate" in items:
+            # Reset the user sampler if one exists
+            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
+                self.current_sampler = self._user_sampler
+                return
+
+            if cfg._get_source("_trace_sample_rate") != "default":
+                sample_rate = cfg._trace_sample_rate
+            else:
+                sample_rate = None
+            sampler = DatadogSampler(default_sample_rate=sample_rate)
+            self.current_sampler = sampler
+
+    def sample(self, span):
+        return self.current_sampler.sample(span)
+
+
+_sampler = Sampler()
