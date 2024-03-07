@@ -24,7 +24,7 @@ class ResultType(enum.Enum):
 class EventResult:
     response_type: ResultType = ResultType.RESULT_UNDEFINED
     value: Any = None
-    exception: Optional[BaseException] = None
+    exception: Optional[Exception] = None
 
     def __bool__(self):
         "EventResult can easily be checked as a valid result"
