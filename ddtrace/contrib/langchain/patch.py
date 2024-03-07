@@ -166,12 +166,9 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        # try:
         if isinstance(instance, langchain.llms.OpenAI):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
-        # except AttributeError:
-        #     if isin
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
