@@ -40,9 +40,11 @@ from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -2840,7 +2842,14 @@ class BotocoreTest(TracerTestCase):
             # fails, it must be base64, since it should be untouched
             next_decoded_record = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
 
-        assert "_datadog" not in next_decoded_record
+        # if datastreams is enabled, we will have dd-pathway-ctx or dd-pathway-ctx-base64 in each record
+        # we should NOT have dd trace context in each record though!
+        if config._data_streams_enabled:
+            assert "_datadog" in next_decoded_record
+            assert HTTP_HEADER_TRACE_ID not in next_decoded_record["_datadog"]
+            assert PROPAGATION_KEY_BASE_64 in next_decoded_record["_datadog"]
+        else:
+            assert "_datadog" not in next_decoded_record
 
         client.delete_stream(StreamName=stream_name)
 
@@ -2930,8 +2939,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        1711768390031028072,
-                        0,
+                        7250761453654470644,
+                        17012262583645342129,
                     )
                 ].full_pathway_latency._count
                 >= 2
@@ -2940,8 +2949,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        1711768390031028072,
-                        0,
+                        7250761453654470644,
+                        17012262583645342129,
                     )
                 ].edge_latency._count
                 >= 2
@@ -3002,8 +3011,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        614755353881974019,
-                        0,
+                        7186383338881463054,
+                        14715769790627487616,
                     )
                 ].full_pathway_latency._count
                 >= 1
@@ -3012,8 +3021,8 @@ class BotocoreTest(TracerTestCase):
                 first[
                     (
                         in_tags,
-                        614755353881974019,
-                        0,
+                        7186383338881463054,
+                        14715769790627487616,
                     )
                 ].edge_latency._count
                 >= 1
@@ -3038,6 +3047,92 @@ class BotocoreTest(TracerTestCase):
                 ].edge_latency._count
                 >= 1
             )
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+            DD_BOTOCORE_PROPAGATION_ENABLED="False",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_context_prop_disabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="True",
+            DD_BOTOCORE_PROPAGATION_ENABLED="True",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_prop_enabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="False",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+            DD_BOTOCORE_PROPAGATION_ENABLED="False",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_all_injection_disabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" not in data
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):
