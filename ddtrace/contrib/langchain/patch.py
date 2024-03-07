@@ -140,11 +140,7 @@ def _tag_openai_token_usage(span, llm_output, propagated_cost=0, propagate=False
 
 
 @with_traced_module
-def traced_llm_generate(langchains, pin, func, instance, args, kwargs):
-    try:
-        langchain, langchain_openai_module = langchains
-    except (TypeError, ValueError):
-        langchain, langchain_openai_module = langchains, langchains
+def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
@@ -170,7 +166,7 @@ def traced_llm_generate(langchains, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if isinstance(instance, langchain_openai_module.llms.OpenAI):
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -239,7 +235,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if isinstance(instance, langchain.llms.OpenAI):
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -698,16 +694,17 @@ def patch():
         from langchain_community import vectorstores  # noqa:F401
         import langchain_community.llms  # noqa:F401
         from langchain_core.language_models.llms import BaseLLM  # noqa:F401
+        import langchain_openai  # noqa:F401
 
         wrap(
             "langchain_core",
             "language_models.llms.BaseLLM.generate",
-            traced_llm_generate([langchain, langchain_community]),
+            traced_llm_generate(langchain),
         )
         wrap(
             "langchain_core",
             "language_models.llms.BaseLLM.agenerate",
-            traced_llm_agenerate([langchain, langchain_community]),
+            traced_llm_agenerate(langchain),
         )
     else:
         from langchain import embeddings  # noqa:F401
