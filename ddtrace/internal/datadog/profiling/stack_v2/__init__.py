@@ -26,6 +26,7 @@ try:
     from ._stack_v2 import *  # noqa: F401, F403
 
     is_available = True
+
 except Exception as e:
     from ddtrace.internal.logger import get_logger
 
