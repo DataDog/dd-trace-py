@@ -61,7 +61,8 @@ from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BaseSampler  # noqa: F401
+from ddtrace.sampler import BaseSampler
+from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import _sampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -413,6 +414,16 @@ class Tracer(object):
         if iast_enabled is not None:
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+        from ddtrace.vendor.debtcollector import deprecate
+
+        # Users should only be passing in configured DatadogSamplers
+        if sampler is not None and sampler is not type(DatadogSampler):
+            deprecate(
+                "Passing in custom samplers is being deprecated and will be removed in the next major version update.",
+                message="Please pass in a DatadogSampler instance instead.",
+                category=DDTraceDeprecationWarning,
+            )
         _sampler.configure(sampler)
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
