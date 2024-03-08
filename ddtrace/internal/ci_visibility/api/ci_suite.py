@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -7,12 +6,10 @@ from typing import Optional
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
-from ddtrace.ext.ci_visibility.api import CISuiteIdType
-from ddtrace.ext.ci_visibility.api import CITestIdType
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
+from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTestType
+from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
@@ -22,7 +19,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySuite(CIVisibilityParentItem[CISuiteIdType, CITestIdType, CIVisibilityTestType]):
+class CIVisibilitySuite(CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest]):
     event_type = SUITE_TYPE
 
     def __init__(
@@ -43,25 +40,15 @@ class CIVisibilitySuite(CIVisibilityParentItem[CISuiteIdType, CITestIdType, CIVi
         log.warning("Starting CI Visibility suite %s", self.item_id)
         super().start()
 
-    def finish(
-        self, force_finish_children: bool = False, override_status: Optional[Enum] = None, is_itr_skipped: bool = False
-    ):
+    def finish(self, force: bool = False, override_status: Optional[Enum] = None, is_itr_skipped: bool = False):
         log.warning("Finishing CI Visibility suite %s", self.item_id)
         if is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
             self.set_tag(test.ITR_SKIPPED, "true")
         super().finish()
 
-    def _get_hierarchy_tags(self) -> Dict[str, Any]:
-        hierarchy_tags = self.parent._get_hierarchy_tags()
-        hierarchy_tags.update(
-            {
-                SUITE_ID: str(self.get_span_id()),
-                test.SUITE: self.name,
-            }
-        )
-        return hierarchy_tags
-
-
-class CIVisibilitySuiteType(CIVisibilityItemBaseType):
-    pass
+    def _get_hierarchy_tags(self) -> Dict[str, str]:
+        return {
+            SUITE_ID: str(self.get_span_id()),
+            test.SUITE: self.name,
+        }

@@ -4,6 +4,7 @@ import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import NamedTuple  # noqa:F401
+from typing import Optional
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -26,7 +27,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.ci_visibility._ci_visibility_base import CIItemIdType
+from ...ext.ci_visibility._ci_visibility_base import CIItemId
 from ...ext.ci_visibility.api import CIModule
 from ...ext.ci_visibility.api import CIModuleId
 from ...ext.ci_visibility.api import CISession
@@ -72,7 +73,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
-    from typing import Optional  # noqa:F401
     from typing import Tuple  # noqa:F401
 
     from ddtrace.settings import IntegrationConfig  # noqa:F401
@@ -180,7 +180,7 @@ class CIVisibility(Service):
         self._root_dir = None
         self._should_upload_git_metadata = True
 
-        self._session_data = {}  # type Dict[CISessionId, CIVisibilitySession]
+        self._session_data: Dict[CISessionId, CIVisibilitySession] = {}
 
         int_service = None
         if self.config is not None:
@@ -678,7 +678,7 @@ class CIVisibility(Service):
         return cls.get_suite_by_id(test_id.parent_id).get_child_by_id(test_id)
 
     @classmethod
-    def get_session_settings(cls, item_id: CIItemIdType) -> CIVisibilitySessionSettings:
+    def get_session_settings(cls, item_id: CIItemId) -> CIVisibilitySessionSettings:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -698,20 +698,26 @@ class CIVisibility(Service):
         return cls._instance
 
     @classmethod
-    def get_tracer(cls) -> Tracer:
+    def get_tracer(cls) -> Optional[Tracer]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls._instance.tracer
+        instance = cls.get_instance()
+        if instance is None:
+            return None
+        return instance.tracer
 
     @classmethod
-    def get_service(cls) -> str:
+    def get_service(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        return cls.get_instance()._service
+        instance = cls.get_instance()
+        if instance is None:
+            return None
+        return instance._service
 
 
 def _requires_civisibility_enabled(func):
@@ -728,9 +734,18 @@ def _requires_civisibility_enabled(func):
 def _on_discover_session(discover_args: CISession.DiscoverArgs):
     log.error("Handling session discovery")
 
+    # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
+    tracer = CIVisibility.get_tracer()
+    test_service = CIVisibility.get_service()
+
+    if tracer is None or test_service is None:
+        error_msg = "Tracer or test service is None"
+        log.warning(error_msg)
+        raise CIVisibilityError(error_msg)
+
     session_settings = CIVisibilitySessionSettings(
-        tracer=CIVisibility.get_tracer(),
-        test_service=CIVisibility.get_service(),
+        tracer=tracer,
+        test_service=test_service,
         test_command=discover_args.test_command,
         reject_unknown_items=discover_args.reject_unknown_items,
         reject_duplicates=discover_args.reject_duplicates,

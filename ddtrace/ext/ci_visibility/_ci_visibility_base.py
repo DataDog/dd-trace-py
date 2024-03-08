@@ -15,10 +15,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilityOrphanItemIdType:
-    pass
-
-
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityIdBase(abc.ABC):
     @abc.abstractmethod
@@ -34,35 +30,34 @@ PT = TypeVar("PT", bound=_CIVisibilityIdBase)
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityOrphanItemIdBase(_CIVisibilityIdBase):
+class _CIVisibilityRootItemIdBase(_CIVisibilityIdBase):
     """This class exists for the ABC class below"""
 
     name: str
 
-    def get_parent_id(self) -> "_CIVisibilityOrphanItemIdBase":
+    def get_parent_id(self) -> "_CIVisibilityRootItemIdBase":
         return self
 
-    def get_session_id(self) -> "_CIVisibilityOrphanItemIdBase":
+    def get_session_id(self) -> "_CIVisibilityRootItemIdBase":
         return self
+
+
+RT = TypeVar("RT", bound="_CIVisibilityRootItemIdBase")
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
+class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[RT, PT]):
     parent_id: PT
     name: str
 
     def get_parent_id(self) -> PT:
         return self.parent_id
 
-    def get_session_id(self) -> _CIVisibilityOrphanItemIdBase:
+    def get_session_id(self) -> RT:
         return self.get_parent_id().get_session_id()
 
 
-class CIVisibilityChildItemIdType(_CIVisibilityChildItemIdBase):
-    pass
-
-
-CIItemIdType = TypeVar("CIItemIdType", bound=Union[CIVisibilityChildItemIdType, CIVisibilityOrphanItemIdType])
+CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase])
 
 
 class _CIVisibilityAPIBase(abc.ABC):
@@ -71,18 +66,18 @@ class _CIVisibilityAPIBase(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def discover(item_id: _CIVisibilityOrphanItemIdBase, *args, **kwargs):
+    def discover(item_id: _CIVisibilityRootItemIdBase, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def start(item_id: _CIVisibilityOrphanItemIdBase, *args, **kwargs):
+    def start(item_id: _CIVisibilityRootItemIdBase, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
     def finish(
-        item_id: _CIVisibilityOrphanItemIdBase,
+        item_id: _CIVisibilityRootItemIdBase,
         override_status: Optional[Enum],
         force_finish_children: bool = False,
         *args,
@@ -91,17 +86,17 @@ class _CIVisibilityAPIBase(abc.ABC):
         pass
 
     @staticmethod
-    def set_tag(item_id: _CIVisibilityOrphanItemIdBase, tag_name: str, tag_value: Any, recurse: bool = False):
+    def set_tag(item_id: _CIVisibilityRootItemIdBase, tag_name: str, tag_value: Any, recurse: bool = False):
         log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
 
     @staticmethod
-    def set_tags(item_id: _CIVisibilityOrphanItemIdBase, tags: Dict[str, Any], recurse: bool = False):
+    def set_tags(item_id: _CIVisibilityRootItemIdBase, tags: Dict[str, Any], recurse: bool = False):
         log.debug("Setting tags for item %s: %s", item_id, tags)
 
     @staticmethod
-    def delete_tag(item_id: _CIVisibilityOrphanItemIdBase, tag_name: str, recurse: bool = False):
+    def delete_tag(item_id: _CIVisibilityRootItemIdBase, tag_name: str, recurse: bool = False):
         log.debug("Deleting tag for item %s: %s", item_id, tag_name)
 
     @staticmethod
-    def delete_tags(item_id: _CIVisibilityOrphanItemIdBase, tag_names: List[str], recurse: bool = False):
+    def delete_tags(item_id: _CIVisibilityRootItemIdBase, tag_names: List[str], recurse: bool = False):
         log.debug("Deleting tags for item %s: %s", item_id, tag_names)

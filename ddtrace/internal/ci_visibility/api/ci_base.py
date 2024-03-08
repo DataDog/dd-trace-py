@@ -16,8 +16,8 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemIdType
-from ddtrace.ext.ci_visibility._ci_visibility_base import CIVisibilityChildItemIdType
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility.api import DEFAULT_OPERATION_NAMES
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CITestStatus
@@ -59,16 +59,16 @@ class SPECIAL_STATUS(Enum):
 
 
 class CIVisibilityItemBase(abc.ABC):
-    event_type = None
+    event_type = "unset_event_type"
 
     def __init__(
         self,
-        item_id: CIItemIdType,
+        item_id: CIItemId,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
         parent: Optional["CIVisibilityItemBase"] = None,
     ):
-        self.item_id: CIItemIdType = item_id
+        self.item_id: CIItemId = item_id
         self.parent: Optional["CIVisibilityItemBase"] = parent
         self.name = self.item_id.name
         self._status: CITestStatus = CITestStatus.FAIL
@@ -190,6 +190,15 @@ class CIVisibilityItemBase(abc.ABC):
     def _get_hierarchy_tags(self):
         raise NotImplementedError("This method must be implemented by the subclass")
 
+    def _collect_hierarchy_tags(self) -> Dict[str, str]:
+        """Collects all tags from the item's hierarchy and returns them as a single dict"""
+        tags = self._get_hierarchy_tags()
+        parent = self.parent
+        while parent is not None:
+            tags.update(parent._get_hierarchy_tags())
+            parent = parent.parent
+        return tags
+
     def _set_test_hierarchy_tags(self):
         """Add module, suite, and test name and id tags"""
         self.set_tags(self._get_hierarchy_tags())
@@ -202,8 +211,6 @@ class CIVisibilityItemBase(abc.ABC):
 
         Nothing should be called after this method is called.
         """
-        if force:
-            log.debug("Forcing finish of item %s", self.item_id)
         self._finish_span()
 
     def is_finished(self):
@@ -218,6 +225,9 @@ class CIVisibilityItemBase(abc.ABC):
         if self.is_finished():
             return self._status
         return SPECIAL_STATUS.UNFINISHED
+
+    def get_raw_status(self) -> CITestStatus:
+        return self._status
 
     def set_status(self, status: CITestStatus):
         if self.is_finished():
@@ -268,18 +278,14 @@ class CIVisibilityItemBase(abc.ABC):
             self.parent.get_span()
 
 
-class CIVisibilityItemBaseType:
-    pass
+CIDT = TypeVar("CIDT", bound=_CIVisibilityChildItemIdBase)
+ITEMT = TypeVar("ITEMT", bound=CIVisibilityItemBase)
 
 
-CIDT = TypeVar("CIDT", bound=CIVisibilityChildItemIdType)
-ITEMT = TypeVar("ITEMT", bound=CIVisibilityItemBaseType)
-
-
-class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemIdType, CIDT, ITEMT]):
+class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemId, CIDT, ITEMT]):
     def __init__(
         self,
-        item_id: CIItemIdType,
+        item_id: CIItemId,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
     ):
@@ -326,18 +332,25 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemIdType, CIDT, I
         if children_status_counts[CITestStatus.PASS.value] == len(self.children):
             return CITestStatus.PASS
 
-    def finish(self, override_status: Optional[CITestStatus] = None, force: bool = False):
+        # If we somehow got here, something odd happened and we set the status as FAIL out of caution
+        return CITestStatus.FAIL
+
+    def finish(self, force: bool = False, override_status: Optional[CITestStatus] = None):
         """Recursively finish all children and then finish self
 
         An unfinished status is not considered an error condition (eg: some order-randomization plugins may cause
         non-linear ordering of children items).
 
+        force results in all children being finished regardless of their status
+
         override_status only applies to the current item. Any unfinished children that are forced to finish will be
         finished with whatever status they had at finish time (in reality, this should mean that any unfinished
         children are marked as failed, since that is the default status set upon start)
-
-        override_status and force are independent of each other
         """
+        if override_status:
+            # Respect override status no matter what
+            self.set_status(override_status)
+
         item_status = self.get_status()
 
         if item_status == SPECIAL_STATUS.UNFINISHED:
@@ -346,15 +359,14 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemIdType, CIDT, I
                 for child in self.children.values():
                     if not child.is_finished():
                         child.finish(force=force)
+                self.set_status(self.get_raw_status())
+                return
+
             else:
                 # Leave the item as unfinished if any children are unfinished
                 return
-
-        if override_status:
-            item_status = override_status
-
-        print("SETTING STATUS FOR {} - {}".format(self, item_status))
-        self.set_status(item_status)
+        else:
+            self.set_status(item_status)
 
         super().finish()
 
@@ -371,7 +383,3 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemIdType, CIDT, I
             return self.children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
-
-
-class CIVisibilityParentItemType(CIVisibilityParentItem):
-    pass

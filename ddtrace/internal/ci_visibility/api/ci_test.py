@@ -1,4 +1,3 @@
-from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -38,14 +37,10 @@ class CIVisibilityTest(CIVisibilityItemBase):
         self._operation_name = session_settings.test_operation_name
         self._exc_info: Optional[CIExcInfo] = None
 
-    def _get_hierarchy_tags(self) -> Dict[str, Any]:
-        hierarchy_tags = self.parent._get_hierarchy_tags()
-        hierarchy_tags.update(
-            {
-                test.NAME: self.name,
-            }
-        )
-        return hierarchy_tags
+    def _get_hierarchy_tags(self) -> Dict[str, str]:
+        return {
+            test.NAME: self.name,
+        }
 
     def _set_span_tags(self):
         """This handles setting tags that can't be properly stored in self._tags
@@ -89,7 +84,3 @@ class CIVisibilityTest(CIVisibilityItemBase):
             initial_tags=original_test._tags,
             is_early_flake_retry=True,
         )
-
-
-class CIVisibilityTestType(CIVisibilityTest):
-    pass

@@ -3,13 +3,11 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ddtrace.ext.ci_visibility.api import CIModuleIdType
+from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
-from ddtrace.ext.ci_visibility.api import CISessionIdType
-from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBaseType
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModuleType
+from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.logger import get_logger
@@ -18,7 +16,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType, CIVisibilityModuleType]):
+class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisibilityModule]):
     """This class represents a CI session and is the top level in the hierarchy of CI visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent
@@ -42,7 +40,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
         log.warning("Starting CI Visibility instance %s", self.item_id)
         super().start()
 
-    def finish(self, force_finish_children: bool = False, override_status: Optional[Enum] = None):
+    def finish(self, force: bool = False, override_status: Optional[Enum] = None):
         log.warning("Finishing CI Visibility instance %s", self.item_id)
         super().finish()
 
@@ -53,7 +51,3 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionIdType, CIModuleIdType
 
     def get_session_settings(self):
         return self._session_settings
-
-
-class CIVisibilitySessionType(CIVisibilityItemBaseType, CIVisibilitySession):
-    pass
