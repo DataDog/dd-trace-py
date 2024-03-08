@@ -78,7 +78,7 @@ function(add_cppcheck_target)
   endif()
 
   # Create a standard target to run everything
-  if (DO_CPPCHECK AND NOT TARGET cppcheck_all)
+  if (NOT TARGET cppcheck)
     add_custom_target(cppcheck COMMENT "Runs cppcheck on all projects")
   endif()
 
