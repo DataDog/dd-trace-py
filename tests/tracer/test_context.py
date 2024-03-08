@@ -86,8 +86,8 @@ def test_traceparent_basic():
     "context",
     [
         Context(),
-        Context(trace_id=123, span_id=321),
-        Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
+        Context(trace_id=123, span_id=321, is_remote=True),
+        Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2, is_remote=False),
         Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}),
         Context(
             trace_id=123,
@@ -363,3 +363,21 @@ def test_tracestate(context, expected_tracestate):
 def test_dd_origin_character_set(ctx, expected_dd_origin):
     # type: (Context,Optional[str]) -> None
     assert ctx.dd_origin == expected_dd_origin
+
+
+def test_is_remote():
+    # type: () -> None
+    """Ensure that the is_remote flag is set to False on all local spans"""
+    # Context._is_remote should be True by default
+    ctx = Context(trace_id=123, span_id=321)
+    assert ctx._is_remote is True
+
+    # is_remote should be set to False in the context of a local span
+    local_span = Span("span_with_context", context=ctx)
+    local_span.context.trace_id = 123
+    local_span.context.span_id = 321
+    local_span.context._is_remote = False
+
+    # is_remote should be False on root spans
+    root = Span("root")
+    assert root.context._is_remote is False
