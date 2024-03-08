@@ -85,6 +85,8 @@ FLASK_URL_RULE = "flask.url_rule"
 _HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
 DEFAULT_TIMEOUT = 2.0
 
+TRACER_FLARE_DIRECTORY = "erikatestdir"
+
 
 class _PRIORITY_CATEGORY:
     USER = "user"

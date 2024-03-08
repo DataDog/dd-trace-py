@@ -17,6 +17,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
+from .._logger import _configure_ddtrace_file_logger
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -27,6 +28,7 @@ from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
+from ..internal.constants import TRACER_FLARE_DIRECTORY
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
@@ -391,7 +393,6 @@ class Config(object):
                 "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", default=os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=5.0)
             )
         )
-        self._tracer_flare_enabled = asbool(os.getenv("DD_TRACER_FLARE_ENABLED", default=False))
         self._trace_api = os.getenv("DD_TRACE_API_VERSION")
         self._trace_writer_buffer_size = int(
             os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE)
@@ -754,15 +755,25 @@ class Config(object):
     def _handle_agent_config_product(self, configs: List[dict]) -> None:
         for config in configs:
             if config and config.get("name", "").startswith("flare-log-level"):
-                _ = config.get("config", {}).get("log_level")
-                # retain original log level
-                # set log level
-                # clean up?
+                flare_log_level = config.get("config", {}).get("log_level").upper()
+                os.makedirs(TRACER_FLARE_DIRECTORY)
+
+                flare_log_file_path = "%s/%s.log".format()
+                # Update these for consistency
+                os.environ.update(
+                    {"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_log_file_path}
+                )
+                # Update the logger
+                _configure_ddtrace_file_logger(log)
                 return
 
     def _handle_agent_task_product(self, configs: List[dict]) -> None:
         for config in configs:
             if config and config.get("task_type") == "tracer_flare":
+                # Clear these so log behavior is reverted
+                os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
+                os.environ.pop("DD_TRACE_LOG_FILE")
+                # log.removeHandler()
                 # collect log file
                 # collect config files
                 # zip
