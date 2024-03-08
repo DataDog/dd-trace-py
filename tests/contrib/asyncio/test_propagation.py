@@ -5,11 +5,8 @@ import pytest
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace.contrib.asyncio import context_provider
-from ddtrace.contrib.asyncio.helpers import set_call_context
 from ddtrace.contrib.asyncio.patch import patch
 from ddtrace.contrib.asyncio.patch import unpatch
-from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from tests.opentracer.utils import init_tracer
 
 
@@ -71,10 +68,6 @@ async def test_tasks_chaining(tracer):
 
 @pytest.mark.asyncio
 async def test_concurrent_chaining(tracer):
-    # ensures that the context is correctly propagated when
-    # concurrent tasks are created from a common tracing block
-    tracer.configure(context_provider=context_provider)
-
     @tracer.wrap("f1")
     async def f1():
         await asyncio.sleep(0.01)
@@ -104,27 +97,6 @@ async def test_concurrent_chaining(tracer):
     assert child_2.parent_id == main_task.span_id
     assert main_task_child.trace_id == main_task.trace_id
     assert main_task_child.parent_id == main_task.span_id
-
-
-@pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
-@pytest.mark.asyncio
-async def test_propagation_with_set_call_context(tracer):
-    # ensures that if a new Context is attached to the current
-    # running Task via helpers, a previous trace is resumed
-    tracer.configure(context_provider=context_provider)
-    task = asyncio.Task.current_task()
-    ctx = Context(trace_id=100, span_id=101)
-    set_call_context(task, ctx)
-
-    with tracer.trace("async_task"):
-        await asyncio.sleep(0.01)
-
-    traces = tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-    span = traces[0][0]
-    assert span.trace_id == 100
-    assert span.parent_id == 101
 
 
 @pytest.mark.asyncio
