@@ -10,6 +10,12 @@ import langchain
 import langchain_community  # noqa: F401
 import langchain_core  # noqa: F401
 
+
+try:
+    import langchain_openai  # noqa: F401
+except ImportError:
+    langchain_openai = None
+
 from ddtrace.appsec._iast import _is_iast_enabled
 
 
@@ -166,7 +172,11 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI):
+        if (
+            isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
+            or langchain_openai
+            and isinstance(instance, langchain_openai.OpenAI)
+        ):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -235,7 +245,11 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI):
+        if (
+            isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
+            or langchain_openai
+            and isinstance(instance, langchain_openai.OpenAI)
+        ):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
