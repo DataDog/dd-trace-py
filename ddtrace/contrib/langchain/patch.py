@@ -325,7 +325,11 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
-        if isinstance(instance, langchain.chat_models.ChatOpenAI):
+        if (
+            isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
+            or langchain_openai
+            and isinstance(instance, langchain_openai.ChatOpenAI)
+        ):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
@@ -416,7 +420,11 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
-        if isinstance(instance, langchain.chat_models.ChatOpenAI):
+        if (
+            isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
+            or langchain_openai
+            and isinstance(instance, langchain_openai.ChatOpenAI)
+        ):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
@@ -706,9 +714,8 @@ def patch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
-        import langchain_community.llms  # noqa:F401
+        from langchain_core.language_models.chat_models import BaseChatModel  # noqa:F401
         from langchain_core.language_models.llms import BaseLLM  # noqa:F401
-        import langchain_openai  # noqa:F401
 
         wrap(
             "langchain_core",
@@ -720,23 +727,33 @@ def patch():
             "language_models.llms.BaseLLM.agenerate",
             traced_llm_agenerate(langchain),
         )
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.generate",
+            traced_chat_model_generate(langchain),
+        )
+        wrap(
+            "langchain_core",
+            "language_models.chat_models.BaseChatModel.agenerate",
+            traced_chat_model_agenerate(langchain),
+        )
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
+        from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
 
         wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+        wrap(
+            "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
+        )  # might need to change back to langchain_community
+        wrap(
+            "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
+        )  # might need to change back to langchain_community
 
     from langchain.chains.base import Chain  # noqa:F401
-    from langchain.chat_models.base import BaseChatModel  # noqa:F401
 
-    wrap(
-        "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
-    )  # might need to change back to langchain_community
-    wrap(
-        "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
-    )  # might need to change back to langchain_community
     wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
     wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
     # Text embedding models override two abstract base methods instead of super calls, so we need to
@@ -799,11 +816,13 @@ def unpatch():
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
+        unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
     else:
         unwrap(langchain.llms.base.BaseLLM, "generate")
         unwrap(langchain.llms.base.BaseLLM, "agenerate")
-    unwrap(langchain.chat_models.base.BaseChatModel, "generate")
-    unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
+        unwrap(langchain.chat_models.base.BaseChatModel, "generate")
+        unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
     unwrap(langchain.chains.base.Chain, "__call__")
     unwrap(langchain.chains.base.Chain, "acall")
     for text_embedding_model in text_embedding_models:
