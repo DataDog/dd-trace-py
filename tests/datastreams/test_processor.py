@@ -174,7 +174,7 @@ def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
 
 def test_dsm_pathway_codec_decode_byte_encoding():
     encoded_string = (
-        b"\xd7I\xd5\xcdy\x9e*\x80\xe6\x86\x8a\xa6\xb6c\xe6\x86\x8a\xa6\xb6c"  # pathway hash is: 9235368231858162135
+        b"\xd7I\xd5\xcdy\x9e*\x80\xc0\xa5\xc5\xf4\xcd_\xc0\xa5\xc5\xf4\xcd_"  # pathway hash is: 9235368231858162135
     )
     decoded_hash = 9235368231858162135
 
