@@ -116,7 +116,7 @@ class Context(object):
             lock=self._lock,
             baggage=self._baggage,
             span_links=self._span_links,
-            is_remote=self._is_remote,
+            is_remote=False,
         )
 
     def _update_tags(self, span):
