@@ -11,6 +11,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
@@ -360,6 +361,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span.error:
             meta["error.message"] = span.get_tag(ERROR_MSG)
+            meta["error.stack"] = span.get_tag(ERROR_STACK)
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:
