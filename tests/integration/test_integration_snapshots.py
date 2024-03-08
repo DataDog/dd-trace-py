@@ -14,6 +14,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
@@ -23,8 +24,9 @@ from .test_integration import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
-@snapshot(include_tracer=True)
-def test_single_trace_single_span(tracer):
+@snapshot()
+def test_single_trace_single_span():
+    tracer = DummyTracer()
     s = tracer.trace("operation", service="my-svc")
     s.set_tag("k", "v")
     # numeric tag
@@ -35,8 +37,9 @@ def test_single_trace_single_span(tracer):
     tracer.shutdown()
 
 
-@snapshot(include_tracer=True)
-def test_multiple_traces(tracer):
+@snapshot()
+def test_multiple_traces():
+    tracer = DummyTracer()
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
@@ -57,8 +60,9 @@ def test_multiple_traces(tracer):
     "writer",
     ("default", "sync"),
 )
-@snapshot(include_tracer=True)
-def test_filters(writer, tracer):
+@snapshot()
+def test_filters(writer):
+    tracer = Tracer()
     if writer == "sync":
         writer = AgentWriter(
             tracer.agent_trace_url,
@@ -117,7 +121,7 @@ def test_tracer_trace_across_fork():
     When a trace is started in a parent process and a child process is spawned
         The trace should be continued in the child process
     """
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     def task(tracer):
         with tracer.trace("child"):
@@ -138,7 +142,7 @@ def test_tracer_trace_across_multiple_forks():
     When a trace is started and crosses multiple process boundaries
         The trace should be continued in the child processes
     """
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     def task(tracer):
         def task2(tracer):
