@@ -1,0 +1,78 @@
+[[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /sub-app-nested/nested-app/hello/{name}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e89a3b00000000",
+      "component": "starlette",
+      "http.method": "GET",
+      "http.route": "/sub-app-nested/nested-app/hello/{name}",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app-nested/nested-app/hello/name",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "f9228007af6a45638fb2fbbcae0cd24c",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 43770
+    },
+    "duration": 1132000,
+    "start": 1709742651388984000
+  },
+     {
+       "name": "starlette.request",
+       "service": "starlette",
+       "resource": "GET /nested-app/hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "starlette",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app-nested/nested-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 579000,
+       "start": 1709742651389556000
+     },
+        {
+          "name": "starlette.request",
+          "service": "starlette",
+          "resource": "GET /hello/{name}",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "",
+            "component": "starlette",
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "http://testserver/sub-app-nested/nested-app/hello/name",
+            "http.useragent": "testclient",
+            "http.version": "1.1",
+            "span.kind": "server"
+          },
+          "duration": 359000,
+          "start": 1709742651389785000
+        }]]
