@@ -53,6 +53,7 @@ class APIManager(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = True
         log.debug("Enabling %s", cls.__name__)
         metrics.enable()
         cls._instance = cls()
@@ -66,6 +67,7 @@ class APIManager(Service):
             log.debug("%s not enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = False
         log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
