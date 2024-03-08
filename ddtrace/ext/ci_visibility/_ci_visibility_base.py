@@ -15,22 +15,11 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-@dataclasses.dataclass(frozen=True)
-class _CIVisibilityIdBase(abc.ABC):
-    @abc.abstractmethod
-    def get_parent_id(self) -> "_CIVisibilityIdBase":
-        raise NotImplementedError("This method must be implemented by the subclass")
 
-    @abc.abstractmethod
-    def get_session_id(self) -> "_CIVisibilityIdBase":
-        raise NotImplementedError("This method must be implemented by the subclass")
-
-
-PT = TypeVar("PT", bound=_CIVisibilityIdBase)
 
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityRootItemIdBase(_CIVisibilityIdBase):
+class _CIVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
 
     name: str
@@ -44,17 +33,25 @@ class _CIVisibilityRootItemIdBase(_CIVisibilityIdBase):
 
 RT = TypeVar("RT", bound="_CIVisibilityRootItemIdBase")
 
+@dataclasses.dataclass(frozen=True)
+class _CIVisibilityIdBase(abc.ABC):
+    @abc.abstractmethod
+    def get_parent_id(self) -> Union["_CIVisibilityIdBase", _CIVisibilityRootItemIdBase]:
+        raise NotImplementedError("This method must be implemented by the subclass")
+
+    def get_session_id(self) -> _CIVisibilityRootItemIdBase:
+        return self.get_parent_id().get_session_id()
+
+
+PT = TypeVar("PT", bound=Union[_CIVisibilityIdBase, _CIVisibilityRootItemIdBase])
 
 @dataclasses.dataclass(frozen=True)
-class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[RT, PT]):
+class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
     parent_id: PT
     name: str
 
     def get_parent_id(self) -> PT:
         return self.parent_id
-
-    def get_session_id(self) -> RT:
-        return self.get_parent_id().get_session_id()
 
 
 CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase])

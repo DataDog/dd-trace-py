@@ -27,7 +27,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.ci_visibility._ci_visibility_base import CIItemId
+from ...ext.ci_visibility._ci_visibility_base import CIItemId, _CIVisibilityRootItemIdBase
 from ...ext.ci_visibility.api import CIModule
 from ...ext.ci_visibility.api import CIModuleId
 from ...ext.ci_visibility.api import CISession
@@ -180,7 +180,7 @@ class CIVisibility(Service):
         self._root_dir = None
         self._should_upload_git_metadata = True
 
-        self._session_data: Dict[CISessionId, CIVisibilitySession] = {}
+        self._session_data: Dict[_CIVisibilityRootItemIdBase, CIVisibilitySession] = {}
 
         int_service = None
         if self.config is not None:
@@ -635,15 +635,16 @@ class CIVisibility(Service):
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
             raise CIVisibilityError(error_msg)
-        if session.item_id in cls._instance._session_data:
+        session_item_id = session.item_id.get_session_id()
+        if session_item_id in cls._instance._session_data:
             log.warning(
-                "Session with id %s already exists: %s", session.item_id, cls._instance._session_data[session.item_id]
+                "Session with id %s already exists: %s", session_item_id, cls._instance._session_data[session_item_id]
             )
             return
-        cls._instance._session_data[session.item_id] = session
+        cls._instance._session_data[session_item_id] = session
 
     @classmethod
-    def get_session_by_id(cls, session_id: CISessionId) -> CIVisibilitySession:
+    def get_session_by_id(cls, session_id: _CIVisibilityRootItemIdBase) -> CIVisibilitySession:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)

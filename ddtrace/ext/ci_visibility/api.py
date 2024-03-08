@@ -63,16 +63,14 @@ class CISessionId(_CIVisibilityRootItemIdBase):
 
 
 @dataclasses.dataclass(frozen=True)
-class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId, CISessionId]):
-    parent_id: CISessionId
+class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId]):
 
     def __repr__(self):
         return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
 
 
 @dataclasses.dataclass(frozen=True)
-class CISuiteId(_CIVisibilityChildItemIdBase[CISessionId, CIModuleId]):
-    parent_id: CIModuleId
+class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
 
     def __repr__(self):
         return "CISuiteId(session={}, module={}, suite={})".format(
@@ -81,8 +79,7 @@ class CISuiteId(_CIVisibilityChildItemIdBase[CISessionId, CIModuleId]):
 
 
 @dataclasses.dataclass(frozen=True)
-class CITestId(_CIVisibilityChildItemIdBase[CISessionId, CISuiteId]):
-    parent_id: CISuiteId
+class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
     test_parameters: Optional[Tuple[Tuple[str, Any], ...]] = None
     retry_number: int = 0
 
