@@ -163,7 +163,7 @@ def test_otel_start_current_span_without_default_args(oteltracer):
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as otel_span:
         # need to manually run sampling before grabbing otel_span._ddspan.context._tracestate
-        oteltracer._tracer._sampler.sample(otel_span._ddspan)
+        oteltracer._tracer.sampler.sample(otel_span._ddspan)
         headers = {
             "traceparent": otel_span._ddspan.context._traceparent,
             "tracestate": otel_span._ddspan.context._tracestate,

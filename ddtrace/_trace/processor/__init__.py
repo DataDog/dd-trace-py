@@ -18,6 +18,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -229,6 +230,10 @@ class TraceTagsProcessor(TraceProcessor):
         if chunk_root.trace_id > MAX_UINT_64BITS:
             trace_id_hob = _get_64_highest_order_bits_as_hex(chunk_root.trace_id)
             chunk_root.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+
+        if LAST_DD_PARENT_ID_KEY in chunk_root._meta and chunk_root._parent is not None:
+            # we should only set the last parent id on local root spans
+            del chunk_root._meta[LAST_DD_PARENT_ID_KEY]
         return trace
 
 

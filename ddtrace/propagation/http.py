@@ -39,6 +39,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
@@ -49,6 +50,7 @@ from ..internal.logger import get_logger
 from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
+from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
 
 
@@ -819,7 +821,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
                     if lpid:
-                        meta["_dd.parent_id"] = lpid
+                        meta[LAST_DD_PARENT_ID_KEY] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
@@ -839,15 +841,17 @@ class _TraceContext:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
-            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
-            ts = span_context._tracestate
-            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
-            if "dd=" in ts:
-                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
+            if span_context._is_remote is False:
+                # Datadog Span is active, so the current span_id is the last datadog span_id
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
+                    span_context._tracestate, span_context.span_id or 0
+                )
+            elif LAST_DD_PARENT_ID_KEY in span_context._meta:
+                # Datadog Span is not active, propagate the last datadog span_id
+                span_id = int(span_context._meta[LAST_DD_PARENT_ID_KEY], 16)
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
             else:
-                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
-
-            headers[_HTTP_HEADER_TRACESTATE] = ts
+                headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
 class _NOP_Propagator:
@@ -950,7 +954,7 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-        if ddtrace.tracer._sampler:
+        if ddtrace.tracer.sampler:
             if span is None:
                 # if a span is not passed in explicitly, we do our best to grab the current root span to sample
                 span = ddtrace.tracer.current_root_span()
@@ -958,7 +962,7 @@ class HTTPPropagator(object):
                 span = span._local_root
             if span is not None:
                 if span.context.sampling_priority is None:
-                    ddtrace.tracer._sampler.sample(span._local_root)
+                    ddtrace.tracer.sampler.sample(span._local_root)
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:

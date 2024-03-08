@@ -126,7 +126,7 @@ def test_tracer_trace_across_popen():
 
     with tracer.trace("parent") as parent:
         # need to manually sample before Popen
-        tracer._sampler.sample(parent)
+        tracer.sampler.sample(parent)
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
@@ -156,7 +156,7 @@ def test_tracer_trace_across_multiple_popens():
 
     with tracer.trace("parent") as parent:
         # need to manually sample before Popen
-        tracer._sampler.sample(parent)
+        tracer.sampler.sample(parent)
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()

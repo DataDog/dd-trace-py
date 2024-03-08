@@ -317,6 +317,7 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
             model_provider="test_model_provider",
             error="builtins.ValueError",
             error_message="test error message",
+            error_stack=span.get_tag("error.stack"),
         )
     )
 
