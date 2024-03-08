@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <variant>
 
 extern "C"
 {
@@ -124,6 +125,16 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     }
 
     return add_tag(tags, key_sv, val, errmsg);
+}
+
+inline std::variant<ddog_prof_Exporter*, ddog_Error>
+get_newexporter_result(const ddog_prof_Exporter_NewResult &res)
+{
+    if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
+        return res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    } else {
+        return res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    }
 }
 
 // Keep macros from propagating

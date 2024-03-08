@@ -9,13 +9,13 @@ DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
     ddog_prof_Exporter_drop(ptr);
 }
 
-Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
+Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : url{ _url }
   , ddog_exporter{ _ddog_exporter }
 {}
 
 bool
-Uploader::upload(ddog_prof_Profile& profile)
+Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
     // Serialize the profile
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
@@ -91,19 +91,19 @@ Uploader::upload(ddog_prof_Profile& profile)
 }
 
 void
-Uploader::lock()
+Datadog::Uploader::lock()
 {
     upload_lock.lock();
 }
 
 void
-Uploader::unlock()
+Datadog::Uploader::unlock()
 {
     upload_lock.unlock();
 }
 
 void
-Uploader::cancel_inflight()
+Datadog::Uploader::cancel_inflight()
 {
     // According to the rust docs, the `cancel()` call is synchronous
     // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
@@ -115,20 +115,20 @@ Uploader::cancel_inflight()
 }
 
 void
-Uploader::prefork()
+Datadog::Uploader::prefork()
 {
     lock();
     cancel_inflight();
 }
 
 void
-Uploader::postfork_parent()
+Datadog::Uploader::postfork_parent()
 {
     unlock();
 }
 
 void
-Uploader::postfork_child()
+Datadog::Uploader::postfork_child()
 {
     unlock();
 }

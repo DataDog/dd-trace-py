@@ -1,16 +1,14 @@
 #include "sample_manager.hpp"
 #include "types.hpp"
 
-using namespace Datadog;
-
 void
-SampleManager::add_type(unsigned int type)
+Datadog::SampleManager::add_type(unsigned int type)
 {
     type_mask = static_cast<SampleType>((type_mask | type) & SampleType::All);
 }
 
 void
-SampleManager::set_max_nframes(unsigned int _max_nframes)
+Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 {
     if (_max_nframes > 0) {
         max_nframes = _max_nframes;
@@ -24,20 +22,20 @@ SampleManager::set_max_nframes(unsigned int _max_nframes)
     }
 }
 
-Sample*
-SampleManager::start_sample()
+Datadog::Sample*
+Datadog::SampleManager::start_sample()
 {
-    return new Sample(type_mask, max_nframes);
+    return new Datadog::Sample(type_mask, max_nframes);
 }
 
 void
-SampleManager::postfork_child()
+Datadog::SampleManager::postfork_child()
 {
-    Sample::postfork_child();
+    Datadog:: Sample::postfork_child();
 }
 
 void
-SampleManager::init()
+Datadog::SampleManager::init()
 {
-    Sample::profile_state.one_time_init(type_mask, max_nframes);
+    Datadog::Sample::profile_state.one_time_init(type_mask, max_nframes);
 }

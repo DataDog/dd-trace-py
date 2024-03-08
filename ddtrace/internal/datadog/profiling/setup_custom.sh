@@ -46,6 +46,10 @@ find_highest_compiler_version g++ highest_gxx
 find_highest_compiler_version clang highest_clang
 find_highest_compiler_version clang++ highest_clangxx
 
+# Get the highest clang_tidy from the $highest_clangxx variable
+# "clang++-17" -> "clang-tidy-17"
+CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
+
 ### Build setup
 # Targets to target dirs
 declare -A target_dirs
@@ -62,6 +66,9 @@ compiler_args["dataflow"]="-DSANITIZE_OPTIONS=dataflow"
 compiler_args["memory"]="-DSANITIZE_OPTIONS=memory"
 compiler_args["fanalyzer"]="-DDO_FANALYZE=ON"
 compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
+compiler_args["infer"]="-DDO_INFER=ON"
+compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
+compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
 
 # Initial cmake args
 cmake_args=(
@@ -99,17 +106,17 @@ set_gcc() {
 run_cmake() {
   target=$1
   dir=${target_dirs[$target]}
+  build=${BUILD_DIR}/${dir}
   if [ -z "$dir" ]; then
     echo "No directory specified for cmake"
     exit 1
   fi
 
-  # Enter the directory and create the build directory
-  pushd $dir || { echo "Failed to change to $dir"; exit 1; }
-  mkdir -p $BUILD_DIR && cd $BUILD_DIR || { echo "Failed to create build directory for $dir"; exit 1; }
+  # Make sure we have the build directory
+  mkdir -p ${build} && pushd ${build} || { echo "Failed to create build directory for $dir"; exit 1; }
 
   # Run cmake
-  cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }
+  cmake "${cmake_args[@]}" -S=$MY_DIR/$dir || { echo "cmake failed"; exit 1; }
   cmake --build . || { echo "build failed"; exit 1; }
   if [[ " ${cmake_args[*]} " =~ " -DDO_CPPCHECK=ON " ]]; then
     echo "--------------------------------------------------------------------- Running CPPCHECK"
@@ -117,7 +124,6 @@ run_cmake() {
   fi
   if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
     echo "--------------------------------------------------------------------- Running Tests"
-#    make test || { echo "tests failed"; exit 1; }
     ctest --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
@@ -136,6 +142,8 @@ print_help() {
   echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}
   echo "  -m  --memory      Clang + " ${compile_args["memory"]}
   echo "  -C  --cppcheck    Clang + " ${compile_args["cppcheck"]}
+  echo "  -I  --infer       Clang + " ${compile_args["infer"]}
+  echo "  -T  --clangtidy   Clang + " ${compile_args["clangtidy"]}
   echo "  -f, --fanalyze    GCC + " ${compile_args["fanalyzer"]}
   echo "  -c, --clang       Clang (alone)"
   echo "  -g, --gcc         GCC (alone)"
@@ -195,6 +203,15 @@ add_compiler_args() {
       ;;
     -C|--cppcheck)
       cmake_args+=(${compiler_args["cppcheck"]})
+      set_clang
+      ;;
+    -I|--infer)
+      cmake_args+=(${compiler_args["infer"]})
+      set_clang
+      ;;
+    -T|--clangtidy)
+      cmake_args+=(${compiler_args["clangtidy"]})
+      cmake_args+=(${compiler_args["clangtidy_cmd"]})
       set_clang
       ;;
     -f|--fanalyze)

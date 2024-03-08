@@ -31,10 +31,8 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 
 }
 
-using namespace Datadog;
-
 bool
-Profile::cycle_buffers()
+Datadog::Profile::cycle_buffers()
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
 
@@ -52,7 +50,7 @@ Profile::cycle_buffers()
 }
 
 void
-Profile::setup_samplers()
+Datadog::Profile::setup_samplers()
 {
     // TODO propagate error if no valid samplers are defined
     samplers.clear();
@@ -98,13 +96,13 @@ Profile::setup_samplers()
 }
 
 size_t
-Profile::get_sample_type_length()
+Datadog::Profile::get_sample_type_length()
 {
     return samplers.size();
 }
 
 ddog_prof_Profile&
-Profile::profile_borrow()
+Datadog::Profile::profile_borrow()
 {
     // We could wrap this in an object for better RAII, but since this
     // sequence is only used in a single place, we'll hold off on that sidequest.
@@ -113,13 +111,13 @@ Profile::profile_borrow()
 }
 
 void
-Profile::profile_release()
+Datadog::Profile::profile_release()
 {
     profile_mtx.unlock();
 }
 
 void
-Profile::one_time_init(SampleType type, unsigned int _max_nframes)
+Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
     // In contemporary dd-trace-py, it is expected that the initialization path is in
     // a single thread, and done only once.
@@ -163,7 +161,7 @@ Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 }
 
 std::string_view
-Profile::insert_or_get(std::string_view sv)
+Datadog::Profile::insert_or_get(std::string_view sv)
 {
     const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
 
@@ -177,14 +175,14 @@ Profile::insert_or_get(std::string_view sv)
     return string_storage.back();
 }
 
-const ValueIndex&
-Profile::val()
+const Datadog::ValueIndex&
+Datadog::Profile::val()
 {
     return val_idx;
 }
 
 bool
-Profile::collect(const ddog_prof_Sample& sample)
+Datadog::Profile::collect(const ddog_prof_Sample& sample)
 {
     // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
@@ -199,7 +197,7 @@ Profile::collect(const ddog_prof_Sample& sample)
 }
 
 void
-Profile::postfork_child()
+Datadog::Profile::postfork_child()
 {
     profile_mtx.unlock();
     cycle_buffers();

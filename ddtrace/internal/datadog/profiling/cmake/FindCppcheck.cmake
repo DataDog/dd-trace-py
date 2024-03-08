@@ -3,6 +3,9 @@ if (TARGET cppcheck_project)
     return()
 endif()
 
+# Set the default value for the cppcheck option
+option(DO_CPPCHECK "Enable cppcheck" OFF)
+
 include(ExternalProject)
 
 # Build cppcheck from sources
@@ -30,7 +33,7 @@ function(add_cppcheck_target)
   cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
 
   # Automatically generate the cppcheck target name
-  set(NAME "cppcheck_dd_${ARGV0}")
+  set(NAME "cppcheck_${ARGV0}")
 
   if (DO_CPPCHECK)
     # Initialize command variable
@@ -72,5 +75,14 @@ function(add_cppcheck_target)
       COMMAND echo "Cppcheck target ${NAME} is disabled."
       COMMENT "cppcheck is disabled for ${ARGV0}"
     )
+  endif()
+
+  # Create a standard target to run everything
+  if (DO_CPPCHECK AND NOT TARGET cppcheck_all)
+    add_custom_target(cppcheck COMMENT "Runs cppcheck on all projects")
+  endif()
+
+  if (DO_CPPCHECK)
+    add_dependencies(cppcheck ${NAME})
   endif()
 endfunction()
