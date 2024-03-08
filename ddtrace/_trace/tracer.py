@@ -135,7 +135,10 @@ def _default_span_processors_factory(
             if appsec_processor:
                 span_processors.append(appsec_processor)
         else:
-            if asm_config._api_security_enabled:
+            # api_security_active will keep track of the service status of APIManager
+            # we don't want to import the module if it was not started before due to
+            # one click activation of ASM via Remote Config
+            if asm_config._api_security_active:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
                 APIManager.disable()
@@ -638,6 +641,7 @@ class Tracer(object):
                     sampling_priority=child_of.context.sampling_priority,
                     span_id=child_of.span_id,
                     trace_id=child_of.trace_id,
+                    is_remote=False,
                 )
 
                 # If the child_of span was active then activate the new context
@@ -655,7 +659,7 @@ class Tracer(object):
                 context = child_of.context
                 parent = child_of
         else:
-            context = Context()
+            context = Context(is_remote=False)
 
         trace_id = context.trace_id
         parent_id = context.span_id
