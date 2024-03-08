@@ -66,12 +66,13 @@ if symdb_config.enabled:
 
     symbol_db.bootstrap()
 
-if di_config.enabled or ed_config.enabled:
+# TODO: Do not enable RC features if not required
+if di_config.enabled or ed_config.enabled or config._trace_span_origin_enabled:
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
 
-if True:
+if config._trace_span_origin_enabled:
     from ddtrace.debugging._origin.span import SpanOriginProcessor
 
     SpanOriginProcessor.enable()
