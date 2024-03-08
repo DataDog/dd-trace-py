@@ -372,12 +372,12 @@ def test_is_remote():
     ctx = Context(trace_id=123, span_id=321)
     assert ctx._is_remote is True
 
-    # is_remote should be set to False in the context of a local span
+    # Span.context.is_remote should ALWAYS evaluate to False.
     local_span = Span("span_with_context", context=ctx)
     local_span.context.trace_id = 123
     local_span.context.span_id = 321
     local_span.context._is_remote = False
 
-    # is_remote should be False on root spans
+    # is_remote should be set to False on root spans.
     root = Span("root")
     assert root.context._is_remote is False
