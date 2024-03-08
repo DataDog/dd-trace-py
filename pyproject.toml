@@ -97,7 +97,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/_ddup.pyx$
+  | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/
   | ddtrace/_version.py
@@ -154,6 +154,9 @@ exclude-modules = '''
   | ddtrace.internal.datastreams.kafka
   # libdd_wrapper is a common native dependency, not a module
   | ddtrace.internal.datadog.profiling.libdd_wrapper
+  # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
+  | ddtrace.internal.datadog.profiling.ddup._ddup
+  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
 )
 '''
 
