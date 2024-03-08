@@ -78,7 +78,7 @@ jobs:
 
       - name: Run
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh INTEGRATIONS -F tests/integrations/test_dsm.py::Test_DsmContext_Extraction_Base64 -F tests/integrations/test_dsm.py::Test_DsmContext_Injection_Base64
+        run: ./run.sh
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
