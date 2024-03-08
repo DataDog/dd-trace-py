@@ -2085,6 +2085,7 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
                     token_metrics={},
                     error="openai.AuthenticationError",
                     error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                    error_stack=span.get_tag("error.stack"),
                 )
             ),
         ]
@@ -2127,6 +2128,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
                     token_metrics={},
                     error="openai.AuthenticationError",
                     error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                    error_stack=span.get_tag("error.stack"),
                 )
             ),
         ]
