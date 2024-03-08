@@ -458,8 +458,11 @@ class DataStreamsCtx:
 
 
 class DsmPathwayCodec:
-    # we use a class for encoding / decoding in case we update our encoding/decoding. A class will make updates easier
-    # instead of using individual functions.
+    """
+    DsmPathwayCodec is responsible for:
+        - encoding and injecting DSM pathway context into produced message headers
+        - extracting and decoding DSM pathway context from consumed message headers
+    """
 
     @staticmethod
     def encode(ctx, carrier):
