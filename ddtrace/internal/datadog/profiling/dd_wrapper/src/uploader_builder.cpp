@@ -140,7 +140,7 @@ Datadog::UploaderBuilder::build()
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = get_newexporter_result(res);
-    ddog_prof_Exporter *ddog_exporter;
+    ddog_prof_Exporter *ddog_exporter = nullptr;
     if (std::holds_alternative<ddog_prof_Exporter *>(ddog_exporter_result)) {
         ddog_exporter = std::get<ddog_prof_Exporter *>(ddog_exporter_result);
     } else {

@@ -12,7 +12,7 @@ function(add_clangtidy_target TARGET)
     endif()
 
     if (CLANGTIDY_CMD)
-      set_target_properties(${TARGET} PROPERTIES CXX_CLANG_TIDY "${CLANGTIDY_CMD};--checks=bugprone-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,performance-*,readability-*,-modernize-use-trailing-return-type")
+      set_target_properties(${TARGET} PROPERTIES CXX_CLANG_TIDY "${CLANGTIDY_CMD};--checks=bugprone-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,performance-*,readability-*,-modernize-use-trailing-return-type,-performance-avoid-endl")
     else()
         message(FATAL_ERROR "clang-tidy requested but executable not found")
     endif()
