@@ -12,6 +12,7 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 
 
 processor = DataStreamsProcessor("http://localhost:8126")
+mocked_time = 1642544540
 
 
 def test_data_streams_processor():
@@ -130,12 +131,15 @@ t.join()
     assert err.decode().strip() == ""
 
 
-@mock.patch("time.time", mock.MagicMock(return_value=1642544540))
+@mock.patch("time.time", mock.MagicMock(return_value=mocked_time))
 def test_dsm_pathway_codec_encode_base64():
     encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
 
     ctx = processor.new_pathway()
     ctx.hash = 9235368231858162135
+
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
 
     carrier = {}
     DsmPathwayCodec.encode(ctx, carrier)
@@ -152,6 +156,8 @@ def test_dsm_pathway_codec_decode_base64():
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
     assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
 
 
 def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
@@ -162,6 +168,8 @@ def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
     assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
 
 
 def test_dsm_pathway_codec_decode_byte_encoding():
@@ -174,10 +182,15 @@ def test_dsm_pathway_codec_decode_byte_encoding():
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
     assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
 
 
+@mock.patch("time.time", mock.MagicMock(return_value=mocked_time))
 def test_dsm_pathway_codec_decode_no_context():
     carrier = {}
     ctx = DsmPathwayCodec.decode(carrier, processor)
 
     assert ctx.hash == processor.new_pathway().hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
