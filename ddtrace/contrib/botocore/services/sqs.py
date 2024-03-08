@@ -130,7 +130,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             start_ns = time_ns()
             func_run = True
             # run the function before in order to extract possible parent context before starting span
-
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
             core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
@@ -162,7 +161,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             # we need to ensure the span start time is correct
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
-
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "sqs" and operation == "SendMessage":

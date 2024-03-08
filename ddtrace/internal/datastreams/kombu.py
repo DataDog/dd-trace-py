@@ -4,7 +4,7 @@ from ddtrace.contrib.kombu.utils import PUBLISH_BODY_IDX
 from ddtrace.contrib.kombu.utils import get_exchange_from_args
 from ddtrace.contrib.kombu.utils import get_routing_key_from_args
 from ddtrace.internal import core
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
 
@@ -33,9 +33,8 @@ def handle_kombu_produce(args, kwargs, span):
         if value is not None:
             pathway_tags.append(f"{prefix}:{value}")
 
-    pathway = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
-    encoded_pathway = pathway.encode()
-    args[HEADER_POS][PROPAGATION_KEY] = encoded_pathway
+    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
+    DsmPathwayCodec.encode(ctx, args[HEADER_POS])
 
 
 def handle_kombu_consume(instance, message, span):
@@ -45,7 +44,7 @@ def handle_kombu_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.body)
     payload_size += _calculate_byte_size(message.headers)
 
-    ctx = processor().decode_pathway(message.headers.get(PROPAGATION_KEY, None))
+    ctx = DsmPathwayCodec.decode(message.headers, processor())
     queue = instance.queues[0].name if len(instance.queues) > 0 else ""
     ctx.set_checkpoint(["direction:in", f"topic:{queue}", "type:rabbitmq"], payload_size=payload_size, span=span)
 
