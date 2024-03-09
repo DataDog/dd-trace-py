@@ -652,7 +652,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             span.set_tag_str("langchain.request.k", str(k))
         for kwarg_key, v in kwargs.items():
             span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
-        if isinstance(instance, langchain.vectorstores.Pinecone):
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.vectorstores.Pinecone) and hasattr(instance._index, "configuration"):
             span.set_tag_str(
                 "langchain.request.pinecone.environment",
                 instance._index.configuration.server_variables.get("environment", ""),
@@ -716,17 +716,9 @@ def patch():
         from langchain_community import vectorstores  # noqa:F401
         from langchain_core.language_models.chat_models import BaseChatModel  # noqa:F401
         from langchain_core.language_models.llms import BaseLLM  # noqa:F401
-
-        wrap(
-            "langchain_core",
-            "language_models.llms.BaseLLM.generate",
-            traced_llm_generate(langchain),
-        )
-        wrap(
-            "langchain_core",
-            "language_models.llms.BaseLLM.agenerate",
-            traced_llm_agenerate(langchain),
-        )
+        from langchain.chains.base import Chain  # noqa:F401
+        wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
+        wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
         wrap(
             "langchain_core",
             "language_models.chat_models.BaseChatModel.generate",
@@ -737,11 +729,15 @@ def patch():
             "language_models.chat_models.BaseChatModel.agenerate",
             traced_chat_model_agenerate(langchain),
         )
+        wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
+        wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
+        wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
         from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
+        from langchain.chains.base import Chain  # noqa:F401
 
         wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -751,11 +747,11 @@ def patch():
         wrap(
             "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
         )  # might need to change back to langchain_community
-
-    from langchain.chains.base import Chain  # noqa:F401
-
-    wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
-    wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
+        wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
+        wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
+        wrap("langchain", "embeddings.openai.embed_query", traced_embedding(langchain))
+        wrap("langchain", "embeddings.openai.embed_documents", traced_embedding(langchain))
+        # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
     # Text embedding models override two abstract base methods instead of super calls, so we need to
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
@@ -779,7 +775,7 @@ def patch():
                     "embeddings.%s.embed_documents" % text_embedding_model,
                     traced_embedding(langchain),
                 )
-                # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
+
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstore_classes:
         if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
@@ -818,13 +814,18 @@ def unpatch():
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
         unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
         unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
+        unwrap(langchain.chains.base.Chain, "invoke")
+        unwrap(langchain.chains.base.Chain, "ainvoke")
+        unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     else:
         unwrap(langchain.llms.base.BaseLLM, "generate")
         unwrap(langchain.llms.base.BaseLLM, "agenerate")
         unwrap(langchain.chat_models.base.BaseChatModel, "generate")
         unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
-    unwrap(langchain.chains.base.Chain, "__call__")
-    unwrap(langchain.chains.base.Chain, "acall")
+        unwrap(langchain.chains.base.Chain, "__call__")
+        unwrap(langchain.chains.base.Chain, "acall")
+        unwrap(langchain.embeddings.openai, "embed_query")
+        unwrap(langchain.embeddings.openai, "embed_documents")
     for text_embedding_model in text_embedding_models:
         if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             if isinstance(

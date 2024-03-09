@@ -85,6 +85,9 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
             patch()
             import langchain
 
+            mock_logs.reset_mock()
+            mock_metrics.reset_mock()
+
             yield langchain
             unpatch()
 
@@ -102,6 +105,9 @@ def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_lo
             os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
             patch()
             import langchain_community
+
+            mock_logs.reset_mock()
+            mock_metrics.reset_mock()
 
             yield langchain_community
             unpatch()
@@ -128,4 +134,6 @@ def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs,
 
                 yield langchain_community
             finally:
+                mock_logs.reset_mock()
+                mock_metrics.reset_mock()
                 unpatch()
