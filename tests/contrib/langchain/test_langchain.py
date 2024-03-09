@@ -406,10 +406,10 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_metrics.assert_has_calls(
         [
             mock.call.distribution("tokens.prompt", 21, tags=expected_tags),
-            mock.call.distribution("tokens.completion",59,tags=expected_tags),
-            mock.call.distribution("tokens.total",80,tags=expected_tags),
-            mock.call.increment("tokens.total_cost",mock.ANY,tags=expected_tags),
-            mock.call.distribution("request.duration",mock.ANY,tags=expected_tags),
+            mock.call.distribution("tokens.completion", 59, tags=expected_tags),
+            mock.call.distribution("tokens.total", 80, tags=expected_tags),
+            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
@@ -528,7 +528,8 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [mock.call.distribution("request.duration",mock.ANY,tags=expected_tags)], any_order=True,
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
+        any_order=True,
     )
     mock_logs.assert_not_called()
 
@@ -773,11 +774,11 @@ def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_met
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution("tokens.prompt", 236,tags=expected_tags),
-            mock.call.distribution("tokens.completion",24,tags=expected_tags),
-            mock.call.distribution("tokens.total",260,tags=expected_tags),
-            mock.call.increment("tokens.total_cost",mock.ANY,tags=expected_tags),
-            mock.call.distribution("request.duration",mock.ANY,tags=expected_tags),
+            mock.call.distribution("tokens.prompt", 236, tags=expected_tags),
+            mock.call.distribution("tokens.completion", 24, tags=expected_tags),
+            mock.call.distribution("tokens.total", 260, tags=expected_tags),
+            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
@@ -1004,7 +1005,8 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)], any_order=True,
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
+        any_order=True,
     )
     mock_logs.assert_not_called()
 

@@ -652,7 +652,9 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             span.set_tag_str("langchain.request.k", str(k))
         for kwarg_key, v in kwargs.items():
             span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.vectorstores.Pinecone) and hasattr(instance._index, "configuration"):
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.vectorstores.Pinecone) and hasattr(
+            instance._index, "configuration"
+        ):
             span.set_tag_str(
                 "langchain.request.pinecone.environment",
                 instance._index.configuration.server_variables.get("environment", ""),
@@ -712,11 +714,12 @@ def patch():
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        from langchain.chains.base import Chain  # noqa:F401
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
         from langchain_core.language_models.chat_models import BaseChatModel  # noqa:F401
         from langchain_core.language_models.llms import BaseLLM  # noqa:F401
-        from langchain.chains.base import Chain  # noqa:F401
+
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
         wrap(
@@ -735,9 +738,9 @@ def patch():
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
+        from langchain.chains.base import Chain  # noqa:F401
         from langchain.chat_models.base import BaseChatModel  # noqa:F401
         from langchain.llms.base import BaseLLM  # noqa:F401
-        from langchain.chains.base import Chain  # noqa:F401
 
         wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))

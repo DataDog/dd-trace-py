@@ -411,7 +411,8 @@ def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, m
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)], any_order=True,
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
+        any_order=True,
     )
     mock_logs.assert_not_called()
 
@@ -771,7 +772,9 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
         qa_with_sources.invoke("Who was Alan Turing?")
 
 
-def test_vectorstore_similarity_search_metrics(langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+def test_vectorstore_similarity_search_metrics(
+    langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
@@ -801,7 +804,9 @@ def test_vectorstore_similarity_search_metrics(langchain_community, langchain_op
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_vectorstore_logs(langchain_openai, langchain_community, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
+def test_vectorstore_logs(
+    langchain_openai, langchain_community, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
+):
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
@@ -1017,7 +1022,9 @@ def test_embedding_logs_when_response_not_completed(
     langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain_openai.OpenAIEmbeddings()
             embeddings.embed_query("Can you please not return an error?")
@@ -1050,9 +1057,13 @@ def test_embedding_logs_when_response_not_completed(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_vectorstore_logs_error(langchain_community, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
+def test_vectorstore_logs_error(
+    langchain_community, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             import pinecone
 
