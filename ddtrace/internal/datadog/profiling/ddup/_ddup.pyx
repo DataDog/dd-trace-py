@@ -7,7 +7,7 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.internal import runtime
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace._trace.span import Span
@@ -23,6 +23,7 @@ def ensure_binary_or_empty(s: StringType) -> bytes:
     except Exception:
         pass
     return b""
+
 
 cdef extern from "<string_view>" namespace "std" nogil:
     cdef cppclass string_view:
@@ -97,13 +98,14 @@ cdef call_ddup_config_profiler_version(bytes profiler_version):
 cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
+
 def init(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType] = None) -> None:
+        url: StringType = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -122,18 +124,22 @@ def init(
     call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
     call_ddup_config_runtime_version(ensure_binary_or_empty(platform.python_version()))
     call_ddup_config_profiler_version(ensure_binary_or_empty(ddtrace.__version__))
-    ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
+
+    if max_nframes is not None:
+        ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
     if tags is not None:
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
     ddup_init()
 
+
 def upload() -> None:
-    runtime_id = ensure_binary_or_empty(runtime.get_runtime_id())
+    runtime_id = ensure_binary_or_empty(get_runtime_id())
     ddup_set_runtime_id(string_view(<const char*>runtime_id, len(runtime_id)))
     with nogil:
         ddup_upload()
+
 
 cdef class SampleHandle:
     cdef Sample *ptr
