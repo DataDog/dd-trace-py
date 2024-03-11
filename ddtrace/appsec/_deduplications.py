@@ -28,11 +28,11 @@ class deduplication:
             last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF)
             current = monotonic()
             if current > last_reported_timestamp:
-                result = self.func(*args, **kwargs)
                 self.reported_logs[raw_log_hash] = current + self._time_lapse
                 self.reported_logs.move_to_end(raw_log_hash)
                 if len(self.reported_logs) >= self._max_cache_size:
                     self.reported_logs.popitem(last=False)
+                result = self.func(*args, **kwargs)
         else:
             result = self.func(*args, **kwargs)
         return result
