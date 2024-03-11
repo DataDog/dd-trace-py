@@ -15,13 +15,16 @@ class deduplication:
         self.func = func
         self.reported_logs: OrderedDict[int, float] = OrderedDict()
 
+    def _extract(self, args):
+        return args
+
     def get_last_time_reported(self, raw_log_hash: int) -> float:
         return self.reported_logs.get(raw_log_hash, 0.0)
 
     def __call__(self, *args, **kwargs):
         result = None
         if asm_config._deduplication_enabled:
-            raw_log_hash = hash("".join([str(arg) for arg in args]))
+            raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))
             last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF)
             current = monotonic()
             if current > last_reported_timestamp:

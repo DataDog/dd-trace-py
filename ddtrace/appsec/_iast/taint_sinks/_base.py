@@ -1,5 +1,4 @@
 import os
-import time
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import cast  # noqa:F401
 
@@ -40,18 +39,9 @@ CWD = os.path.abspath(os.getcwd())
 
 
 class taint_sink_deduplication(deduplication):
-    def __call__(self, *args, **kwargs):
+    def _extract(self, args):
         # we skip 0, 1 and last position because its the cls, span and sources respectively
-        result = None
-        if not asm_config._deduplication_enabled:
-            result = self.func(*args, **kwargs)
-        else:
-            raw_log_hash = hash("".join([str(arg) for arg in args[2:-1]]))
-            last_reported_timestamp = self.get_last_time_reported(raw_log_hash)
-            if time.time() > last_reported_timestamp:
-                result = self.func(*args, **kwargs)
-                self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
-        return result
+        return args[2:]
 
 
 def _check_positions_contained(needle, container):
