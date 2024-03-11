@@ -53,7 +53,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             from langchain import chains  # noqa: F401
             from langchain_community import embeddings  # noqa: F401
             from langchain_community import vectorstores  # noqa: F401
-            import langchain_community as gated_langchain
+            import langchain_community as gated_langchain  # noqa: I100
             import langchain_core
             import langchain_openai
             import langchain_pinecone
