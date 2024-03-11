@@ -71,7 +71,12 @@ def _appsec_rc_features_is_enabled() -> bool:
 
 
 def _appsec_apisec_features_is_active() -> bool:
-    return asm_config._asm_enabled and asm_config._api_security_enabled and asm_config._api_security_sample_rate > 0.0
+    return (
+        asm_config._asm_libddwaf_available
+        and asm_config._asm_enabled
+        and asm_config._api_security_enabled
+        and asm_config._api_security_sample_rate > 0.0
+    )
 
 
 def _safe_userid(user_id):
