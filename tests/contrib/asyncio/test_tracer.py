@@ -178,3 +178,22 @@ async def test_wrapped_coroutine(tracer):
     assert 1 == len(spans)
     span = spans[0]
     assert span.duration > 0.25, "span.duration={}".format(span.duration)
+
+
+def test_asyncio_scheduled_tasks_parenting(tracer):
+    @tracer.wrap()
+    async def task(i):
+        print("task", i, tracer.context_provider.active())
+        await asyncio.sleep(0.1)
+
+    @tracer.wrap()
+    async def runner():
+        print("runner", tracer.context_provider.active())
+        await task(1)
+        t = asyncio.create_task(task(2))
+        return t
+
+    asyncio.run(runner())
+
+    traces = tracer.pop_traces()
+    assert 1 == len(traces)
