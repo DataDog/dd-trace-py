@@ -735,6 +735,7 @@ def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_o
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
     """
+    import langchain_pinecone
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
@@ -744,7 +745,7 @@ def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_o
         )
         embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_community.vectorstores.Pinecone(index, embed, "text")
+        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
@@ -754,6 +755,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
     """
+    import langchain_pinecone
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
@@ -763,7 +765,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
         )
         embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_community.vectorstores.Pinecone(index, embed, "text")
+        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
 
         llm = langchain_openai.OpenAI()
         qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
@@ -775,6 +777,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
 def test_vectorstore_similarity_search_metrics(
     langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
+    import langchain_pinecone
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
@@ -784,13 +787,13 @@ def test_vectorstore_similarity_search_metrics(
         )
         embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_community.vectorstores.Pinecone(index, embed, "text")
+        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
     expected_tags = [
         "version:",
         "env:",
         "service:",
-        "langchain.request.provider:pinecone",
+        "langchain.request.provider:pineconevectorstore",
         "langchain.request.model:",
         "langchain.request.type:similarity_search",
         "langchain.request.api_key:",
@@ -807,6 +810,7 @@ def test_vectorstore_similarity_search_metrics(
 def test_vectorstore_logs(
     langchain_openai, langchain_community, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
 ):
+    import langchain_pinecone
     import pinecone
 
     with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
@@ -816,7 +820,7 @@ def test_vectorstore_logs(
         )
         embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
         index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_community.vectorstores.Pinecone(index, embed, "text")
+        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
         vectorstore.similarity_search("Who was Alan Turing?", 1)
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
@@ -842,12 +846,12 @@ def test_vectorstore_logs(
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
-                    "message": "sampled langchain_community.vectorstores.pinecone.Pinecone",
+                    "message": "sampled langchain_pinecone.vectorstores.PineconeVectorStore",
                     "hostname": mock.ANY,
                     "ddsource": "langchain",
                     "service": "",
                     "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:",  # noqa: E501
+                    "ddtags": "env:,version:,langchain.request.provider:pineconevectorstore,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:",  # noqa: E501
                     "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
                     "dd.span_id": str(vectorstore_span.span_id),
                     "query": "Who was Alan Turing?",
@@ -1065,6 +1069,7 @@ def test_vectorstore_logs_error(
         "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")
     ):
         with pytest.raises(Exception) as exc_info:
+            import langchain_pinecone
             import pinecone
 
             pc = pinecone.Pinecone(
@@ -1075,7 +1080,7 @@ def test_vectorstore_logs_error(
                 model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
             )
             index = pc.Index("langchain-retrieval")
-            vectorstore = langchain_community.vectorstores.Pinecone(index, embed, "text")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
             vectorstore.similarity_search("Can you please not return an error?", 1)
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
@@ -1085,12 +1090,12 @@ def test_vectorstore_logs_error(
     mock_logs.enqueue.assert_called_with(
         {
             "timestamp": mock.ANY,
-            "message": "sampled langchain_community.vectorstores.pinecone.Pinecone",
+            "message": "sampled langchain_pinecone.vectorstores.PineconeVectorStore",
             "hostname": mock.ANY,
             "ddsource": "langchain",
             "service": "",
             "status": "error",
-            "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:",  # noqa: E501
+            "ddtags": "env:,version:,langchain.request.provider:pineconevectorstore,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:",  # noqa: E501
             "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
             "dd.span_id": str(vectorstore_span.span_id),
             "query": "Can you please not return an error?",

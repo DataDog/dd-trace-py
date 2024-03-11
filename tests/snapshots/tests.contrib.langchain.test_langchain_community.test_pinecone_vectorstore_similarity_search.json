@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "",
-    "resource": "langchain_community.vectorstores.pinecone.Pinecone",
+    "resource": "langchain_pinecone.vectorstores.PineconeVectorStore",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -13,7 +13,7 @@
       "_dd.p.tid": "65ebc8f300000000",
       "langchain.request.api_key": "",
       "langchain.request.k": "1",
-      "langchain.request.provider": "pinecone",
+      "langchain.request.provider": "pineconevectorstore",
       "langchain.request.query": "Who was Alan Turing?",
       "langchain.request.type": "similarity_search",
       "langchain.response.document.0.metadata.chunk": "1.0",

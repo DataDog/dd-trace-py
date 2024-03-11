@@ -2480,7 +2480,6 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "pinecone-client": latest,
                 "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
@@ -2490,15 +2489,24 @@ venv = Venv(
                 "numexpr": latest,
             },
             venvs=[
-                Venv(pkgs={"langchain": "==0.0.192", "langchain-community": "==0.0.14", "openai": "==0.27.8"}),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.0.192",
+                        "langchain-community": "==0.0.14",
+                        "openai": "==0.27.8",
+                        "pinecone-client": "==2.2.4",
+                    }
+                ),
                 Venv(
                     pkgs={
                         "langchain": "==0.1.9",
                         "langchain-community": "==0.0.24",
                         "langchain-core": "==0.1.27",
                         "langchain-openai": "==0.0.8",
+                        "langchain-pinecone": "==0.0.3",
                         "langsmith": "==0.1.9",
                         "openai": "==1.12.0",
+                        "pinecone-client": latest,
                     }
                 ),
             ],

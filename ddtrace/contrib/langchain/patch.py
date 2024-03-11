@@ -15,6 +15,10 @@ try:
     import langchain_openai  # noqa: F401
 except ImportError:
     langchain_openai = None
+try:
+    import langchain_pinecone  # noqa: F401
+except ImportError:
+    langchain_pinecone = None
 
 from ddtrace.appsec._iast import _is_iast_enabled
 
@@ -735,6 +739,7 @@ def patch():
         wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
         wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+        wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
@@ -752,9 +757,8 @@ def patch():
         )  # might need to change back to langchain_community
         wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
-        wrap("langchain", "embeddings.openai.embed_query", traced_embedding(langchain))
-        wrap("langchain", "embeddings.openai.embed_documents", traced_embedding(langchain))
-        # TODO: langchain >= 0.0.209 includes async embedding implementation (only for OpenAI)
+        wrap("langchain", "embeddings.openai.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
+        wrap("langchain", "embeddings.openai.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     # Text embedding models override two abstract base methods instead of super calls, so we need to
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
@@ -778,7 +782,6 @@ def patch():
                     "embeddings.%s.embed_documents" % text_embedding_model,
                     traced_embedding(langchain),
                 )
-
     # We need to do the same with Vectorstores.
     for vectorstore in vectorstore_classes:
         if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
@@ -820,6 +823,8 @@ def unpatch():
         unwrap(langchain.chains.base.Chain, "invoke")
         unwrap(langchain.chains.base.Chain, "ainvoke")
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+        unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
+
     else:
         unwrap(langchain.llms.base.BaseLLM, "generate")
         unwrap(langchain.llms.base.BaseLLM, "agenerate")
@@ -827,8 +832,8 @@ def unpatch():
         unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
         unwrap(langchain.chains.base.Chain, "__call__")
         unwrap(langchain.chains.base.Chain, "acall")
-        unwrap(langchain.embeddings.openai, "embed_query")
-        unwrap(langchain.embeddings.openai, "embed_documents")
+        unwrap(langchain.embeddings.openai.OpenAIEmbeddings, "embed_query")
+        unwrap(langchain.embeddings.openai.OpenAIEmbeddings, "embed_documents")
     for text_embedding_model in text_embedding_models:
         if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             if isinstance(

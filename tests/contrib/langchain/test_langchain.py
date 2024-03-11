@@ -9,7 +9,6 @@ from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
 from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -21,7 +20,6 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain")
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(
     ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
@@ -224,7 +222,6 @@ def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metri
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -243,25 +240,20 @@ def test_llm_logs(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.llms.openai.OpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
-                    "choices": mock.ANY,
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.llms.openai.OpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
+            "choices": mock.ANY,
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
@@ -367,7 +359,6 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 def test_openai_chat_model_sync_stream(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -375,7 +366,6 @@ def test_openai_chat_model_sync_stream(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
-@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 async def test_openai_chat_model_async_stream(langchain, request_vcr):
@@ -384,7 +374,6 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
-@flaky(1735812000)
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     if sys.version_info >= (3, 10, 0):
@@ -416,7 +405,6 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -433,46 +421,26 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chat_models.openai.ChatOpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "messages": [
-                        [
-                            {
-                                "content": "When do you use 'whom' instead of 'who'?",
-                                "message_type": "HumanMessage",
-                            }
-                        ]
-                    ],
-                    "choices": [
-                        [
-                            {
-                                "content": mock.ANY,
-                                "message_type": "AIMessage",
-                            }
-                        ]
-                    ],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.chat_models.openai.ChatOpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "messages": [[{"content": "When do you use 'whom' instead of 'who'?", "message_type": "HumanMessage"}]],
+            "choices": [[{"content": mock.ANY, "message_type": "AIMessage"}]],
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
     mock_metrics.count.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -508,7 +476,6 @@ def test_fake_embedding_document(langchain, langchain_community):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-@flaky(1735812000)
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     if sys.version_info >= (3, 10, 0):
@@ -534,7 +501,6 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -551,24 +517,19 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
-                    "inputs": ["this is a test query."],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "inputs": ["this is a test query."],
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
@@ -785,7 +746,6 @@ def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_met
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -806,7 +766,6 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     assert mock_logs.enqueue.call_count == 3  # This operation includes 2 chains and 1 LLM call
     mock_logs.assert_has_calls(
         [
-            mock.call.start(),
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
@@ -816,7 +775,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(llm_span.trace_id),
+                    "dd.trace_id": hex(llm_span.trace_id)[2:],
                     "dd.span_id": str(llm_span.span_id),
                     "prompts": mock.ANY,
                     "choices": mock.ANY,
@@ -831,7 +790,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,
@@ -851,7 +810,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(base_chain_span.trace_id),
+                    "dd.trace_id": hex(base_chain_span.trace_id)[2:],
                     "dd.span_id": str(base_chain_span.span_id),
                     "inputs": {"question": "what is two raised to the fifty-fourth power?"},
                     "prompt": mock.ANY,
@@ -901,7 +860,6 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_commu
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -925,7 +883,6 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
@@ -940,7 +897,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
+        embed = langchain.embeddings.OpenAIEmbeddings()
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -951,7 +908,6 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
@@ -977,7 +933,6 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@flaky(1735812000)
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
@@ -1011,7 +966,6 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1039,7 +993,6 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
     assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
     mock_logs.assert_has_calls(
         [
-            mock.call.start(),
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
@@ -1049,7 +1002,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(embeddings_span.trace_id),
+                    "dd.trace_id": hex(embeddings_span.trace_id)[2:],
                     "dd.span_id": str(embeddings_span.span_id),
                     "inputs": ["Who was Alan Turing?"],
                 }
@@ -1063,7 +1016,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(vectorstore_span.trace_id),
+                    "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
                     "dd.span_id": str(vectorstore_span.span_id),
                     "query": "Who was Alan Turing?",
                     "k": 1,
@@ -1169,25 +1122,20 @@ def test_llm_logs_when_response_not_completed(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "prompts": ["Can you please not return an error?"],
-                    "choices": [],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "prompts": ["Can you please not return an error?"],
+            "choices": [],
+        }
     )
 
 
@@ -1210,36 +1158,23 @@ def test_chat_model_logs_when_response_not_completed(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chat_models.openai.ChatOpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "messages": [
-                        [
-                            {
-                                "content": "Can you please not return an error?",
-                                "message_type": "HumanMessage",
-                            }
-                        ]
-                    ],
-                    "choices": [],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.chat_models.openai.ChatOpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "messages": [[{"content": "Can you please not return an error?", "message_type": "HumanMessage"}]],
+            "choices": [],
+        }
     )
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1260,70 +1195,22 @@ def test_embedding_logs_when_response_not_completed(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
-                    "inputs": ["Can you please not return an error?"],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "inputs": ["Can you please not return an error?"],
+        }
     )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
-)
-def test_chain_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
-):
-    """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
-        with pytest.raises(Exception) as exc_info:
-            chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
-            chain.run("Can you please not return an error?")
-        assert str(exc_info.value) == "Mocked Error"
-    traces = mock_tracer.pop_traces()
-    mid_chain_span = traces[0][1]
-
-    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 chains and 1 LLM call
-    mock_logs.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chains.llm.LLMChain",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
-                    "dd.span_id": str(mid_chain_span.span_id),
-                    "inputs": mock.ANY,
-                    "prompt": mock.ANY,
-                    "outputs": {},
-                }
-            ),
-        ],
-        any_order=True,
-    )
-
-
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1350,26 +1237,20 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-
     assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
-    mock_logs.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.vectorstores.pinecone.Pinecone",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(vectorstore_span.trace_id),
-                    "dd.span_id": str(vectorstore_span.span_id),
-                    "query": "Can you please not return an error?",
-                    "k": 1,
-                    "documents": [],
-                }
-            ),
-        ],
-        any_order=True,
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.vectorstores.pinecone.Pinecone",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
+            "dd.span_id": str(vectorstore_span.span_id),
+            "query": "Can you please not return an error?",
+            "k": 1,
+            "documents": [],
+        }
     )
