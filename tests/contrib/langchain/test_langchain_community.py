@@ -366,9 +366,7 @@ def test_chat_model_logs(
 
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, request_vcr):
-    with mock.patch(
-        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -387,9 +385,7 @@ def test_fake_embedding_document(langchain, langchain_community):
 
 
 def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    with mock.patch(
-        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -415,9 +411,7 @@ def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, m
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
-    with mock.patch(
-        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         with request_vcr.use_cassette("openai_embedding_query.yaml"):
             embeddings.embed_query("this is a test query.")
@@ -734,9 +728,7 @@ def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_o
     import langchain_pinecone
     import pinecone
 
-    with mock.patch(
-            "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
             pc = pinecone.Pinecone(
                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
@@ -779,9 +771,7 @@ def test_vectorstore_similarity_search_metrics(
     import langchain_pinecone
     import pinecone
 
-    with mock.patch(
-        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
             pc = pinecone.Pinecone(
                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
@@ -815,9 +805,7 @@ def test_vectorstore_logs(
     import langchain_pinecone
     import pinecone
 
-    with mock.patch(
-            "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
-    ):
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
             pc = pinecone.Pinecone(
                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
