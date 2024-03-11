@@ -43,10 +43,10 @@ def iast_span(tracer, env, request_sampling="100", deduplication="false"):
         psycopg_patch = lambda: True  # noqa: E731
         psycopg_unpatch = lambda: True  # noqa: E731
 
-    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling, "_DD_APPSEC_DEDUPLICATION_ENABLED": deduplication})
+    env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
     iast_span_processor = AppSecIastSpanProcessor()
     VulnerabilityBase._reset_cache()
-    with override_global_config(dict(_iast_enabled=True)), override_env(env):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:
             span.span_type = "web"

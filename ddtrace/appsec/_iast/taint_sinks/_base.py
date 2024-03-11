@@ -43,7 +43,7 @@ class taint_sink_deduplication(deduplication):
     def __call__(self, *args, **kwargs):
         # we skip 0, 1 and last position because its the cls, span and sources respectively
         result = None
-        if self.is_deduplication_enabled() is False:
+        if not asm_config._deduplication_enabled:
             result = self.func(*args, **kwargs)
         else:
             raw_log_hash = hash("".join([str(arg) for arg in args[2:-1]]))

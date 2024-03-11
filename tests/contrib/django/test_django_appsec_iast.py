@@ -480,8 +480,8 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
 @pytest.mark.django_db()
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
-    with override_global_config(dict(_iast_enabled=True)), override_env(
-        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_IAST_ENABLED="True")
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(
+        dict(DD_IAST_ENABLED="True")
     ), mock.patch("ddtrace.contrib.dbapi._is_iast_enabled", return_value=True):
         root_span, response = _aux_appsec_get_root_span(
             client,

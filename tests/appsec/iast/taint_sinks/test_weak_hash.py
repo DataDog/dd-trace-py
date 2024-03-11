@@ -11,7 +11,7 @@ from ddtrace.internal import core
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
@@ -303,7 +303,7 @@ def test_weak_hash_deduplication_expired_cache(mock_get_last_time_reported, iast
     """CAVEAT: this test will fail at Wednesday, July 20, 5127"""
     import hashlib
 
-    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="true")):
+    with override_global_config(dict(_deduplication_enabled=True)):
         mock_get_last_time_reported.return_value = 0.0
         m = hashlib.new("md5")
         m.digest()
