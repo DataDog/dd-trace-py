@@ -1,5 +1,6 @@
 #include "sample.hpp"
 
+#include <chrono>
 #include <thread>
 
 using namespace Datadog;
@@ -14,6 +15,12 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 
     // Initialize other state
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
+
+    // Initialize the timestamp; this means that event timestamp will correspond to the time the
+    // Sample was generated, rather than the same of the event, but we're just kinda/sorta mocking the
+    // interface for now
+    std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
 void
@@ -102,12 +109,6 @@ Sample::push_label(const ExportLabelKey key, int64_t val)
     labels[cur_label].num_unit = to_slice("");
     cur_label++;
     return true;
-}
-
-void
-Sample::push_timestamp_ns(int64_t _timestamp_ns)
-{
-    timestamp_ns = timestamp_ns;
 }
 
 void

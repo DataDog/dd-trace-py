@@ -247,12 +247,6 @@ ddup_push_frame(Datadog::Sample* sample,
 }
 
 void
-ddup_push_timestamp_ns(Datadog::Sample* sample, int64_t timestamp_ns)
-{
-    sample->push_timestamp_ns(timestamp_ns);
-}
-
-void
 ddup_flush_sample(Datadog::Sample* sample)
 {
     sample->flush_sample();

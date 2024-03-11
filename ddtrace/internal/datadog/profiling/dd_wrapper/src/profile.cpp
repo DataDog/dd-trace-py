@@ -186,7 +186,6 @@ Profile::val()
 bool
 Profile::collect(const ddog_prof_Sample& sample)
 {
-    // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, sample->timestamp);
     if (!res.ok) {
