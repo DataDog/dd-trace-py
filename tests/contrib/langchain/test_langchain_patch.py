@@ -51,9 +51,9 @@ class TestLangchainPatch(PatchTestCase.Base):
     def assert_not_module_patched(self, langchain):
         if SHOULD_USE_LANGCHAIN_COMMUNITY:
             from langchain import chains  # noqa: F401
+            import langchain_community as gated_langchain
             from langchain_community import embeddings  # noqa: F401
             from langchain_community import vectorstores  # noqa: F401
-            import langchain_community as gated_langchain  # noqa: I100
             import langchain_core
             import langchain_openai
             import langchain_pinecone
