@@ -75,9 +75,6 @@ class Sample
                     int64_t line               // for ddog_prof_Location
     );
 
-    // Adds timestamp info for timeline
-    void push_timestamp_ns(int64_t _timestamp_ns);
-
     // Flushes the current buffer, clearing it
     bool flush_sample();
 
