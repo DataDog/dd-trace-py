@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tests: modify serverless test to assert slow modules are lazy-loaded by default
