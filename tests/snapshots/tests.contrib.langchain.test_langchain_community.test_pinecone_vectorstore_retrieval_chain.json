@@ -10,28 +10,28 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ebc7da00000000",
+      "_dd.p.tid": "65ef796e00000000",
       "langchain.request.inputs.question": "Who was Alan Turing?",
       "langchain.request.type": "chain",
-      "langchain.response.outputs.answer": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist. He is most known for his contributions to bre...",
+      "langchain.response.outputs.answer": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist who is known for his contributions to breaking...",
       "langchain.response.outputs.question": "Who was Alan Turing?",
-      "langchain.response.outputs.sources": "",
+      "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "ae832e04f6ce437285e435b91713a15b"
+      "runtime-id": "af4607a77884424f858da05339b2960e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 66,
+      "langchain.tokens.completion_tokens": 96,
       "langchain.tokens.prompt_tokens": 2706,
-      "langchain.tokens.total_cost": 0.004191,
-      "langchain.tokens.total_tokens": 2772,
-      "process_id": 10723
+      "langchain.tokens.total_cost": 0.0042510000000000004,
+      "langchain.tokens.total_tokens": 2802,
+      "process_id": 7810
     },
-    "duration": 206495000,
-    "start": 1709950938086610000
+    "duration": 282329584,
+    "start": 1710193006505881469
   },
      {
        "name": "langchain.request",
@@ -72,8 +72,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 4
        },
-       "duration": 192108000,
-       "start": 1709950938089533000
+       "duration": 198426667,
+       "start": 1710193006509116302
      },
         {
           "name": "langchain.request",
@@ -96,8 +96,8 @@
             "langchain.request.input_count": 1,
             "langchain.response.outputs.0.embedding_length": 1536
           },
-          "duration": 187862000,
-          "start": 1709950938089620000
+          "duration": 194381083,
+          "start": 1710193006509198844
         },
      {
        "name": "langchain.request",
@@ -113,18 +113,18 @@
          "langchain.request.inputs.question": "Who was Alan Turing?",
          "langchain.request.type": "chain",
          "langchain.response.outputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
-         "langchain.response.outputs.output_text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist. He is most known for his contributions to bre...",
+         "langchain.response.outputs.output_text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist who is known for his contributions to breaking...",
          "langchain.response.outputs.question": "Who was Alan Turing?"
        },
        "metrics": {
          "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 66,
+         "langchain.tokens.completion_tokens": 96,
          "langchain.tokens.prompt_tokens": 2706,
-         "langchain.tokens.total_cost": 0.004191,
-         "langchain.tokens.total_tokens": 2772
+         "langchain.tokens.total_cost": 0.0042510000000000004,
+         "langchain.tokens.total_tokens": 2802
        },
-       "duration": 11131000,
-       "start": 1709950938281889000
+       "duration": 10805625,
+       "start": 1710193006777220178
      },
         {
           "name": "langchain.request",
@@ -142,17 +142,17 @@
             "langchain.request.type": "chain",
             "langchain.response.outputs.question": "Who was Alan Turing?",
             "langchain.response.outputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
-            "langchain.response.outputs.text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist. He is most known for his contributions to bre..."
+            "langchain.response.outputs.text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist who is known for his contributions to breaking..."
           },
           "metrics": {
             "_dd.measured": 1,
-            "langchain.tokens.completion_tokens": 66,
+            "langchain.tokens.completion_tokens": 96,
             "langchain.tokens.prompt_tokens": 2706,
-            "langchain.tokens.total_cost": 0.004191,
-            "langchain.tokens.total_tokens": 2772
+            "langchain.tokens.total_cost": 0.0042510000000000004,
+            "langchain.tokens.total_tokens": 2802
           },
-          "duration": 9288000,
-          "start": 1709950938283638000
+          "duration": 9249750,
+          "start": 1710193006778678969
         },
            {
              "name": "langchain.request",
@@ -178,15 +178,15 @@
                "langchain.request.type": "llm",
                "langchain.response.completions.0.finish_reason": "stop",
                "langchain.response.completions.0.logprobs": "None",
-               "langchain.response.completions.0.text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist. He is most known for his contributions to bre..."
+               "langchain.response.completions.0.text": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist who is known for his contributions to breaking..."
              },
              "metrics": {
                "_dd.measured": 1,
-               "langchain.tokens.completion_tokens": 66,
+               "langchain.tokens.completion_tokens": 96,
                "langchain.tokens.prompt_tokens": 2706,
-               "langchain.tokens.total_cost": 0.004191,
-               "langchain.tokens.total_tokens": 2772
+               "langchain.tokens.total_cost": 0.0042510000000000004,
+               "langchain.tokens.total_tokens": 2802
              },
-             "duration": 3759000,
-             "start": 1709950938289104000
+             "duration": 3855291,
+             "start": 1710193006783997803
            }]]

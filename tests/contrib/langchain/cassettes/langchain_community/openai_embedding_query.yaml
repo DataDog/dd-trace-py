@@ -24,13 +24,13 @@ interactions:
       x-stainless-lang:
       - python
       x-stainless-os:
-      - MacOS
+      - Linux
       x-stainless-package-version:
       - 1.12.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.5
+      - 3.10.3
     method: POST
     uri: https://api.openai.com/v1/embeddings
   response:
@@ -148,7 +148,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 86172e2c2ba41a0f-EWR
+      - 862e6dc81e690f36-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -156,14 +156,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sat, 09 Mar 2024 01:09:34 GMT
+      - Mon, 11 Mar 2024 20:52:32 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=ar4m50CCUZeuALWQ9CuaecuNfOrxeN41w_lnUYdykpw-1709946574-1.0.1.1-rf1fiZmQAUMU1kCMHvS37B2gjh0VuikG90je3IllBjYSxkBVWTpZH.r7C5vGSw5QEZomo_MnzrqpeSqgDPCj2Q;
-        path=/; expires=Sat, 09-Mar-24 01:39:34 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=YXU4DtMePAsaJx2kty.2jSeqq5zjQQY1epSJLQkBDq0-1710190352-1.0.1.1-IZASGeqa6i8uV9e7rvisun.N6t0Vsj8fdicmV4OF.AUAcpXJ7bOwpjV8QBMZV37zd91bdrc_2dZ62W3Y3pZ_Rw;
+        path=/; expires=Mon, 11-Mar-24 21:22:32 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=bcw2jGGfcyedJsRWs.mDzU8XtVACybjMz5TQNmRSdlI-1709946574946-0.0.1.1-604800000;
+      - _cfuvid=v6MSy3Sk6pxtoYL8kXXuNiO2j0OK_HAODXl1hNcZp0o-1710190352774-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -176,7 +176,7 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '16'
+      - '21'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -194,7 +194,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_a5f9994603ae2210d4db035df46f5f19
+      - req_75612d53833fe21791b4426615e1d4ca
     status:
       code: 200
       message: OK

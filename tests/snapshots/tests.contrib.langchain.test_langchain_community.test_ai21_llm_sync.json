@@ -36,7 +36,7 @@
       "langchain.request.ai21.parameters.presencePenalty.scale": "0",
       "langchain.request.ai21.parameters.temperature": "0.7",
       "langchain.request.ai21.parameters.topP": "1.0",
-      "langchain.request.api_key": "...Wazz",
+      "langchain.request.api_key": "...key>",
       "langchain.request.model": "j2-jumbo-instruct",
       "langchain.request.prompts.0": "Why does everyone in Bikini Bottom hate Plankton?",
       "langchain.request.provider": "ai21",

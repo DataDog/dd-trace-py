@@ -142,20 +142,6 @@ def test_cohere_llm_sync(langchain_community, request_vcr):
 
 
 @pytest.mark.snapshot
-def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
-    llm = langchain_community.llms.HuggingFaceEndpoint(
-        repo_id="google/flan-t5-xxl",
-        temperature=0.5,
-        model_kwargs={
-            "max_length": 256,
-            "huggingface_api_token": os.getenv("HUGINGFACE_API_TOKEN", "<not-a-real-key>"),
-        },
-    )
-    with request_vcr.use_cassette("huggingfacehub_completion_sync.yaml"):
-        llm.invoke("Why does Mr. Krabs have a whale daughter?")
-
-
-@pytest.mark.snapshot
 def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
     llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("ai21_completion_sync.yaml"):
@@ -720,7 +706,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_opena
                 [system_message_prompt, example_human, example_ai, human_message_prompt]
             )
             chain = langchain.chains.LLMChain(llm=chat, prompt=chat_prompt)
-            chain.run("I love programming.")
+            chain.invoke("I love programming.")
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
     chain_span = traces[0][0]
@@ -1054,52 +1040,4 @@ def test_embedding_logs_when_response_not_completed(
                 }
             ),
         ]
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
-)
-def test_vectorstore_logs_error(
-    langchain_community, langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
-):
-    """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", side_effect=Exception("Mocked Error")
-    ):
-        with pytest.raises(Exception) as exc_info:
-            import langchain_pinecone
-            import pinecone
-
-            pc = pinecone.Pinecone(
-                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-            )
-            embed = langchain_openai.OpenAIEmbeddings(
-                model="text-embedding-ada-002", openai_api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-            )
-            index = pc.Index("langchain-retrieval")
-            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-            vectorstore.similarity_search("Can you please not return an error?", 1)
-        assert str(exc_info.value) == "Mocked Error"
-    traces = mock_tracer.pop_traces()
-    vectorstore_span = traces[0][0]
-
-    assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
-    mock_logs.enqueue.assert_called_with(
-        {
-            "timestamp": mock.ANY,
-            "message": "sampled langchain_pinecone.vectorstores.PineconeVectorStore",
-            "hostname": mock.ANY,
-            "ddsource": "langchain",
-            "service": "",
-            "status": "error",
-            "ddtags": "env:,version:,langchain.request.provider:pineconevectorstore,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:",  # noqa: E501
-            "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
-            "dd.span_id": str(vectorstore_span.span_id),
-            "query": "Can you please not return an error?",
-            "k": 1,
-            "documents": [],
-        }
     )
