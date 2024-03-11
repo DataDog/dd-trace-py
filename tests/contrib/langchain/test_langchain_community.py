@@ -749,20 +749,21 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
     import langchain_pinecone
     import pinecone
 
-    with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
-        pc = pinecone.Pinecone(
-            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-        )
-        embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+        with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
+            pc = pinecone.Pinecone(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+            index = pc.Index("langchain-retrieval")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
 
-        llm = langchain_openai.OpenAI()
-        qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
-            llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
-        )
-        qa_with_sources.invoke("Who was Alan Turing?")
+            llm = langchain_openai.OpenAI()
+            qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
+                llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
+            )
+            qa_with_sources.invoke("Who was Alan Turing?")
 
 
 def test_vectorstore_similarity_search_metrics(
