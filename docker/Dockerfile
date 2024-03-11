@@ -30,6 +30,7 @@ RUN \
       ca-certificates \
       clang-format \
       curl \
+      gdb \
       git \
       gnupg \
       jq \
