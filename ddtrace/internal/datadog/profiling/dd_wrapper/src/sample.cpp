@@ -105,6 +105,12 @@ Sample::push_label(const ExportLabelKey key, int64_t val)
 }
 
 void
+Sample::push_timestamp_ns(int64_t _timestamp_ns)
+{
+    timestamp_ns = timestamp_ns;
+}
+
+void
 Sample::clear_buffers()
 {
     std::fill(values.begin(), values.end(), 0);
