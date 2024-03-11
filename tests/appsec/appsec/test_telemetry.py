@@ -155,7 +155,7 @@ def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
         assert len(list_metrics_logs) == 0
 
 
-def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_last_time_reported, telemetry_writer):
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer):
     old_value = deduplication._time_lapse
     deduplication._time_lapse = 0.3
     try:

@@ -23,7 +23,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
-def iast_span(tracer, env, request_sampling="100", deduplication="false"):
+def iast_span(tracer, env, request_sampling="100", deduplication=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch
         from ddtrace.contrib.langchain.patch import unpatch as langchain_unpatch
@@ -80,7 +80,7 @@ def iast_span_defaults(tracer):
 
 @pytest.fixture
 def iast_span_deduplication_enabled(tracer):
-    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true"), deduplication="true"):
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true"), deduplication=True):
         yield t
 
 
