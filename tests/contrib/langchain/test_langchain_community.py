@@ -366,9 +366,12 @@ def test_chat_model_logs(
 
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain_openai, request_vcr):
-    embeddings = langchain_openai.OpenAIEmbeddings()
-    with request_vcr.use_cassette("openai_embedding_query.yaml"):
-        embeddings.embed_query("this is a test query.")
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        embeddings = langchain_openai.OpenAIEmbeddings()
+        with request_vcr.use_cassette("openai_embedding_query.yaml"):
+            embeddings.embed_query("this is a test query.")
 
 
 @pytest.mark.snapshot
@@ -384,9 +387,12 @@ def test_fake_embedding_document(langchain, langchain_community):
 
 
 def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    embeddings = langchain_openai.OpenAIEmbeddings()
-    with request_vcr.use_cassette("openai_embedding_query.yaml"):
-        embeddings.embed_query("this is a test query.")
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        embeddings = langchain_openai.OpenAIEmbeddings()
+        with request_vcr.use_cassette("openai_embedding_query.yaml"):
+            embeddings.embed_query("this is a test query.")
     expected_tags = [
         "version:",
         "env:",
@@ -409,9 +415,12 @@ def test_openai_embedding_metrics(langchain_openai, request_vcr, mock_metrics, m
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
-    embeddings = langchain_openai.OpenAIEmbeddings()
-    with request_vcr.use_cassette("openai_embedding_query.yaml"):
-        embeddings.embed_query("this is a test query.")
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        embeddings = langchain_openai.OpenAIEmbeddings()
+        with request_vcr.use_cassette("openai_embedding_query.yaml"):
+            embeddings.embed_query("this is a test query.")
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
@@ -725,15 +734,18 @@ def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_o
     import langchain_pinecone
     import pinecone
 
-    with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
-        pc = pinecone.Pinecone(
-            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-        )
-        embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-        vectorstore.similarity_search("Who was Alan Turing?", 1)
+    with mock.patch(
+            "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+            pc = pinecone.Pinecone(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+            index = pc.Index("langchain-retrieval")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+            vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
 @pytest.mark.snapshot
@@ -767,15 +779,18 @@ def test_vectorstore_similarity_search_metrics(
     import langchain_pinecone
     import pinecone
 
-    with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
-        pc = pinecone.Pinecone(
-            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-        )
-        embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-        vectorstore.similarity_search("Who was Alan Turing?", 1)
+    with mock.patch(
+        "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+            pc = pinecone.Pinecone(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+            index = pc.Index("langchain-retrieval")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+            vectorstore.similarity_search("Who was Alan Turing?", 1)
     expected_tags = [
         "version:",
         "env:",
@@ -800,15 +815,18 @@ def test_vectorstore_logs(
     import langchain_pinecone
     import pinecone
 
-    with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
-        pc = pinecone.Pinecone(
-            api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-            environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-        )
-        embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-        index = pc.Index("langchain-retrieval")
-        vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-        vectorstore.similarity_search("Who was Alan Turing?", 1)
+    with mock.patch(
+            "langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536
+    ):
+        with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+            pc = pinecone.Pinecone(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+            index = pc.Index("langchain-retrieval")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+            vectorstore.similarity_search("Who was Alan Turing?", 1)
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
     embeddings_span = traces[0][1]

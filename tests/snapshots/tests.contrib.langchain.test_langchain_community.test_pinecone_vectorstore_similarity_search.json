@@ -54,7 +54,7 @@
        "metrics": {
          "_dd.measured": 1,
          "langchain.request.input_count": 1,
-         "langchain.response.outputs.0.embedding_length": 1536
+         "langchain.response.outputs.embedding_length": 1536
        },
        "duration": 2140000,
        "start": 1709951219265424000
