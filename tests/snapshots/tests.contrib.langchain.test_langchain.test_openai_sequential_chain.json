@@ -24,7 +24,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 69,
       "langchain.tokens.prompt_tokens": 105,
@@ -52,8 +51,7 @@
          "langchain.response.outputs.output_text": "\\n Chains allow us to combine multiple\\n components together to create a single, coherent application.\\n For example, we can cre..."
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_sample_rate": 1.0
+         "_dd.measured": 1
        },
        "duration": 390220,
        "start": 1694032717939081321
@@ -78,7 +76,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.tokens.completion_tokens": 69,
          "langchain.tokens.prompt_tokens": 105,
          "langchain.tokens.total_cost": 0.0034800000000000005,
@@ -117,7 +114,6 @@
           },
           "metrics": {
             "_dd.measured": 1,
-            "_sample_rate": 1.0,
             "langchain.tokens.completion_tokens": 69,
             "langchain.tokens.prompt_tokens": 105,
             "langchain.tokens.total_cost": 0.0034800000000000005,

@@ -39,9 +39,6 @@ class Sample
     std::vector<int64_t> values = {};
 
   public:
-    // Initialization and stuff
-    void start_sample();
-
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);

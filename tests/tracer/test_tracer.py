@@ -352,6 +352,7 @@ class TracerTestCases(TracerTestCase):
         ctx = self.tracer.current_trace_context()
         assert ctx.trace_id == span.trace_id
         assert ctx.span_id == span.span_id
+        assert ctx._is_remote is False
 
     def test_tracer_current_span(self):
         # the current span is in the local Context()

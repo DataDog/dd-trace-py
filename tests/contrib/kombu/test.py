@@ -8,7 +8,7 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.contrib.kombu.patch import patch
 from ddtrace.contrib.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -16,7 +16,7 @@ from tests.utils import assert_is_measured
 from ..config import RABBITMQ_CONFIG
 
 
-DSM_TEST_PATH_HEADER_SIZE = 20
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class TestKombuPatch(TracerTestCase):
@@ -367,7 +367,7 @@ class TestKombuDsm(TracerTestCase):
     def test_data_streams_payload(self):
         for payload, payload_size in [({"key": "test"}, 15), ({"key2": "你"}, 18)]:
             expected_payload_size = payload_size
-            expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+            expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
             expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
             self.processor._buckets.clear()
             _queue_name = self._publish_consume(message=payload)
@@ -376,8 +376,12 @@ class TestKombuDsm(TracerTestCase):
 
             first = list(buckets.values())[0].pathway_stats
             for _bucket_name, bucket in first.items():
+                print(payload)
+                print(payload_size)
                 assert bucket.payload_size._count >= 1
-                assert bucket.payload_size._sum == expected_payload_size
+                assert (
+                    bucket.payload_size._sum == expected_payload_size
+                ), f"Actual payload size: {bucket.payload_size._sum} != Expected payload size: {expected_payload_size}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
