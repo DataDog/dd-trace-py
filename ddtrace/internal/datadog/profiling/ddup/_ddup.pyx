@@ -2,8 +2,9 @@
 # cython: language_level=3
 
 import platform
-import typing
+from typing import Dict
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace.internal import runtime
@@ -13,10 +14,12 @@ from ddtrace._trace.span import Span
 
 from .utils import sanitize_string
 
+StringType = Union[str, bytes, None]
+
 
 IF UNAME_SYSNAME == "Linux":
 
-    def ensure_binary_or_empty(s) -> bytes:
+    def ensure_binary_or_empty(s: StringType) -> bytes:
         try:
             return ensure_binary(s)
         except Exception:
@@ -97,12 +100,12 @@ IF UNAME_SYSNAME == "Linux":
         ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
     def init(
-            service: Optional[str],
-            env: Optional[str],
-            version: Optional[str],
-            tags: Optional[typing.Dict[str, str]],
-            max_nframes: Optional[int],
-            url: Optional[str]) -> None:
+            service: StringType = None,
+            env: StringType = None,
+            version: StringType = None,
+            tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+            max_nframes: Optional[int] = None,
+            url: StringType] = None) -> None:
 
         # Try to provide a ddtrace-specific default service if one is not given
         service = service or DEFAULT_SERVICE_NAME
@@ -169,12 +172,12 @@ IF UNAME_SYSNAME == "Linux":
             if self.ptr is not NULL:
                 ddup_push_heap(self.ptr, value)
 
-        def push_lock_name(self, lock_name: str) -> None:
+        def push_lock_name(self, lock_name: StringType) -> None:
             if self.ptr is not NULL:
                 lock_name_bytes = ensure_binary_or_empty(lock_name)
                 ddup_push_lock_name(self.ptr, string_view(<const char*>lock_name_bytes, len(lock_name_bytes)))
 
-        def push_frame(self, name: str, filename: str, int address, int line) -> None:
+        def push_frame(self, name: StringType, filename: StringType, int address, int line) -> None:
             if self.ptr is not NULL:
                 # Customers report `name` and `filename` may be unexpected objects, so sanitize.
                 name_bytes = ensure_binary_or_empty(sanitize_string(name))
@@ -187,7 +190,7 @@ IF UNAME_SYSNAME == "Linux":
                         line
                 )
 
-        def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: str) -> None:
+        def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
             if self.ptr is not NULL:
                 thread_id = thread_id if thread_id is not None else 0
                 thread_native_id = thread_native_id if thread_native_id is not None else 0
@@ -203,7 +206,7 @@ IF UNAME_SYSNAME == "Linux":
             if self.ptr is not NULL:
                 ddup_push_task_id(self.ptr, task_id)
 
-        def push_task_name(self, task_name: str) -> None:
+        def push_task_name(self, task_name: StringType) -> None:
             if self.ptr is not NULL:
                 if task_name:
                     task_name_bytes = ensure_binary_or_empty(task_name)
@@ -215,12 +218,12 @@ IF UNAME_SYSNAME == "Linux":
                     exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
                     ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), count)
 
-        def push_class_name(self, class_name: str) -> None:
+        def push_class_name(self, class_name: StringType) -> None:
             if self.ptr is not NULL:
                 class_name_bytes = ensure_binary_or_empty(class_name)
                 ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
-        def push_span(self, span: typing.Optional[Span], endpoint_collection_enabled: bool) -> None:
+        def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
             if self.ptr is NULL:
                 return
             if not span:
