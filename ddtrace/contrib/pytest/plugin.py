@@ -821,6 +821,12 @@ def pytest_runtest_protocol(item, nextitem):
             _stop_coverage(pytest)
 
 
+def pytest_load_initial_conftests(early_config, parser, args):
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+    ModuleCodeCollector.install()
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""

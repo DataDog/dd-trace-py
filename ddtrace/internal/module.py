@@ -6,6 +6,7 @@ from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
 import sys
+from types import CodeType
 from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
@@ -15,6 +16,7 @@ from ddtrace.internal.utils import get_argument_value
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
+TransformerType = t.Callable[[CodeType, ModuleType], CodeType]
 PreExecHookType = t.Callable[[t.Any, ModuleType], None]
 PreExecHookCond = t.Union[str, t.Callable[[str], bool]]
 
@@ -23,20 +25,28 @@ log = get_logger(__name__)
 
 
 _run_code = None
+_run_module_transformers: t.List[TransformerType] = []
 _post_run_module_hooks: t.List[ModuleHookType] = []
 
 
 def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> t.Dict[str, t.Any]:
-    global _run_code, _post_run_module_hooks
-
     # DEV: If we are calling this wrapper then _run_code must have been set to
     # the original runpy._run_code.
     assert _run_code is not None
 
-    mod_name = get_argument_value(args, kwargs, 3, "mod_name")
+    code = t.cast(CodeType, get_argument_value(args, kwargs, 0, "code"))
+    mod_name = t.cast(str, get_argument_value(args, kwargs, 3, "mod_name"))
+
+    module = sys.modules[mod_name]
+
+    for transformer in _run_module_transformers:
+        code = transformer(code, module)
+
+    kwargs.pop("code", None)
+    new_args = (code, *args[1:])
 
     try:
-        return _run_code(*args, **kwargs)
+        return _run_code(*new_args, **kwargs)
     finally:
         module = sys.modules[mod_name]
         for hook in _post_run_module_hooks:
@@ -51,6 +61,19 @@ def _patch_run_code() -> None:
 
         _run_code = runpy._run_code  # type: ignore[attr-defined]
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
+
+
+def register_run_module_transformer(transformer: TransformerType) -> None:
+    """Register a run module transformer."""
+    _run_module_transformers.append(transformer)
+
+
+def unregister_run_module_transformer(transformer: TransformerType) -> None:
+    """Unregister a run module transformer.
+
+    If the transformer was not registered, a ``ValueError`` exception is raised.
+    """
+    _run_module_transformers.remove(transformer)
 
 
 def register_post_run_module_hook(hook: ModuleHookType) -> None:
@@ -129,6 +152,7 @@ class _ImportHookChainedLoader:
         self.spec = spec
 
         self.callbacks: t.Dict[t.Any, t.Callable[[ModuleType], None]] = {}
+        self.transformers: t.Dict[t.Any, TransformerType] = {}
 
         # A missing loader is generally an indication of a namespace package.
         if loader is None or hasattr(loader, "create_module"):
@@ -157,6 +181,9 @@ class _ImportHookChainedLoader:
 
     def add_callback(self, key: t.Any, callback: t.Callable[[ModuleType], None]) -> None:
         self.callbacks[key] = callback
+
+    def add_transformer(self, key: t.Any, transformer: TransformerType) -> None:
+        self.transformers[key] = transformer
 
     def call_back(self, module: ModuleType) -> None:
         if module.__name__ == "pkg_resources":
@@ -192,6 +219,19 @@ class _ImportHookChainedLoader:
     def _exec_module(self, module: ModuleType) -> None:
         # Collect and run only the first hook that matches the module.
         pre_exec_hook = None
+
+        _get_code = getattr(self.loader, "get_code", None)
+        if _get_code is not None:
+
+            def get_code(_loader, fullname):
+                code = _get_code(fullname)
+
+                for callback in self.transformers.values():
+                    code = callback(code, module)
+
+                return code
+
+            self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
         for _ in sys.meta_path:
             if isinstance(_, ModuleWatchdog):
@@ -261,6 +301,9 @@ class BaseModuleWatchdog(abc.ABC):
     def after_import(self, module: ModuleType) -> None:
         raise NotImplementedError()
 
+    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        return code
+
     def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional[Loader]:
         if fullname in self._finding:
             return None
@@ -277,6 +320,7 @@ class BaseModuleWatchdog(abc.ABC):
                 )
 
                 loader.add_callback(type(self), self.after_import)
+                loader.add_transformer(type(self), self.transform)
 
                 return t.cast(Loader, loader)
 
@@ -309,6 +353,7 @@ class BaseModuleWatchdog(abc.ABC):
                 spec.loader = t.cast(Loader, _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
+            t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(self), self.transform)
 
             return spec
 

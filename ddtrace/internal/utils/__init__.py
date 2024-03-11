@@ -13,7 +13,7 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args,  # type: List[Any]
+    args,  # type: Tuple[Any, ...]
     kwargs,  # type: Dict[str, Any]
     pos,  # type: int
     kw,  # type: str
