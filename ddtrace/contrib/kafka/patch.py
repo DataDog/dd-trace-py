@@ -209,9 +209,9 @@ def traced_poll(func, instance, args, kwargs):
     except Exception as e:
         err = e
     ctx = None
-    if message and config.kafka.distributed_tracing_enabled and message.headers():
+    if message is not None and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
-    if message or config.kafka.trace_empty_poll_enabled:
+    if message is not None or config.kafka.trace_empty_poll_enabled:
         with pin.tracer.start_span(
             name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
             service=trace_utils.ext_service(pin, config.kafka),
