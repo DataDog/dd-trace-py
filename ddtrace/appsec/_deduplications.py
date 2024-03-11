@@ -1,32 +1,32 @@
-import os
-import time
-from typing import Dict
+from collections import OrderedDict
+from time import monotonic
 
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
+
+
+M_INF = float("-inf")
 
 
 class deduplication:
-    _time_lapse = 3600
+    _time_lapse = 3600  # 1 hour
+    _max_cache_size = 256
 
     def __init__(self, func):
         self.func = func
-        self._last_timestamp: float = time.time()
-        self.reported_logs: Dict[int, float] = dict()
-
-    def get_last_time_reported(self, raw_log_hash: int) -> float:
-        return self.reported_logs.get(raw_log_hash, 0.0)
-
-    def is_deduplication_enabled(self) -> bool:
-        return asbool(os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED", "true"))
+        self.reported_logs: OrderedDict[int, float] = OrderedDict()
 
     def __call__(self, *args, **kwargs):
         result = None
-        if self.is_deduplication_enabled() is False:
-            result = self.func(*args, **kwargs)
-        else:
+        if asm_config._deduplication_enabled:
             raw_log_hash = hash("".join([str(arg) for arg in args]))
-            last_reported_timestamp = self.get_last_time_reported(raw_log_hash)
-            if time.time() > last_reported_timestamp:
+            last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF)
+            current = monotonic()
+            if current > last_reported_timestamp:
                 result = self.func(*args, **kwargs)
-                self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
+                self.reported_logs[raw_log_hash] = current + self._time_lapse
+                self.reported_logs.move_to_end(raw_log_hash)
+                if len(self.reported_logs) >= self._max_cache_size:
+                    self.reported_logs.popitem(last=False)
+        else:
+            result = self.func(*args, **kwargs)
         return result

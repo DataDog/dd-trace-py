@@ -83,6 +83,7 @@ class ASMConfig(Env):
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
+    _deduplication_enabled = Env.var(bool, "DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
     # for tests purposes
     _asm_config_keys = [
@@ -103,6 +104,7 @@ class ASMConfig(Env):
         "_iast_redaction_value_pattern",
         "_iast_lazy_taint",
         "_asm_config_keys",
+        "_deduplication_enabled",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
