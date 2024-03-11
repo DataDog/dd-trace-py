@@ -136,7 +136,7 @@ Sample::flush_sample()
         .labels = { labels.data(), cur_label },
     };
 
-    const bool ret = profile_state.collect(sample);
+    const bool ret = profile_state.collect(sample, timestamp_ns);
     clear_buffers();
     return ret;
 }

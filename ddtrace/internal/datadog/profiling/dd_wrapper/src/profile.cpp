@@ -184,10 +184,10 @@ Profile::val()
 }
 
 bool
-Profile::collect(const ddog_prof_Sample& sample)
+Profile::collect(const ddog_prof_Sample& sample, int64_t timestamp_ns)
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto res = ddog_prof_Profile_add(&cur_profile, sample, sample->timestamp);
+    auto res = ddog_prof_Profile_add(&cur_profile, sample, timestamp_ns);
     if (!res.ok) {
         const std::string errmsg = err_to_msg(&res.err, "Error adding sample to profile");
         std::cerr << errmsg << std::endl;
