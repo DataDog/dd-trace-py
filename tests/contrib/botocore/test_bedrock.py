@@ -422,7 +422,7 @@ class TestLLMObsBedrock:
                         "completion_tokens": completion_tokens,
                         "total_tokens": prompt_tokens + completion_tokens,
                     },
-                    tags={"service": "aws.bedrock-runtime"},
+                    tags={"service": "aws.bedrock-runtime", "ml_app": "aws.bedrock-runtime"},
                 )
             )
         ]
@@ -578,7 +578,8 @@ class TestLLMObsBedrock:
                     output_messages=[{"content": ""}],
                     error=span.get_tag("error.type"),
                     error_message=span.get_tag("error.message"),
-                    tags={"service": "aws.bedrock-runtime"},
+                    error_stack=span.get_tag("error.stack"),
+                    tags={"service": "aws.bedrock-runtime", "ml_app": "aws.bedrock-runtime"},
                 )
             ),
         ]

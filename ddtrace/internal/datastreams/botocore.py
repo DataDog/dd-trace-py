@@ -1,33 +1,14 @@
 import base64
-from datetime import datetime
 import json
 
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def get_pathway(endpoint_service, dsm_identifier):
-    # type: (str, str) -> str
-    """
-    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
-    :dsm_identifier: the identifier for the topic/queue/stream/etc
-
-    Set the data streams monitoring checkpoint and return the encoded pathway
-    """
-    from . import data_streams_processor as processor
-
-    path_type = "type:{}".format(endpoint_service)
-    if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-
-    pathway = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
-    return pathway.encode_b64()
 
 
 def get_queue_name(params):
@@ -53,33 +34,37 @@ def get_topic_arn(params):
     return sns_arn
 
 
-def get_stream_arn(params):
+def get_stream(params):
     # type: (dict) -> str
     """
     :params: contains the params for the current botocore action
 
     Return the name of the stream given the params
     """
-    stream_arn = params.get("StreamARN", "")
-    return stream_arn
+    stream = params.get("StreamARN", params.get("StreamName", ""))
+    return stream
 
 
 def inject_context(trace_data, endpoint_service, dsm_identifier):
-    pathway = get_pathway(endpoint_service, dsm_identifier)
+    # type: (dict, str, str) -> None
+    """
+    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
+    :dsm_identifier: the identifier for the topic/queue/stream/etc
 
-    if trace_data is not None:
-        trace_data[PROPAGATION_KEY_BASE_64] = pathway
+    Set the data streams monitoring checkpoint and inject context to carrier
+    """
+    from . import data_streams_processor as processor
+
+    path_type = "type:{}".format(endpoint_service)
+    if not dsm_identifier:
+        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
+    ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
+    DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def handle_kinesis_produce(params):
-    stream_arn = get_stream_arn(params)
-    if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-        # put_records has a "Records" entry but put_record does not, so we fake a record to
-        # collapse the logic for the two cases
-        for _ in params.get("Records", ["fake_record"]):
-            # In other DSM code, you'll see the pathway + context injection but not here.
-            # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
-            inject_context(None, "kinesis", stream_arn)
+def handle_kinesis_produce(stream, dd_ctx_json):
+    if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
+        inject_context(dd_ctx_json, "kinesis", stream)
 
 
 def handle_sqs_sns_produce(endpoint_service, trace_data, params):
@@ -144,36 +129,32 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-            ctx = processor().decode_pathway_b64(pathway)
+            ctx = DsmPathwayCodec.decode(context_json, processor())
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
-
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, results):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json):
     from . import data_streams_processor as processor
 
-    stream_arn = params.get("StreamARN")
+    stream = get_stream(params)
 
-    if not stream_arn:
-        log.debug("Unable to determine StreamARN for request with params: ", params)
+    if not stream:
+        log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    pathway = processor().new_pathway()
-    for record in results.get("Records", []):
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        pathway.set_checkpoint(
-            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-        )
+    ctx = DsmPathwayCodec.decode(context_json, processor())
+    ctx.set_checkpoint(
+        ["direction:in", "topic:" + stream, "type:kinesis"],
+        edge_start_sec_override=time_estimate,
+        pathway_start_sec_override=time_estimate,
+    )
 
 
-def handle_kinesis_receive(params, result):
+def handle_kinesis_receive(params, time_estimate, context_json):
     try:
-        record_data_streams_path_for_kinesis_stream(params, result)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
