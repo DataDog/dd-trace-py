@@ -456,13 +456,14 @@ def test_last_dd_span_id():
     assert local_root.get_tag(LAST_DD_PARENT_ID_KEY) == "123067aa0ba902a6"
     for span in (root, child1, chunk_root):
         assert span.get_tag(LAST_DD_PARENT_ID_KEY) is None
-    # `p` value in tracestate is set using the current active datadog span
+    # `p` value in tracestate headers is set using the current active datadog span
+    for span in (child1, chunk_root, root, local_root):
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+        assert "p:{:016x}".format(span.span_id) in headers["tracestate"]
+    # If a Datadog span is not active, `p` value is set to the last datadog span in the trace
     headers = {}
-    HTTPPropagator.inject(root.context, headers)
-    assert "p:{:016x}".format(root.span_id) in headers["tracestate"]
-    # `p` value is set to the last datadog span in the trace (via non_dd_remote_context's tracestate)
-    headers = {}
-    HTTPPropagator.inject(local_root.context, headers)
+    HTTPPropagator.inject(non_dd_remote_context, headers)
     assert "p:123067aa0ba902a6" in headers["tracestate"]
 
 
