@@ -1,6 +1,5 @@
 from collections import defaultdict
 from collections import deque
-from dis import findlinestarts
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -16,18 +15,13 @@ CWD = Path.cwd()
 _original_exec = exec
 
 
-def collect_code_objects(code: CodeType, recursive: bool = False) -> t.Iterator[t.Tuple[CodeType, CodeType]]:
+def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, CodeType]]:
     q = deque([code])
     while q:
         c = q.popleft()
         for next_code in (_ for _ in c.co_consts if isinstance(_, CodeType)):
-            if recursive:
-                q.append(next_code)
+            q.append(next_code)
             yield (next_code, c)
-
-
-def get_lines(code: CodeType) -> t.List[int]:
-    return [ln for _, ln in findlinestarts(code) if ln > 0]
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
@@ -77,7 +71,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         new_code = self.instrument_code(code)
 
         # Recursively instrument nested code objects
-        for nested_code, parent_code in collect_code_objects(new_code, recursive=True):
+        for nested_code, parent_code in collect_code_objects(new_code):
             replace_in_tuple(parent_code.co_consts, nested_code, self.instrument_code(nested_code))
 
         return new_code
@@ -86,15 +80,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         pass
 
     def instrument_code(self, code: CodeType) -> CodeType:
+        # Avoid instrumenting the same code object multiple times
         if code in self.seen:
             return code
-
         self.seen.add(code)
 
         path = str(Path(code.co_filename).resolve().relative_to(CWD))
 
         new_code, lines = instrument_all_lines(code, self.hook, path)
 
+        # Keep note of all the lines that have been instrumented. These will be
+        # the ones that can be covered.
         self.lines[path] |= lines
 
         return new_code

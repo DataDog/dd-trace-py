@@ -18,10 +18,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
             if instr.lineno == last_lineno:
                 continue
             last_lineno = instr.lineno
-            # Some lines might be implemented across multiple instruction
-            # offsets, and sometimes a NOP is used as a placeholder. We skip
-            # those to avoid duplicate injections.
-            if instr.name == "NOP":
+            if instr.name in ("NOP", "RESUME"):
                 continue
             abstract_code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
             lines.add(last_lineno)
