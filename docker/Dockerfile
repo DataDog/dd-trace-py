@@ -76,7 +76,7 @@ RUN git clone --depth 1 --branch v2.3.33 https://github.com/pyenv/pyenv "${PYENV
   && cd -
 
 RUN if [ "$TARGETARCH" = "amd64" ]; \
-    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION} hatch-${HATCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
+    then curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar zx; \
     else curl -L https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-${HATCH_VERSION}-aarch64-unknown-linux-gnu.tar.gz | tar zx; \
     fi \
   && mv hatch-${HATCH_VERSION}-* hatch \
