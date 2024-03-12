@@ -487,21 +487,24 @@ class StackCollector(collector.PeriodicCollector):
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
-            if not ddup.is_available():
-                # We probably already told the user about this in profiler.py, but let's do it again here.
-                LOG.error("Failed to load the libdd collector from stack.pyx; falling back to the legacy collector")
+            if not ddup.is_available:
+                # We don't report on this, since it's already been reported in profiler.py
                 set_use_libdd(False)
+
+                # If the user had also set stack.v2.enabled, then we need to disable that as well.
+                if self._stack_collector_v2_enabled:
+                    self._stack_collector_v2_enabled = False
+                    LOG.error("Stack v2 was requested, but the libdd collector could not be enabled.  Falling back to the v1 stack sampler.")
             else:
                 set_use_libdd(True)
 
         # If stack v2 is requested, verify it is loaded properly and that libdd has been enabled.
         if self._stack_collector_v2_enabled:
-            if not stack_v2.is_available():
+            if not stack_v2.is_available:
                 self._stack_collector_v2_enabled = False
-                LOG.error("Failed to load the v2 stack sampler; falling back to the v1 stack sampler")
+                LOG.error("Stack v2 was requested, but it could not be enabled.  Check debug logs for more information.")
             if not use_libdd:
                 self._stack_collector_v2_enabled = False
-                LOG.error("libdd collector not enabled; falling back to the v1 stack sampler.  Did you set DD_PROFILING_EXPORT_LIBDD_ENABLED=true?")
 
         # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
         if self._stack_collector_v2_enabled:

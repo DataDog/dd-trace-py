@@ -17,13 +17,6 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     app = Starlette()
 
 
-On Python 3.6 and below, you must enable the legacy ``AsyncioContextProvider`` before using the middleware::
-
-    from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-    from ddtrace import tracer  # Or whichever tracer instance you plan to use
-    tracer.configure(context_provider=AsyncioContextProvider())
-
-
 Configuration
 ~~~~~~~~~~~~~
 

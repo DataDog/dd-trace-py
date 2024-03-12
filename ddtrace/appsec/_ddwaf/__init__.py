@@ -29,7 +29,7 @@ if asm_config._asm_libddwaf_available:
         from .ddwaf_types import py_ddwaf_update
 
         _DDWAF_LOADED = True
-    except BaseException:
+    except Exception:
         _DDWAF_LOADED = False
         LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
 else:

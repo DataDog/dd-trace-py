@@ -8,6 +8,8 @@ import sys
 import sysconfig
 import tarfile
 
+import cmake
+
 
 from setuptools import Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
@@ -37,6 +39,9 @@ from urllib.request import urlretrieve
 HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+
+# stack_v2 profiling extensions are optional, unless they are made explicitly required by this environment variable
+STACK_V2_REQUIRED = "DD_STACK_V2_REQUIRED" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
@@ -338,7 +343,9 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
-        cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+        cmake_command = (
+            Path(cmake.CMAKE_BIN_DIR) / "cmake"
+        ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
@@ -362,30 +369,6 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
         self.optional = optional  # If True, cmake errors are ignored
-
-
-long_description = """
-# dd-trace-py
-
-`ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
-as they flow across web servers, databases and microservices so that developers
-have great visibility into bottlenecks and troublesome requests.
-
-## Getting Started
-
-For a basic product overview, installation and quick start, check out our
-[setup documentation][setup docs].
-
-For more advanced usage and configuration, check out our [API
-documentation][api docs].
-
-For descriptions of terminology used in APM, take a look at the [official
-documentation][visualization docs].
-
-[setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[api docs]: https://ddtrace.readthedocs.io/
-[visualization docs]: https://docs.datadoghq.com/tracing/visualization/
-"""
 
 
 def get_exts_for(name):
@@ -465,48 +448,26 @@ if not IS_PYSTON:
                     "-DPY_MINOR_VERSION={}".format(sys.version_info.minor),
                     "-DPY_MICRO_VERSION={}".format(sys.version_info.micro),
                 ],
+                optional=not STACK_V2_REQUIRED,
             )
         )
 
-        # One of the stack v2 dependencies doesn't quite work on 3.7, so only support later for now
+        # Echion doesn't build on 3.7, so just skip it outright for now
         if sys.version_info >= (3, 8):
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
-                )
+                    optional=not STACK_V2_REQUIRED,
+                ),
             )
 
 else:
     ext_modules = []
 
 
-bytecode = [
-    "bytecode~=0.13.0; python_version=='3.7'",
-    "bytecode; python_version>='3.8' and python_version<'3.11'",
-    "bytecode>=0.14.0; python_version>='3.11'",
-    "bytecode>=0.15.0; python_version>='3.12'",
-]
-
 setup(
     name="ddtrace",
-    description="Datadog APM client library",
-    url="https://github.com/DataDog/dd-trace-py",
-    package_urls={
-        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
-        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
-    },
-    project_urls={
-        "Bug Tracker": "https://github.com/DataDog/dd-trace-py/issues",
-        "Source Code": "https://github.com/DataDog/dd-trace-py/",
-        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
-        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
-    },
-    author="Datadog, Inc.",
-    author_email="dev@datadoghq.com",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    license="BSD",
     packages=find_packages(exclude=["tests*", "benchmarks*"]),
     package_data={
         "ddtrace": ["py.typed"],
@@ -515,61 +476,14 @@ setup(
         "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": ["libdd_wrapper.*"],
     },
-    python_requires=">=3.7",
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
-    install_requires=[
-        "ddsketch>=2.0.1",
-        "protobuf>=3",
-        "attrs>=20",
-        "cattrs",
-        "six>=1.12.0",
-        "typing_extensions",
-        "importlib_metadata<=6.5.0; python_version<'3.8'",
-        "xmltodict>=0.12",
-        "envier",
-        "opentelemetry-api>=1",
-        "setuptools; python_version>='3.12'",
-        "sqlparse>=0.2.2",
-    ]
-    + bytecode,
-    extras_require={
-        # users can include opentracing by having:
-        # install_requires=['ddtrace[opentracing]', ...]
-        "opentracing": ["opentracing>=2.0.0"],
-        "openai": ["tiktoken"],
-    },
-    tests_require=["flake8"],
     cmdclass={
         "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    entry_points={
-        "console_scripts": [
-            "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-        ],
-        "pytest11": [
-            "ddtrace = ddtrace.contrib.pytest.plugin",
-            "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
-        ],
-        "opentelemetry_context": [
-            "ddcontextvars_context = ddtrace.opentelemetry._context:DDRuntimeContext",
-        ],
-    },
-    classifiers=[
-        "Development Status :: 5 - Production/Stable",
-        "Programming Language :: Python :: Implementation :: CPython",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-    ],
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
     ext_modules=ext_modules
     + cythonize(

@@ -90,19 +90,24 @@ def test_not_azure_function_consumption_plan_wrong_sku():
         assert in_azure_function_consumption_plan() is False
 
 
-def test_slow_imports():
+def test_slow_imports(monkeypatch):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
 
     blocklist = [
         "ddtrace.appsec._iast._ast.ast_patching",
+        "ddtrace.internal.telemetry.telemetry_writer",
+        "ddtrace.appsec._api_security.api_manager",
     ]
+    monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", False)
+    monkeypatch.setenv("DD_API_SECURITY_ENABLED", False)
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
 
     class BlockListFinder:
         def find_spec(self, fullname, *args):
-            for prefix in blocklist:
-                if fullname.startswith(prefix):
+            for lib in blocklist:
+                if fullname == lib:
                     raise ImportError(f"module {fullname} was imported!")
             return None
 

@@ -8,7 +8,6 @@ from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import Tuple
 from urllib import parse
 
 from ddtrace._trace.span import Span
@@ -34,7 +33,7 @@ _TELEMETRY = "telemetry"
 _CONTEXT_CALL = "context"
 _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
-_WAF_RESULTS = "waf_results"
+_TELEMETRY_WAF_RESULTS = "t_waf_results"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {}
@@ -83,7 +82,7 @@ def is_blocked() -> bool:
         if not env.active or env.span is None:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -142,22 +141,27 @@ class _DataHandler:
         self.active = True
         self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
-        env.telemetry[_WAF_RESULTS] = [], [], []
+        env.telemetry[_TELEMETRY_WAF_RESULTS] = {
+            "blocked": False,
+            "triggered": False,
+            "timeout": False,
+            "version": None,
+        }
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
+            self.active = False
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
-            env.must_call_globals = False
-            if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks += env.callbacks.get(_CONTEXT_CALL)
-            if callbacks:
-                if env is not None:
+            if env is not None:
+                callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+                env.must_call_globals = False
+                if env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
+                    callbacks = callbacks + env.callbacks.get(_CONTEXT_CALL)
+                if callbacks:
                     for function in callbacks:
                         function(env)
                 self.execution_context.end()
-            self.active = False
 
 
 def set_value(category: str, address: str, value: Any) -> None:
@@ -324,21 +328,20 @@ def asm_request_context_set(
     set_block_request_callable(block_request_callable)
 
 
-def set_waf_results(result_data, result_info, is_blocked) -> None:
-    three_lists = get_waf_results()
-    if three_lists is not None:
-        list_results_data, list_result_info, list_is_blocked = three_lists
-        list_results_data.append(result_data)
-        list_result_info.append(result_info)
-        list_is_blocked.append(is_blocked)
+def set_waf_telemetry_results(
+    rules_version: Optional[str], is_triggered: bool, is_blocked: bool, is_timeout: bool
+) -> None:
+    result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    if result is not None:
+        result["triggered"] |= is_triggered
+        result["blocked"] |= is_blocked
+        result["timeout"] |= is_timeout
+        if rules_version is not None:
+            result["version"] = rules_version
 
 
-def get_waf_results() -> Optional[Tuple[List[Any], List[Any], List[bool]]]:
-    return get_value(_TELEMETRY, _WAF_RESULTS)
-
-
-def reset_waf_results() -> None:
-    set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
+def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
+    return get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
 
 
 def store_waf_results_data(data) -> None:
