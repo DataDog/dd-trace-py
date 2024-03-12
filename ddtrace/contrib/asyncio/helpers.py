@@ -6,6 +6,7 @@ Context and Spans in instrumented ``asyncio`` code.
 import asyncio
 
 import ddtrace
+from ddtrace.vendor.debtcollector import deprecate
 
 from .provider import AsyncioContextProvider
 from .wrappers import wrapped_create_task
@@ -19,6 +20,11 @@ def set_call_context(task, ctx):
     This method is available for backward-compatibility. Use the
     ``AsyncioContextProvider`` API to set the current active ``Context``.
     """
+    deprecate(
+        "ddtrace.contrib.asyncio.set_call_context(..) is deprecated. The ddtrace library fully supports propagating"
+        " trace contextes to async tasks. No additional configurations are required.",
+        version="3.0.0",
+    )
     setattr(task, AsyncioContextProvider._CONTEXT_ATTR, ctx)
 
 
@@ -27,6 +33,11 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):
 
     If the current task already has a Context, it will be attached to the new Task so the Trace list will be preserved.
     """
+    deprecate(
+        "ddtrace.contrib.asyncio.ensure_future(..) is deprecated. The ddtrace library fully supports propagating"
+        " trace contextes to async tasks. No additional configurations are required.",
+        version="3.0.0",
+    )
     tracer = tracer or ddtrace.tracer
     current_ctx = tracer.current_trace_context()
     task = asyncio.ensure_future(coro_or_future, loop=loop)
@@ -51,6 +62,11 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
     we fallback to the thread-local ``Context`` storage.
 
     """
+    deprecate(
+        "ddtrace.contrib.asyncio.run_in_executor(..) is deprecated. The ddtrace library fully supports propagating"
+        " trace contextes to async tasks. No additional configurations are required.",
+        version="3.0.0",
+    )
     tracer = tracer or ddtrace.tracer
     current_ctx = tracer.current_trace_context()
 
@@ -77,5 +93,10 @@ def create_task(*args, **kwargs):
     """This function spawns a task with a Context that inherits the
     `trace_id` and the `parent_id` from the current active one if available.
     """
+    deprecate(
+        "ddtrace.contrib.asyncio.create_task(..) is deprecated. The ddtrace library fully supports propagating"
+        " trace contextes to async tasks. No additional configurations are required.",
+        version="3.0.0",
+    )
     loop = asyncio.get_event_loop()
     return wrapped_create_task(loop.create_task, None, args, kwargs)
