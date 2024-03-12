@@ -78,17 +78,19 @@ Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {
-    return std::accumulate(
-      vec.begin(), vec.end(), std::string(), [&delim](const std::string& left, const std::string& right) -> std::string {
-          // If the left and right operands are empty, we don't want to add a delimiter
-          if (left.empty()) {
-              return right;
-          }
-          if (right.empty()) {
-              return left;
-          }
-          return left + delim + right;
-      });
+    return std::accumulate(vec.begin(),
+                           vec.end(),
+                           std::string(),
+                           [&delim](const std::string& left, const std::string& right) -> std::string {
+                               // If the left and right operands are empty, we don't want to add a delimiter
+                               if (left.empty()) {
+                                   return right;
+                               }
+                               if (right.empty()) {
+                                   return left;
+                               }
+                               return left + delim + right;
+                           });
 }
 
 Datadog::Uploader
@@ -140,11 +142,11 @@ Datadog::UploaderBuilder::build()
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = get_newexporter_result(res);
-    ddog_prof_Exporter *ddog_exporter = nullptr;
-    if (std::holds_alternative<ddog_prof_Exporter *>(ddog_exporter_result)) {
-        ddog_exporter = std::get<ddog_prof_Exporter *>(ddog_exporter_result);
+    ddog_prof_Exporter* ddog_exporter = nullptr;
+    if (std::holds_alternative<ddog_prof_Exporter*>(ddog_exporter_result)) {
+        ddog_exporter = std::get<ddog_prof_Exporter*>(ddog_exporter_result);
     } else {
-        auto &err = std::get<ddog_Error>(ddog_exporter_result);
+        auto& err = std::get<ddog_Error>(ddog_exporter_result);
         const std::string errmsg = err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         throw std::runtime_error(errmsg);

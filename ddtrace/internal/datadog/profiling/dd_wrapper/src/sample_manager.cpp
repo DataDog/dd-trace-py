@@ -25,13 +25,19 @@ Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    return new Datadog::Sample(type_mask, max_nframes);
+    return new Datadog::Sample(type_mask, max_nframes);  // NOLINT(cppcoreguidelines-owning-memory)
+}
+
+void
+Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
+{
+    delete sample;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void
 Datadog::SampleManager::postfork_child()
 {
-    Datadog:: Sample::postfork_child();
+    Datadog::Sample::postfork_child();
 }
 
 void

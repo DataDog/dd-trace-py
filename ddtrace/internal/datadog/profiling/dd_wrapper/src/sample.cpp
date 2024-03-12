@@ -56,10 +56,6 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
-    if (cur_label >= labels.size()) {
-        return false;
-    }
-
     // Get the sv for the key
     const std::string_view key_sv = to_string(key);
 
@@ -72,20 +68,15 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 
     // Otherwise, persist the val string and add the label
     val = profile_state.insert_or_get(val);
-    labels[cur_label].key = to_slice(key_sv);
-    labels[cur_label].str = to_slice(val);
-    cur_label++;
+    auto &label = labels.emplace_back();
+    label.key = to_slice(key_sv);
+    label.str = to_slice(val);
     return true;
 }
 
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 {
-    if (cur_label >= labels.size()) {
-        std::cout << "Bad push_label (num)" << std::endl;
-        return false;
-    }
-
     // Get the sv for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
@@ -94,11 +85,11 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
         return true;
     }
 
-    labels[cur_label].key = to_slice(key_sv);
-    labels[cur_label].str = to_slice("");
-    labels[cur_label].num = val;
-    labels[cur_label].num_unit = to_slice("");
-    cur_label++;
+    auto &label = labels.emplace_back();
+    label.key = to_slice(key_sv);
+    label.str = to_slice("");
+    label.num = val;
+    label.num_unit = to_slice("");
     return true;
 }
 
@@ -106,9 +97,8 @@ void
 Datadog::Sample::clear_buffers()
 {
     std::fill(values.begin(), values.end(), 0);
-    std::fill(std::begin(labels), std::end(labels), ddog_prof_Label{});
+    labels.clear();
     locations.clear();
-    cur_label = 0;
     dropped_frames = 0;
 }
 
@@ -124,7 +114,7 @@ Datadog::Sample::flush_sample()
     const ddog_prof_Sample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
-        .labels = { labels.data(), cur_label },
+        .labels = { labels.data(), labels.size() },
     };
 
     const bool ret = profile_state.collect(sample);
@@ -137,7 +127,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 {
     // NB all push-type operations return bool for semantic uniformity,
     // even if they can't error.  This should promote generic code.
-    if (type_mask & SampleType::CPU) {
+    if (0U != (type_mask & SampleType::CPU)) {
         values[profile_state.val().cpu_time] += cputime * count;
         values[profile_state.val().cpu_count] += count;
         return true;
@@ -149,7 +139,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 bool
 Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 {
-    if (type_mask & SampleType::Wall) {
+    if (0U != (type_mask & SampleType::Wall)) {
         values[profile_state.val().wall_time] += walltime * count;
         values[profile_state.val().wall_count] += count;
         return true;
@@ -161,7 +151,7 @@ Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 bool
 Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t count)
 {
-    if (type_mask & SampleType::Exception) {
+    if (0U != (type_mask & SampleType::Exception)) {
         push_label(ExportLabelKey::exception_type, exception_type);
         values[profile_state.val().exception_count] += count;
         return true;
@@ -171,9 +161,9 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
 }
 
 bool
-Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count)
+Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
-    if (type_mask & SampleType::LockAcquire) {
+    if (0U != (type_mask & SampleType::LockAcquire)) {
         values[profile_state.val().lock_acquire_time] += acquire_time;
         values[profile_state.val().lock_acquire_count] += count;
         return true;
@@ -183,9 +173,9 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count)
 }
 
 bool
-Datadog::Sample::push_release(int64_t lock_time, int64_t count)
+Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
-    if (type_mask & SampleType::LockRelease) {
+    if (0U != (type_mask & SampleType::LockRelease)) {
         values[profile_state.val().lock_release_time] += lock_time;
         values[profile_state.val().lock_release_count] += count;
         return true;
@@ -195,9 +185,14 @@ Datadog::Sample::push_release(int64_t lock_time, int64_t count)
 }
 
 bool
-Datadog::Sample::push_alloc(uint64_t size, uint64_t count)
+Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
-    if (type_mask & SampleType::Allocation) {
+    if (size < 0 || count < 0) {
+        std::cout << "bad push alloc (params)" << std::endl;
+        return false;
+    }
+
+    if (0U != (type_mask & SampleType::Allocation)) {
         values[profile_state.val().alloc_space] += size;
         values[profile_state.val().alloc_count] += count;
         return true;
@@ -207,9 +202,14 @@ Datadog::Sample::push_alloc(uint64_t size, uint64_t count)
 }
 
 bool
-Datadog::Sample::push_heap(uint64_t size)
+Datadog::Sample::push_heap(int64_t size)
 {
-    if (type_mask & SampleType::Heap) {
+    if (size < 0) {
+        std::cout << "bad push heap (params)" << std::endl;
+        return false;
+    }
+
+    if (0U != (type_mask & SampleType::Heap)) {
         values[profile_state.val().heap_space] += size;
         return true;
     }
@@ -263,7 +263,9 @@ Datadog::Sample::push_task_name(std::string_view task_name)
 bool
 Datadog::Sample::push_span_id(uint64_t span_id)
 {
-    const int64_t recoded_id = reinterpret_cast<int64_t&>(span_id);
+    // The pprof container expects a signed 64-bit integer for numeric labels, whereas
+    // the emitted ID is unsigned (full 64-bit range).  We type-pun to int64_t here.
+    const int64_t recoded_id = reinterpret_cast<int64_t&>(span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
@@ -274,7 +276,7 @@ Datadog::Sample::push_span_id(uint64_t span_id)
 bool
 Datadog::Sample::push_local_root_span_id(uint64_t local_root_span_id)
 {
-    const int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id);
+    const int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;

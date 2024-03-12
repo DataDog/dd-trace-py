@@ -11,7 +11,8 @@
 #include <unistd.h>
 
 // State
-bool is_ddup_initialized = false;
+bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+std::once_flag ddup_init_flag; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
@@ -88,9 +89,9 @@ ddup_config_user_tag(std::string_view key, std::string_view val)
 }
 
 void
-ddup_set_runtime_id(std::string_view id)
+ddup_set_runtime_id(std::string_view runtime_id)
 {
-    Datadog::UploaderBuilder::set_runtime_id(id);
+    Datadog::UploaderBuilder::set_runtime_id(runtime_id);
 }
 
 void
@@ -110,11 +111,10 @@ ddup_is_initialized()
     return is_ddup_initialized;
 }
 
-std::atomic<int> initialized_count{ 0 };
 void
 ddup_init()
 {
-    const static bool initialized = []() {
+    std::call_once(ddup_init_flag, []() {
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
@@ -125,12 +125,7 @@ ddup_init()
         // Set the global initialization flag
         is_ddup_initialized = true;
         return true;
-    }();
-
-    initialized_count.fetch_add(static_cast<int>(initialized));
-    if (initialized_count > 1) {
-        std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
-    }
+    });
 }
 
 Datadog::Sample*
@@ -165,13 +160,13 @@ ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count)
 }
 
 void
-ddup_push_alloc(Datadog::Sample* sample, uint64_t size, uint64_t count)
+ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count)
 {
     sample->push_alloc(size, count);
 }
 
 void
-ddup_push_heap(Datadog::Sample* sample, uint64_t size)
+ddup_push_heap(Datadog::Sample* sample, int64_t size)
 {
     sample->push_heap(size);
 }
@@ -255,8 +250,7 @@ ddup_flush_sample(Datadog::Sample* sample)
 void
 ddup_drop_sample(Datadog::Sample* sample)
 {
-    // After a sample is dropped, the user should no longer use it
-    delete sample;
+    Datadog::SampleManager::drop_sample(sample);
 }
 
 bool

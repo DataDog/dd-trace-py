@@ -31,6 +31,16 @@ set(ENV{PY_MAJOR_VERSION} ${PY_MAJOR_VERSION})
 set(ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
 set(ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
 
+# if PYTHON_EXECUTABLE is unset or empty, but Python3_EXECUTABLE is set, use that
+if (NOT PYTHON_EXECUTABLE AND Python3_EXECUTABLE)
+  set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+endif()
+
+# If we still don't have a Python executable, we can't continue
+if (NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python executable not found")
+endif()
+
 # Cythonize the .pyx file
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
 add_custom_command(
