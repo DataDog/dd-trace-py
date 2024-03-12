@@ -546,7 +546,7 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
 
     def link_span(self, context, attributes=None):
