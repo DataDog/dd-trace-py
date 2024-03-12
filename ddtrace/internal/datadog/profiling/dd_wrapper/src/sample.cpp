@@ -68,7 +68,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 
     // Otherwise, persist the val string and add the label
     val = profile_state.insert_or_get(val);
-    auto &label = labels.emplace_back();
+    auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
     label.str = to_slice(val);
     return true;
@@ -85,7 +85,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
         return true;
     }
 
-    auto &label = labels.emplace_back();
+    auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
     label.str = to_slice("");
     label.num = val;
@@ -265,7 +265,8 @@ Datadog::Sample::push_span_id(uint64_t span_id)
 {
     // The pprof container expects a signed 64-bit integer for numeric labels, whereas
     // the emitted ID is unsigned (full 64-bit range).  We type-pun to int64_t here.
-    const int64_t recoded_id = reinterpret_cast<int64_t&>(span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
+    const int64_t recoded_id =
+      reinterpret_cast<int64_t&>(span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;
@@ -276,7 +277,8 @@ Datadog::Sample::push_span_id(uint64_t span_id)
 bool
 Datadog::Sample::push_local_root_span_id(uint64_t local_root_span_id)
 {
-    const int64_t recoded_id = reinterpret_cast<int64_t&>(local_root_span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
+    const int64_t recoded_id =
+      reinterpret_cast<int64_t&>(local_root_span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
         std::cout << "bad push" << std::endl;
         return false;

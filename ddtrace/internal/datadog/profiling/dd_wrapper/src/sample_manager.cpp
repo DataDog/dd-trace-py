@@ -25,13 +25,13 @@ Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    return new Datadog::Sample(type_mask, max_nframes);  // NOLINT(cppcoreguidelines-owning-memory)
+    return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void
 Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 {
-    delete sample;  // NOLINT(cppcoreguidelines-owning-memory)
+    delete sample; // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void

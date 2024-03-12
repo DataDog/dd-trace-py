@@ -20,7 +20,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     // Serialize the profile
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error serializing pprof");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
@@ -49,8 +49,9 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                                       max_timeout_ms);
     ddog_prof_EncodedProfile_drop(encoded);
 
-    if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = build_res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (build_res.tag ==
+        DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
@@ -76,7 +77,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
         ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request);
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-            auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+            auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
             errmsg = err_to_msg(&err, "Error uploading");
             std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);

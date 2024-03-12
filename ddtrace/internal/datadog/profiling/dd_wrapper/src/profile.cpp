@@ -20,7 +20,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
     // Private helper function for creating a ddog_prof_Profile from arguments
     ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
         const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
@@ -41,7 +41,7 @@ Datadog::Profile::cycle_buffers()
 
     // Clear the profile before using it
     auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
-    if (!res.ok) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         const std::string errmsg = err_to_msg(&err, "Error resetting profile");
         std::cout << "Could not drop profile:" << errmsg << std::endl;
@@ -189,7 +189,7 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample)
     // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, 0);
-    if (!res.ok) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");
         std::cerr << errmsg << std::endl;
