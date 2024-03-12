@@ -326,7 +326,7 @@ class _DatadogMultiHeader:
             if not meta:
                 meta = {}
 
-        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        if meta and not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
             meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
