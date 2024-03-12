@@ -150,17 +150,17 @@ class _DataHandler:
 
     def finalise(self):
         if self.active:
+            self.active = False
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
-            env.must_call_globals = False
-            if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks += env.callbacks.get(_CONTEXT_CALL)
-            if callbacks:
-                if env is not None:
+            if env is not None:
+                callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+                env.must_call_globals = False
+                if env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
+                    callbacks = callbacks + env.callbacks.get(_CONTEXT_CALL)
+                if callbacks:
                     for function in callbacks:
                         function(env)
                 self.execution_context.end()
-            self.active = False
 
 
 def set_value(category: str, address: str, value: Any) -> None:
