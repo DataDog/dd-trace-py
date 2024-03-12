@@ -320,9 +320,16 @@ class _DatadogMultiHeader:
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
+<<<<<<< HEAD
         if sampling_priority == USER_KEEP:
             if not meta:
                 meta = {}
+=======
+        if not meta:
+            meta = {}
+
+        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+>>>>>>> 6aa8fe6cc (fix(propagation): never clobber extracted decisionmaker tags [AIT-9945] (#8673))
             meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
