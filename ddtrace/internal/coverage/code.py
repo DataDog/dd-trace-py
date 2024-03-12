@@ -7,7 +7,7 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage._native import replace_in_tuple
-from ddtrace.internal.injection import inject_hooks
+from ddtrace.internal.injection import inject_hooks_in_code
 from ddtrace.internal.module import BaseModuleWatchdog
 
 
@@ -33,6 +33,7 @@ def get_lines(code: CodeType) -> t.List[int]:
 class ModuleCodeCollector(BaseModuleWatchdog):
     def __init__(self):
         super().__init__()
+        self.seen = set()
         self.lines = defaultdict(set)
         self.covered = defaultdict(set)
 
@@ -66,6 +67,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             print(f"{path:60s} {int(n_covered/len(lines) * 100)}%")
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        code_path = Path(code.co_filename).resolve()
+        # TODO: Remove hardcoded paths
+        if all(not code_path.is_relative_to(CWD / folder) for folder in ("starlette", "tests")):
+            # Not a code object we want to instrument
+            return code
+
         # Transform the module code object
         new_code = self.instrument_code(code)
 
@@ -79,18 +86,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         pass
 
     def instrument_code(self, code: CodeType) -> CodeType:
-        code_path = Path(code.co_filename).resolve()
-        # TODO: Remove hardcoded paths
-        if all(not code_path.is_relative_to(CWD / folder) for folder in ("starlette", "tests")):
-            # Not a code object we want to instrument
+        if code in self.seen:
             return code
 
-        path = str(code_path.relative_to(CWD))
+        self.seen.add(code)
+
+        path = str(Path(code.co_filename).resolve().relative_to(CWD))
         lines = set(get_lines(code))
 
         self.lines[path] |= lines
 
-        new_code, failed = inject_hooks(code, [(self.hook, line, (path, line)) for line in lines])
+        new_code, failed = inject_hooks_in_code(code, [(self.hook, line, (path, line)) for line in lines])
 
         assert not failed, "All lines instrumented"
 
