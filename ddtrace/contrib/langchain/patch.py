@@ -757,8 +757,8 @@ def patch():
         )  # might need to change back to langchain_community
         wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
-        wrap("langchain", "embeddings.openai.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
-        wrap("langchain", "embeddings.openai.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     # Text embedding models override two abstract base methods instead of super calls, so we need to
     #  wrap each langchain-provided text embedding model.
     for text_embedding_model in text_embedding_models:
@@ -832,8 +832,8 @@ def unpatch():
         unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
         unwrap(langchain.chains.base.Chain, "__call__")
         unwrap(langchain.chains.base.Chain, "acall")
-        unwrap(langchain.embeddings.openai.OpenAIEmbeddings, "embed_query")
-        unwrap(langchain.embeddings.openai.OpenAIEmbeddings, "embed_documents")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
     for text_embedding_model in text_embedding_models:
         if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
             if isinstance(
