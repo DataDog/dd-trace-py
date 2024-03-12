@@ -9,6 +9,7 @@ from ddtrace.contrib.langchain.patch import unpatch
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -77,63 +78,38 @@ def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_m
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
         with override_config("langchain", ddtrace_config_langchain):
-            # ensure that mock OpenAI API key is passed in
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
-            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
-            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
-            patch()
-            import langchain
+            with override_env(
+                dict(
+                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+                    COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+                    HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+                    AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+                )
+            ):
+                patch()
+                import langchain
 
-            mock_logs.reset_mock()
-            mock_metrics.reset_mock()
-
-            yield langchain
-            unpatch()
-
-
-@pytest.fixture
-def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("langchain", ddtrace_config_langchain):
-            # ensure that mock OpenAI API key is passed in
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
-            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
-            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
-            patch()
-            import langchain_community
-
-            mock_logs.reset_mock()
-            mock_metrics.reset_mock()
-
-            yield langchain_community
-            unpatch()
-
-
-@pytest.fixture
-def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("langchain", ddtrace_config_langchain):
-            # ensure that mock OpenAI API key is passed in
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
-            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
-            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
-            patch()
-            try:
-                import langchain_openai
-
-                yield langchain_openai
-            except ImportError:
-                import langchain_community
-
-                yield langchain_community
-            finally:
                 mock_logs.reset_mock()
                 mock_metrics.reset_mock()
+
+                yield langchain
                 unpatch()
+
+
+@pytest.fixture
+def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    import langchain_community
+
+    yield langchain_community
+
+
+@pytest.fixture
+def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    try:
+        import langchain_openai
+
+        yield langchain_openai
+    except ImportError:
+        import langchain_community
+
+        yield langchain_community

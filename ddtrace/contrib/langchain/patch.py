@@ -1,22 +1,21 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import Optional
 from typing import Union
 
 import langchain
-import langchain_community  # noqa: F401
-import langchain_core  # noqa: F401
+import langchain_community
+import langchain_core
 
 
 try:
-    import langchain_openai  # noqa: F401
+    import langchain_openai
 except ImportError:
     langchain_openai = None
 try:
-    import langchain_pinecone  # noqa: F401
+    import langchain_pinecone
 except ImportError:
     langchain_pinecone = None
 
@@ -29,6 +28,7 @@ except ImportError:
     from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
 from pydantic import SecretStr
 
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.langchain.constants import API_KEY
 from ddtrace.contrib.langchain.constants import COMPLETION_TOKENS
@@ -52,10 +52,6 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
 
-if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
-
-
 log = get_logger(__name__)
 
 
@@ -68,8 +64,8 @@ def get_version():
 # We need to check the version to determine which module to wrap, to avoid deprecation warnings
 # ref: https://github.com/DataDog/dd-trace-py/issues/8212
 LANGCHAIN_VERSION = parse_version(get_version())
-SHOULD_USE_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
-BASE_LANGCHAIN_MODULE = langchain_community if SHOULD_USE_LANGCHAIN_COMMUNITY else langchain
+SHOULD_PATCH_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
+BASE_LANGCHAIN_MODULE = langchain_community if SHOULD_PATCH_LANGCHAIN_COMMUNITY else langchain
 BASE_LANGCHAIN_MODULE_NAME = getattr(BASE_LANGCHAIN_MODULE, "__name__", "langchain")
 
 
@@ -85,8 +81,7 @@ config._add(
 )
 
 
-def _extract_model_name(instance):
-    # type: (langchain.llm.BaseLLM) -> Optional[str]
+def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
@@ -104,8 +99,7 @@ def _format_api_key(api_key: Union[str, SecretStr]) -> str:
     return "...%s" % api_key[-4:]
 
 
-def _extract_api_key(instance):
-    # type: (Any) -> str
+def _extract_api_key(instance: Any) -> str:
     """
     Extract and format LLM-provider API key from instance.
     Note that langchain's LLM/ChatModel/Embeddings interfaces do not have a
@@ -120,8 +114,9 @@ def _extract_api_key(instance):
     return ""
 
 
-def _tag_openai_token_usage(span, llm_output, propagated_cost=0, propagate=False):
-    # type: (Span, Dict[str, Any], int, bool) -> None
+def _tag_openai_token_usage(
+    span: Span, llm_output: Dict[str, Any], propagated_cost: int = 0, propagate: bool = False
+) -> None:
     """
     Extract token usage from llm_output, tag on span.
     Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that
@@ -176,10 +171,8 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if (
-            isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
-            or langchain_openai
-            and isinstance(instance, langchain_openai.OpenAI)
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
+            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
         ):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
@@ -249,10 +242,8 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if (
-            isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
-            or langchain_openai
-            and isinstance(instance, langchain_openai.OpenAI)
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
+            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
         ):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
@@ -329,10 +320,8 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
-        if (
-            isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
-            or langchain_openai
-            and isinstance(instance, langchain_openai.ChatOpenAI)
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
+            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
         ):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
@@ -424,10 +413,8 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
-        if (
-            isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
-            or langchain_openai
-            and isinstance(instance, langchain_openai.ChatOpenAI)
+        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
+            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
         ):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
@@ -717,12 +704,10 @@ def patch():
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
-    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+    if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
         from langchain.chains.base import Chain  # noqa:F401
         from langchain_community import embeddings  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
-        from langchain_core.language_models.chat_models import BaseChatModel  # noqa:F401
-        from langchain_core.language_models.llms import BaseLLM  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -744,8 +729,6 @@ def patch():
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
         from langchain.chains.base import Chain  # noqa:F401
-        from langchain.chat_models.base import BaseChatModel  # noqa:F401
-        from langchain.llms.base import BaseLLM  # noqa:F401
 
         wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -769,7 +752,7 @@ def patch():
                 wrapt.ObjectProxy,
             ):
                 wrap(
-                    BASE_LANGCHAIN_MODULE_NAME,
+                    BASE_LANGCHAIN_MODULE.__name__,
                     "embeddings.%s.embed_query" % text_embedding_model,
                     traced_embedding(langchain),
                 )
@@ -778,7 +761,7 @@ def patch():
                 wrapt.ObjectProxy,
             ):
                 wrap(
-                    BASE_LANGCHAIN_MODULE_NAME,
+                    BASE_LANGCHAIN_MODULE.__name__,
                     "embeddings.%s.embed_documents" % text_embedding_model,
                     traced_embedding(langchain),
                 )
@@ -791,7 +774,7 @@ def patch():
                 wrapt.ObjectProxy,
             ):
                 wrap(
-                    BASE_LANGCHAIN_MODULE_NAME,
+                    BASE_LANGCHAIN_MODULE.__name__,
                     "vectorstores.%s.similarity_search" % vectorstore,
                     traced_similarity_search(langchain),
                 )
@@ -815,7 +798,7 @@ def unpatch():
         return
     langchain._datadog_patch = False
 
-    if SHOULD_USE_LANGCHAIN_COMMUNITY:
+    if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
         unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")

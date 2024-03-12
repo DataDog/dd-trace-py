@@ -3,7 +3,7 @@ from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
-from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from tests.contrib.patch import PatchTestCase
 
 
@@ -15,7 +15,7 @@ class TestLangchainPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, langchain):
-        if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
             import langchain_community as gated_langchain
             import langchain_core
             import langchain_openai
@@ -49,7 +49,7 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_patched(self, langchain):
-        if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
             from langchain import chains  # noqa: F401
             import langchain_community as gated_langchain
             from langchain_community import embeddings  # noqa: F401
@@ -86,7 +86,7 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_not_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_double_patched(self, langchain):
-        if SHOULD_USE_LANGCHAIN_COMMUNITY:
+        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
             import langchain_community as gated_langchain
             import langchain_core
             import langchain_openai

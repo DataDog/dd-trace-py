@@ -6,13 +6,15 @@ import mock
 import pytest
 
 from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
-from ddtrace.contrib.langchain.patch import SHOULD_USE_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import override_global_config
 
 
-pytestmark = pytest.mark.skipif(SHOULD_USE_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community")
+pytestmark = pytest.mark.skipif(
+    SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community"
+)
 
 
 @pytest.fixture(scope="session")

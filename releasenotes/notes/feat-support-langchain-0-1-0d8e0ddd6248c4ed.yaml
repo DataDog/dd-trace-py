@@ -1,9 +1,6 @@
 ---
 features:
   - |
-    langchain:  This introduces support for ``langchain==0.1.0``. Note that this drops tracing support for deprecated
-    operations in ``langchain==0.1.0`` in favor of recommended alternative methods by [langchain](https://python.langchain.com/docs/changelog/core).
-    This includes:
-    - ``langchain.chain.Chain.run/arun`` with ``langchain.chain.Chain.invoke/ainvoke``
-    - ``langchain.embeddings.openai.OpenAIEmbeddings.embed_documents`` with ``langchain_openai.OpenAIEmbeddings.embed_documents``
-    - ``langchain.vectorstores.pinecone.Pinecone.similarity_search`` with ``langchain_pinecone.PineconeVectorStore.similarity_search``
+    langchain:  This introduces support for ``langchain==0.1.0``. Note that this does not have tracing support for deprecated
+    langchain operations. Please follow the langchain upgrade `guide <https://python.langchain.com/docs/changelog/core>`_ 
+    or the langchain integration :ref: `docs<langchain>` to enable full tracing support.
