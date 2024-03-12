@@ -1,4 +1,6 @@
 from collections import deque
+from functools import singledispatch
+from types import CodeType
 from types import FunctionType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -134,7 +136,13 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         del code[i : i + len(_INJECT_HOOK_OPCODES)]
 
 
-def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
+@singledispatch
+def inject_hooks(f, hooks: List[HookInfoType]):
+    pass
+
+
+@inject_hooks.register
+def _(code: CodeType, hooks: List[HookInfoType]) -> Tuple[CodeType, List[HookInfoType]]:
     """Bulk-inject a list of hooks into a function.
 
     Hooks are specified via a list of tuples, where each tuple contains the hook
@@ -142,7 +150,7 @@ def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoTyp
 
     Returns the list of hooks that failed to be injected.
     """
-    abstract_code = Bytecode.from_code(f.__code__)
+    abstract_code = Bytecode.from_code(code)
 
     failed = []
     for hook, line, arg in hooks:
@@ -151,8 +159,23 @@ def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoTyp
         except InvalidLine:
             failed.append((hook, line, arg))
 
-    if len(failed) < len(hooks):
-        f.__code__ = abstract_code.to_code()
+    new_code = abstract_code.to_code() if len(failed) < len(hooks) else code
+
+    return new_code, failed
+
+
+@inject_hooks.register
+def _(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
+    """Bulk-inject a list of hooks into a function.
+
+    Hooks are specified via a list of tuples, where each tuple contains the hook
+    itself, the line number and the identifying argument passed to the hook.
+
+    Returns the list of hooks that failed to be injected.
+    """
+    new_code, failed = inject_hooks(f.__code__, hooks)
+
+    f.__code__ = new_code
 
     return failed
 
