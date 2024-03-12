@@ -7,7 +7,7 @@ import typing as t
 
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage._native import replace_in_tuple
-from ddtrace.internal.injection import inject_hooks_in_code
+from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.module import BaseModuleWatchdog
 
 
@@ -92,13 +92,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self.seen.add(code)
 
         path = str(Path(code.co_filename).resolve().relative_to(CWD))
-        lines = set(get_lines(code))
+
+        new_code, lines = instrument_all_lines(code, self.hook, path)
 
         self.lines[path] |= lines
-
-        new_code, failed = inject_hooks_in_code(code, [(self.hook, line, (path, line)) for line in lines])
-
-        assert not failed, "All lines instrumented"
 
         return new_code
 
