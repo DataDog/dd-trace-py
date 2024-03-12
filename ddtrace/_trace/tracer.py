@@ -136,7 +136,10 @@ def _default_span_processors_factory(
             if appsec_processor:
                 span_processors.append(appsec_processor)
         else:
-            if asm_config._api_security_enabled:
+            # api_security_active will keep track of the service status of APIManager
+            # we don't want to import the module if it was not started before due to
+            # one click activation of ASM via Remote Config
+            if asm_config._api_security_active:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
                 APIManager.disable()
