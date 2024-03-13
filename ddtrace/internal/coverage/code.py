@@ -27,12 +27,12 @@ def collapse_ranges(numbers):
         if number == end + 1:
             end = number
         else:
-            ranges.append(f"{start}-{end}" if start != end else str(end))
+            ranges.append((start, end))
             start = end = number
 
-    ranges.append(f"{start}-{end}" if start != end else str(end))
+    ranges.append((start, end))
 
-    return ", ".join(ranges)
+    return ranges
 
 
 def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
@@ -69,12 +69,9 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def __init__(self):
         super().__init__()
         self.seen = set()
+        self.coverage_enabled = False
         self.lines = defaultdict(set)
         self.covered = defaultdict(set)
-
-        import atexit
-
-        atexit.register(self.report)  # Quick and dirty coverage report
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -85,6 +82,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
+        if not self.coverage_enabled:
+            return
         path, line = arg
         lines = self.covered[path]
         if line in lines:
@@ -102,10 +101,41 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             n_covered = len(self.covered[path])
             if n_covered == 0:
                 continue
-            missed = collapse_ranges(sorted(lines - self.covered[path]))
+            missed = ",".join(collapse_ranges(sorted(lines - self.covered[path])))
             print(
                 f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%  [{missed}]"
             )
+
+    def clear_covered(self):
+        self.covered.clear()
+
+    def report_seen_lines(self, input_path: str = None):
+        """Generate the same data as expected by ddtrace.ci_visibility.coverage.build_payload:
+
+        if input_path is provided, filter files to only include that path, and make it relative to said path
+
+        "files": [
+            {
+                "filename": <String>,
+                "segments": [
+                    [Int, Int, Int, Int, Int],  # noqa:F401
+                ]
+            },
+            ...
+        ]
+        """
+        files = []
+        for path, lines in self.covered.items():
+            if None in lines:
+                breakpoint()
+            sorted_lines = sorted(lines)
+            collapsed_ranges = collapse_ranges(sorted_lines)
+            file_segments = []
+            for file_segment in collapsed_ranges:
+                file_segments.append([file_segment[0], 0, file_segment[1], 0, -1])
+            files.append({"filename": path, "segments": file_segments})
+
+        return files
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()

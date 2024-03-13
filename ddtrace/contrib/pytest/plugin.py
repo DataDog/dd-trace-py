@@ -49,6 +49,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
 from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
 from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
@@ -824,7 +825,8 @@ def pytest_runtest_protocol(item, nextitem):
 def pytest_load_initial_conftests(early_config, parser, args):
     from ddtrace.internal.coverage.code import ModuleCodeCollector
 
-    ModuleCodeCollector.install()
+    if USE_DD_COVERAGE:
+        ModuleCodeCollector.install()
 
 
 @pytest.hookimpl(hookwrapper=True)

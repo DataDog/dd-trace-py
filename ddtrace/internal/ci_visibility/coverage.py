@@ -1,5 +1,6 @@
 from itertools import groupby
 import json
+import os
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
@@ -9,11 +10,15 @@ from typing import Tuple  # noqa:F401
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
+
+USE_DD_COVERAGE = asbool(os.environ.get("_DD_USE_INTERNAL_COVERAGE", "false"))
 
 try:
     from coverage import Coverage
@@ -45,12 +50,18 @@ def _initialize_coverage(root_dir):
 
 
 def _start_coverage(root_dir: str):
+    if USE_DD_COVERAGE:
+        ModuleCodeCollector._instance.coverage_enabled = True
+        return
     coverage = _initialize_coverage(root_dir)
     coverage.start()
     return coverage
 
 
 def _stop_coverage(module):
+    if USE_DD_COVERAGE:
+        ModuleCodeCollector._instance.coverage_enabled = False
+        return
     if _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
         module._dd_coverage.erase()
@@ -58,6 +69,8 @@ def _stop_coverage(module):
 
 
 def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
+    if USE_DD_COVERAGE:
+        return ModuleCodeCollector._instance.coverage_enabled
     if not hasattr(module, "_dd_coverage"):
         if not silent_mode:
             log.warning("Datadog Coverage has not been initiated")
@@ -74,6 +87,8 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 
 
 def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
+    if USE_DD_COVERAGE:
+        return True
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
@@ -84,6 +99,18 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
 
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
+    if USE_DD_COVERAGE:
+        files = ModuleCodeCollector._instance.report_seen_lines(root_dir)
+        if not files:
+            return
+        span.set_tag_str(
+            COVERAGE_TAG_NAME,
+            json.dumps({"files": files}),
+        )
+        ModuleCodeCollector._instance.clear_covered()
+
+        return
+
     span_id = str(span.trace_id)
     if not _coverage_has_valid_data(coverage_data):
         return
