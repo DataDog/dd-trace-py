@@ -65,7 +65,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled):
+    def __init__(
+        self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled
+    ):
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
@@ -264,7 +266,13 @@ class LockCollector(collector.CaptureSamplerCollector):
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
-                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled, self.export_libdd_enabled
+                lock,
+                self.recorder,
+                self.tracer,
+                self.nframes,
+                self._capture_sampler,
+                self.endpoint_collection_enabled,
+                self.export_libdd_enabled,
             )
 
         self._set_original(FunctionWrapper(self.original, _allocate_lock))
