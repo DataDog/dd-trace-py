@@ -65,21 +65,21 @@ class _ProfiledLock(wrapt.ObjectProxy):
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
+    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled):
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
         self._self_max_nframes = max_nframes
         self._self_capture_sampler = capture_sampler
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
+        self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        self._export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
         # Check if libdd is available, if not, disable the feature
-        if self._export_libdd_enabled and not ddup.is_available:
-            self._export_libdd_enabled = False
+        if self._self_export_libdd_enabled and not ddup.is_available:
+            self._self_export_libdd_enabled = False
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
@@ -107,7 +107,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                if self._export_libdd_enabled:
+                if self._self_export_libdd_enabled:
                     thread_native_id = _threading.get_thread_native_id(thread_id)
 
                     handle = ddup.SampleHandle()
@@ -162,7 +162,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                         frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                        if self._export_libdd_enabled:
+                        if self._self_export_libdd_enabled:
                             thread_native_id = _threading.get_thread_native_id(thread_id)
 
                             handle = ddup.SampleHandle()
@@ -223,6 +223,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     nframes = attr.ib(type=int, default=config.max_frames)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
     tracer = attr.ib(default=None)
 
@@ -263,7 +264,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
-                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled
+                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled, self.export_libdd_enabled
             )
 
         self._set_original(FunctionWrapper(self.original, _allocate_lock))
