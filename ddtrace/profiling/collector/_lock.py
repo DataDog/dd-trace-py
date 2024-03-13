@@ -18,7 +18,6 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
-
 @event.event_class
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
@@ -79,9 +78,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
-        # Check if libdd is available, if not, disable the feature
-        if self._self_export_libdd_enabled and not ddup.is_available:
-            self._self_export_libdd_enabled = False
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
@@ -114,7 +110,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     handle = ddup.SampleHandle()
                     handle.push_lock_name(self._self_name)
-                    handle.push_acquire(end - start)  # AFAICT, capture_pct does not adjust anything here
+                    handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
                     handle.push_task_name(task_name)
@@ -169,7 +165,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle = ddup.SampleHandle()
                             handle.push_lock_name(self._self_name)
                             handle.push_release(
-                                end - self._self_acquired_at
+                                end - self._self_acquired_at,
+                                1
                             )  # AFAICT, capture_pct does not adjust anything here
                             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                             handle.push_task_id(task_id)
@@ -228,6 +225,10 @@ class LockCollector(collector.CaptureSamplerCollector):
     tracer = attr.ib(default=None)
 
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+
+    # Check if libdd is available, if not, disable the feature
+    if export_libdd_enabled and not ddup.is_available:
+        export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):
