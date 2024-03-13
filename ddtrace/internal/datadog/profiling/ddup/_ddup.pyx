@@ -206,13 +206,14 @@ cdef class SampleHandle:
                     string_view(<const char*>thread_name_bytes, len(thread_name_bytes))
             )
 
-    def push_task_id(self, task_id: int) -> None:
+    def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
-            ddup_push_task_id(self.ptr, task_id)
+            if task_id is not None:
+                ddup_push_task_id(self.ptr, task_id)
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:
-            if task_name:
+            if task_name is not None:
                 task_name_bytes = ensure_binary_or_empty(task_name)
                 ddup_push_task_name(self.ptr, string_view(<const char*>task_name_bytes, len(task_name_bytes)))
 
