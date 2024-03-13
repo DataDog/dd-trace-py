@@ -65,7 +65,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled):
+    def __init__(
+        self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled
+    ):
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
@@ -119,10 +121,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     if self._self_tracer is not None:
                         handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
-
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-
+                    handle.flush_sample()
                 else:
                     event = self.ACQUIRE_EVENT_CLASS(
                         lock_name=self._self_name,
@@ -178,10 +179,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                                 handle.push_span(
                                     self._self_tracer.current_span(), self._self_endpoint_collection_enabled
                                 )
-
                             for frame in frames:
                                 handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-
+                            handle.flush_sample()
                         else:
                             event = self.RELEASE_EVENT_CLASS(
                                 lock_name=self._self_name,
@@ -264,7 +264,13 @@ class LockCollector(collector.CaptureSamplerCollector):
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
-                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled, self.export_libdd_enabled
+                lock,
+                self.recorder,
+                self.tracer,
+                self.nframes,
+                self._capture_sampler,
+                self.endpoint_collection_enabled,
+                self.export_libdd_enabled,
             )
 
         self._set_original(FunctionWrapper(self.original, _allocate_lock))
