@@ -758,7 +758,7 @@ class Config(object):
                 flare_log_level = config.get("config", {}).get("log_level").upper()
                 os.makedirs(TRACER_FLARE_DIRECTORY)
 
-                file_name = "tracerflare-python_%s".format()
+                _ = "tracerflare-python_%s".format()
                 flare_log_file_path = "%s/%s.log".format()
                 os.environ.update(
                     {"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_log_file_path}

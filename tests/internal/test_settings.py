@@ -409,7 +409,7 @@ def test_tracer_flare_remote_config(testcase, config):
 
     config._handle_remoteconfig(_generate_agent_task())
 
-    assert os.environ.get("DD_TRACE_LOG_FILE") == None
-    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") == None
+    assert os.environ.get("DD_TRACE_LOG_FILE") is None
+    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is None
     # TODO: assert that logger doesn't have the file handler anymore
     # TODO: assert that the flare zip exists
