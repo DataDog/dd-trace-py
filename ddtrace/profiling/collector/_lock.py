@@ -75,7 +75,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
-        _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+        self._export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
         # Check if libdd is available, if not, disable the feature
         if self._export_libdd_enabled and not ddup.is_available:
