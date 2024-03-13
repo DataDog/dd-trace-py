@@ -1,4 +1,5 @@
 import sqlalchemy
+from sqlalchemy import text
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -40,7 +41,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
 
     def test_engine_traced(self):
         # ensures that the engine is traced
-        rows = self.conn.execute("SELECT 1").fetchall()
+        rows = self.conn.execute(text("SELECT 1")).fetchall()
         assert len(rows) == 1
 
         traces = self.pop_traces()
@@ -58,7 +59,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
     def test_engine_pin_service(self):
         # ensures that the engine service is updated with the PIN object
         Pin.override(self.engine, service="replica-db")
-        rows = self.conn.execute("SELECT 1").fetchall()
+        rows = self.conn.execute(text("SELECT 1")).fetchall()
         assert len(rows) == 1
 
         traces = self.pop_traces()
@@ -93,7 +94,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         ]
         for config, metric_value in matrix:
             with self.override_config("sqlalchemy", config):
-                self.conn.execute("SELECT 1").fetchall()
+                self.conn.execute(text("SELECT 1")).fetchall()
 
                 root = self.get_root_span()
                 assert_is_measured(root)

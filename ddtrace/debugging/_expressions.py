@@ -58,6 +58,24 @@ IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("C
 NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
 
 
+def instanceof(value: Any, type_qname: str) -> bool:
+    try:
+        # Try with a built-in type first
+        return isinstance(value, __builtins__[type_qname])  # type: ignore[index]
+    except KeyError:
+        # Otherwise we expect a fully qualified name
+        try:
+            for c in object.__getattribute__(type(value), "__mro__"):
+                module = object.__getattribute__(c, "__module__")
+                qualname = object.__getattribute__(c, "__qualname__")
+                if f"{module}.{qualname}" == type_qname:
+                    return True
+        except AttributeError:
+            log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
+
+    return False
+
+
 class DDCompiler:
     @classmethod
     def __getmember__(cls, o, a):
@@ -228,13 +246,13 @@ class DDCompiler:
 
     def _compile_arg_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
         # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
-        # arg_op_type    =>  filter | substring
+        # arg_op_type    =>  filter | substring | getmember | index | instanceof
         if not isinstance(ast, dict):
             return None
 
         _type, args = next(iter(ast.items()))
 
-        if _type not in {"filter", "substring", "getmember", "index"}:
+        if _type not in {"filter", "substring", "getmember", "index", "instanceof"}:
             return None
 
         if _type == "substring":
@@ -282,6 +300,16 @@ class DDCompiler:
             if not ci:
                 return None
             return self._call_function(self.__index__, cv, ci)
+
+        if _type == "instanceof":
+            v, t = args
+            cv = self._compile_predicate(v)
+            if not cv:
+                return None
+            ct = self._compile_predicate(t)
+            if not ct:
+                return None
+            return self._call_function(instanceof, cv, ct)
 
         return None
 

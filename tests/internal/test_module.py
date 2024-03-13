@@ -486,3 +486,19 @@ def test_module_watchdog_pkg_resources_support_already_imported():
     import ddtrace  # noqa
 
     p.resource_listdir("namespace_test.ns_module", ".")
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="importlib.resources.files is not available or broken in Python < 3.10"
+)
+@pytest.mark.subprocess(env=dict(NSPATH=str(Path(__file__).parent)))
+def test_module_watchdog_importlib_resources_files():
+    import os
+    import sys
+
+    sys.path.insert(0, os.getenv("NSPATH"))
+
+    from importlib.readers import MultiplexedPath
+    import importlib.resources as r
+
+    assert isinstance(r.files("namespace_test"), MultiplexedPath)

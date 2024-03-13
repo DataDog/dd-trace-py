@@ -23,7 +23,7 @@ log = get_logger(__name__)
 if system() == "Linux":
     try:
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
-    except BaseException:  # nosec
+    except Exception:  # nosec
         pass
 
 ARCHI = machine().lower()

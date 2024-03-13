@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an incompatibility between the handling of namespace module imports and
+    parts of the functionalities of the standard library importlib module.

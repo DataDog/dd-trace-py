@@ -1,18 +1,21 @@
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.internal import core
 from ddtrace.internal.module import is_module_installed
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import override_env
 
 
 FIXTURES_PATH = "tests/appsec/integrations/fixtures/patch_langchain.py"
 FIXTURES_MODULE = "tests.appsec.integrations.fixtures.patch_langchain"
+
+with override_env({"DD_IAST_ENABLED": "True"}):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
 @pytest.mark.skipif(not is_module_installed("langchain"), reason="Langchain tests work on 3.9 or higher")

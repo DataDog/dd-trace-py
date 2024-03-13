@@ -55,7 +55,12 @@ class ASMConfig(Env):
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
     _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_rate = 0.0
+    _api_security_sample_delay = Env.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+
+    # internal state of the API security Manager service.
+    # updated in API Manager enable/disable
+    _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
 
@@ -64,7 +69,7 @@ class ASMConfig(Env):
         "DD_APPSEC_WAF_TIMEOUT",
         default=DEFAULT.WAF_TIMEOUT,
         help_type=float,
-        help="Timeout in microseconds for WAF computations",
+        help="Timeout in milliseconds for WAF computations",
     )
 
     _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
@@ -84,6 +89,7 @@ class ASMConfig(Env):
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
+    _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA
     _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
@@ -109,6 +115,7 @@ class ASMConfig(Env):
         "_user_model_name_field",
         "_api_security_enabled",
         "_api_security_sample_rate",
+        "_api_security_sample_delay",
         "_api_security_parse_response_body",
         "_waf_timeout",
         "_iast_redaction_enabled",
@@ -119,6 +126,7 @@ class ASMConfig(Env):
         "_ep_max_stack_traces",
         "_ep_max_stack_trace_depth",
         "_asm_config_keys",
+        "_deduplication_enabled",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,
@@ -134,3 +142,4 @@ if not config._asm_libddwaf_available:
     config._asm_enabled = False
     config._asm_can_be_enabled = False
     config._iast_enabled = False
+    config._api_security_enabled = False
