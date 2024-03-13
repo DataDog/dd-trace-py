@@ -13,6 +13,7 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
+import os
 import re
 from typing import Dict  # noqa:F401
 
@@ -62,7 +63,9 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -70,6 +73,8 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
 _global_skipped_elements = 0
+
+COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
 
 def _is_pytest_8_or_later():
@@ -823,10 +828,10 @@ def pytest_runtest_protocol(item, nextitem):
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-
     if USE_DD_COVERAGE:
         ModuleCodeCollector.install()
+        if COVER_SESSION:
+            ModuleCodeCollector.start_coverage()
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -944,3 +949,9 @@ def pytest_ddtrace_get_item_test_name(item):
         if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
             return "%s.%s" % (item.cls.__name__, item.name)
     return item.name
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    if USE_DD_COVERAGE and COVER_SESSION:
+        ModuleCodeCollector.report()

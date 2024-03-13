@@ -93,23 +93,52 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # Take note of the line that was covered
         lines.add(line)
 
-    def report(self):
+    @classmethod
+    def report(cls):
+        if cls._instance is None:
+            return
+
+        instance = cls._instance
         print("COVERAGE REPORT:")
-        n = max(len(path) for path in self.lines) + 4
+        n = max(len(path) for path in instance.lines) + 4
         print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
-        for path, lines in sorted(self.lines.items()):
-            n_covered = len(self.covered[path])
+        for path, lines in sorted(instance.lines.items()):
+            n_covered = len(instance.covered[path])
             if n_covered == 0:
                 continue
-            missed = ",".join(collapse_ranges(sorted(lines - self.covered[path])))
+            missed_ranges = collapse_ranges(sorted(lines - instance.covered[path]))
+            missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
+            missed_str = f"  [{missed}]" if missed else ""
             print(
-                f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%  [{missed}]"
+                f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%{missed_str}"
             )
 
-    def clear_covered(self):
-        self.covered.clear()
+    @classmethod
+    def start_coverage(cls):
+        if cls._instance is None:
+            return
+        cls._instance.coverage_enabled = True
 
-    def report_seen_lines(self, input_path: str = None):
+    @classmethod
+    def stop_coverage(cls):
+        if cls._instance is None:
+            return
+        cls._instance.coverage_enabled = False
+
+    @classmethod
+    def clear_covered(cls):
+        if cls._instance is None:
+            return
+        cls._instance.covered.clear()
+
+    @classmethod
+    def coverage_enabled(cls):
+        if cls._instance is None:
+            return False
+        return cls._instance.coverage_enabled
+
+    @classmethod
+    def report_seen_lines(cls):
         """Generate the same data as expected by ddtrace.ci_visibility.coverage.build_payload:
 
         if input_path is provided, filter files to only include that path, and make it relative to said path
@@ -124,10 +153,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             ...
         ]
         """
+        if cls._instance is None:
+            return []
         files = []
-        for path, lines in self.covered.items():
-            if None in lines:
-                breakpoint()
+        for path, lines in cls._instance.covered.items():
             sorted_lines = sorted(lines)
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []

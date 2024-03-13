@@ -51,7 +51,7 @@ def _initialize_coverage(root_dir):
 
 def _start_coverage(root_dir: str):
     if USE_DD_COVERAGE:
-        ModuleCodeCollector._instance.coverage_enabled = True
+        ModuleCodeCollector.start_coverage()
         return
     coverage = _initialize_coverage(root_dir)
     coverage.start()
@@ -60,7 +60,7 @@ def _start_coverage(root_dir: str):
 
 def _stop_coverage(module):
     if USE_DD_COVERAGE:
-        ModuleCodeCollector._instance.coverage_enabled = False
+        ModuleCodeCollector.stop_coverage()
         return
     if _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
@@ -100,14 +100,14 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
     if USE_DD_COVERAGE:
-        files = ModuleCodeCollector._instance.report_seen_lines(root_dir)
+        files = ModuleCodeCollector.report_seen_lines()
         if not files:
             return
         span.set_tag_str(
             COVERAGE_TAG_NAME,
             json.dumps({"files": files}),
         )
-        ModuleCodeCollector._instance.clear_covered()
+        ModuleCodeCollector.clear_covered()
 
         return
 
