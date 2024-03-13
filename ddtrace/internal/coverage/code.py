@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+import linecache
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -95,17 +96,51 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         lines.add(line)
 
     def report(self):
-        print("COVERAGE REPORT:")
+        import os
+
+        try:
+            w, _ = os.get_terminal_size()
+        except OSError:
+            w = 80
+
+        def no_cover(path, line):
+            text = linecache.getline(path, line).strip()
+            _, _, comment = text.partition("#")
+            if comment:
+                command, _, option = comment[1:].strip().partition(":")
+                return command.strip() == "pragma" and option.strip() in {"nocover", "no cover"}
+            return False
+
+        # Title
+        print(" DATADOG LINE COVERAGE REPORT ".center(w, "="))
+
         n = max(len(path) for path in self.lines) + 4
+
+        # Header
         print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
+        print("-" * w)
+
+        total_lines = total_missed = 0
         for path, lines in sorted(self.lines.items()):
-            n_covered = len(self.covered[path])
+            covered = self.covered[path]
+            for line in list(lines):
+                if no_cover(path, line):
+                    lines - {line}
+                    covered - {line}
+            n_covered = len(covered)
             if n_covered == 0:
                 continue
-            missed = collapse_ranges(sorted(lines - self.covered[path]))
+            missed = collapse_ranges(sorted(lines - covered))
             print(
                 f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%  [{missed}]"
             )
+            total_lines += len(lines)
+            total_missed += len(lines) - n_covered
+
+        # Footer
+        print("-" * w)
+        covered = int((total_lines - total_missed) / total_lines * 100) if total_lines else 100
+        print(f"{'TOTAL':<{n}}{total_lines:>8}{total_missed:>8}{covered:>8}%")
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()
