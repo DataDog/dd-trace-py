@@ -102,8 +102,10 @@ def iast_context_span_deduplication_enabled(tracer):
             del WeakHash._vulnerability_quota
 
     try:
+        # Yield a context manager allowing to create several spans to test deduplication
         yield contextmanager(iast_aux)
     finally:
+        # Reset the cache to avoid side effects in other tests
         VulnerabilityBase._prepare_report._reset_cache()
 
 

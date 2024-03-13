@@ -283,6 +283,10 @@ def test_weak_check_hmac_secure(iast_span_defaults):
 def test_weak_hash_deduplication_expired_cache(
     iast_context_span_deduplication_enabled, deduplication_enabled, time_lapse
 ):
+    """
+    Test deduplication enabled/disabled over several spans
+    Test expired/non expired cache with different time_lapse
+    """
     import hashlib
     import time
 
