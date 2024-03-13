@@ -15,13 +15,54 @@ CWD = Path.cwd()
 _original_exec = exec
 
 
-def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, CodeType]]:
+def collapse_ranges(numbers):
+    # This function turns an ordered list of numbers into a list of ranges.
+    # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
+    # WARNING: Written by Copilot
+    if not numbers:
+        return ""
+    ranges = []
+    start = end = numbers[0]
+    for number in numbers[1:]:
+        if number == end + 1:
+            end = number
+        else:
+            ranges.append(f"{start}-{end}" if start != end else str(end))
+            start = end = number
+
+    ranges.append(f"{start}-{end}" if start != end else str(end))
+
+    return ", ".join(ranges)
+
+
+def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
+    # Topological sorting
     q = deque([code])
+    g = {}
+    p = {}
+    leaves: t.Deque[CodeType] = deque()
+
+    # Build the graph and the parent map
     while q:
         c = q.popleft()
-        for next_code in (_ for _ in c.co_consts if isinstance(_, CodeType)):
-            q.append(next_code)
-            yield (next_code, c)
+        new_codes = g[c] = {_ for _ in c.co_consts if isinstance(_, CodeType)}
+        if not new_codes:
+            leaves.append(c)
+            continue
+        for new_code in new_codes:
+            p[new_code] = c
+        q.extend(new_codes)
+
+    # Yield the code objects in topological order
+    while leaves:
+        c = leaves.popleft()
+        parent = p.get(c)
+        yield c, parent
+        if parent is not None:
+            children = g[parent]
+            children.remove(c)
+            if not children:
+                leaves.append(parent)
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
@@ -45,20 +86,26 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def hook(self, arg):
         path, line = arg
-        if line in self.covered[path]:
+        lines = self.covered[path]
+        if line in lines:
             # This line has already been covered
             return
 
         # Take note of the line that was covered
-        self.covered[path].add(line)
+        lines.add(line)
 
     def report(self):
         print("COVERAGE REPORT:")
+        n = max(len(path) for path in self.lines) + 4
+        print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
         for path, lines in sorted(self.lines.items()):
             n_covered = len(self.covered[path])
             if n_covered == 0:
                 continue
-            print(f"{path:60s} {int(n_covered/len(lines) * 100)}%")
+            missed = collapse_ranges(sorted(lines - self.covered[path]))
+            print(
+                f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%  [{missed}]"
+            )
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()
@@ -67,12 +114,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             # Not a code object we want to instrument
             return code
 
-        # Transform the module code object
-        new_code = self.instrument_code(code)
+        # Recursively instrument nested code objects, in topological order
+        # DEV: We need to make a list of the code objects because when we start
+        # mutating the parent code objects, the hashes maintained by the
+        # generator will be invalidated.
+        for nested_code, parent_code in list(collect_code_objects(code)):
+            # Instrument the code object
+            new_code = self.instrument_code(nested_code)
 
-        # Recursively instrument nested code objects
-        for nested_code, parent_code in collect_code_objects(new_code):
-            replace_in_tuple(parent_code.co_consts, nested_code, self.instrument_code(nested_code))
+            # If it has a parent, update the parent's co_consts to point to the
+            # new code object.
+            if parent_code is not None:
+                replace_in_tuple(parent_code.co_consts, nested_code, new_code)
 
         return new_code
 
