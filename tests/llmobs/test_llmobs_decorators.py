@@ -176,8 +176,9 @@ def test_llm_decorator_with_error(LLMObs, mock_llmobs_writer):
             model_name="test_model",
             model_provider="test_provider",
             session_id="test_session_id",
-            error="builtins.ValueError",
-            error_message="test_error",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
         )
     )
 
@@ -197,8 +198,9 @@ def test_non_llm_decorators_with_error(LLMObs, mock_llmobs_writer):
                 span,
                 decorator_name,
                 session_id="test_session_id",
-                error="builtins.ValueError",
-                error_message="test_error",
+                error=span.get_tag("error.type"),
+                error_message=span.get_tag("error.message"),
+                error_stack=span.get_tag("error.stack"),
             )
         )
 
