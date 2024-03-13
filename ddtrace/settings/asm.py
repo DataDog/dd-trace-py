@@ -63,7 +63,7 @@ class ASMConfig(Env):
         "DD_APPSEC_WAF_TIMEOUT",
         default=DEFAULT.WAF_TIMEOUT,
         help_type=float,
-        help="Timeout in microseconds for WAF computations",
+        help="Timeout in milliseconds for WAF computations",
     )
 
     _iast_redaction_enabled = Env.var(bool, "DD_IAST_REDACTION_ENABLED", default=True)
