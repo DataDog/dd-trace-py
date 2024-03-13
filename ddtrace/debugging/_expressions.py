@@ -39,6 +39,7 @@ import attr
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
+from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -56,6 +57,14 @@ def _is_identifier(name: str) -> bool:
 
 IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
 NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
+
+
+def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
+    value = "FALSE" if op == "and" else "TRUE"
+    if PY >= (3, 12):
+        return [Instr("COPY", 1), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
+
+    return [Instr(f"JUMP_IF_{value}_OR_POP", label)]
 
 
 class DDCompiler:
@@ -129,7 +138,9 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return ca + cb + [Instr("BINARY_%s" % _type.upper())]
+
+            short_circuit = Label()
+            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
