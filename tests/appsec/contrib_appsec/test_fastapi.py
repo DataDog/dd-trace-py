@@ -4,6 +4,7 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.fastapi_app.app import get_app
 
@@ -63,9 +64,16 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
-            fastapi_unpatch()
+            try:
+                # change timeout to 5 seconds to avoid flaky timeouts
+                # in CI due to multi-threading in FastAPI
+                previous_timeout = asm_config._waf_timeout
+                asm_config._waf_timeout = 5000.0
+                with utils.post_tracer(interface):
+                    yield interface
+            finally:
+                asm_config._waf_timeout = previous_timeout
+                fastapi_unpatch()
 
     def status(self, response):
         return response.status_code
