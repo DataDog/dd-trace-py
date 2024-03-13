@@ -11,6 +11,7 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
+DDTRACE_FILE_HANDLER_NAME = "ddtrace_file_handler"
 
 
 def configure_ddtrace_logger():
@@ -72,8 +73,19 @@ def _configure_ddtrace_file_logger(logger):
         log_formatter = logging.Formatter(log_format)
         ddtrace_file_handler.setLevel(file_log_level_value)
         ddtrace_file_handler.setFormatter(log_formatter)
+        ddtrace_file_handler.set_name(DDTRACE_FILE_HANDLER_NAME)
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
+
+
+# def _disable_ddtrace_file_logger(logger: DDLogger) -> None:
+#     handler_to_remove = None
+#     for handler in logger.handlers():
+#         if handler.name == DDTRACE_FILE_HANDLER_NAME:
+#             handler_to_remove = handler
+#             break
+#     logger.removeHandler(handler_to_remove)
+#     logger.debug("ddtrace logs will not be routed to the file handler anymore")
 
 
 def _configure_log_injection():

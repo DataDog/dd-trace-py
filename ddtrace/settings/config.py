@@ -731,7 +731,7 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data, test_tracer=None):
+    def _handle_remoteconfig(self, data):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
             log.warning("unexpected RC payload %r", data)
@@ -758,26 +758,24 @@ class Config(object):
                 flare_log_level = config.get("config", {}).get("log_level").upper()
                 os.makedirs(TRACER_FLARE_DIRECTORY)
 
+                file_name = "tracerflare-python_%s".format()
                 flare_log_file_path = "%s/%s.log".format()
-                # Update these for consistency
                 os.environ.update(
                     {"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_log_file_path}
                 )
-                # Update the logger
                 _configure_ddtrace_file_logger(log)
                 return
 
     def _handle_agent_task_product(self, configs: List[dict]) -> None:
         for config in configs:
             if config and config.get("task_type") == "tracer_flare":
-                # Clear these so log behavior is reverted
+                # Revert flare log configurations
                 os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
-                os.environ.pop("DD_TRACE_LOG_FILE")
-                # log.removeHandler()
-                # collect log file
-                # collect config files
-                # zip
-                # send back to agent
+                _ = os.environ.pop("DD_TRACE_LOG_FILE")
+                # _disable_ddtrace_file_logger(log)
+
+                # TODO: Send flare
+
                 return
 
     def _handle_apm_tracing_product(self, config: dict) -> None:

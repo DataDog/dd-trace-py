@@ -351,3 +351,65 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         env=env,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+def _generate_agent_config(log_level: str) -> dict:
+    return {
+        "metadata": [
+            {
+                "id": "flare-log-level.%s".format(),
+                "product_name": "AGENT_CONFIG",
+            }
+        ],
+        "config": [{"config": {"log_level": log_level}, "name": "flare-log-level.%s".format()}],
+    }
+
+
+def _generate_agent_task() -> dict:
+    return {
+        "metadata": [
+            {
+                "id": "id1",
+                "product_name": "AGENT_TASK",
+            },
+            {
+                "id": "id2",
+                "product_name": "AGENT_TASK",
+            },
+        ],
+        "config": [
+            False,
+            {
+                "args": {"case_id": "111", "hostname": "myhostname", "user_handle": "user.name@datadoghq.com"},
+                "task_type": "tracer_flare",
+                "uuid": "abc",
+            },
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    [
+        ("DEBUG"),
+        ("INFO"),
+        ("invalidloglevel"),
+    ],
+)
+def test_tracer_flare_remote_config(testcase, config):
+    log_level = testcase
+    # Pop these just in case
+    os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
+    os.environ.pop("DD_TRACE_LOG_FILE")
+    config._handle_remoteconfig(_generate_agent_config(log_level))
+
+    assert os.environ.get("DD_TRACE_LOG_FILE").startswith("tracerflare-python_")
+    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") == log_level
+    # TODO: assert that logger has new file handler
+
+    config._handle_remoteconfig(_generate_agent_task())
+
+    assert os.environ.get("DD_TRACE_LOG_FILE") == None
+    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") == None
+    # TODO: assert that logger doesn't have the file handler anymore
+    # TODO: assert that the flare zip exists
