@@ -102,8 +102,8 @@ class CustomDict(dict):
         # Test literal values
         (42, {}, 42),
         (True, {}, True),
-        ({"isUndefined": "foobar"}, {"bar": 42}, True),
-        ({"isUndefined": "bar"}, {"bar": 42}, False),
+        ({"isDefined": "foobar"}, {"bar": 42}, False),
+        ({"isDefined": "bar"}, {"bar": 42}, True),
         ({"instanceof": [{"ref": "bar"}, "int"]}, {"bar": 42}, True),
         ({"instanceof": [{"ref": "bar"}, "BaseException"]}, {"bar": RuntimeError()}, True),
         (
