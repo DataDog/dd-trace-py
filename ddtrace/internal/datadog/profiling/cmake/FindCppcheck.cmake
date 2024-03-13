@@ -10,12 +10,14 @@ include(ExternalProject)
 
 # Build cppcheck from sources
 if (DO_CPPCHECK)
-  ExternalProject_Add(cppcheck_project
-    GIT_REPOSITORY https://github.com/danmar/cppcheck.git
-    GIT_TAG "2.13.3"
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
-  )
-  set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
+  if (NOT CPPCHECK_EXECUTABLE OR NOT EXISTS "${CPPCHECK_EXECUTABLE}")
+    ExternalProject_Add(cppcheck_project
+      GIT_REPOSITORY https://github.com/danmar/cppcheck.git
+      GIT_TAG "2.13.3"
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
+    )
+    set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
+  endif()
 
   # The function we use to register targets for cppcheck would require us to run separate
   # commands for each target, which is annoying.  Instead we'll consolidate all the targets
@@ -53,6 +55,7 @@ function(add_cppcheck_target)
 
     # Append include directories to the command
     foreach(INCLUDE_DIR ${ARG_INCLUDE})
+      message(STATUS "Adding include directory to cppcheck: ${INCLUDE_DIR}")
       list(APPEND cppcheck_cmd -I ${INCLUDE_DIR})
     endforeach()
 

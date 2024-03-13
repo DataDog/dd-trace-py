@@ -204,10 +204,16 @@ add_compiler_args() {
     -C|--cppcheck)
       cmake_args+=(${compiler_args["cppcheck"]})
       set_clang
+      if command -v cppcheck &> /dev/null; then
+        cmake_args+=(-DCPPCHECK_EXECUTABLE=$(which cppcheck))
+      fi
       ;;
     -I|--infer)
       cmake_args+=(${compiler_args["infer"]})
       set_clang
+      if command -v infer &> /dev/null; then
+        cmake_args+=(-DInfer_EXECUTABLE=$(which infer))
+      fi
       ;;
     -T|--clangtidy)
       cmake_args+=(${compiler_args["clangtidy"]})

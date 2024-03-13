@@ -6,22 +6,24 @@ endif()
 include(ExternalProject)
 # Only grab infer dependencies if we need to
 if (DO_INFER)
-    set(TAG_INFER
-        "v1.1.0"
-        CACHE STRING "infer github tag")
+    if (NOT Infer_EXECUTABLE OR NOT EXISTS "${Infer_EXECUTABLE}")
+        set(TAG_INFER
+            "v1.1.0"
+            CACHE STRING "infer github tag")
 
-    set(Infer_BUILD_DIR ${CMAKE_BINARY_DIR}/infer)
-    set(Infer_ROOT ${Infer_BUILD_DIR}/infer-${TAG_LIBDATADOG})
+        set(Infer_BUILD_DIR ${CMAKE_BINARY_DIR}/infer)
+        set(Infer_ROOT ${Infer_BUILD_DIR}/infer-${TAG_LIBDATADOG})
 
-    message(STATUS "${CMAKE_CURRENT_LIST_DIR}/tools/fetch_infer.sh ${TAG_INFER} ${Infer_ROOT}")
-    execute_process(
-      COMMAND "${CMAKE_CURRENT_LIST_DIR}/tools/fetch_infer.sh" ${TAG_INFER} ${Infer_ROOT}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-      COMMAND_ERROR_IS_FATAL ANY
-    )
+        message(STATUS "${CMAKE_CURRENT_LIST_DIR}/tools/fetch_infer.sh ${TAG_INFER} ${Infer_ROOT}")
+        execute_process(
+          COMMAND "${CMAKE_CURRENT_LIST_DIR}/tools/fetch_infer.sh" ${TAG_INFER} ${Infer_ROOT}
+          WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+          COMMAND_ERROR_IS_FATAL ANY
+        )
 
-    set(Infer_DIR "${Infer_ROOT}")
-    set(Infer_EXECUTABLE "${Infer_DIR}/bin/infer")
+        set(Infer_DIR "${Infer_ROOT}")
+        set(Infer_EXECUTABLE "${Infer_DIR}/bin/infer")
+    endif()
 endif()
 
 # Add a target for using infer.  It does nothing if DO_INFER is not set
