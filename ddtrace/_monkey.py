@@ -229,6 +229,10 @@ def patch_all(**patch_modules):
 
         patch_iast()
 
+    from ddtrace.appsec._common_module_patches import patch_common_modules
+
+    patch_common_modules()
+
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
     # type: (bool, str, Union[List[str], bool]) -> None
