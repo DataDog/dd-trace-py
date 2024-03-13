@@ -21,14 +21,21 @@ class deduplication:
     def get_last_time_reported(self, raw_log_hash: int) -> float:
         return self.reported_logs.get(raw_log_hash, 0.0)
 
+    def _reset_cache(self):
+        """
+        Reset the cache of reported logs
+        For testing purposes only
+        """
+        self.reported_logs.clear()
+
     def __call__(self, *args, **kwargs):
         result = None
         if asm_config._deduplication_enabled:
             raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))
-            last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF)
+            last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF) + self._time_lapse
             current = monotonic()
             if current > last_reported_timestamp:
-                self.reported_logs[raw_log_hash] = current + self._time_lapse
+                self.reported_logs[raw_log_hash] = current
                 self.reported_logs.move_to_end(raw_log_hash)
                 if len(self.reported_logs) >= self._max_cache_size:
                     self.reported_logs.popitem(last=False)

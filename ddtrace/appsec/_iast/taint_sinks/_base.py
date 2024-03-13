@@ -132,7 +132,6 @@ class VulnerabilityBase(Operation):
     def report(cls, evidence_value="", sources=None):
         # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug(

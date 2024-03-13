@@ -160,12 +160,13 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
     deduplication._time_lapse = 0.1
     try:
         with override_global_config(dict(_asm_enabled=True)):
+            sleep(0.2)
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
             list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
             telemetry_writer.reset_queues()
-            sleep(1)
+            sleep(0.2)
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
             list_metrics_logs = list(telemetry_writer._logs)
