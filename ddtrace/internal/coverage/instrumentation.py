@@ -17,10 +17,18 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
         try:
             if instr.lineno == last_lineno:
                 continue
+
             last_lineno = instr.lineno
+            if last_lineno is None:
+                continue
+
             if instr.name in ("NOP", "RESUME"):
                 continue
+
+            # Inject the hook at the beginning of the line
             abstract_code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
+
+            # Track the line number
             lines.add(last_lineno)
         except AttributeError:
             # pseudo-instruction (e.g. label)
