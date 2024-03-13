@@ -121,10 +121,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     if self._self_tracer is not None:
                         handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
-
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-
+                    handle.flush_sample()
                 else:
                     event = self.ACQUIRE_EVENT_CLASS(
                         lock_name=self._self_name,
@@ -180,10 +179,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                                 handle.push_span(
                                     self._self_tracer.current_span(), self._self_endpoint_collection_enabled
                                 )
-
                             for frame in frames:
                                 handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-
+                            handle.flush_sample()
                         else:
                             event = self.RELEASE_EVENT_CLASS(
                                 lock_name=self._self_name,
