@@ -1218,9 +1218,14 @@ def test_debugger_exception_conditional_function_probe():
                 dsl="expr.__class__.__name__ == 'Exception'",
                 callable=dd_compile(
                     {
-                        "eq": [
-                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
-                            "Exception",
+                        "and": [
+                            {"isDefined": "@exception"},
+                            {
+                                "eq": [
+                                    {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                                    "Exception",
+                                ]
+                            },
                         ]
                     }
                 ),

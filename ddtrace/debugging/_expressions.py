@@ -8,7 +8,7 @@ Full grammar:
 
     predicate               =>  <direct_predicate> | <arg_predicate> | <value_source>
     direct_predicate        =>  {"<direct_predicate_type>": <predicate>}
-    direct_predicate_type   =>  not | isEmpty | isUndefined
+    direct_predicate_type   =>  not | isEmpty | isDefined
     value_source            =>  <literal> | <operation>
     literal                 =>  <number> | true | false | "string"
     number                  =>  0 | ([1-9][0-9]*\.[0-9]+)
@@ -36,6 +36,7 @@ from typing import Tuple
 from typing import Union
 
 import attr
+import bytecode
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -56,6 +57,13 @@ def _is_identifier(name: str) -> bool:
 
 IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
 NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
+
+
+def binary_op(op: str) -> Instr:
+    if PY >= (3, 11):
+        return Instr("BINARY_OP", getattr(bytecode.BinaryOp, op.upper()))
+
+    return Instr(f"BINARY_{op.upper()}")
 
 
 class DDCompiler:
@@ -92,22 +100,22 @@ class DDCompiler:
 
     def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
-        # direct_predicate_type  =>  not | isEmpty | isUndefined
+        # direct_predicate_type  =>  not | isEmpty | isDefined
         if not isinstance(ast, dict):
             return None
 
         _type, arg = next(iter(ast.items()))
 
-        if _type not in {"not", "isEmpty", "isUndefined"}:
+        if _type not in {"not", "isEmpty", "isDefined"}:
             return None
 
         value = self._compile_predicate(arg)
         if value is None:
             raise ValueError("Invalid argument: %r" % arg)
 
-        if _type == "isUndefined":
+        if _type == "isDefined":
             value.append(Instr("LOAD_FAST", "_locals"))
-            value.append(NOT_IN_OPERATOR_INSTR)
+            value.append(IN_OPERATOR_INSTR)
         else:
             value.append(Instr("UNARY_NOT"))
 
@@ -129,7 +137,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return ca + cb + [Instr("BINARY_%s" % _type.upper())]
+            return ca + cb + [binary_op(_type)]
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
