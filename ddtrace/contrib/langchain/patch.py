@@ -285,7 +285,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
                         "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                        integration.trunc(message.content),
+                        integration.trunc(str(message.content)),
                     )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
@@ -376,7 +376,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
                         "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                        integration.trunc(message.content),
+                        integration.trunc(str(message.content)),
                     )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
