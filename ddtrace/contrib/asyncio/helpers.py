@@ -64,7 +64,7 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
     """
     deprecate(
         "ddtrace.contrib.asyncio.run_in_executor(..) is deprecated. The ddtrace library fully supports propagating"
-        " trace contextes to async tasks. No additional configurations are required.",
+        " trace contexts to async tasks. No additional configurations are required.",
         version="3.0.0",
     )
     tracer = tracer or ddtrace.tracer
