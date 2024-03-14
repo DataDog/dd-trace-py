@@ -39,7 +39,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t timestamp_ns = 0;
+    int64_t endtime_ns = 0; // end of the event
 
   public:
     // Helpers
@@ -74,6 +74,8 @@ class Sample
                     uint64_t address,          // for ddog_prof_Location
                     int64_t line               // for ddog_prof_Location
     );
+
+    void push_endtime_ns(int64_t endtime_ns);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

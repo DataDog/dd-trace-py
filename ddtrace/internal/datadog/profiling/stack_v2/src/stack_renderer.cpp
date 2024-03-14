@@ -29,6 +29,20 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         return;
     }
 
+    // Get the current time in ns in a way compatible with python's time.monotonic_ns(), which is backed by
+    // clock_gettime(CLOCK_MONOTONIC) on linux and mach_absolute_time() on macOS.
+    // This is not the same as std::chrono::steady_clock, which is backed by clock_gettime(CLOCK_MONOTONIC_RAW)
+    // (although this is underspecified in the standard)
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        // This is not a fatal error, since timeline is in beta
+        // TODO fix this
+        return;
+    } else {
+        auto now_ns = static_cast<int64_t>(ts.tv_sec) * 1000000000 + static_cast<int64_t>(ts.tv_nsec);
+        ddup_push_endtime_ns(sample, now_ns);
+    }
+
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, 1000 * wall_time_us, 1);
 }

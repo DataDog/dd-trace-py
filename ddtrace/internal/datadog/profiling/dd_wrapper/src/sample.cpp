@@ -15,12 +15,6 @@ Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 
     // Initialize other state
     locations.reserve(max_nframes + 1); // +1 for a "truncated frames" virtual frame
-
-    // Initialize the timestamp; this means that event timestamp will correspond to the time the
-    // Sample was generated, rather than the same of the event, but we're just kinda/sorta mocking the
-    // interface for now
-    std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
-    timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 }
 
 void
@@ -136,7 +130,7 @@ Sample::flush_sample()
         .labels = { labels.data(), cur_label },
     };
 
-    const bool ret = profile_state.collect(sample, timestamp_ns);
+    const bool ret = profile_state.collect(sample, endtime_ns);
     clear_buffers();
     return ret;
 }
@@ -319,6 +313,12 @@ Sample::push_class_name(std::string_view class_name)
         return false;
     }
     return true;
+}
+
+void
+Sample::push_endtime_ns(int64_t _endtime_ns)
+{
+    endtime_ns = _endtime_ns;
 }
 
 ddog_prof_Profile&

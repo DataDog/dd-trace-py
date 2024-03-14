@@ -247,6 +247,12 @@ ddup_push_frame(Datadog::Sample* sample,
 }
 
 void
+ddup_push_endtime_ns(Datadog::Sample* sample, int64_t endtime_ns)
+{
+    sample->push_endtime_ns(endtime_ns);
+}
+
+void
 ddup_flush_sample(Datadog::Sample* sample)
 {
     sample->flush_sample();

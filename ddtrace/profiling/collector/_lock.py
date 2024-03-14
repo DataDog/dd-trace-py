@@ -18,6 +18,20 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
+#DEBUG
+import logging
+LOG = logging.getLogger(__name__)
+import io
+import contextlib
+from objprint import op
+
+def log_obj(obj):
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        op(obj)  # Use objprint's op function to print the object to the redirected stdout
+        output = buf.getvalue()
+    LOG.error(output)
+
+
 @event.event_class
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
@@ -106,10 +120,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 if self._self_export_libdd_enabled:
+                    log_obj(self)
                     thread_native_id = _threading.get_thread_native_id(thread_id)
 
                     handle = ddup.SampleHandle()
-                    handle.push_lock_name(self._self_name)
+                    handle.push_endtime_ns(end)
+                    handle.push_lock_name(self._capture_sampler.lock_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -163,6 +179,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             thread_native_id = _threading.get_thread_native_id(thread_id)
 
                             handle = ddup.SampleHandle()
+                            handle.push_endtime_ns(end)
                             handle.push_lock_name(self._self_name)
                             handle.push_release(
                                 end - self._self_acquired_at,

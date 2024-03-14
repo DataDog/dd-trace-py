@@ -288,7 +288,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     )
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, now_ns = 0):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
     thread_id_ignore_list = {
         thread_id
@@ -326,6 +326,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_endtime_ns(now_ns)
                     handle.push_walltime(wall_time, 1)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -353,6 +354,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if nframes:
             if use_libdd:
                 handle = ddup.SampleHandle()
+                handle.push_endtime_ns(now_ns)
                 handle.push_cputime( cpu_time, 1)
                 handle.push_walltime( wall_time, 1)
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -385,6 +387,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_endtime_ns(now_ns)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_exceptioninfo(exc_type, 1)
                     handle.push_class_name(frames[0].class_name)
@@ -553,6 +556,7 @@ class StackCollector(collector.PeriodicCollector):
                 wall_time,
                 self._thread_span_links,
                 self.endpoint_collection_enabled,
+                now_ns=now,
             )
 
         used_wall_time_ns = compat.monotonic_ns() - now
