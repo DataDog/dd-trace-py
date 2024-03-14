@@ -43,9 +43,11 @@ class AppSecIastSpanProcessor(SpanProcessor):
     def on_span_start(self, span):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
+            log.debug("IAST>> [%s] Span type is not web, skipping processing", span.span_id)
             return
 
         if not _is_iast_enabled():
+            log.debug("IAST>> [%s] IAST not enabled, skipping processing", span.span_id)
             return
 
         request_iast_enabled = False
@@ -54,6 +56,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
             request_iast_enabled = True
             create_context()
+            log.debug("IAST>> [%s] Span is going to be analyzed", span.span_id)
+        else:
+            log.debug("IAST>> [%s] Span is NOT going to be analyzed", span.span_id)
 
         core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
 
@@ -67,29 +72,37 @@ class AppSecIastSpanProcessor(SpanProcessor):
               (e.g. by sampling), then it is not set.
         """
         if span.span_type != SpanTypes.WEB:
+            log.debug("IAST>> [%s] Span type is not web, skipping processing", span.span_id)
             return
 
         if not core.get_item(IAST.REQUEST_IAST_ENABLED, span=span):
+            log.debug("IAST>> [%s] Span not analyzed, setting metric to 0.0", span.span_id)
             span.set_metric(IAST.ENABLED, 0.0)
             return
 
+        log.debug("IAST>> [%s] Span was indeed analyzed", span.span_id)
         from ._taint_tracking import reset_context  # noqa: F401
         from ._utils import _iast_report_to_str
 
+        log.debug("IAST>> [%s] setting metric to 1.0", span.span_id)
         span.set_metric(IAST.ENABLED, 1.0)
 
         data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
         if data:
+            log.debug("IAST>> [%s] setting json and manual keep", span.span_id)
             span.set_tag_str(IAST.JSON, _iast_report_to_str(data))
             _asm_manual_keep(span)
 
+        log.debug("IAST>> [%s] setting request tainted metric and tags", span.span_id)
         _set_metric_iast_request_tainted()
         _set_span_tag_iast_request_tainted(span)
         _set_span_tag_iast_executed_sink(span)
+        log.debug("IAST>> [%s] reset context", span.span_id)
         reset_context()
 
         if span.get_tag(ORIGIN_KEY) is None:
             span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
+        log.debug("IAST>> [%s] OCE release request", span.span_id)
         oce.release_request()
