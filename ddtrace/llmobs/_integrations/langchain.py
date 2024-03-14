@@ -7,7 +7,6 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import METRICS
