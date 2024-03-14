@@ -1,10 +1,12 @@
 import base64
 import json
+from typing import Any
 
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
+from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
 
 
@@ -45,8 +47,8 @@ def get_stream(params):
     return stream
 
 
-def inject_context(trace_data, endpoint_service, dsm_identifier):
-    # type: (dict, str, str) -> None
+def inject_context(trace_data, endpoint_service, dsm_identifier, data):
+    # type: (dict, str, Any, str) -> None
     """
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
     :dsm_identifier: the identifier for the topic/queue/stream/etc
@@ -56,24 +58,25 @@ def inject_context(trace_data, endpoint_service, dsm_identifier):
     from . import data_streams_processor as processor
 
     path_type = "type:{}".format(endpoint_service)
+    payload_size = _calculate_byte_size(data)
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
+    ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size)
     DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def handle_kinesis_produce(stream, dd_ctx_json):
+def handle_kinesis_produce(stream, dd_ctx_json, records):
     if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
-        inject_context(dd_ctx_json, "kinesis", stream)
+        inject_context(dd_ctx_json, "kinesis", stream, records)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params):
+def handle_sqs_sns_produce(endpoint_service, trace_data, params, data):
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
     elif endpoint_service == "sns":
         dsm_identifier = get_topic_arn(params)
-    inject_context(trace_data, endpoint_service, dsm_identifier)
+    inject_context(trace_data, endpoint_service, dsm_identifier, data)
 
 
 def handle_sqs_prepare(params):
@@ -129,13 +132,14 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
+            payload_size = _calculate_byte_size(message)
             ctx = DsmPathwayCodec.decode(context_json, processor())
-            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
+            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, records):
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -144,17 +148,19 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
+    payload_size = _calculate_byte_size(records)
     ctx = DsmPathwayCodec.decode(context_json, processor())
     ctx.set_checkpoint(
         ["direction:in", "topic:" + stream, "type:kinesis"],
         edge_start_sec_override=time_estimate,
         pathway_start_sec_override=time_estimate,
+        payload_size=payload_size
     )
 
 
-def handle_kinesis_receive(params, time_estimate, context_json):
+def handle_kinesis_receive(params, time_estimate, context_json, records):
     try:
-        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, records)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 

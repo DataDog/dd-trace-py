@@ -62,7 +62,7 @@ def inject_trace_to_kinesis_stream_data(record, span, stream, inject_trace_conte
             if config.botocore["distributed_tracing"] and inject_trace_context:
                 HTTPPropagator.inject(span.context, data_obj["_datadog"])
 
-            core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"]])
+            core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"], data])
 
             data_json = json.dumps(data_obj)
 
@@ -130,7 +130,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 _, data_obj = get_kinesis_data_object(record["Data"])
                 time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
                 core.dispatch(
-                    f"botocore.{endpoint_name}.{operation}.post", [params, time_estimate, data_obj.get("_datadog")]
+                    f"botocore.{endpoint_name}.{operation}.post", [params, time_estimate, data_obj.get("_datadog"), record["Data"]]
                 )
 
         except Exception as e:
