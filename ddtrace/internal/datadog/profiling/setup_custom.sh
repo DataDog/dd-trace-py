@@ -14,28 +14,23 @@ highest_clang=""
 highest_clangxx=""
 
 # Function to find the highest version of compilers
+# Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {
   local base_name=$1
   local highest_var_name=$2
-  local highest_version=0
 
   # Try to find the latest versions of both GCC and Clang
   # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is just a
   # a high number since Clang is on version 17)
-  # TODO provide a passthrough in CI where we want to use a pinned or specified
-  # version. Not a big deal since this script is currently only used for local
-  # development.
   for version in {20..5}; do
     if command -v "${base_name}-${version}" &> /dev/null; then
-      if [ $version -gt $highest_version ]; then
-        highest_version=$version
-        eval "$highest_var_name=${base_name}-${version}"
-      fi
+      eval "$highest_var_name=${base_name}-${version}"
+      return
     fi
   done
 
   # Check for the base version if no numbered version was found
-  if [ $highest_version -eq 0 ] && command -v "$base_name" &> /dev/null; then
+  if command -v "$base_name" &> /dev/null; then
     eval "$highest_var_name=$base_name"
   fi
 }
@@ -47,7 +42,6 @@ find_highest_compiler_version clang highest_clang
 find_highest_compiler_version clang++ highest_clangxx
 
 # Get the highest clang_tidy from the $highest_clangxx variable
-# "clang++-17" -> "clang-tidy-17"
 CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 
 ### Build setup
@@ -85,8 +79,12 @@ targets=("dd_wrapper")
 
 # Helper functions for finding the compiler(s)
 set_clang() {
-  export CC=$highest_clang
-  export CXX=$highest_clangxx
+  if [ -z "$CC" ]; then
+    export CC=$highest_clang
+  fi
+  if [ -z "$CXX" ]; then
+    export CXX=$highest_clangxx
+  fi
   cmake_args+=(
     -DCMAKE_C_COMPILER=$CC
     -DCMAKE_CXX_COMPILER=$CXX
@@ -94,8 +92,13 @@ set_clang() {
 }
 
 set_gcc() {
-  export CC=$highest_gcc
-  export CXX=$highest_gxx
+  # Only set CC or CXX if they're not set
+  if [ -z "$CC" ]; then
+    export CC=$highest_gcc
+  fi
+  if [ -z "$CXX" ]; then
+    export CXX=$highest_gxx
+  fi
   cmake_args+=(
     -DCMAKE_C_COMPILER=$CC
     -DCMAKE_CXX_COMPILER=$CXX
