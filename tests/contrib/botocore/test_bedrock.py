@@ -578,6 +578,7 @@ class TestLLMObsBedrock:
                     output_messages=[{"content": ""}],
                     error=span.get_tag("error.type"),
                     error_message=span.get_tag("error.message"),
+                    error_stack=span.get_tag("error.stack"),
                     tags={"service": "aws.bedrock-runtime", "ml_app": "aws.bedrock-runtime"},
                 )
             ),
