@@ -11,7 +11,7 @@ All metrics, logs, and traces submitted from the LangChain integration are tagge
 - ``langchain.request.api_key``: LLM provider API key used to make the request (obfuscated into the format ``...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
 **Note**: For ``langchain>=0.1.0``, this integration drops tracing support for the following deprecated langchain operations in favor
-of the recommended alternatives in the `langchain <https://python.langchain.com/docs/changelog/core>`_ changelog.
+of the recommended alternatives in the `langchain changelog docs <https://python.langchain.com/docs/changelog/core>`_.
 This includes:
 
 - ``langchain.chain.Chain.run/arun`` with ``langchain.chain.Chain.invoke/ainvoke``
