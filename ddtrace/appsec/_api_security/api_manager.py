@@ -164,7 +164,7 @@ class APIManager(Service):
         if waf_payload:
             waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
             result = call_waf_callback(waf_payload)
-            if result is None or not result.derivatives:
+            if result is None:
                 return
             for meta, schema in result.derivatives.items():
                 b64_gzip_content = b""
