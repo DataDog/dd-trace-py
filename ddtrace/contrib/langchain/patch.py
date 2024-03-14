@@ -320,8 +320,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
             else:
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
-        raise Exception("hiya")
         if isinstance(instance, langchain.chat_models.ChatOpenAI):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
