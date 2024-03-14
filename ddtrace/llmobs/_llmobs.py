@@ -17,7 +17,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -70,10 +69,16 @@ class LLMObs(Service):
 
         if not config._dd_api_key:
             cls.enabled = False
-            raise ValueError("DD_API_KEY is required for sending LLMObs data")
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
         if not config._llmobs_ml_app_name:
             cls.enabled = False
-            raise ValueError("DD_LLMOBS_APP_NAME is required for sending LLMObs data")
+            raise ValueError(
+                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
