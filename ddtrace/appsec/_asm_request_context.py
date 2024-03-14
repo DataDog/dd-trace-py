@@ -15,6 +15,7 @@ from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -245,7 +246,7 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[DDWaf_result]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
