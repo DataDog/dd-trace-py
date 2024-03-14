@@ -822,9 +822,19 @@ def pytest_runtest_protocol(item, nextitem):
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
+    from envier import En
+
     from ddtrace.internal.coverage.code import ModuleCodeCollector
 
-    ModuleCodeCollector.install()
+    class CoverageConfig(En):
+        __prefix__ = "dd_coverage"
+
+        enabled = En.v(bool, "enabled", default=False)
+
+    config = CoverageConfig()
+
+    if config.enabled:
+        ModuleCodeCollector.install()
 
 
 @pytest.hookimpl(hookwrapper=True)
