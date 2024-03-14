@@ -70,6 +70,10 @@ def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optio
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
+    COUNT_TOTAL_HOOK_RUNS = 0
+    COUNT_TOTAL_INSTANCE_CHECKS = 0
+    COUNT_TOTAL_CONTEXT_LINE_CHECKS = 0
+
     def __init__(self):
         super().__init__()
         self.seen = set()
@@ -86,14 +90,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
+        self.__class__.COUNT_TOTAL_HOOK_RUNS += 1
         path, line = arg
         if self.coverage_enabled:
             lines = self.covered[path]
+            self.__class__.COUNT_TOTAL_INSTANCE_CHECKS += 1
             if line not in lines:
                 # This line has already been covered
                 lines.add(line)
 
         if ctx_coverage_enabed.get():
+            self.__class__.COUNT_TOTAL_CONTEXT_LINE_CHECKS += 1
             ctx_lines = ctx_covered.get()[path]
             if line not in ctx_lines:
                 ctx_lines.add(line)
@@ -104,12 +111,20 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return
 
         instance = cls._instance
-        print("COVERAGE REPORT:")
+        total_executable_lines = 0
+        total_covered_lines = 0
+        total_missed_lines = 0
         n = max(len(path) for path in instance.lines) + 4
+        width = n + 8 + 8 + 8 + 1
+        print(f"{'COVERAGE REPORT:':^{width}}")
         print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
+        print("-" * (width))
         for path, lines in sorted(instance.lines.items()):
             covered_lines = cls._instance._get_covered_lines()
             n_covered = len(covered_lines[path])
+            total_executable_lines += len(lines)
+            total_covered_lines += n_covered
+            total_missed_lines += len(lines) - n_covered
             if n_covered == 0:
                 continue
             missed_ranges = collapse_ranges(sorted(lines - covered_lines[path]))
@@ -118,6 +133,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             print(
                 f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%{missed_str}"
             )
+        print("-" * width)
+        total_covered_percent = int((total_covered_lines / total_executable_lines) * 100)
+        print(f"{'TOTAL':<{n}}{total_executable_lines:>8}{total_missed_lines:>8}{total_covered_percent:>8}%")
+        print()
 
     def _get_covered_lines(self):
         if ctx_coverage_enabed.get(False):
