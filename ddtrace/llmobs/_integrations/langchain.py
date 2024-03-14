@@ -138,7 +138,7 @@ class LangChainIntegration(BaseLLMIntegration):
         prompt_tokens = span.get_tag("langchain.tokens.prompt_tokens")
         completion_tokens = span.get_tag("langchain.tokens.completion_tokens")
         # grab off tag directly to minimize differences in reported total tokens and just summing,
-        # in case of discrepencies
+        # in case of discrepancies
         total_tokens = span.get_tag("langchain.tokens.total_tokens")
 
         if prompt_tokens:
