@@ -275,13 +275,15 @@ ddup_upload()
         //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
         //     we have for now.
         auto uploader = Datadog::UploaderBuilder::build();
-        struct {
-          void operator()(Datadog::Uploader& uploader) {
-              uploader.upload(Datadog::Sample::profile_borrow());
-              Datadog::Sample::profile_release();
-              Datadog::Sample::profile_clear_state();
-          }
-          void operator()(std::string &err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
+        struct
+        {
+            void operator()(Datadog::Uploader& uploader)
+            {
+                uploader.upload(Datadog::Sample::profile_borrow());
+                Datadog::Sample::profile_release();
+                Datadog::Sample::profile_clear_state();
+            }
+            void operator()(std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
         } visitor;
         std::visit(visitor, uploader);
     }

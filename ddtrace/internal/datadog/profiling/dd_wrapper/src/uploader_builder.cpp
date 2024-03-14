@@ -149,5 +149,5 @@ UploaderBuilder::build()
         return errmsg;
     }
 
-    return Uploader{url, ddog_exporter};
+    return Uploader{ url, ddog_exporter };
 }
