@@ -119,7 +119,13 @@ class LangChainIntegration(BaseLLMIntegration):
         message_content = [{"content": ""}]
         if err is None:
             message_content = [
-                ({"content": self.trunc(chat_completion.text)} for chat_completion in message_set)
+                (
+                    {
+                        "content": self.trunc(chat_completion.text),
+                        "role": str(chat_completion.message.type),
+                    }
+                    for chat_completion in message_set
+                )
                 for message_set in chat_completions.generations
             ]
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
@@ -131,7 +137,9 @@ class LangChainIntegration(BaseLLMIntegration):
         metrics = {}
         prompt_tokens = span.get_tag("langchain.tokens.prompt_tokens")
         completion_tokens = span.get_tag("langchain.tokens.completion_tokens")
-        total_tokens = span.get_tag("langchain.tokens.total_tokens")  # in the case it is not the sum?
+        # grab off tag directly to minimize differences in reported total tokens and just summing,
+        # in case of discrepencies
+        total_tokens = span.get_tag("langchain.tokens.total_tokens")
 
         if prompt_tokens:
             metrics["prompt_tokens"] = int(prompt_tokens)

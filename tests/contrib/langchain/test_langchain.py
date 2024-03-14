@@ -10,6 +10,8 @@ from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import flaky
@@ -120,6 +122,16 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
     mock_logs.reset_mock()
     mock_metrics.reset_mock()
+
+
+@pytest.fixture
+def mock_llmobs_writer():
+    patcher = mock.patch("ddtrace.llmobs._writer.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
+    yield m
+    patcher.stop()
 
 
 @flaky(1735812000)
@@ -1528,3 +1540,83 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
         ],
         any_order=True,
     )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+class TestLLMObsLangchain:
+    @staticmethod
+    def _expected_llmobs_calls(span, input_role=None, output_role=None):
+        input_meta = {"content": mock.ANY}
+        if input_role is not None:
+            input_meta["role"] = input_role
+
+        output_meta = {"content": mock.ANY}
+        if output_role is not None:
+            output_meta["role"] = output_role
+
+        expected_llmobs_writer_calls = [mock.call.start()]
+        expected_llmobs_writer_calls += [
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=span.get_tag("langchain.request.model"),
+                    model_provider=span.get_tag("langchain.request.provider"),
+                    input_messages=[input_meta],
+                    output_messages=[output_meta],
+                    parameters={
+                        "temperature": float(span.get_tag("langchain.request.openai.parameters.temperature")),
+                        "max_tokens": int(span.get_tag("langchain.request.openai.parameters.max_tokens")),
+                    },
+                    token_metrics={
+                        "prompt_tokens": int(span.get_tag("langchain.tokens.prompt_tokens")),
+                        "completion_tokens": int(span.get_tag("langchain.tokens.completion_tokens")),
+                        "total_tokens": int(span.get_tag("langchain.tokens.total_tokens")),
+                    },
+                    tags={
+                        "ml_app": "unnamed-ml-app",
+                        "service": "",
+                    },
+                )
+            )
+        ]
+        return expected_llmobs_writer_calls
+
+    @classmethod
+    def _test_llmobs_invoke(
+        cls, generate_trace, mock_llmobs_writer, mock_tracer, cassette_name, input_role=None, output_role=None
+    ):
+        # we already have a mock tracer fixture
+
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
+
+        with get_request_vcr().use_cassette(cassette_name):
+            generate_trace("Can you explain what an LLM chain is?")
+        span = mock_tracer.pop_traces()[0][0]
+
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span)
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+
+    def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain.llms.OpenAI()
+
+        def generate_trace(prompt):
+            return llm(prompt)
+
+        self._test_llmobs_invoke(generate_trace, mock_llmobs_writer, mock_tracer, "openai_completion_sync.yaml")
+
+    def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+
+        def generate_trace(prompt):
+            return chat([langchain.schema.HumanMessage(content=prompt)])
+
+        self._test_llmobs_invoke(
+            generate_trace,
+            mock_llmobs_writer,
+            mock_tracer,
+            "openai_chat_sync.yaml",
+            input_role="human",
+            output_role="ai",
+        )
