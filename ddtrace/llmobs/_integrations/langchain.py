@@ -111,8 +111,10 @@ class LangChainIntegration(BaseLLMIntegration):
                             "content": self.trunc(message.content),
                             "role": str(message.type),
                         }
-                    for message in message_set)
-                for message_set in chat_messages]
+                        for message in message_set
+                    )
+                    for message_set in chat_messages
+                ]
             ),
         )
 
