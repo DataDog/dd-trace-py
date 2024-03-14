@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_openai.llms.base.OpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ebafd000000000",
+      "error.message": "Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/langchain/patch.py\", line 174, in traced_llm_generate\n    completions = func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 741, in generate\n    output = self._generate_helper(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 605, in _generate_helper\n    raise e\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 592, in _generate_helper\n    self._generate(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/langchain_openai/llms/base.py\", line 356, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/openai/_utils/_utils.py\", line 275, in wrapper\n    return func(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/openai/resources/completions.py\", line 506, in create\n    return self._post(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/openai/_base_client.py\", line 1200, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/openai/_base_client.py\", line 889, in request\n    return self._request(\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_89644d2be2d95c1/lib/python3.10/site-packages/openai/_base_client.py\", line 980, in _request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}\n",
+      "error.type": "openai.BadRequestError",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.model": "gpt-3.5-turbo-instruct",
+      "langchain.request.openai.parameters.frequency_penalty": "0",
+      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.presence_penalty": "0",
+      "langchain.request.openai.parameters.temperature": "0.7",
+      "langchain.request.openai.parameters.top_p": "1",
+      "langchain.request.prompts.0": "12345",
+      "langchain.request.prompts.1": "123456",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "llm",
+      "language": "python",
+      "runtime-id": "9f52b7e016c04b4a994ec1df509018a4"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88379
+    },
+    "duration": 4726000,
+    "start": 1709944784987818000
+  }]]
