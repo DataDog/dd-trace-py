@@ -75,7 +75,7 @@ class Sample
                     int64_t line               // for ddog_prof_Location
     );
 
-    void push_endtime_ns(int64_t endtime_ns);
+    void push_monotonic_ns(int64_t monotonic_ns);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

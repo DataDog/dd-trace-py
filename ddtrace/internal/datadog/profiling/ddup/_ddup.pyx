@@ -68,7 +68,7 @@ cdef extern from "interface.hpp":
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
-    void ddup_push_endtime_ns(Sample *sample, int64_t endtime_ns)
+    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
@@ -250,9 +250,9 @@ cdef class SampleHandle:
                     string_view(<const char*>root_service_bytes, len(root_service_bytes))
             )
 
-    def push_endtime_ns(self, endtime_ns: int) -> None:
+    def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_endtime_ns(self.ptr, <int64_t>endtime_ns)
+            ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
 
 
     def flush_sample(self) -> None:

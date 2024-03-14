@@ -56,7 +56,7 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
-    void ddup_push_endtime_ns(Datadog::Sample* sample, int64_t endtime_ns);
+    void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 

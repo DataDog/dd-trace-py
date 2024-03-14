@@ -326,7 +326,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
-                    handle.push_endtime_ns(now_ns)
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_walltime(wall_time, 1)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -354,7 +354,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if nframes:
             if use_libdd:
                 handle = ddup.SampleHandle()
-                handle.push_endtime_ns(now_ns)
+                handle.push_monotonic_ns(now_ns)
                 handle.push_cputime( cpu_time, 1)
                 handle.push_walltime( wall_time, 1)
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -387,7 +387,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
-                    handle.push_endtime_ns(now_ns)
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_exceptioninfo(exc_type, 1)
                     handle.push_class_name(frames[0].class_name)

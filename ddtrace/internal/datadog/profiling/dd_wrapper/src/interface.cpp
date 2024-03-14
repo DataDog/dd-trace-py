@@ -247,9 +247,9 @@ ddup_push_frame(Datadog::Sample* sample,
 }
 
 void
-ddup_push_endtime_ns(Datadog::Sample* sample, int64_t endtime_ns)
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns)
 {
-    sample->push_endtime_ns(endtime_ns);
+    sample->push_monotonic_ns(monotonic_ns);
 }
 
 void
