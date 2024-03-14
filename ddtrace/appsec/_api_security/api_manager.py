@@ -166,7 +166,7 @@ class APIManager(Service):
             result = call_waf_callback(waf_payload)
             if result is None or not result.derivatives:
                 return
-            for meta, schema in result.derivative.items():
+            for meta, schema in result.derivatives.items():
                 b64_gzip_content = b""
                 try:
                     b64_gzip_content = base64.b64encode(

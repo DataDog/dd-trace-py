@@ -505,7 +505,8 @@ def _call_waf_first(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _call_waf(integration, *_):
@@ -513,7 +514,8 @@ def _call_waf(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _on_block_decided(callback):
