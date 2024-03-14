@@ -93,7 +93,7 @@ join(const std::vector<std::string>& vec, const std::string& delim)
       });
 }
 
-Uploader
+std::variant<Uploader, std::string>
 UploaderBuilder::build()
 {
     // Setup the ddog_Exporter
@@ -130,10 +130,9 @@ UploaderBuilder::build()
         }
     }
 
-    // If any mistakes were made, report on them now and throw
     if (!reasons.empty()) {
         ddog_Vec_Tag_drop(tags);
-        throw std::runtime_error("Error initializing exporter, missing or bad configuration: " + join(reasons, ", "));
+        return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
@@ -145,10 +144,10 @@ UploaderBuilder::build()
     if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
         ddog_exporter = res.ok;
     } else {
-        const std::string errmsg = err_to_msg(&res.err, "Error initializing exporter");
+        std::string errmsg = err_to_msg(&res.err, "Error initializing exporter");
         ddog_Error_drop(&res.err); // errmsg contains a copy of res.err, OK to drop
-        throw std::runtime_error(errmsg);
+        return errmsg;
     }
 
-    return { url, ddog_exporter };
+    return Uploader{url, ddog_exporter};
 }

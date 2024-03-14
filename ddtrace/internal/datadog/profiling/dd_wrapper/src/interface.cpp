@@ -269,28 +269,21 @@ ddup_upload()
 
     bool success = false;
     {
-        // The borrow operation takes a reference, then locks the areas where
-        // the ddog_prof_Profile might be modified.  We need to return it
-        ddog_prof_Profile upload_profile = Datadog::Sample::profile_borrow();
-
-        // We create a new uploader just for this operation
-        try {
-            auto uploader = Datadog::UploaderBuilder::build();
-
-            // NB, upload() cancels any inflight uploads in order to ensure only
-            // one is active at a time.  This simplifies the fork/thread logic.
-            // This is usually fine, but when the user specifies a profiling
-            // upload interval less than the upload timeout, we have a potential
-            // backlog situation which isn't handled.  This is against recommended
-            // practice, but it wouldn't be crazy to add a small backlog queue.
-            success = uploader.upload(upload_profile);
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to create uploader: " << e.what() << std::endl;
-        }
-
-        // We're done with the profile
-        Datadog::Sample::profile_release();
-        Datadog::Sample::profile_clear_state();
+        // There are a few things going on here.
+        //   * profile_borrow takes a reference in a way that locks the areas where the profile might
+        //     be modified.  It gets released and cleared after uploading.
+        //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+        //     we have for now.
+        auto uploader = Datadog::UploaderBuilder::build();
+        struct {
+          void operator()(Datadog::Uploader& uploader) {
+              uploader.upload(Datadog::Sample::profile_borrow());
+              Datadog::Sample::profile_release();
+              Datadog::Sample::profile_clear_state();
+          }
+          void operator()(std::string &err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
+        } visitor;
+        std::visit(visitor, uploader);
     }
     return success;
 }
