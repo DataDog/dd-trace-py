@@ -274,7 +274,6 @@ class AppSecSpanProcessor(SpanProcessor):
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
-
         data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
         data_already_sent = _asm_request_context.get_data_sent()
@@ -298,7 +297,6 @@ class AppSecSpanProcessor(SpanProcessor):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
-
         waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

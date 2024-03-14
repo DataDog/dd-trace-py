@@ -57,6 +57,13 @@ class DDWaf_result(object):
         self.truncation = truncation
         self.derivatives = derivatives
 
+    def __repr__(self):
+        return (
+            f"DDWaf_result(data: {self.data}, actions: {self.actions}, runtime: {self.runtime},"
+            " total_runtime: {self.total_runtime}, timeout: {self.timeout},"
+            " truncation: {self.truncation}, derivatives: {self.derivatives})"
+        )
+
 
 class DDWaf_info(object):
     __slots__ = ["loaded", "failed", "errors", "version"]

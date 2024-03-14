@@ -1056,6 +1056,20 @@ class Contrib_TestClass_For_Threats:
             # only two global callbacks are expected for API Security and Nested Events
             assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
 
+    def test_exploit_prevention_lfi(self, interface, root_span, get_tag):
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+        from ddtrace.ext import http
+
+        patch_common_modules()
+        with override_global_config(dict(_asm_enabled=True, _ep_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/rasp/lfi/?filename=/etc/passwd")
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            self.check_single_rule_triggered("rasp-930-100", root_span)
+
 
 @contextmanager
 def test_tracer():

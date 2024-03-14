@@ -57,3 +57,16 @@ def new_service(service_name: str):
 
     ddtrace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
+
+
+@app.route("/rasp/<string:endpoint>/", methods=["GET", "POST", "OPTIONS"])
+def rasp(endpoint: str):
+    query_params = request.args.to_dict()
+    if endpoint == "lfi" and "filename" in query_params:
+        filename = query_params["filename"]
+        try:
+            with open(filename, "rb") as f:
+                return f.read()
+        except Exception as e:
+            return f"Error: {e}"
+    return f"Unknown endpoint: {endpoint}"

@@ -4,7 +4,6 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
-from ddtrace.appsec import _constants
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -29,10 +28,13 @@ def wrapped_open(original_open_callable, instance, args, kwargs):
         pass
 
     if asm_config._asm_enabled and asm_config._ep_enabled:
-        from ddtrace.appsec._asm_request_context import call_waf_callback
+        try:
+            from ddtrace.appsec._asm_request_context import call_waf_callback
+        except ImportError:
+            return original_open_callable(*args, **kwargs)
 
         if len(args) > 0:
-            result = call_waf_callback({_constants.EXPLOIT_PREVENTION.LFI_ADDRESS: args[0]})
+            result = call_waf_callback({"LFI_ADDRESS": args[0]})
             if result:
                 print(result)
                 raise PermissionError(13, "Permission denied by ASM Exploit Prevention", args[0])

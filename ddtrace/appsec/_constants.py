@@ -109,6 +109,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "server.response.body"
     PROCESSOR_SETTINGS = "waf.context.processor"
+    LFI_ADDRESS = "server.io.fs.file"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -224,4 +225,3 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
-    LFI_ADDRESS = "server.io.fs.file"
