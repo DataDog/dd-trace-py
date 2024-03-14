@@ -252,7 +252,7 @@ cdef class SampleHandle:
 
     def push_endtime_ns(self, endtime_ns: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_endtime_ns(self.ptr, endtime_ns)
+            ddup_push_endtime_ns(self.ptr, <int64_t>endtime_ns)
 
 
     def flush_sample(self) -> None:
