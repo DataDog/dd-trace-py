@@ -18,6 +18,9 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
+from ddtrace.internal.logger import get_logger
+LOG = get_logger(__name__)
+
 
 @event.event_class
 class LockEventBase(event.StackBasedEvent):
@@ -139,7 +142,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                     self._self_recorder.push_event(event)
-            except Exception:
+            except Exception as e:
+                LOG.error(f"Error recording lock acquire event: {e}")
                 pass  # nosec
 
     def release(self, *args, **kwargs):
@@ -203,7 +207,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             self._self_recorder.push_event(event)
                     finally:
                         del self._self_acquired_at
-            except Exception:
+            except Exception as e:
+                LOG.error(f"Error recording lock acquire event: {e}")
                 pass  # nosec
 
     acquire_lock = acquire
