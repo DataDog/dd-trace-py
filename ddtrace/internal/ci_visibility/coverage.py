@@ -51,8 +51,8 @@ def _initialize_coverage(root_dir):
 
 def _start_coverage(root_dir: str):
     if USE_DD_COVERAGE:
-        ModuleCodeCollector.start_coverage()
-        return
+        ctx = ModuleCodeCollector.CollectInContext()
+        return ctx
     coverage = _initialize_coverage(root_dir)
     coverage.start()
     return coverage
@@ -60,7 +60,7 @@ def _start_coverage(root_dir: str):
 
 def _stop_coverage(module):
     if USE_DD_COVERAGE:
-        ModuleCodeCollector.stop_coverage()
+        module._dd_coverage.__exit__()
         return
     if _module_has_dd_coverage_enabled(module):
         module._dd_coverage.stop()
@@ -70,7 +70,7 @@ def _stop_coverage(module):
 
 def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
     if USE_DD_COVERAGE:
-        return ModuleCodeCollector._instance.coverage_enabled
+        return hasattr(module, "_dd_coverage")
     if not hasattr(module, "_dd_coverage"):
         if not silent_mode:
             log.warning("Datadog Coverage has not been initiated")
@@ -88,7 +88,9 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 
 def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
     if USE_DD_COVERAGE:
-        return True
+        # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
+        coverage_data.__enter__()
+        return
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
@@ -100,6 +102,7 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
 
 def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
     if USE_DD_COVERAGE:
+        # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
         files = ModuleCodeCollector.report_seen_lines()
         if not files:
             return
@@ -107,7 +110,7 @@ def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_d
             COVERAGE_TAG_NAME,
             json.dumps({"files": files}),
         )
-        ModuleCodeCollector.clear_covered()
+        coverage_data.__exit__(None, None, None)
 
         return
 

@@ -8,11 +8,15 @@ from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.vendor.contextvars import ContextVar
 
 
 CWD = Path.cwd()
 
 _original_exec = exec
+
+ctx_covered = ContextVar("ctx_covered", default=None)
+ctx_coverage_enabed = ContextVar("ctx_coverage_enabled", default=False)
 
 
 def collapse_ranges(numbers):
@@ -82,16 +86,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
-        if not self.coverage_enabled:
-            return
         path, line = arg
-        lines = self.covered[path]
-        if line in lines:
-            # This line has already been covered
-            return
+        if self.coverage_enabled:
+            lines = self.covered[path]
+            if line not in lines:
+                # This line has already been covered
+                lines.add(line)
 
-        # Take note of the line that was covered
-        lines.add(line)
+        if ctx_coverage_enabed.get():
+            ctx_lines = ctx_covered.get()[path]
+            if line not in ctx_lines:
+                ctx_lines.add(line)
 
     @classmethod
     def report(cls):
@@ -103,15 +108,30 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         n = max(len(path) for path in instance.lines) + 4
         print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
         for path, lines in sorted(instance.lines.items()):
-            n_covered = len(instance.covered[path])
+            covered_lines = cls._instance._get_covered_lines()
+            n_covered = len(covered_lines[path])
             if n_covered == 0:
                 continue
-            missed_ranges = collapse_ranges(sorted(lines - instance.covered[path]))
+            missed_ranges = collapse_ranges(sorted(lines - covered_lines[path]))
             missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
             missed_str = f"  [{missed}]" if missed else ""
             print(
                 f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%{missed_str}"
             )
+
+    def _get_covered_lines(self):
+        if ctx_coverage_enabed.get(False):
+            print("RETURNING CONTEXT LINES")
+            return ctx_covered.get()
+        return self.covered
+
+    class CollectInContext:
+        def __enter__(self):
+            ctx_covered.set(defaultdict(set))
+            ctx_coverage_enabed.set(True)
+
+        def __exit__(*args, **kwargs):
+            ctx_coverage_enabed.set(False)
 
     @classmethod
     def start_coverage(cls):
@@ -127,12 +147,15 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     @classmethod
     def clear_covered(cls):
+        # This alwasy clears the instance's covered lines and does not apply to context coverage
         if cls._instance is None:
             return
         cls._instance.covered.clear()
 
     @classmethod
     def coverage_enabled(cls):
+        if ctx_coverage_enabed.get():
+            return True
         if cls._instance is None:
             return False
         return cls._instance.coverage_enabled
@@ -156,7 +179,11 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return []
         files = []
-        for path, lines in cls._instance.covered.items():
+        if ctx_coverage_enabed.get():
+            covered = ctx_covered.get()
+        else:
+            covered = cls._instance.covered
+        for path, lines in covered.items():
             sorted_lines = sorted(lines)
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []
@@ -165,6 +192,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             files.append({"filename": path, "segments": file_segments})
 
         return files
+
+    @classmethod
+    def report_seen_lines_from_context(cls):
+        if ctx_covered.get() is None:
+            return []
+        return cls.report_seen_lines()
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()

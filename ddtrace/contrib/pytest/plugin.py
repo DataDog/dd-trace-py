@@ -832,6 +832,11 @@ def pytest_load_initial_conftests(early_config, parser, args):
         ModuleCodeCollector.install()
         if COVER_SESSION:
             ModuleCodeCollector.start_coverage()
+    else:
+        if COVER_SESSION:
+            log.warning(
+                "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
+            )
 
 
 @pytest.hookimpl(hookwrapper=True)
