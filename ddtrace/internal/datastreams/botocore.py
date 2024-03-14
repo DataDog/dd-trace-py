@@ -58,11 +58,42 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, data):
     from . import data_streams_processor as processor
 
     path_type = "type:{}".format(endpoint_service)
-    payload_size = _calculate_byte_size(data)
+
+    payload_size = None
+    if endpoint_service == "sqs":
+        payload_size = calculate_sqs_payload_size(data)
+    elif endpoint_service == "sns":
+        payload_size = calculate_sns_payload_size(data)
+    elif endpoint_service == "kinesis":
+        payload_size = calculate_kinesis_payload_size(data)
+
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
     ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size)
     DsmPathwayCodec.encode(ctx, trace_data)
+
+
+def calculate_sqs_payload_size(data):
+    payload_size = _calculate_byte_size(data.get("MessageBody", ""))
+    payload_size += _calculate_byte_size(data.get("MessageAttributes", {}))
+    payload_size += _calculate_byte_size(data.get("MessageSystemAttributes", {}))
+    payload_size += _calculate_byte_size(data.get("MessageGroupId", ""))
+    return payload_size
+
+
+def calculate_sns_payload_size(data):
+    payload_size = _calculate_byte_size(data.get("Message", ""))
+    payload_size += _calculate_byte_size(data.get("MessageAttributes", {}))
+    payload_size += _calculate_byte_size(data.get("Subject", ""))
+    payload_size += _calculate_byte_size(data.get("MessageGroupId", ""))
+    return payload_size
+
+
+def calculate_kinesis_payload_size(data):
+    payload_size = _calculate_byte_size(data.get("Data", ""))
+    payload_size += _calculate_byte_size(data.get("ExplicitHashKey", ""))
+    payload_size += _calculate_byte_size(data.get("PartitionKey", ""))
+    return payload_size
 
 
 def handle_kinesis_produce(stream, dd_ctx_json, records):
@@ -132,7 +163,7 @@ def handle_sqs_receive(params, result):
     for message in result.get("Messages"):
         try:
             context_json = get_datastreams_context(message)
-            payload_size = _calculate_byte_size(message)
+            payload_size = calculate_sqs_payload_size(message)
             ctx = DsmPathwayCodec.decode(context_json, processor())
             ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
@@ -148,7 +179,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    payload_size = _calculate_byte_size(records)
+    payload_size = calculate_kinesis_payload_size(records)
     ctx = DsmPathwayCodec.decode(context_json, processor())
     ctx.set_checkpoint(
         ["direction:in", "topic:" + stream, "type:kinesis"],
