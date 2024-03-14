@@ -33,9 +33,8 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         operation: str,  # oneof "llm","chat_model","chain"
         span: Span,
+        inputs: List[Any],
         response: Any,
-        kwargs: Dict[str, Any],
-        args: List[Any],
         err: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
@@ -59,9 +58,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, err)
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, err)
         elif operation == "chat_model":
-            self._llmobs_set_meta_tags_from_chat_model(span, args, kwargs, response, err)
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, err)
         elif operation == "chain":
             # TODO to be added as a follow-up PR
             pass
@@ -70,13 +69,10 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_llm(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        prompts,
         completions: List[str],
         err: bool = False,
     ) -> None:
-        prompts = get_argument_value(args, kwargs, 0, "prompts")
-
         # input messages
         if isinstance(prompts, str):
             prompts = [prompts]
@@ -91,13 +87,10 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_chat_model(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        chat_messages: List[List[Any]],
         chat_completions: List[str],
         err: bool = False,
     ) -> None:
-        chat_messages = get_argument_value(args, kwargs, 0, "messages")
-
         # input messages
         span.set_tag_str(
             INPUT_MESSAGES,

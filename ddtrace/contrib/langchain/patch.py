@@ -182,9 +182,8 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(
                 "llm",
                 span,
+                prompts,
                 completions,
-                kwargs,
-                args,
                 error=bool(span.error),  # error
             )
         span.finish()
@@ -261,9 +260,8 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(
                 "llm",
                 span,
+                prompts,
                 completions,
-                kwargs,
-                args,
                 error=bool(span.error),  # error
             )
         span.finish()
@@ -346,9 +344,8 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(
                 "chat_model",
                 span,
+                chat_messages,
                 chat_completions,
-                kwargs,
-                args,
                 error=bool(span.error),  # error
             )
         span.finish()
@@ -447,9 +444,8 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
             integration.llmobs_set_tags(
                 "chat_model",
                 span,
+                chat_messages,
                 chat_completions,
-                kwargs,
-                args,
                 error=bool(span.error),  # error
             )
         span.finish()
