@@ -29,11 +29,13 @@ from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -141,6 +143,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         model=model,
         api_key=_extract_api_key(instance),
     )
+    span.span_type = SpanTypes.LLM
     completions = None
     try:
         if integration.is_pc_sampled_span(span):
@@ -175,6 +178,15 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "llm",
+                span,
+                completions,
+                kwargs,
+                args,
+                error=bool(span.error),  # error
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -210,6 +222,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         model=model,
         api_key=_extract_api_key(instance),
     )
+    span.span_type = SpanTypes.LLM
     completions = None
     try:
         if integration.is_pc_sampled_span(span):
@@ -244,6 +257,15 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "llm",
+                span,
+                completions,
+                kwargs,
+                args,
+                error=bool(span.error),  # error
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -278,6 +300,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    span.span_type = SpanTypes.LLM
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -298,7 +321,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
             else:
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
-        chat_completions = func(*args, **kwargs)
+        raise Exception('hiya')
         if isinstance(instance, langchain.chat_models.ChatOpenAI):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
@@ -319,6 +342,15 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chat_model",
+                span,
+                chat_completions,
+                kwargs,
+                args,
+                error=bool(span.error),  # error
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -369,6 +401,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+    span.span_type = SpanTypes.LLM
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -410,6 +443,15 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chat_model",
+                span,
+                chat_completions,
+                kwargs,
+                args,
+                error=bool(span.error),  # error
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -669,6 +711,10 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
+
+    if config._llmobs_enabled:
+        LLMObs.enable()
+
     langchain._datadog_patch = True
 
     Pin().onto(langchain)
@@ -731,6 +777,10 @@ def patch():
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
         return
+
+    if LLMObs.enabled:
+        LLMObs.disable()
+
     langchain._datadog_patch = False
 
     unwrap(langchain.llms.base.BaseLLM, "generate")
