@@ -126,7 +126,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 @pytest.fixture
 def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._writer.LLMObsWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
     LLMObsWriterMock = patcher.start()
     m = mock.MagicMock()
     LLMObsWriterMock.return_value = m
@@ -1568,9 +1568,9 @@ class TestLLMObsLangchain:
                         "max_tokens": int(span.get_tag("langchain.request.openai.parameters.max_tokens")),
                     },
                     token_metrics={
-                        "prompt_tokens": int(span.get_tag("langchain.tokens.prompt_tokens")),
-                        "completion_tokens": int(span.get_tag("langchain.tokens.completion_tokens")),
-                        "total_tokens": int(span.get_tag("langchain.tokens.total_tokens")),
+                        "prompt_tokens": span.get_metric("langchain.tokens.prompt_tokens"),
+                        "completion_tokens": span.get_metric("langchain.tokens.completion_tokens"),
+                        "total_tokens": span.get_metric("langchain.tokens.total_tokens"),
                     },
                     tags={
                         "ml_app": "unnamed-ml-app",
@@ -1598,7 +1598,7 @@ class TestLLMObsLangchain:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
-    def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer):
         llm = langchain.llms.OpenAI()
 
         def generate_trace(prompt):
@@ -1606,7 +1606,7 @@ class TestLLMObsLangchain:
 
         self._test_llmobs_invoke(generate_trace, mock_llmobs_writer, mock_tracer, "openai_completion_sync.yaml")
 
-    def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         def generate_trace(prompt):
@@ -1616,7 +1616,7 @@ class TestLLMObsLangchain:
             generate_trace,
             mock_llmobs_writer,
             mock_tracer,
-            "openai_chat_sync.yaml",
+            "openai_chat_completion_sync_call.yaml",
             input_role="human",
             output_role="ai",
         )

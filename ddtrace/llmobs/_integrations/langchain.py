@@ -34,7 +34,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         inputs: List[Any],
         response: Any,
-        err: bool = False,
+        error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -50,16 +50,16 @@ class LangChainIntegration(BaseLLMIntegration):
             temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
             max_tokens = span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
             if temperature:
-                input_parameters["temperature"] = temperature
+                input_parameters["temperature"] = float(temperature)
             if max_tokens:
-                input_parameters["max_tokens"] = max_tokens
+                input_parameters["max_tokens"] = int(max_tokens)
             if input_parameters:
                 span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, err)
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
         elif operation == "chat_model":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, err)
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
             # TODO to be added as a follow-up PR
             pass
@@ -127,11 +127,11 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
     ) -> None:
         metrics = {}
-        prompt_tokens = span.get_tag("langchain.tokens.prompt_tokens")
-        completion_tokens = span.get_tag("langchain.tokens.completion_tokens")
+        prompt_tokens = span.get_metric("langchain.tokens.prompt_tokens")
+        completion_tokens = span.get_metric("langchain.tokens.completion_tokens")
         # grab off tag directly to minimize differences in reported total tokens and just summing,
         # in case of discrepancies
-        total_tokens = span.get_tag("langchain.tokens.total_tokens")
+        total_tokens = span.get_metric("langchain.tokens.total_tokens")
 
         if prompt_tokens:
             metrics["prompt_tokens"] = int(prompt_tokens)
