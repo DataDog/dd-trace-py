@@ -6,6 +6,7 @@ from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -86,10 +87,13 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
     return True
 
 
-def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
-    if USE_DD_COVERAGE:
-        # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
-        coverage_data.__enter__()
+def _switch_coverage_context(
+    coverage_data: Union[Coverage, ModuleCodeCollector.CollectInContext], unique_test_name: str
+):
+    if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
+        if USE_DD_COVERAGE:
+            # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
+            coverage_data.__enter__()
         return
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
@@ -100,17 +104,20 @@ def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
         log.warning(err)
 
 
-def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
-    if USE_DD_COVERAGE:
-        # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
-        files = ModuleCodeCollector.report_seen_lines()
-        if not files:
-            return
-        span.set_tag_str(
-            COVERAGE_TAG_NAME,
-            json.dumps({"files": files}),
-        )
-        coverage_data.__exit__(None, None, None)
+def _report_coverage_to_span(
+    coverage_data: Union[Coverage, ModuleCodeCollector.CollectInContext], span: ddtrace.Span, root_dir: str
+):
+    if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
+        if USE_DD_COVERAGE:
+            # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
+            files = ModuleCodeCollector.report_seen_lines()
+            if not files:
+                return
+            span.set_tag_str(
+                COVERAGE_TAG_NAME,
+                json.dumps({"files": files}),
+            )
+            coverage_data.__exit__(None, None, None)
 
         return
 

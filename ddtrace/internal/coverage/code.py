@@ -140,7 +140,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def _get_covered_lines(self):
         if ctx_coverage_enabed.get(False):
-            print("RETURNING CONTEXT LINES")
             return ctx_covered.get()
         return self.covered
 
@@ -149,7 +148,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             ctx_covered.set(defaultdict(set))
             ctx_coverage_enabed.set(True)
 
-        def __exit__(*args, **kwargs):
+        def __exit__(self, *args, **kwargs):
             ctx_coverage_enabed.set(False)
 
     @classmethod
@@ -163,13 +162,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return
         cls._instance.coverage_enabled = False
-
-    @classmethod
-    def clear_covered(cls):
-        # This alwasy clears the instance's covered lines and does not apply to context coverage
-        if cls._instance is None:
-            return
-        cls._instance.covered.clear()
 
     @classmethod
     def coverage_enabled(cls):
@@ -212,16 +204,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
         return files
 
-    @classmethod
-    def report_seen_lines_from_context(cls):
-        if ctx_covered.get() is None:
-            return []
-        return cls.report_seen_lines()
-
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()
         # TODO: Remove hardcoded paths
-        if all(not code_path.is_relative_to(CWD / folder) for folder in ("starlette", "tests")):
+        if not code_path.is_relative_to(CWD):
             # Not a code object we want to instrument
             return code
 

@@ -829,7 +829,8 @@ def pytest_runtest_protocol(item, nextitem):
 
 def pytest_load_initial_conftests(early_config, parser, args):
     if USE_DD_COVERAGE:
-        ModuleCodeCollector.install()
+        if not ModuleCodeCollector.is_installed():
+            ModuleCodeCollector.install()
         if COVER_SESSION:
             ModuleCodeCollector.start_coverage()
     else:
