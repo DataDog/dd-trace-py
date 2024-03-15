@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 
 namespace Datadog {
 
@@ -40,7 +41,7 @@ class UploaderBuilder
     static void set_url(std::string_view _url);
     static void set_tag(std::string_view _key, std::string_view _val);
 
-    static Uploader build();
+    static std::variant<Uploader, std::string> build();
 };
 
 } // namespace Datadog

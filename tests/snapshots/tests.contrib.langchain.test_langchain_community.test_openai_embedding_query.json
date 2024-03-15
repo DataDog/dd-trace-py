@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ebc52600000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.inputs.0.text": "this is a test query.",
+      "langchain.request.model": "text-embedding-ada-002",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "embedding",
+      "language": "python",
+      "runtime-id": "3f89ada65cff4ebeabeeeef1044c9cf8"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.request.input_count": 1,
+      "langchain.response.outputs.embedding_length": 1536,
+      "process_id": 8331
+    },
+    "duration": 2193000,
+    "start": 1709950246890259000
+  }]]

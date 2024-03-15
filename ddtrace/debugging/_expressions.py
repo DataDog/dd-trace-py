@@ -8,7 +8,7 @@ Full grammar:
 
     predicate               =>  <direct_predicate> | <arg_predicate> | <value_source>
     direct_predicate        =>  {"<direct_predicate_type>": <predicate>}
-    direct_predicate_type   =>  not | isEmpty | isUndefined
+    direct_predicate_type   =>  not | isEmpty | isDefined
     value_source            =>  <literal> | <operation>
     literal                 =>  <number> | true | false | "string"
     number                  =>  0 | ([1-9][0-9]*\.[0-9]+)
@@ -36,6 +36,7 @@ from typing import Tuple
 from typing import Union
 
 import attr
+import bytecode
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
@@ -56,6 +57,31 @@ def _is_identifier(name: str) -> bool:
 
 IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("CONTAINS_OP", 0)
 NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
+
+
+def binary_op(op: str) -> Instr:
+    if PY >= (3, 11):
+        return Instr("BINARY_OP", getattr(bytecode.BinaryOp, op.upper()))
+
+    return Instr(f"BINARY_{op.upper()}")
+
+
+def instanceof(value: Any, type_qname: str) -> bool:
+    try:
+        # Try with a built-in type first
+        return isinstance(value, __builtins__[type_qname])  # type: ignore[index]
+    except KeyError:
+        # Otherwise we expect a fully qualified name
+        try:
+            for c in object.__getattribute__(type(value), "__mro__"):
+                module = object.__getattribute__(c, "__module__")
+                qualname = object.__getattribute__(c, "__qualname__")
+                if f"{module}.{qualname}" == type_qname:
+                    return True
+        except AttributeError:
+            log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
+
+    return False
 
 
 class DDCompiler:
@@ -92,22 +118,22 @@ class DDCompiler:
 
     def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
-        # direct_predicate_type  =>  not | isEmpty | isUndefined
+        # direct_predicate_type  =>  not | isEmpty | isDefined
         if not isinstance(ast, dict):
             return None
 
         _type, arg = next(iter(ast.items()))
 
-        if _type not in {"not", "isEmpty", "isUndefined"}:
+        if _type not in {"not", "isEmpty", "isDefined"}:
             return None
 
         value = self._compile_predicate(arg)
         if value is None:
             raise ValueError("Invalid argument: %r" % arg)
 
-        if _type == "isUndefined":
+        if _type == "isDefined":
             value.append(Instr("LOAD_FAST", "_locals"))
-            value.append(NOT_IN_OPERATOR_INSTR)
+            value.append(IN_OPERATOR_INSTR)
         else:
             value.append(Instr("UNARY_NOT"))
 
@@ -129,7 +155,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return ca + cb + [Instr("BINARY_%s" % _type.upper())]
+            return ca + cb + [binary_op(_type)]
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
@@ -228,13 +254,13 @@ class DDCompiler:
 
     def _compile_arg_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
         # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
-        # arg_op_type    =>  filter | substring
+        # arg_op_type    =>  filter | substring | getmember | index | instanceof
         if not isinstance(ast, dict):
             return None
 
         _type, args = next(iter(ast.items()))
 
-        if _type not in {"filter", "substring", "getmember", "index"}:
+        if _type not in {"filter", "substring", "getmember", "index", "instanceof"}:
             return None
 
         if _type == "substring":
@@ -282,6 +308,16 @@ class DDCompiler:
             if not ci:
                 return None
             return self._call_function(self.__index__, cv, ci)
+
+        if _type == "instanceof":
+            v, t = args
+            cv = self._compile_predicate(v)
+            if not cv:
+                return None
+            ct = self._compile_predicate(t)
+            if not ct:
+                return None
+            return self._call_function(instanceof, cv, ct)
 
         return None
 
