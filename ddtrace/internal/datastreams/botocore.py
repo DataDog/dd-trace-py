@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any
+from typing import Any  # noqa:F401
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -47,7 +47,7 @@ def get_stream(params):
     return stream
 
 
-def inject_context(trace_data, endpoint_service, dsm_identifier, data):
+def inject_context(trace_data, endpoint_service, dsm_identifier, message_data):
     # type: (dict, str, Any, str) -> None
     """
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
@@ -61,38 +61,42 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, data):
 
     payload_size = None
     if endpoint_service == "sqs":
-        payload_size = calculate_sqs_payload_size(data)
+        payload_size = calculate_sqs_payload_size(message_data)
     elif endpoint_service == "sns":
-        payload_size = calculate_sns_payload_size(data)
+        payload_size = calculate_sns_payload_size(message_data)
     elif endpoint_service == "kinesis":
-        payload_size = calculate_kinesis_payload_size(data)
+        payload_size = calculate_kinesis_payload_size(message_data)
+
+    payload_size += _calculate_byte_size(trace_data)
 
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-    ctx = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size)
+    ctx = processor().set_checkpoint(
+        ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
+    )
     DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def calculate_sqs_payload_size(data):
-    payload_size = _calculate_byte_size(data.get("MessageBody", ""))
-    payload_size += _calculate_byte_size(data.get("MessageAttributes", {}))
-    payload_size += _calculate_byte_size(data.get("MessageSystemAttributes", {}))
-    payload_size += _calculate_byte_size(data.get("MessageGroupId", ""))
+def calculate_sqs_payload_size(message_data):
+    payload_size = _calculate_byte_size(message_data.get("MessageBody", ""))
+    payload_size += _calculate_byte_size(message_data.get("MessageAttributes", {}))
+    payload_size += _calculate_byte_size(message_data.get("MessageSystemAttributes", {}))
+    payload_size += _calculate_byte_size(message_data.get("MessageGroupId", ""))
     return payload_size
 
 
-def calculate_sns_payload_size(data):
-    payload_size = _calculate_byte_size(data.get("Message", ""))
-    payload_size += _calculate_byte_size(data.get("MessageAttributes", {}))
-    payload_size += _calculate_byte_size(data.get("Subject", ""))
-    payload_size += _calculate_byte_size(data.get("MessageGroupId", ""))
+def calculate_sns_payload_size(message_data):
+    payload_size = _calculate_byte_size(message_data.get("Message", ""))
+    payload_size += _calculate_byte_size(message_data.get("MessageAttributes", {}))
+    payload_size += _calculate_byte_size(message_data.get("Subject", ""))
+    payload_size += _calculate_byte_size(message_data.get("MessageGroupId", ""))
     return payload_size
 
 
-def calculate_kinesis_payload_size(data):
-    payload_size = _calculate_byte_size(data.get("Data", ""))
-    payload_size += _calculate_byte_size(data.get("ExplicitHashKey", ""))
-    payload_size += _calculate_byte_size(data.get("PartitionKey", ""))
+def calculate_kinesis_payload_size(message_data):
+    payload_size = _calculate_byte_size(message_data.get("Data", ""))
+    payload_size += _calculate_byte_size(message_data.get("ExplicitHashKey", ""))
+    payload_size += _calculate_byte_size(message_data.get("PartitionKey", ""))
     return payload_size
 
 
@@ -185,7 +189,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         ["direction:in", "topic:" + stream, "type:kinesis"],
         edge_start_sec_override=time_estimate,
         pathway_start_sec_override=time_estimate,
-        payload_size=payload_size
+        payload_size=payload_size,
     )
 
 
