@@ -1,0 +1,105 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "When do you use ''whom'' instead
+      of ''who''?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream":
+      false, "temperature": 0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '177'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2ySQWvbQBCF7/oVw17UgGVspYpdXwohLaQUimmhh7qYlTSStpZ2lt2RHTf4v4eV
+        ZFtNetFh3rynb3bmOQAQKhcrEFklOWtMHS3/2kx++3S3/vLwNVkvHuL73f1Ofl86/bjWYuIdlP7B
+        jM+uaUaNqZEVDXJmUTL61Pli9mGRvF/Gs05oKMfa20rD0e00ibi1KUWzeZwMzopUhk6s4FcAAPDc
+        fT2jzvFJrKDL6SoNOidLFKtLE4CwVPuKkM4px1KzmFzFjDSj7rDDnxU1ISgHrcMcpAOuEPqxgAqQ
+        sEebAlkwFg055YebwKFSNUJ4qOiN17WvzFPY6I3+TBbwSfr3WW10BP6/kKscjtSC0nvFCExdgpGW
+        jx/h3ZXCVzuOsO8Mb3zED4LDOKVUe+xaS1XwG/+IH0ImH7HRjxr8Y1jp+Ezl58moUbp8zTOabAR0
+        7u6ZfEAp99gBjVj+6/WN4Y0YFnO6bLSm0lhK/fZ1W9eXeqG0ctXWonSk/fYck+ntpwDgd3c57T/H
+        IIylxvCWaYfaB8bD4YjrrV7F+SwZVCaW9UiIk2AgFO7oGJttoXSJ1ljVH1JhtnG6WCyzu/Q2EcEp
+        eAEAAP//AwDWZQaEUgMAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e4abf9770c7a-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=X5GWqD00BPgzLErm6Bo.LDKKSfjvXrC8YirnecCEuUE-1709754822-1.0.1.1-86GpaAeyQDJndiu07CSZi2l3Sf11qzZjITGwIr9FgIt2hsYrJhi9dSkb6Sz5viPzJ_6atBt.lLZpEYvWQMBhdw;
+        path=/; expires=Wed, 06-Mar-24 20:23:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=SueRFCT2NvpxgDKmKiepUXf1H4xrrLCbwWLiuJNYkeM-1709754822185-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1602'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999732'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 8ms
+      x-request-id:
+      - req_61167e13eed29ea55d97d54a36cc200c
+    status:
+      code: 200
+      message: OK
+version: 1
