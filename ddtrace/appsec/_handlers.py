@@ -95,8 +95,11 @@ async def _on_asgi_request_parse_body(receive, headers):
         data_received = await receive()
         body = data_received.get("body", b"")
 
-        async def receive():
-            return data_received
+        async def receive_wrapped(once=[True]):
+            if once[0]:
+                once[0] = False
+                return data_received
+            return await receive()
 
         content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
@@ -111,9 +114,9 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
-            return receive, req_body
+            return receive_wrapped, req_body
         except BaseException:
-            return receive, None
+            return receive_wrapped, None
 
     return receive, None
 
