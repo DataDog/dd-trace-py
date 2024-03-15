@@ -706,17 +706,19 @@ class Contrib_TestClass_For_Threats:
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
     ):
+        from ddtrace.ext import http
+
         with override_global_config(
             dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.post("/asm/", data=body, content_type=content_type)
             # DEV Warning: encoded URL will behave differently
-            # assert get_tag(http.URL) == "http://localhost:8000/asm/"
-            # assert get_tag(http.METHOD) == "POST"
+            assert get_tag(http.URL) == "http://localhost:8000/asm/"
+            assert get_tag(http.METHOD) == "POST"
             if asm_enabled and blocked:
                 assert self.status(response) == 403
-                # assert get_tag(http.STATUS_CODE) == "403"
+                assert get_tag(http.STATUS_CODE) == "403"
                 assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
                 self.check_single_rule_triggered(blocked, root_span)
                 assert (
@@ -725,7 +727,7 @@ class Contrib_TestClass_For_Threats:
                 assert self.headers(response)["content-type"] == "text/json"
             else:
                 assert self.status(response) == 200
-                # assert get_tag(http.STATUS_CODE) == "200"
+                assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
