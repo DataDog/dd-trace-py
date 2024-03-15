@@ -291,4 +291,4 @@ fastapi = ["==0.94.1"]
 
 [[envs.appsec_threats_fastapi.matrix]]
 python = ["3.8", "3.10", "3.11"]
-fastapi = ["~=0.109"]
+fastapi = ["==0.106.0"]
