@@ -79,9 +79,7 @@ def calculate_sqs_payload_size(message, trace_data):
     payload_size = _calculate_byte_size(message.get("MessageBody", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     # we should count datadog message attributes which aren't yet added to the message
-    payload_size += _calculate_byte_size(
-        {"_datadog", {"DataType": "String", "StringValue": trace_data}}
-    )
+    payload_size += _calculate_byte_size({"_datadog", {"DataType": "String", "StringValue": trace_data}})
     payload_size += _calculate_byte_size(message.get("MessageSystemAttributes", {}))
     payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
@@ -91,9 +89,7 @@ def calculate_sns_payload_size(message, trace_data):
     payload_size = _calculate_byte_size(message.get("Message", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     # we should count datadog message attributes which aren't yet added to the message
-    payload_size += _calculate_byte_size(
-        {"_datadog", {"DataType": "Binary", "BinaryValue": trace_data}}
-    )
+    payload_size += _calculate_byte_size({"_datadog", {"DataType": "Binary", "BinaryValue": trace_data}})
     payload_size += _calculate_byte_size(message.get("Subject", ""))
     payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
