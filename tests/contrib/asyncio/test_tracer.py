@@ -190,14 +190,14 @@ async def test_wrapped_coroutine(tracer):
 
 
 def test_asyncio_scheduled_tasks_parenting(tracer):
-    @tracer.wrap()
-    async def task():
-        await asyncio.sleep(0.1)
+    async def task(i):
+        with tracer.trace(f"task {i}"):
+            await asyncio.sleep(0.1)
 
     @tracer.wrap()
     async def runner():
-        await task()
-        t = asyncio.create_task(task())
+        await task(1)
+        t = asyncio.create_task(task(2))
         return t
 
     async def test():
@@ -205,5 +205,6 @@ def test_asyncio_scheduled_tasks_parenting(tracer):
 
     asyncio.run(test())
 
-    traces = tracer.pop_traces()
-    assert 1 == len(traces)
+    spans = tracer.get_spans()
+    assert len(spans) == 3
+    assert spans[0].trace_id == spans[1].trace_id == spans[2].trace_id

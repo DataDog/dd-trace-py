@@ -47,7 +47,7 @@ def wrapped_create_task_py37(wrapped, args, kwargs):
     async def traced_coro(*args_c, **kwargs_c):
         if dd_active and dd_active != pin.tracer.current_trace_context():
             pin.tracer.context_provider.activate(dd_active)
-        return coro
+        return await coro
 
     args, kwargs = set_argument_value(args, kwargs, 0, "coro", traced_coro())
     return wrapped(*args, **kwargs)
