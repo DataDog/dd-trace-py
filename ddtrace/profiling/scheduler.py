@@ -25,7 +25,6 @@ class Scheduler(periodic.PeriodicService):
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def __attrs_post_init__(self):
         # Copy the value to use it later since we're going to adjust the real interval
@@ -34,6 +33,8 @@ class Scheduler(periodic.PeriodicService):
     def _start_service(self):
         # type: (...) -> None
         """Start the scheduler."""
+        if self._export_libdd_enabled and not ddup.is_available:
+            self._export_libdd_enabled = False
         LOG.debug("Starting scheduler")
         super(Scheduler, self)._start_service()
         self._last_export = compat.time_ns()
@@ -45,9 +46,8 @@ class Scheduler(periodic.PeriodicService):
         if self._export_libdd_enabled:
             ddup.upload()
 
-        if not self._export_py_enabled:
-            # If we're not using the Python profiler, then stop now
-            # But set these fields for compatibility
+            # These are only used by the Python uploader, but set them here to keep logs/etc
+            # consistent for now
             start = self._last_export
             self._last_export = compat.time_ns()
             return
