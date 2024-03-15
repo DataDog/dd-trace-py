@@ -79,7 +79,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         # output messages
         message_content = [{"content": ""}]
-        if err is None:
+        if not err:
             message_content = [{"content": self.trunc(str(completion[0].text))} for completion in completions]
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
 
@@ -87,40 +87,34 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         chat_messages: List[List[Any]],
-        chat_completions: List[str],
+        chat_completions: List[List[Any]],
         err: bool = False,
     ) -> None:
         # input messages
-        span.set_tag_str(
-            INPUT_MESSAGES,
-            json.dumps(
-                [
-                    (
-                        {
-                            "content": self.trunc(message.content),
-                            "role": str(message.type),
-                        }
-                        for message in message_set
-                    )
-                    for message_set in chat_messages
-                ]
-            ),
-        )
+        input_messages = []
+        for message_set in chat_messages:
+            for message in message_set:
+                input_messages.append(
+                    {
+                        "content": self.trunc(message.content),
+                        "role": str(message.type),
+                    }
+                )
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
 
         # output messages
-        message_content = [{"content": ""}]
-        if err is None:
-            message_content = [
-                (
-                    {
-                        "content": self.trunc(chat_completion.text),
-                        "role": str(chat_completion.message.type),
-                    }
-                    for chat_completion in message_set
-                )
-                for message_set in chat_completions.generations
-            ]
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
+        output_messages = [{"content": ""}]
+        if not err:
+            output_messages = []
+            for message_set in chat_completions.generations:
+                for chat_completion in message_set:
+                    output_messages.append(
+                        {
+                            "content": self.trunc(chat_completion.text),
+                            "role": str(chat_completion.message.type),
+                        }
+                    )
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     def _llmobs_set_metrics_tags(
         self,

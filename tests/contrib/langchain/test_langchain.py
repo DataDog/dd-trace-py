@@ -1585,8 +1585,7 @@ class TestLLMObsLangchain:
     def _test_llmobs_invoke(
         cls, generate_trace, mock_llmobs_writer, mock_tracer, cassette_name, input_role=None, output_role=None
     ):
-        # we already have a mock tracer fixture
-
+        # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
         LLMObs.enable(tracer=mock_tracer)
 
@@ -1594,29 +1593,28 @@ class TestLLMObsLangchain:
             generate_trace("Can you explain what an LLM chain is?")
         span = mock_tracer.pop_traces()[0][0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span)
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, input_role, output_role)
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
     def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer):
         llm = langchain.llms.OpenAI()
 
-        def generate_trace(prompt):
-            return llm(prompt)
-
-        self._test_llmobs_invoke(generate_trace, mock_llmobs_writer, mock_tracer, "openai_completion_sync.yaml")
+        self._test_llmobs_invoke(
+            generate_trace=lambda prompt: llm(prompt),
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_completion_sync.yaml",
+        )
 
     def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
-        def generate_trace(prompt):
-            return chat([langchain.schema.HumanMessage(content=prompt)])
-
         self._test_llmobs_invoke(
-            generate_trace,
-            mock_llmobs_writer,
-            mock_tracer,
-            "openai_chat_completion_sync_call.yaml",
+            generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chat_completion_sync_call.yaml",
             input_role="human",
             output_role="ai",
         )
