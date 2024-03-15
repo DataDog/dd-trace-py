@@ -97,18 +97,20 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def report(self):
         import os
+        import re
 
         try:
             w, _ = os.get_terminal_size()
         except OSError:
             w = 80
 
+        NOCOVER_PRAGMA_RE = re.compile(r"pragma\s*:\s*(?:nocover|no cover)")
+
         def no_cover(path, line):
             text = linecache.getline(path, line).strip()
             _, _, comment = text.partition("#")
             if comment:
-                command, _, option = comment[1:].strip().partition(":")
-                return command.strip() == "pragma" and option.strip() in {"nocover", "no cover"}
+                return NOCOVER_PRAGMA_RE.search(comment) is not None
             return False
 
         # Title
