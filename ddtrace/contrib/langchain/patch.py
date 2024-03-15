@@ -304,10 +304,16 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                        integration.trunc(str(message.content)),
-                    )
+                    if isinstance(message, dict):
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                            integration.trunc(str(message.get("content", ""))),
+                        )
+                    else:
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                            integration.trunc(str(getattr(message, "content", ""))),
+                        )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
                     message.__class__.__name__,
@@ -350,10 +356,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
             else:
                 log_chat_completions = [
                     [
-                        {
-                            "content": message.text,
-                            "message_type": message.message.__class__.__name__,
-                        }
+                        {"content": message.text, "message_type": message.message.__class__.__name__}
                         for message in messages
                     ]
                     for messages in chat_completions.generations
@@ -366,7 +369,9 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                     "messages": [
                         [
                             {
-                                "content": message.content,
+                                "content": message.get("content", "")
+                                if isinstance(message, dict)
+                                else str(getattr(message, "content", "")),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
@@ -397,10 +402,16 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         for message_set_idx, message_set in enumerate(chat_messages):
             for message_idx, message in enumerate(message_set):
                 if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                        integration.trunc(str(message.content)),
-                    )
+                    if isinstance(message, dict):
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                            integration.trunc(str(message.get("content", ""))),
+                        )
+                    else:
+                        span.set_tag_str(
+                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                            integration.trunc(str(getattr(message, "content", ""))),
+                        )
                 span.set_tag_str(
                     "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
                     message.__class__.__name__,
@@ -443,10 +454,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
             else:
                 log_chat_completions = [
                     [
-                        {
-                            "content": message.text,
-                            "message_type": message.message.__class__.__name__,
-                        }
+                        {"content": message.text, "message_type": message.message.__class__.__name__}
                         for message in messages
                     ]
                     for messages in chat_completions.generations
@@ -459,7 +467,9 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                     "messages": [
                         [
                             {
-                                "content": message.content,
+                                "content": message.get("content", "")
+                                if isinstance(message, dict)
+                                else str(getattr(message, "content", "")),
                                 "message_type": message.__class__.__name__,
                             }
                             for message in messages
