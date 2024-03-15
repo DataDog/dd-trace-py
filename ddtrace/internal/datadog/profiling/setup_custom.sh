@@ -79,10 +79,10 @@ targets=("dd_wrapper")
 
 # Helper functions for finding the compiler(s)
 set_clang() {
-  if [ -z "$CC" ]; then
+  if [ -z "${CC:-}" ]; then
     export CC=$highest_clang
   fi
-  if [ -z "$CXX" ]; then
+  if [ -z "${CXX:-}" ]; then
     export CXX=$highest_clangxx
   fi
   cmake_args+=(
@@ -93,10 +93,10 @@ set_clang() {
 
 set_gcc() {
   # Only set CC or CXX if they're not set
-  if [ -z "$CC" ]; then
+  if [ -z "${CC:-}" ]; then
     export CC=$highest_gcc
   fi
-  if [ -z "$CXX" ]; then
+  if [ -z "${CXX:-}" ]; then
     export CXX=$highest_gxx
   fi
   cmake_args+=(

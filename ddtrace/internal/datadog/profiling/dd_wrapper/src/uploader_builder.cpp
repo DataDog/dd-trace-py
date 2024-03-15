@@ -93,13 +93,8 @@ join(const std::vector<std::string>& vec, const std::string& delim)
                            });
 }
 
-<<<<<<< HEAD
-Datadog::Uploader
+std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
-=======
-std::variant<Uploader, std::string>
-UploaderBuilder::build()
->>>>>>> main
 {
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -145,16 +140,16 @@ UploaderBuilder::build()
       to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family), &tags, ddog_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
-    auto ddog_exporter_result = get_newexporter_result(res);
+    auto ddog_exporter_result = Datadog::get_newexporter_result(res);
     ddog_prof_Exporter* ddog_exporter = nullptr;
     if (std::holds_alternative<ddog_prof_Exporter*>(ddog_exporter_result)) {
         ddog_exporter = std::get<ddog_prof_Exporter*>(ddog_exporter_result);
     } else {
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
-        std::string errmsg = err_to_msg(&err, "Error initializing exporter");
+        std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
     }
 
-    return Uploader{ url, ddog_exporter };
+    return Datadog::Uploader{ url, ddog_exporter };
 }
