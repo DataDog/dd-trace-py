@@ -70,10 +70,6 @@ def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optio
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
-    COUNT_TOTAL_HOOK_RUNS = 0
-    COUNT_TOTAL_INSTANCE_CHECKS = 0
-    COUNT_TOTAL_CONTEXT_LINE_CHECKS = 0
-
     def __init__(self):
         super().__init__()
         self.seen = set()
@@ -90,17 +86,14 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
-        self.__class__.COUNT_TOTAL_HOOK_RUNS += 1
         path, line = arg
         if self.coverage_enabled:
             lines = self.covered[path]
-            self.__class__.COUNT_TOTAL_INSTANCE_CHECKS += 1
             if line not in lines:
                 # This line has already been covered
                 lines.add(line)
 
         if ctx_coverage_enabed.get():
-            self.__class__.COUNT_TOTAL_CONTEXT_LINE_CHECKS += 1
             ctx_lines = ctx_covered.get()[path]
             if line not in ctx_lines:
                 ctx_lines.add(line)

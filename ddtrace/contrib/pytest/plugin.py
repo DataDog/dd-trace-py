@@ -961,15 +961,3 @@ def pytest_ddtrace_get_item_test_name(item):
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     if USE_DD_COVERAGE and COVER_SESSION:
         ModuleCodeCollector.report()
-    if USE_DD_COVERAGE:
-        total_line_checks = (
-            ModuleCodeCollector.COUNT_TOTAL_INSTANCE_CHECKS + ModuleCodeCollector.COUNT_TOTAL_CONTEXT_LINE_CHECKS
-        )
-        print(
-            "Total counts: hook runs: {}, line checks: {} (instance: {}, context: {})".format(
-                ModuleCodeCollector.COUNT_TOTAL_HOOK_RUNS,
-                total_line_checks,
-                ModuleCodeCollector.COUNT_TOTAL_INSTANCE_CHECKS,
-                ModuleCodeCollector.COUNT_TOTAL_CONTEXT_LINE_CHECKS,
-            )
-        )
