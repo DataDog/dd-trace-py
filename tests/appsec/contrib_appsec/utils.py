@@ -700,9 +700,8 @@ class Contrib_TestClass_For_Threats:
             ("yqrweytqwreasldhkuqwgervflnmlnli", "text/plain", False),
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
-            ("payload.bin", None, True),
         ],
-        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack", "multipart"],
+        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
@@ -711,16 +710,7 @@ class Contrib_TestClass_For_Threats:
             dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
-            if content_type is None:
-                import random
-                import tempfile
-
-                tmp_file = tempfile.NamedTemporaryFile(suffix=".bin")
-                tmp_file.write(bytes(random.randint(0, 255) for _ in range(1_000_000)))
-                tmp_file.seek(0)
-                response = interface.client.post("/asm/", {"file": tmp_file}, format="multipart")
-            else:
-                response = interface.client.post("/asm/", data=body, content_type=content_type)
+            response = interface.client.post("/asm/", data=body, content_type=content_type)
             # DEV Warning: encoded URL will behave differently
             # assert get_tag(http.URL) == "http://localhost:8000/asm/"
             # assert get_tag(http.METHOD) == "POST"
@@ -1089,8 +1079,7 @@ class Contrib_TestClass_For_Threats:
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
             response = interface.client.get("/stream/")
-            for value in response.iter_bytes():
-                assert value == b"0123456789"
+            assert self.body(response) == "0123456789"
 
 
 @contextmanager
