@@ -30,14 +30,7 @@ add_library(dd_wrapper SHARED
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-# At present, C++17 is chosen as the minimum standard. This conflicts with the
-# manylinux2014 standard upon which we must rely. We'll have to statically link
-# libstdc++ to avoid this conflict, but need to remain mindful of symbol visibility
-# and overall binary size.
 target_compile_features(dd_wrapper PUBLIC cxx_std_17)
-
-# Statically link libstdc++ to avoid manylinux2014 conflicts
-target_link_options(dd_wrapper PRIVATE -static-libstdc++)
 
 target_include_directories(dd_wrapper PRIVATE
     include
