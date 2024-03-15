@@ -75,11 +75,12 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def calculate_sqs_payload_size(message, trace_data):
+def calculate_sqs_payload_size(message, trace_data = None):
     payload_size = _calculate_byte_size(message.get("MessageBody", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
-    # we should count datadog message attributes which aren't yet added to the message
-    payload_size += _calculate_byte_size({"_datadog", {"DataType": "String", "StringValue": trace_data}})
+    if trace_data:
+        # we should count datadog message attributes which aren't yet added to the message
+        payload_size += _calculate_byte_size({"_datadog": {"DataType": "String", "StringValue": trace_data}})
     payload_size += _calculate_byte_size(message.get("MessageSystemAttributes", {}))
     payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
@@ -89,18 +90,20 @@ def calculate_sns_payload_size(message, trace_data):
     payload_size = _calculate_byte_size(message.get("Message", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     # we should count datadog message attributes which aren't yet added to the message
-    payload_size += _calculate_byte_size({"_datadog", {"DataType": "Binary", "BinaryValue": trace_data}})
+    payload_size += _calculate_byte_size({"_datadog": {"DataType": "Binary", "BinaryValue": trace_data}})
     payload_size += _calculate_byte_size(message.get("Subject", ""))
     payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
 
 
-def calculate_kinesis_payload_size(message, trace_data):
+def calculate_kinesis_payload_size(message, trace_data = None):
     payload_size = _calculate_byte_size(message.get("Data", ""))
     payload_size += _calculate_byte_size(message.get("ExplicitHashKey", ""))
     payload_size += _calculate_byte_size(message.get("PartitionKey", ""))
-    # we should count datadog message attributes which aren't yet added to the message
-    payload_size += _calculate_byte_size({"_datadog": trace_data})
+    # if we don't have trace context data its because we are receiving and its within the message
+    if trace_data:
+        # we should count datadog message attributes which aren't yet added to the message
+        payload_size += _calculate_byte_size({"_datadog": trace_data})
     return payload_size
 
 
@@ -178,7 +181,7 @@ def handle_sqs_receive(params, result):
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, records):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record):
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -187,7 +190,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    payload_size = calculate_kinesis_payload_size(records)
+    payload_size = calculate_kinesis_payload_size(record)
     ctx = DsmPathwayCodec.decode(context_json, processor())
     ctx.set_checkpoint(
         ["direction:in", "topic:" + stream, "type:kinesis"],
