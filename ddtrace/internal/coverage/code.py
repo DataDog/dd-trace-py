@@ -125,8 +125,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             covered = self.covered[path]
             for line in list(lines):
                 if no_cover(path, line):
-                    lines - {line}
-                    covered - {line}
+                    lines -= {line}
+                    covered -= {line}
             n_covered = len(covered)
             if n_covered == 0:
                 continue
