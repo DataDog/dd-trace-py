@@ -73,7 +73,7 @@ class LLMObs(Service):
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
-        if not config._llmobs_ml_app_name:
+        if not config._llmobs_ml_app:
             cls.enabled = False
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
