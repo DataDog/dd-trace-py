@@ -73,6 +73,16 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
+def mock_llmobs_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
+    LLMObsWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)

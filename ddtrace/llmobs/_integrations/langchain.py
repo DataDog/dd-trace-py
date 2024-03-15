@@ -69,7 +69,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         prompts: List[Any],
-        completions: List[Any],
+        completions: Any,
         err: bool = False,
     ) -> None:
         # input messages
@@ -80,7 +80,7 @@ class LangChainIntegration(BaseLLMIntegration):
         # output messages
         message_content = [{"content": ""}]
         if not err:
-            message_content = [{"content": self.trunc(str(completion[0].text))} for completion in completions]
+            message_content = [{"content": self.trunc(completion[0].text)} for completion in completions.generations]
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(

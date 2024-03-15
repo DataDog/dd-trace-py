@@ -9,12 +9,8 @@ from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-from tests.utils import flaky
-from tests.utils import override_config
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 
 
@@ -27,14 +23,6 @@ pytestmark = pytest.mark.skipif(
 def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain")
 
-@pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
-    LLMObsWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsWriterMock.return_value = m
-    yield m
-    patcher.stop()
 
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(
@@ -1313,13 +1301,20 @@ class TestLLMObsLangchain:
 
     @classmethod
     def _test_llmobs_invoke(
-        cls, generate_trace, mock_llmobs_writer, mock_tracer, cassette_name, input_role=None, output_role=None
+        cls,
+        generate_trace,
+        request_vcr,
+        mock_llmobs_writer,
+        mock_tracer,
+        cassette_name,
+        input_role=None,
+        output_role=None,
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
         LLMObs.enable(tracer=mock_tracer)
 
-        with get_request_vcr().use_cassette(cassette_name):
+        with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
         span = mock_tracer.pop_traces()[0][0]
 
@@ -1327,21 +1322,23 @@ class TestLLMObsLangchain:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
-    def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer):
+    def test_llmobs_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.OpenAI()
 
         self._test_llmobs_invoke(
             generate_trace=lambda prompt: llm(prompt),
+            request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_completion_sync.yaml",
         )
 
-    def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer):
+    def test_llmobs_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_invoke(
             generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
+            request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",

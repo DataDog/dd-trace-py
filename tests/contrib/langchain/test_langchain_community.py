@@ -8,7 +8,9 @@ import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 
 
@@ -1049,3 +1051,90 @@ def test_embedding_logs_when_response_not_completed(
             ),
         ]
     )
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+class TestLLMObsLangchain:
+    @staticmethod
+    def _expected_llmobs_calls(span, input_role=None, output_role=None):
+        input_meta = {"content": mock.ANY}
+        if input_role is not None:
+            input_meta["role"] = input_role
+
+        output_meta = {"content": mock.ANY}
+        if output_role is not None:
+            output_meta["role"] = output_role
+
+        expected_llmobs_writer_calls = [mock.call.start()]
+        expected_llmobs_writer_calls += [
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=span.get_tag("langchain.request.model"),
+                    model_provider=span.get_tag("langchain.request.provider"),
+                    input_messages=[input_meta],
+                    output_messages=[output_meta],
+                    parameters={
+                        "temperature": float(span.get_tag("langchain.request.openai.parameters.temperature")),
+                        "max_tokens": int(span.get_tag("langchain.request.openai.parameters.max_tokens")),
+                    },
+                    token_metrics={
+                        "prompt_tokens": span.get_metric("langchain.tokens.prompt_tokens"),
+                        "completion_tokens": span.get_metric("langchain.tokens.completion_tokens"),
+                        "total_tokens": span.get_metric("langchain.tokens.total_tokens"),
+                    },
+                    tags={
+                        "ml_app": "unnamed-ml-app",
+                        "service": "",
+                    },
+                )
+            )
+        ]
+        return expected_llmobs_writer_calls
+
+    @classmethod
+    def _test_llmobs_invoke(
+        cls,
+        generate_trace,
+        request_vcr,
+        mock_llmobs_writer,
+        mock_tracer,
+        cassette_name,
+        input_role=None,
+        output_role=None,
+    ):
+        # disable the service before re-enabling it, as it was enabled in another test
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
+
+        with request_vcr.use_cassette(cassette_name):
+            generate_trace("Can you explain what an LLM chain is?")
+        span = mock_tracer.pop_traces()[0][0]
+
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, input_role, output_role)
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+
+    def test_llmobs_llm(self, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain_openai.OpenAI()
+
+        self._test_llmobs_invoke(
+            generate_trace=lambda prompt: llm.invoke(prompt),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_completion_sync.yaml",
+        )
+
+    def test_llmobs_chat_model(self, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
+        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+
+        self._test_llmobs_invoke(
+            generate_trace=lambda prompt: chat.invoke([langchain.schema.HumanMessage(content=prompt)]),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chat_completion_sync_call.yaml",
+            input_role="human",
+            output_role="ai",
+        )
