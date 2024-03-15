@@ -47,8 +47,8 @@ def get_stream(params):
     return stream
 
 
-def inject_context(trace_data, endpoint_service, dsm_identifier, message_data):
-    # type: (dict, str, Any, str) -> None
+def inject_context(trace_data, endpoint_service, dsm_identifier, message):
+    # type: (dict, str, str, Any) -> None
     """
     :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
     :dsm_identifier: the identifier for the topic/queue/stream/etc
@@ -61,13 +61,11 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message_data):
 
     payload_size = None
     if endpoint_service == "sqs":
-        payload_size = calculate_sqs_payload_size(message_data)
+        payload_size = calculate_sqs_payload_size(message, trace_data)
     elif endpoint_service == "sns":
-        payload_size = calculate_sns_payload_size(message_data)
+        payload_size = calculate_sns_payload_size(message, trace_data)
     elif endpoint_service == "kinesis":
-        payload_size = calculate_kinesis_payload_size(message_data)
-
-    payload_size += _calculate_byte_size(trace_data)
+        payload_size = calculate_kinesis_payload_size(message, trace_data)
 
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
@@ -77,41 +75,51 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message_data):
     DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def calculate_sqs_payload_size(message_data):
-    payload_size = _calculate_byte_size(message_data.get("MessageBody", ""))
-    payload_size += _calculate_byte_size(message_data.get("MessageAttributes", {}))
-    payload_size += _calculate_byte_size(message_data.get("MessageSystemAttributes", {}))
-    payload_size += _calculate_byte_size(message_data.get("MessageGroupId", ""))
+def calculate_sqs_payload_size(message, trace_data):
+    payload_size = _calculate_byte_size(message.get("MessageBody", ""))
+    payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
+    # we should count datadog message attributes which aren't yet added to the message
+    payload_size += _calculate_byte_size(
+        {"_datadog", {"DataType": "String", "StringValue": trace_data}}
+    )
+    payload_size += _calculate_byte_size(message.get("MessageSystemAttributes", {}))
+    payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
 
 
-def calculate_sns_payload_size(message_data):
-    payload_size = _calculate_byte_size(message_data.get("Message", ""))
-    payload_size += _calculate_byte_size(message_data.get("MessageAttributes", {}))
-    payload_size += _calculate_byte_size(message_data.get("Subject", ""))
-    payload_size += _calculate_byte_size(message_data.get("MessageGroupId", ""))
+def calculate_sns_payload_size(message, trace_data):
+    payload_size = _calculate_byte_size(message.get("Message", ""))
+    payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
+    # we should count datadog message attributes which aren't yet added to the message
+    payload_size += _calculate_byte_size(
+        {"_datadog", {"DataType": "Binary", "BinaryValue": trace_data}}
+    )
+    payload_size += _calculate_byte_size(message.get("Subject", ""))
+    payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
     return payload_size
 
 
-def calculate_kinesis_payload_size(message_data):
-    payload_size = _calculate_byte_size(message_data.get("Data", ""))
-    payload_size += _calculate_byte_size(message_data.get("ExplicitHashKey", ""))
-    payload_size += _calculate_byte_size(message_data.get("PartitionKey", ""))
+def calculate_kinesis_payload_size(message, trace_data):
+    payload_size = _calculate_byte_size(message.get("Data", ""))
+    payload_size += _calculate_byte_size(message.get("ExplicitHashKey", ""))
+    payload_size += _calculate_byte_size(message.get("PartitionKey", ""))
+    # we should count datadog message attributes which aren't yet added to the message
+    payload_size += _calculate_byte_size({"_datadog": trace_data})
     return payload_size
 
 
-def handle_kinesis_produce(stream, dd_ctx_json, records):
+def handle_kinesis_produce(stream, dd_ctx_json, record):
     if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
-        inject_context(dd_ctx_json, "kinesis", stream, records)
+        inject_context(dd_ctx_json, "kinesis", stream, record)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params, data):
+def handle_sqs_sns_produce(endpoint_service, trace_data, params, message):
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
     elif endpoint_service == "sns":
         dsm_identifier = get_topic_arn(params)
-    inject_context(trace_data, endpoint_service, dsm_identifier, data)
+    inject_context(trace_data, endpoint_service, dsm_identifier, message)
 
 
 def handle_sqs_prepare(params):
