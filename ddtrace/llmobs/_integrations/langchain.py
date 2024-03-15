@@ -32,7 +32,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         operation: str,  # oneof "llm","chat_model","chain"
         span: Span,
-        inputs: List[Any],
+        inputs: Any,
         response: Any,
         error: bool = False,
     ) -> None:
@@ -68,8 +68,8 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_llm(
         self,
         span: Span,
-        prompts,
-        completions: List[str],
+        prompts: List[Any],
+        completions: List[Any],
         err: bool = False,
     ) -> None:
         # input messages
@@ -87,7 +87,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         chat_messages: List[List[Any]],
-        chat_completions: List[List[Any]],
+        chat_completions: Any,
         err: bool = False,
     ) -> None:
         # input messages
