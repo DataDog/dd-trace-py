@@ -20,7 +20,7 @@ def patch():
         return
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
-    wrap(asyncio.create_task, wrapped_create_task_py37)
+    wrap(asyncio.BaseEventLoop.create_task, wrapped_create_task_py37)
 
 
 def unpatch():
@@ -29,19 +29,19 @@ def unpatch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     asyncio._datadog_patch = False
-    unwrap(asyncio.create_task, wrapped_create_task_py37)
+    unwrap(asyncio.BaseEventLoop.create_task, wrapped_create_task_py37)
 
 
 def wrapped_create_task_py37(wrapped, args, kwargs):
-    """By default the trace context is propagated when a task is executed and
-    NOT when it is created. This function is useful to connect traces of scheduled tasks.
+    """This function ensures the current active trace context is propagated to scheduled tasks.
+    By default the trace context is propagated when a task is executed and NOT when it is created.
     """
     pin = Pin.get_from(asyncio)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
     # override existing co-rountine to ensure the current trace context is propagated
-    coro = get_argument_value(args, kwargs, 0, "coro")
+    coro = get_argument_value(args, kwargs, 1, "coro")
     dd_active = pin.tracer.current_trace_context()
 
     async def traced_coro(*args_c, **kwargs_c):
@@ -49,5 +49,5 @@ def wrapped_create_task_py37(wrapped, args, kwargs):
             pin.tracer.context_provider.activate(dd_active)
         return await coro
 
-    args, kwargs = set_argument_value(args, kwargs, 0, "coro", traced_coro())
+    args, kwargs = set_argument_value(args, kwargs, 1, "coro", traced_coro())
     return wrapped(*args, **kwargs)
