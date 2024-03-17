@@ -20,7 +20,7 @@ def patch():
         return
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
-    wrap(asyncio.BaseEventLoop.create_task, wrapped_create_task_py37)
+    wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task_py37)
 
 
 def unpatch():
@@ -29,10 +29,10 @@ def unpatch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     asyncio._datadog_patch = False
-    unwrap(asyncio.BaseEventLoop.create_task, wrapped_create_task_py37)
+    unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task_py37)
 
 
-def wrapped_create_task_py37(wrapped, args, kwargs):
+def _wrapped_create_task_py37(wrapped, args, kwargs):
     """This function ensures the current active trace context is propagated to scheduled tasks.
     By default the trace context is propagated when a task is executed and NOT when it is created.
     """
