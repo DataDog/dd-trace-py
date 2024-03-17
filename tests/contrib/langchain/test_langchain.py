@@ -1314,6 +1314,9 @@ class TestLLMObsLangchain:
         LLMObs.disable()
         LLMObs.enable(tracer=mock_tracer)
 
+        if sys.version_info < (3, 10, 0):
+            cassette_name = cassette_name.replace(".yaml", "_39.yaml")
+
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
         span = mock_tracer.pop_traces()[0][0]
