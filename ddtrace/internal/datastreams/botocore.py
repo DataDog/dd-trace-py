@@ -75,7 +75,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def calculate_sqs_payload_size(message, trace_data = None):
+def calculate_sqs_payload_size(message, trace_data=None):
     payload_size = _calculate_byte_size(message.get("MessageBody", ""))
     payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
     if trace_data:
@@ -96,7 +96,7 @@ def calculate_sns_payload_size(message, trace_data):
     return payload_size
 
 
-def calculate_kinesis_payload_size(message, trace_data = None):
+def calculate_kinesis_payload_size(message, trace_data=None):
     payload_size = _calculate_byte_size(message.get("Data", ""))
     payload_size += _calculate_byte_size(message.get("ExplicitHashKey", ""))
     payload_size += _calculate_byte_size(message.get("PartitionKey", ""))
@@ -112,7 +112,7 @@ def handle_kinesis_produce(stream, dd_ctx_json, record):
         inject_context(dd_ctx_json, "kinesis", stream, record)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params, message = None):
+def handle_sqs_sns_produce(endpoint_service, trace_data, params, message=None):
     # if a message wasn't included, that means that the message is in the params object
     if not message:
         message = params
