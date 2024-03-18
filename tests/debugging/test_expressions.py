@@ -102,12 +102,19 @@ class CustomDict(dict):
         # Test literal values
         (42, {}, 42),
         (True, {}, True),
-        ({"isUndefined": "foobar"}, {"bar": 42}, True),
-        ({"isUndefined": "bar"}, {"bar": 42}, False),
         ({"or": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 42}, 42),
         ({"and": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 0}, 0),
         ({"or": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 0}, KeyError),
         ({"and": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 42}, KeyError),
+        ({"isDefined": "foobar"}, {"bar": 42}, False),
+        ({"isDefined": "bar"}, {"bar": 42}, True),
+        ({"instanceof": [{"ref": "bar"}, "int"]}, {"bar": 42}, True),
+        ({"instanceof": [{"ref": "bar"}, "BaseException"]}, {"bar": RuntimeError()}, True),
+        (
+            {"instanceof": [{"ref": "bar"}, f"{CustomObject.__module__}.{CustomObject.__qualname__}"]},
+            {"bar": CustomObject("foo")},
+            True,
+        ),
     ],
 )
 def test_parse_expressions(ast, _locals, value):
