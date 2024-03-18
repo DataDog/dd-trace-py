@@ -161,6 +161,7 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    STACK = "stack_trace"
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"

@@ -41,7 +41,7 @@ class DDWaf_result(object):
 
     def __init__(
         self,
-        data: Optional[str],
+        data: List[Dict[str, Any]],
         actions: List[str],
         runtime: float,
         total_runtime: float,
@@ -60,8 +60,8 @@ class DDWaf_result(object):
     def __repr__(self):
         return (
             f"DDWaf_result(data: {self.data}, actions: {self.actions}, runtime: {self.runtime},"
-            " total_runtime: {self.total_runtime}, timeout: {self.timeout},"
-            " truncation: {self.truncation}, derivatives: {self.derivatives})"
+            f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
+            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
         )
 
 
@@ -162,7 +162,7 @@ if _DDWAF_LOADED:
             start = time.time()
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0, {})
+                return DDWaf_result([], [], 0, (time.time() - start) * 1e6, False, 0, {})
 
             result = ddwaf_result()
             observator = _observator()
@@ -204,7 +204,7 @@ else:
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result(None, [], 0.0, 0.0, False, 0, {})
+            return DDWaf_result([], [], 0.0, 0.0, False, 0, {})
 
         def update_rules(self, _: Dict[str, Any]) -> bool:
             LOGGER.debug("DDWaf features disabled. dry update")

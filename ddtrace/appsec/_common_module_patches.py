@@ -15,14 +15,14 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 
 def patch_common_modules():
-    try_wrap_function_wrapper("builtins", "open", wrapped_open)
+    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
 
 
 def unpatch_common_modules():
     try_unwrap("builtins", "open")
 
 
-def wrapped_open(original_open_callable, instance, args, kwargs):
+def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
     if asm_config._iast_enabled:
         # LFI sink to be added
         pass
@@ -31,13 +31,13 @@ def wrapped_open(original_open_callable, instance, args, kwargs):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
         except ImportError:
+            # open is used during module initialization
+            # and shouldn't be changed at that time
             return original_open_callable(*args, **kwargs)
 
         if len(args) > 0:
-            result = call_waf_callback({"LFI_ADDRESS": args[0]})
-            if result:
-                print(result)
-                raise PermissionError(13, "Permission denied by ASM Exploit Prevention", args[0])
+            call_waf_callback({"LFI_ADDRESS": args[0]}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
+            # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
 
 

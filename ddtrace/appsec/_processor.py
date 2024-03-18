@@ -231,8 +231,8 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
-        def waf_callable(custom_data=None):
-            return self._waf_action(span._local_root or span, ctx, custom_data)
+        def waf_callable(custom_data=None, **kargs):
+            return self._waf_action(span._local_root or span, ctx, custom_data, **kargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
         if config._telemetry_enabled:
@@ -254,7 +254,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
-        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
+        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kargs
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -305,7 +305,6 @@ class AppSecSpanProcessor(SpanProcessor):
             action_type = self._actions.get(action, {}).get(WAF_ACTIONS.TYPE, None)
             if action_type == WAF_ACTIONS.BLOCK_ACTION:
                 blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
-                break
             elif action_type == WAF_ACTIONS.REDIRECT_ACTION:
                 blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
                 location = blocked.get("location", "")
@@ -316,7 +315,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 if not (status_code[:3].isdigit() and status_code.startswith("3")):
                     blocked["status_code"] = "303"
                 blocked[WAF_ACTIONS.TYPE] = "none"
-                break
+            elif action == WAF_ACTIONS.STACK:
+                from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+
+                stack_trace_id = report_stack("exploit detected", span, kargs.get("crop_trace"))
+                for rule in waf_results.data:
+                    rule["stack_trace_id"] = stack_trace_id
         else:
             blocked = {}
         _asm_request_context.set_waf_telemetry_results(
