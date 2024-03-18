@@ -29,7 +29,7 @@ def mock_logs():
 
 
 def test_llmobs_service_enable():
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
@@ -41,7 +41,7 @@ def test_llmobs_service_enable():
 
 
 def test_llmobs_service_disable():
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(tracer=dummy_tracer)
         llmobs_service.disable()
@@ -50,7 +50,17 @@ def test_llmobs_service_disable():
 
 
 def test_llmobs_service_enable_no_api_key():
-    with override_global_config(dict(_dd_api_key="")):
+    with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        with pytest.raises(ValueError):
+            llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is None
+        assert llmobs_service.enabled is False
+
+
+def test_llmobs_service_enable_no_ml_app_specified():
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
             llmobs_service.enable(tracer=dummy_tracer)
@@ -60,7 +70,7 @@ def test_llmobs_service_enable_no_api_key():
 
 
 def test_llmobs_service_enable_already_enabled(mock_logs):
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         llmobs_service.enable(tracer=dummy_tracer)
         llmobs_service.enable(tracer=dummy_tracer)
@@ -322,9 +332,11 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(version="1.2.3", env="test_env", service="test_service")])
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
 def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypatch):
-    monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_app_name")
     with LLMObs.task(name="test_task") as span:
         pass
     mock_llmobs_writer.enqueue.assert_called_with(
