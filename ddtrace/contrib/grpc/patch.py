@@ -218,12 +218,17 @@ def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
     dd_interceptors = create_aio_client_interceptors(pin, host, port)
-    interceptors = get_argument_value(args, kwargs, 3, "interceptors", True)
+    interceptor_index = 3
+    if wrapped.__name__ == "secure_channel":
+        interceptor_index = 4
+    interceptors = get_argument_value(args, kwargs, interceptor_index, "interceptors", True)
     # DEV: Inject our tracing interceptor first in the list of interceptors
     if interceptors:
-        args, kwargs = set_argument_value(args, kwargs, 3, "interceptors", dd_interceptors + tuple(interceptors))
+        args, kwargs = set_argument_value(
+            args, kwargs, interceptor_index, "interceptors", dd_interceptors + tuple(interceptors)
+        )
     else:
-        args, kwargs = set_argument_value(args, kwargs, 3, "interceptors", dd_interceptors, True)
+        args, kwargs = set_argument_value(args, kwargs, interceptor_index, "interceptors", dd_interceptors, True)
 
     return wrapped(*args, **kwargs)
 
