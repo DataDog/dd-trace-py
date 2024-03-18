@@ -277,7 +277,7 @@ async def test_secure_channel(server_info, tracer):
 async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
     credentials = grpc.ChannelCredentials(None)
     interceptors = [DummyClientInterceptor()]
-    async with aio.secure_channel(server_info.target, credentials, None, interceptors) as channel:
+    async with aio.secure_channel(server_info.target, credentials, None, None, interceptors) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
