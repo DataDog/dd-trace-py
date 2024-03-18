@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "65f4502a00000000",
-      "langchain.request.api_key": "...HjEH",
+      "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.0.content": "[{'type': 'text', 'text': 'What\u2019s in this image?'}, {'type': 'image_url', 'image_url': 'https://upload.wikimedia.org/wikipedia/c...",
       "langchain.request.messages.0.0.message_type": "HumanMessage",
       "langchain.request.model": "gpt-4-vision-preview",
