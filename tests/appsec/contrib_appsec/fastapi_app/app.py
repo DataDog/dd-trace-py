@@ -1,9 +1,11 @@
+import asyncio
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ddtrace import tracer
@@ -101,5 +103,14 @@ def get_app():
 
         ddtrace.Pin.override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
+
+    async def slow_numbers(minimum, maximum):
+        for number in range(minimum, maximum):
+            yield "%d" % number
+            await asyncio.sleep(0.25)
+
+    @app.get("/stream/")
+    async def stream():
+        return StreamingResponse(slow_numbers(0, 10), media_type="text/html")
 
     return app
