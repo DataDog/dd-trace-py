@@ -152,7 +152,8 @@ class _SyncHelloServicer(HelloServicer):
 
 class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
     async def intercept_unary_unary(self, continuation, client_call_details, request):
-        return await continuation(client_call_details, request)
+        undone_call = await continuation(client_call_details, request)
+        return await undone_call
 
 
 @pytest.fixture(autouse=True)
