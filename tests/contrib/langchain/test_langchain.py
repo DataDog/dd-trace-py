@@ -1329,7 +1329,7 @@ class TestLLMObsLangchain:
         llm = langchain.llms.OpenAI()
 
         self._test_llmobs_invoke(
-            generate_trace=lambda prompt: llm(prompt),
+            generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
