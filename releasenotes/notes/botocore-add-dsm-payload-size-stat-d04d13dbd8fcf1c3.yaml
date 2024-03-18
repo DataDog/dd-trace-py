@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    botocore: adds dsm payload size stats for botocore messaging services of kinesis, sqs and sns. Payload size 
-    is calculated in bytes by adding message size and other possible attributes such as headers and keys.
+    botocore: adds dsm payload size stats for botocore messaging services of kinesis, sqs and sns.
