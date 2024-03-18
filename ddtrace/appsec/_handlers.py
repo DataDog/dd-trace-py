@@ -165,16 +165,7 @@ def _on_request_span_modifier(
             else:
                 # no raw body
                 req_body = None
-        except (
-            exception_type,
-            AttributeError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            json.JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
-        ):
+        except Exception:
             log.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning

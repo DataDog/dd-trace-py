@@ -301,6 +301,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
+        blocked = {}
         for action in waf_results.actions:
             action_type = self._actions.get(action, {}).get(WAF_ACTIONS.TYPE, None)
             if action_type == WAF_ACTIONS.BLOCK_ACTION:
@@ -321,8 +322,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 stack_trace_id = report_stack("exploit detected", span, kargs.get("crop_trace"))
                 for rule in waf_results.data:
                     rule["stack_trace_id"] = stack_trace_id
-        else:
-            blocked = {}
+
         _asm_request_context.set_waf_telemetry_results(
             self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
         )
