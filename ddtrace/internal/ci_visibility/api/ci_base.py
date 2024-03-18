@@ -16,10 +16,12 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
-from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
-from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility.api import DEFAULT_OPERATION_NAMES
+from ddtrace.ext.ci_visibility.api import CIModuleId
+from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
+from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -58,17 +60,23 @@ class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
 
 
-class CIVisibilityItemBase(abc.ABC):
+CIDT = TypeVar("CIDT", CIModuleId, CISuiteId, CITestId)
+ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")
+PIDT = TypeVar("PIDT", CISessionId, CIModuleId, CISuiteId)
+ANYIDT = TypeVar("ANYIDT", CISessionId, CIModuleId, CISuiteId, CITestId)
+
+
+class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     event_type = "unset_event_type"
 
     def __init__(
         self,
-        item_id: CIItemId,
+        item_id: ANYIDT,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
         parent: Optional["CIVisibilityItemBase"] = None,
     ):
-        self.item_id: CIItemId = item_id
+        self.item_id: ANYIDT = item_id
         self.parent: Optional["CIVisibilityItemBase"] = parent
         self.name = self.item_id.name
         self._status: CITestStatus = CITestStatus.FAIL
@@ -278,19 +286,22 @@ class CIVisibilityItemBase(abc.ABC):
             self.parent.get_span()
 
 
-CIDT = TypeVar("CIDT", bound=_CIVisibilityChildItemIdBase)
-ITEMT = TypeVar("ITEMT", bound=CIVisibilityItemBase)
+class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
+    item_id: CIDT
 
 
-class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemId, CIDT, ITEMT]):
+CITEMT = TypeVar("CITEMT", bound="CIVisibilityChildItem")
+
+
+class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
     def __init__(
         self,
-        item_id: CIItemId,
+        item_id: PIDT,
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, Any]],
     ):
         super().__init__(item_id, session_settings, initial_tags)
-        self.children: Dict[CIDT, ITEMT] = {}
+        self.children: Dict[CIDT, CITEMT] = {}
 
     def _are_all_children_finished(self):
         return all(child._is_finished() for child in self.children.values())
@@ -365,12 +376,12 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemId, CIDT, ITEMT
             else:
                 # Leave the item as unfinished if any children are unfinished
                 return
-        else:
+        elif not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
         super().finish()
 
-    def add_child(self, child: ITEMT):
+    def add_child(self, child: CITEMT):
         child.parent = self
         if self._session_settings.reject_duplicates and child.item_id in self.children:
             error_msg = f"{child.item_id} already exists in {self.item_id}'s children"
@@ -378,7 +389,7 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[CIItemId, CIDT, ITEMT
             raise CIVisibilityDataError(error_msg)
         self.children[child.item_id] = child
 
-    def get_child_by_id(self, child_id: CIDT) -> ITEMT:
+    def get_child_by_id(self, child_id: CIDT) -> CITEMT:
         if child_id in self.children:
             return self.children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"

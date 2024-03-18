@@ -7,6 +7,7 @@ from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
+from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
@@ -19,7 +20,9 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySuite(CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest]):
+class CIVisibilitySuite(
+    CIVisibilityChildItem[CISuiteId], CIVisibilityParentItem[CISuiteId, CITestId, CIVisibilityTest]
+):
     event_type = SUITE_TYPE
 
     def __init__(

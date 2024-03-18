@@ -7,6 +7,7 @@ from ddtrace.ext.ci_visibility.api import CIExcInfo
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.ext.ci_visibility.api import CITestStatus
+from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.constants import TEST
@@ -16,7 +17,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilityTest(CIVisibilityItemBase):
+class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
     event_type = TEST
 
     def __init__(

@@ -5,6 +5,7 @@ from typing import Optional
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
@@ -20,7 +21,9 @@ class CIVisibilitySuiteType:
     pass
 
 
-class CIVisibilityModule(CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite]):
+class CIVisibilityModule(
+    CIVisibilityChildItem[CIModuleId], CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite]
+):
     event_type = MODULE_TYPE
 
     def __init__(

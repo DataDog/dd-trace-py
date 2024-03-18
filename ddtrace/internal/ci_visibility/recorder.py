@@ -12,6 +12,16 @@ from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
+from ddtrace.ext.ci_visibility.api import CIModule
+from ddtrace.ext.ci_visibility.api import CIModuleId
+from ddtrace.ext.ci_visibility.api import CISession
+from ddtrace.ext.ci_visibility.api import CISessionId
+from ddtrace.ext.ci_visibility.api import CISuite
+from ddtrace.ext.ci_visibility.api import CISuiteId
+from ddtrace.ext.ci_visibility.api import CITest
+from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import core
@@ -27,15 +37,6 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
-from ...ext.ci_visibility._ci_visibility_base import CIItemId, _CIVisibilityRootItemIdBase
-from ...ext.ci_visibility.api import CIModule
-from ...ext.ci_visibility.api import CIModuleId
-from ...ext.ci_visibility.api import CISession
-from ...ext.ci_visibility.api import CISessionId
-from ...ext.ci_visibility.api import CISuite
-from ...ext.ci_visibility.api import CISuiteId
-from ...ext.ci_visibility.api import CITest
-from ...ext.ci_visibility.api import CITestId
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
