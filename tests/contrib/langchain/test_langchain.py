@@ -4,134 +4,35 @@ import sys
 
 import mock
 import pytest
-import vcr
 
-from ddtrace import Pin
-from ddtrace.contrib.langchain.patch import patch
-from ddtrace.contrib.langchain.patch import unpatch
+from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
+from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-from tests.utils import flaky
-from tests.utils import override_config
+from tests.contrib.langchain.utils import get_request_vcr
 from tests.utils import override_global_config
 
 
-# VCR is used to capture and store network requests made to OpenAI and other APIs.
-# This is done to avoid making real calls to the API which could introduce
-# flakiness and cost.
-
-
-# To (re)-generate the cassettes: pass a real API key with
-# {PROVIDER}_API_KEY, delete the old cassettes and re-run the tests.
-# NOTE: be sure to check that the generated cassettes don't contain your
-#       API key. Keys should be redacted by the filter_headers option below.
-# NOTE: that different cassettes have to be used between sync and async
-#       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
-#       between cassettes generated for requests and aiohttp.
-def get_request_vcr():
-    return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/"),
-        record_mode="once",
-        match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key"],
-        # Ignore requests to the agent
-        ignore_localhost=True,
-    )
+pytestmark = pytest.mark.skipif(
+    SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community"
+)
 
 
 @pytest.fixture(scope="session")
 def request_vcr():
-    yield get_request_vcr()
+    yield get_request_vcr(subdirectory_name="langchain")
 
 
-@pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
-
-
-@pytest.fixture
-def ddtrace_config_langchain():
-    return {}
-
-
-@pytest.fixture
-def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("langchain", ddtrace_config_langchain):
-            # ensure that mock OpenAI API key is passed in
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
-            os.environ["COHERE_API_KEY"] = os.getenv("COHERE_API_KEY", "<not-a-real-key>")
-            os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>")
-            os.environ["AI21_API_KEY"] = os.getenv("AI21_API_KEY", "<not-a-real-key>")
-            patch()
-            import langchain
-
-            yield langchain
-            unpatch()
-
-
-@pytest.fixture(scope="session")
-def mock_metrics():
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
-    DogStatsdMock = patcher.start()
-    m = mock.MagicMock()
-    DogStatsdMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def mock_logs(scope="session"):
-    """
-    Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
-    before it is instantiated.
-    """
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
-    V2LogWriterMock = patcher.start()
-    m = mock.MagicMock()
-    V2LogWriterMock.return_value = m
-    yield m
-    patcher.stop()
-
-
-@pytest.fixture
-def snapshot_tracer(langchain, mock_logs, mock_metrics):
-    pin = Pin.get_from(langchain)
-    yield pin.tracer
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
-
-@pytest.fixture
-def mock_tracer(langchain, mock_logs, mock_metrics):
-    pin = Pin.get_from(langchain)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(langchain, tracer=mock_tracer)
-    pin.tracer.configure()
-    yield mock_tracer
-
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
-
-@flaky(1735812000)
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
-def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
+def test_global_tags(
+    ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
+):
     """
     When the global config UST tags are set
         The service name should be used for all data
         The env should be used for all data
         The version should be used for all data
     """
-    llm = langchain.llms.OpenAI()
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         if sys.version_info >= (3, 10, 0):
             cassette_name = "openai_completion_sync.yaml"
@@ -141,7 +42,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
             llm("What does Nietzsche mean by 'God is dead'?")
 
     span = mock_tracer.pop_traces()[0][0]
-    assert span.resource == "langchain.llms.openai.OpenAI"
+    assert span.resource == "langchain.llms.openai.OpenAI"  # check this needs changed
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -177,25 +78,25 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
-def test_openai_llm_sync(langchain, request_vcr):
-    llm = langchain.llms.OpenAI()
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
+def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
-def test_openai_llm_sync_39(langchain, request_vcr):
-    llm = langchain.llms.OpenAI()
+def test_openai_llm_sync_39(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_39.yaml"):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
-@pytest.mark.snapshot
-def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
-    llm = langchain.llms.OpenAI()
+@pytest.mark.snapshot(ignores=["resource"])
+def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
         llm.generate(
             prompts=[
@@ -207,8 +108,8 @@ def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
 
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Python 3.9 specific test")
 @pytest.mark.snapshot
-def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
-    llm = langchain.llms.OpenAI()
+def test_openai_llm_sync_multiple_prompts_39(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt_39.yaml"):
         llm.generate(
             [
@@ -219,9 +120,9 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_openai_llm_async(langchain, request_vcr):
-    llm = langchain.llms.OpenAI()
+@pytest.mark.snapshot(ignores=["resource", "langchain.request.openai.parameters.request_timeout"])
+async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_async.yaml"
     else:
@@ -230,9 +131,9 @@ async def test_openai_llm_async(langchain, request_vcr):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream")
-def test_openai_llm_sync_stream(langchain, request_vcr):
-    llm = langchain.llms.OpenAI(streaming=True)
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_llm_stream", ignores=["resource"])
+def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
         llm("Why is Spongebob so bad at driving?")
 
@@ -242,17 +143,17 @@ def test_openai_llm_sync_stream(langchain, request_vcr):
     token="tests.contrib.langchain.test_langchain.test_openai_llm_stream",
     ignores=["meta.langchain.response.completions.0.text"],
 )
-async def test_openai_llm_async_stream(langchain, request_vcr):
-    llm = langchain.llms.OpenAI(streaming=True)
+async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
+    llm = langchain.llms.OpenAI(streaming=True, model="text-davinci-003")
     with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
-def test_openai_llm_error(langchain, request_vcr):
+@pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
+def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
-    llm = langchain.llms.OpenAI()
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
 
     if parse_version(openai.__version__) >= (1, 0, 0):
         invalid_error = openai.BadRequestError
@@ -263,15 +164,15 @@ def test_openai_llm_error(langchain, request_vcr):
             llm.generate([12345, 123456])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["resource"])
 def test_cohere_llm_sync(langchain, request_vcr):
     llm = langchain.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("cohere_completion_sync.yaml"):
         llm("What is the secret Krabby Patty recipe?")
 
 
-@pytest.mark.snapshot
-def test_huggingfacehub_llm_sync(langchain, request_vcr):
+@pytest.mark.snapshot(ignores=["resource"])
+def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
     llm = langchain.llms.HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
         model_kwargs={"temperature": 0.5, "max_length": 256},
@@ -281,8 +182,8 @@ def test_huggingfacehub_llm_sync(langchain, request_vcr):
         llm("Why does Mr. Krabs have a whale daughter?")
 
 
-@pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text"])
-def test_ai21_llm_sync(langchain, request_vcr):
+@pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
+def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "ai21_completion_sync.yaml"
@@ -292,8 +193,8 @@ def test_ai21_llm_sync(langchain, request_vcr):
         llm("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
-    llm = langchain.llms.OpenAI()
+def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
     else:
@@ -312,44 +213,25 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                17,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.increment(
-                "tokens.total_cost",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 17, tags=expected_tags),
+            mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags),
+            mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags),
+            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
-def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer):
-    llm = langchain.llms.OpenAI()
+def test_llm_logs(
+    langchain, langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
+):
+    llm = langchain.llms.OpenAI(model="text-davinci-003")
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_completion_sync.yaml"
     else:
@@ -360,25 +242,20 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.llms.openai.OpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
-                    "choices": mock.ANY,
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.llms.openai.OpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "prompts": ["Can you explain what Descartes meant by 'I think, therefore I am'?"],
+            "choices": mock.ANY,
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
@@ -388,7 +265,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_chat_model_sync_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -407,7 +284,7 @@ def test_openai_chat_model_sync_call_39(langchain, request_vcr):
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_chat_model_sync_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -481,7 +358,7 @@ def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 async def test_openai_chat_model_async_call(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -492,7 +369,7 @@ async def test_openai_chat_model_async_call(langchain, request_vcr):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 async def test_openai_chat_model_async_generate(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
@@ -513,7 +390,6 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 def test_openai_chat_model_sync_stream(langchain, request_vcr):
     chat = langchain.chat_models.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
@@ -521,7 +397,6 @@ def test_openai_chat_model_sync_stream(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")])
 
 
-@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_openai_chat_model_stream")
 async def test_openai_chat_model_async_stream(langchain, request_vcr):
@@ -530,7 +405,6 @@ async def test_openai_chat_model_async_stream(langchain, request_vcr):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
-@flaky(1735812000)
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     if sys.version_info >= (3, 10, 0):
@@ -551,38 +425,17 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                21,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                59,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                80,
-                tags=expected_tags,
-            ),
-            mock.call.increment(
-                "tokens.total_cost",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 21, tags=expected_tags),
+            mock.call.distribution("tokens.completion", 59, tags=expected_tags),
+            mock.call.distribution("tokens.total", 80, tags=expected_tags),
+            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -599,46 +452,26 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chat_models.openai.ChatOpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "messages": [
-                        [
-                            {
-                                "content": "When do you use 'whom' instead of 'who'?",
-                                "message_type": "HumanMessage",
-                            }
-                        ]
-                    ],
-                    "choices": [
-                        [
-                            {
-                                "content": mock.ANY,
-                                "message_type": "AIMessage",
-                            }
-                        ]
-                    ],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.chat_models.openai.ChatOpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "messages": [[{"content": "When do you use 'whom' instead of 'who'?", "message_type": "HumanMessage"}]],
+            "choices": [[{"content": mock.ANY, "message_type": "AIMessage"}]],
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
     mock_metrics.count.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -662,19 +495,18 @@ def test_openai_embedding_document(langchain, request_vcr):
         embeddings.embed_documents(["this is", "a test document."])
 
 
-@pytest.mark.snapshot
-def test_fake_embedding_query(langchain):
+@pytest.mark.snapshot(ignores=["resource"])
+def test_fake_embedding_query(langchain, langchain_community):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
-@pytest.mark.snapshot
-def test_fake_embedding_document(langchain):
+@pytest.mark.snapshot(ignores=["resource"])
+def test_fake_embedding_document(langchain, langchain_community):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-@flaky(1735812000)
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     if sys.version_info >= (3, 10, 0):
@@ -694,19 +526,12 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-        ],
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
         any_order=True,
     )
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -723,24 +548,19 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
-                    "inputs": ["this is a test query."],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "info",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "inputs": ["this is a test query."],
+        }
     )
     mock_metrics.increment.assert_not_called()
     mock_metrics.distribution.assert_not_called()
@@ -749,7 +569,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
 
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_math_chain_sync(langchain, request_vcr):
     """
@@ -796,7 +616,7 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
-    ignores=["metrics.langchain.tokens.total_cost"],
+    ignores=["metrics.langchain.tokens.total_cost", "resource"],
 )
 def test_openai_sequential_chain(langchain, request_vcr):
     """
@@ -851,7 +671,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["langchain.tokens.total_cost", "resource"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
     template = """Paraphrase this text:
 
@@ -889,8 +709,8 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_openai_sequential_chain_with_multiple_llm_async(langchain, request_vcr):
+@pytest.mark.snapshot(ignores=["resource"])
+async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
         {input_text}
@@ -926,7 +746,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, reques
         await sequential_chain.acall({"input_text": input_text})
 
 
-def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+def test_openai_chain_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "openai_math_chain_sync.yaml"
@@ -946,38 +766,17 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     ]
     mock_metrics.assert_has_calls(
         [
-            mock.call.distribution(
-                "tokens.prompt",
-                236,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.completion",
-                24,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "tokens.total",
-                260,
-                tags=expected_tags,
-            ),
-            mock.call.increment(
-                "tokens.total_cost",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
+            mock.call.distribution("tokens.prompt", 236, tags=expected_tags),
+            mock.call.distribution("tokens.completion", 24, tags=expected_tags),
+            mock.call.distribution("tokens.total", 260, tags=expected_tags),
+            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
+            mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -998,7 +797,6 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     assert mock_logs.enqueue.call_count == 3  # This operation includes 2 chains and 1 LLM call
     mock_logs.assert_has_calls(
         [
-            mock.call.start(),
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
@@ -1008,7 +806,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(llm_span.trace_id),
+                    "dd.trace_id": hex(llm_span.trace_id)[2:],
                     "dd.span_id": str(llm_span.span_id),
                     "prompts": mock.ANY,
                     "choices": mock.ANY,
@@ -1023,7 +821,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(mid_chain_span.trace_id),
+                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
                     "dd.span_id": str(mid_chain_span.span_id),
                     "inputs": mock.ANY,
                     "prompt": mock.ANY,
@@ -1043,7 +841,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": str(base_chain_span.trace_id),
+                    "dd.trace_id": hex(base_chain_span.trace_id)[2:],
                     "dd.span_id": str(base_chain_span.span_id),
                     "inputs": {"question": "what is two raised to the fifty-fourth power?"},
                     "prompt": mock.ANY,
@@ -1060,13 +858,18 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
-def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
+def test_chat_prompt_template_does_not_parse_template(langchain, langchain_community, mock_tracer):
     """
     Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
     as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
     but instead contain multiple messages each with their own prompt template and are not trivial to tag.
     """
-    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    import langchain.prompts.chat  # noqa: F401
+
+    # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
             template = "You are a helpful assistant that translates english to pirate."
@@ -1088,7 +891,6 @@ def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -1112,7 +914,6 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
@@ -1127,7 +928,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
             api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
             environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
         )
-        embed = langchain.embeddings.OpenAIEmbeddings(model="text-embedding-ada-002")
+        embed = langchain.embeddings.OpenAIEmbeddings()
         index = pinecone.Index(index_name="langchain-retrieval")
         vectorstore = langchain.vectorstores.Pinecone(index, embed.embed_query, "text")
 
@@ -1138,7 +939,6 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info >= (3, 10, 0), reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
@@ -1164,7 +964,6 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
-@flaky(1735812000)
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
@@ -1192,19 +991,12 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
         "error:0",
     ]
     mock_metrics.assert_has_calls(
-        [
-            mock.call.distribution(
-                "request.duration",
-                mock.ANY,
-                tags=expected_tags,
-            ),
-        ],
+        [mock.call.distribution("request.duration", mock.ANY, tags=expected_tags)],
         any_order=True,
     )
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1232,7 +1024,6 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
     assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
     mock_logs.assert_has_calls(
         [
-            mock.call.start(),
             mock.call.enqueue(
                 {
                     "timestamp": mock.ANY,
@@ -1242,7 +1033,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(embeddings_span.trace_id),
+                    "dd.trace_id": hex(embeddings_span.trace_id)[2:],
                     "dd.span_id": str(embeddings_span.span_id),
                     "inputs": ["Who was Alan Turing?"],
                 }
@@ -1256,7 +1047,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
                     "service": "",
                     "status": "info",
                     "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(vectorstore_span.trace_id),
+                    "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
                     "dd.span_id": str(vectorstore_span.span_id),
                     "query": "Who was Alan Turing?",
                     "k": 1,
@@ -1271,7 +1062,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -1292,7 +1083,7 @@ from langchain.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
 llm = OpenAI()
-with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
+with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_completion_sync.yaml"):
     llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 """,
         env=env,
@@ -1303,7 +1094,7 @@ with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_openai_service_name(
@@ -1327,12 +1118,13 @@ def test_openai_service_name(
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        # TODO: need to correct this
         """
 from langchain.llms import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain import get_request_vcr
 llm = OpenAI()
-with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
+with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_completion_sync.yaml"):
     llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 """,
         env=env,
@@ -1350,34 +1142,31 @@ def test_llm_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
-            llm = langchain.llms.OpenAI()
+            llm = langchain.llms.OpenAI(model="text-davinci-003")
             llm("Can you please not return an error?")
         assert str(exc_info.value) == "Mocked Error"
     span = mock_tracer.pop_traces()[0][0]
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.llms.openai.OpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "prompts": ["Can you please not return an error?"],
-                    "choices": [],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-davinci-003,langchain.request.type:llm,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "prompts": ["Can you please not return an error?"],
+            "choices": [],
+        }
     )
 
 
@@ -1389,7 +1178,9 @@ def test_chat_model_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
+    with mock.patch(
+        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
+    ):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
             chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
@@ -1398,36 +1189,23 @@ def test_chat_model_logs_when_response_not_completed(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chat_models.openai.ChatOpenAI",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": hex(trace_id)[2:],
-                    "dd.span_id": str(span_id),
-                    "messages": [
-                        [
-                            {
-                                "content": "Can you please not return an error?",
-                                "message_type": "HumanMessage",
-                            }
-                        ]
-                    ],
-                    "choices": [],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.chat_models.openai.ChatOpenAI",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:gpt-3.5-turbo,langchain.request.type:chat_model,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "messages": [[{"content": "Can you please not return an error?", "message_type": "HumanMessage"}]],
+            "choices": [],
+        }
     )
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1437,7 +1215,8 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -1447,68 +1226,22 @@ def test_embedding_logs_when_response_not_completed(
     trace_id, span_id = span.trace_id, span.span_id
 
     assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(trace_id),
-                    "dd.span_id": str(span_id),
-                    "inputs": ["Can you please not return an error?"],
-                }
-            ),
-        ]
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.embeddings.openai.OpenAIEmbeddings",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:openai,langchain.request.model:text-embedding-ada-002,langchain.request.type:embedding,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(trace_id)[2:],
+            "dd.span_id": str(span_id),
+            "inputs": ["Can you please not return an error?"],
+        }
     )
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_langchain",
-    [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
-)
-def test_chain_logs_when_response_not_completed(
-    langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
-):
-    """Test that errors get logged even if the response is not returned."""
-    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
-        with pytest.raises(Exception) as exc_info:
-            chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
-            chain.run("Can you please not return an error?")
-        assert str(exc_info.value) == "Mocked Error"
-    traces = mock_tracer.pop_traces()
-    mid_chain_span = traces[0][1]
-
-    assert mock_logs.enqueue.call_count == 3  # This operation includes 2 chains and 1 LLM call
-    mock_logs.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.chains.llm.LLMChain",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:,langchain.request.model:,langchain.request.type:chain,langchain.request.api_key:",  # noqa: E501
-                    "dd.trace_id": hex(mid_chain_span.trace_id)[2:],
-                    "dd.span_id": str(mid_chain_span.span_id),
-                    "inputs": mock.ANY,
-                    "prompt": mock.ANY,
-                    "outputs": {},
-                }
-            ),
-        ],
-        any_order=True,
-    )
-
-
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1516,7 +1249,8 @@ def test_chain_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error")
+        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             import pinecone
@@ -1534,26 +1268,20 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
         assert str(exc_info.value) == "Mocked Error"
     traces = mock_tracer.pop_traces()
     vectorstore_span = traces[0][0]
-
     assert mock_logs.enqueue.call_count == 2  # This operation includes 1 vectorstore call and 1 embeddings call
-    mock_logs.assert_has_calls(
-        [
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": "sampled langchain.vectorstores.pinecone.Pinecone",
-                    "hostname": mock.ANY,
-                    "ddsource": "langchain",
-                    "service": "",
-                    "status": "error",
-                    "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
-                    "dd.trace_id": str(vectorstore_span.trace_id),
-                    "dd.span_id": str(vectorstore_span.span_id),
-                    "query": "Can you please not return an error?",
-                    "k": 1,
-                    "documents": [],
-                }
-            ),
-        ],
-        any_order=True,
+    mock_logs.enqueue.assert_called_with(
+        {
+            "timestamp": mock.ANY,
+            "message": "sampled langchain.vectorstores.pinecone.Pinecone",
+            "hostname": mock.ANY,
+            "ddsource": "langchain",
+            "service": "",
+            "status": "error",
+            "ddtags": "env:,version:,langchain.request.provider:pinecone,langchain.request.model:,langchain.request.type:similarity_search,langchain.request.api_key:...key>",  # noqa: E501
+            "dd.trace_id": hex(vectorstore_span.trace_id)[2:],
+            "dd.span_id": str(vectorstore_span.span_id),
+            "query": "Can you please not return an error?",
+            "k": 1,
+            "documents": [],
+        }
     )
