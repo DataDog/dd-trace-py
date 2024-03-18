@@ -112,7 +112,10 @@ def handle_kinesis_produce(stream, dd_ctx_json, record):
         inject_context(dd_ctx_json, "kinesis", stream, record)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params, message):
+def handle_sqs_sns_produce(endpoint_service, trace_data, params, message = None):
+    # if a message wasn't included, that means that the message is in the params object
+    if not message:
+        message = params
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
@@ -171,7 +174,7 @@ def handle_sqs_receive(params, result):
 
     queue_name = get_queue_name(params)
 
-    for message in result.get("Messages"):
+    for message in result.get("Messages", []):
         try:
             context_json = get_datastreams_context(message)
             payload_size = calculate_sqs_payload_size(message)
@@ -200,9 +203,9 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
     )
 
 
-def handle_kinesis_receive(params, time_estimate, context_json, records):
+def handle_kinesis_receive(params, time_estimate, context_json, record):
     try:
-        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, records)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 

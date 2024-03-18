@@ -100,7 +100,7 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
-    core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params, params])
+    core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
