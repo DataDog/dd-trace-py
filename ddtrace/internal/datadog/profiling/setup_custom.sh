@@ -139,7 +139,7 @@ print_help() {
   echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
   echo "Options (one of)"
   echo "  -h, --help        Show this help message and exit"
-  echo "  -s, --safety      Clang + " ${compile_args["safety"]}
+  echo "  -s, --safety      GCC + " ${compile_args["safety"]}
   echo "  -t, --thread      Clang + " ${compile_args["thread"]}
   echo "  -n, --numerical   Clang + " ${compile_args["numerical"]}
   echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}
@@ -186,7 +186,7 @@ add_compiler_args() {
       ;;
     -s|--safety)
       cmake_args+=(${compiler_args["safety"]})
-      set_clang
+      set_gcc
       ;;
     -t|--thread)
       cmake_args+=(${compiler_args["thread"]})

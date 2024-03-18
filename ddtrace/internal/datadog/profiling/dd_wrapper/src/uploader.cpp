@@ -6,7 +6,18 @@ using namespace Datadog;
 void
 DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
 {
+    // According to the rust docs, the `cancel()` call is synchronous
+    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
     ddog_prof_Exporter_drop(ptr);
+}
+
+void
+DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
+{
+    if (ptr != nullptr) {
+        ddog_CancellationToken_cancel(ptr);
+        ddog_CancellationToken_drop(ptr);
+    }
 }
 
 Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
@@ -65,8 +76,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     // Create a new cancellation token.  Maybe we can get away without doing this, but
     // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
     // NB `cancel_inflight()` already drops the old token.
-    cancel = ddog_CancellationToken_new();
-    auto* cancel_for_request = ddog_CancellationToken_clone(cancel);
+    cancel.reset(ddog_CancellationToken_new());
+    auto* cancel_for_request = ddog_CancellationToken_clone(cancel.get());
 
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
@@ -109,13 +120,7 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
-    // According to the rust docs, the `cancel()` call is synchronous
-    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
-    if (cancel != nullptr) {
-        ddog_CancellationToken_cancel(cancel);
-        ddog_CancellationToken_drop(cancel);
-    }
-    cancel = nullptr;
+    cancel.reset();
 }
 
 void
