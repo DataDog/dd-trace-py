@@ -84,7 +84,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     if len(entries) != 0:
         for entry in entries:
-            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
+            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params, entry])
             inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
     else:
         log.warning("Skipping injecting Datadog attributes to records, no records available")
