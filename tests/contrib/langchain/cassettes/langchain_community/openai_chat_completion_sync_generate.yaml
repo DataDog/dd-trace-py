@@ -1,0 +1,207 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "Respond like a frat boy."},
+      {"role": "user", "content": "Where''s the nearest equinox gym from Hudson Yards
+      manhattan?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream":
+      false, "temperature": 0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '256'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1RRy24aQRC871dU5uILIB7GPG5YihIpUZQcHMmJIjQ728sO3p0eT/cKE4t/txYw
+        JJc+VHWVqqtfM8D4wixhXGXVNbHuz/8m5788f1sVPx++73+tHhb7268/0ircT2Zb0+sUnG/J6btq
+        4LiJNanncKJdIqvUuY5mw8Vsejsfz49EwwXVnWwTtT8ZTPvappz7w9F4elZW7B2JWeJ3BgCvx9ll
+        DAW9mCWGvXekIRG7IbO8LAEmcd0hxop4URvU9K6k46AUjrHvE/fw8bn1gV/wuS2EAx5tKgResG1F
+        YVHSDnnN7klgd3aPMnEDrQiN9QEUNNngaIBHbuFsuFE0XgReeyjaggb4RIo9twmxbSI4wIYCUvEO
+        WrEQduQ3lQp2Fd8Ichb5YM5pD5cza97ExHlXSWjr+oKXPnip1omscOhOEuV4kh8y4M+xzva/hkxM
+        3ERdKz9R6Awno5OduT7wH3J+JpXV1lf8bpGd8xnZi1KzLn3YUIrJn7ot43qcz2Zzd5dPpiY7ZG8A
+        AAD//wMAR7hp+2UCAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e4db7f80192a-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:48 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=jrjMOp.5M0V3HhzEvJBENXmJEGmiQ5Tw55GHjLJjAKM-1709754828-1.0.1.1-fWD4u42NzjZO154a4sa_XMwBCI.sMY6e99bGlg.zOb8WwaBdgfoE4vawHqxETrxacwgCkGNSx1waL3B8vzXPSQ;
+        path=/; expires=Wed, 06-Mar-24 20:23:48 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=mIuJnnGVNQXiIPEnQKFXd40fpUMiEklXOG3cRnTlXLg-1709754828975-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '567'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999720'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 8ms
+      x-request-id:
+      - req_9f6e7ba2700ea8cec3dbccae6c4130b6
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "Respond with a pirate accent."},
+      {"role": "user", "content": "How does one get to Bikini Bottom from New York?"}],
+      "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream": false, "temperature":
+      0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '249'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=jrjMOp.5M0V3HhzEvJBENXmJEGmiQ5Tw55GHjLJjAKM-1709754828-1.0.1.1-fWD4u42NzjZO154a4sa_XMwBCI.sMY6e99bGlg.zOb8WwaBdgfoE4vawHqxETrxacwgCkGNSx1waL3B8vzXPSQ;
+        _cfuvid=mIuJnnGVNQXiIPEnQKFXd40fpUMiEklXOG3cRnTlXLg-1709754828975-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2xSTW/bMAy951ewuvSSBE3aLG0uQ4udtnW7FPvAMAS0TVtKZFGg6Hpe0f8+yEnT
+        DdhFBz6+xyfyPU0AjKvMBkxpUcs2+tn1byl3ZL9c8UP/eP8tvH/38aF/3MXhc7tszDQzuNhRqS+s
+        eclt9KSOwwEuhVApqy7WFzfr1dX18mYEWq7IZ1oTdXY5X820k4JnF4vl6si07EpKZgM/JgAAT+Ob
+        PYaKfpkNXExfKi2lhA2ZzakJwAj7XDGYkkuKQc30FSw5KIXR9q2ITGEgKAh6DOrCOShDQudBLYF1
+        jYVEmKAWbuET9fCdZZ977tzeBQd3rMrtFMi+ha/k/VEtaZZsSEfJgSSRrwFBpUs6QLIuAoYKEEqh
+        HriGVKL3Q49NyuqWfMxKAR9dg0qjGxXC0pJwl6BHJUlz+EAUAaEnVEsCNBBwp1CzAIYhe4eWQ8rN
+        wAJ7wT2FBGpRocUhu/Sd7LPLgjz346DUSY0lzeE2VFBxOB8FG9JsLWK5h+gp6JB9N8LN+BWLUmnG
+        8uyssuNOAg1zuMdhLPQuVHkgat4IFLk5M8eRipKg6VxF+d8Ja/LDf/bcElhC0eEM8vHOzPGuz6dA
+        eG6icJHDEzrvT/XaBZfsVggTh3z8pBwP9OcJwM8xeN0/WTJRuI26Vc5LMxs45HfM0EvUX8HF8phK
+        o6zo/wKubiZHhyYNSand1i40JFHcIYd13C6L9fq6fFNcrszkefIHAAD//wMAX70QeZEDAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e4e13d3d192a-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:51 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2028'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999721'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 8ms
+      x-request-id:
+      - req_153147f2840b7063285f0b7b7b7f5cc0
+    status:
+      code: 200
+      message: OK
+version: 1
