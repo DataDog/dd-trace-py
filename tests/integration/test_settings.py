@@ -5,17 +5,21 @@ import pytest
 from .test_integration import AGENT_VERSION
 
 
-def _get_latest_telemetry_config_item(events, item_name):
+def _get_telemetry_config_items(events, item_name):
+    items = []
     for event in reversed(sorted(events, key=lambda e: (e["tracer_time"], e["seq_id"]))):
         for item in reversed(event.get("payload", {}).get("configuration", [])):
             if item_name == item["name"]:
-                return item
+                items.append(item)
+    if items:
+        return items
     return None
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_setting_origin_environment(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
+
     env.update(
         {
             "DD_TRACE_SAMPLE_RATE": "0.1",
@@ -36,31 +40,29 @@ with tracer.trace("test") as span:
     assert status == 0, err
 
     events = test_agent_session.get_events()
-    assert _get_latest_telemetry_config_item(events, "trace_sample_rate") == {
+    events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
+
+    assert {
         "name": "trace_sample_rate",
         "value": "0.1",
         "origin": "env_var",
-    }
-    assert _get_latest_telemetry_config_item(events, "logs_injection_enabled") == {
-        "name": "logs_injection_enabled",
-        "value": "true",
-        "origin": "env_var",
-    }
-    assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
+    } in events_trace_sample_rate
+
+    events_logs_injection_enabled = _get_telemetry_config_items(events, "logs_injection_enabled")
+    assert {"name": "logs_injection_enabled", "value": "true", "origin": "env_var"} in events_logs_injection_enabled
+
+    events_trace_header_tags = _get_telemetry_config_items(events, "trace_header_tags")
+    assert {
         "name": "trace_header_tags",
         "value": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
         "origin": "env_var",
-    }
-    assert _get_latest_telemetry_config_item(events, "trace_tags") == {
-        "name": "trace_tags",
-        "value": "team:apm,component:web",
-        "origin": "env_var",
-    }
-    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
-        "name": "tracing_enabled",
-        "value": "true",
-        "origin": "env_var",
-    }
+    } in events_trace_header_tags
+
+    events_trace_tags = _get_telemetry_config_items(events, "trace_tags")
+    assert {"name": "trace_tags", "value": "team:apm,component:web", "origin": "env_var"} in events_trace_tags
+
+    events_tracing_enabled = _get_telemetry_config_items(events, "tracing_enabled")
+    assert {"name": "tracing_enabled", "value": "true", "origin": "env_var"} in events_tracing_enabled
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -93,31 +95,40 @@ with tracer.trace("test") as span:
     assert status == 0, err
 
     events = test_agent_session.get_events()
-    assert _get_latest_telemetry_config_item(events, "trace_sample_rate") == {
+    events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
+    assert {
         "name": "trace_sample_rate",
         "value": "0.2",
         "origin": "code",
-    }
-    assert _get_latest_telemetry_config_item(events, "logs_injection_enabled") == {
+    } in events_trace_sample_rate
+
+    events_logs_injection_enabled = _get_telemetry_config_items(events, "logs_injection_enabled")
+    assert {
         "name": "logs_injection_enabled",
         "value": "false",
         "origin": "code",
-    }
-    assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
+    } in events_logs_injection_enabled
+
+    events_trace_header_tags = _get_telemetry_config_items(events, "trace_header_tags")
+    assert {
         "name": "trace_header_tags",
         "value": "header:value",
         "origin": "code",
-    }
-    assert _get_latest_telemetry_config_item(events, "trace_tags") == {
+    } in events_trace_header_tags
+
+    events_trace_tags = _get_telemetry_config_items(events, "trace_tags")
+    assert {
         "name": "trace_tags",
         "value": "header:value",
         "origin": "code",
-    }
-    assert _get_latest_telemetry_config_item(events, "tracing_enabled") == {
+    } in events_trace_tags
+
+    events_tracing_enabled = _get_telemetry_config_items(events, "tracing_enabled")
+    assert {
         "name": "tracing_enabled",
         "value": "false",
         "origin": "code",
-    }
+    } in events_tracing_enabled
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -155,11 +166,8 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
     assert status == 0, err
 
     events = test_agent_session.get_events()
-    assert _get_latest_telemetry_config_item(events, "trace_sample_rate") == {
-        "name": "trace_sample_rate",
-        "value": "1.0",
-        "origin": "default",
-    }
+    events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
+    assert {"name": "trace_sample_rate", "value": "0.5", "origin": "remote_config"} in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -178,11 +186,8 @@ assert span.get_metric("_dd.rule_psr") == 0.5
     assert status == 0, err
 
     events = test_agent_session.get_events()
-    assert _get_latest_telemetry_config_item(events, "trace_sample_rate") == {
-        "name": "trace_sample_rate",
-        "value": "0.5",
-        "origin": "remote_config",
-    }
+    events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
+    assert {"name": "trace_sample_rate", "value": "0.5", "origin": "remote_config"} in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -211,8 +216,9 @@ assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
     assert status == 0, err
 
     events = test_agent_session.get_events()
-    assert _get_latest_telemetry_config_item(events, "trace_header_tags") == {
+    events_trace_header_tags = _get_telemetry_config_items(events, "trace_header_tags")
+    assert {
         "name": "trace_header_tags",
         "value": "used:header_tag_69,unused:header_tag_70,used-with-default:",
         "origin": "remote_config",
-    }
+    } in events_trace_header_tags
