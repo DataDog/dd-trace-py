@@ -235,7 +235,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
     first_message = messages[0]
-    if first_message and config.kafka.distributed_tracing_enabled and first_message.headers():
+    if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
         ctx = Propagator.extract(dict(first_message.headers()))
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
@@ -248,7 +248,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.start_ns = start_ns
 
         for message in messages:
-            if message is not None:
+            if message is not None and first_message is not None:
                 core.set_item("kafka_topic", first_message.topic())
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 

@@ -65,6 +65,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build
+        id: build
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
 
@@ -148,15 +149,16 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh SAMPLING
 
-      # even on failures, we want to have artifact to be able to investigate
+      # even on failures, we want to have artifact to be able to investigate, so run if build was a success
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: always() || github.event_name == 'schedule'
+        id: compress-artifact
+        if: steps.build.outcome == 'success' || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: always() || github.event_name == 'schedule'
+        if: steps.compress-artifact.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: logs_${{ matrix.weblog-variant }}
           path: artifact.tar.gz
