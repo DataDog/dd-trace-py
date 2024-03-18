@@ -155,6 +155,9 @@ class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
         undone_call = await continuation(client_call_details, request)
         return await undone_call
 
+    def add_done_callback(self, unused_callback):
+        pass
+
 
 @pytest.fixture(autouse=True)
 def patch_grpc_aio():
