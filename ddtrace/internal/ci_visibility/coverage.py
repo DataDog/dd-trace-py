@@ -19,6 +19,8 @@ from ddtrace.internal.utils.formats import asbool
 log = get_logger(__name__)
 _global_relative_file_paths_for_cov: Dict[str, Dict[str, str]] = {}
 
+# This feature-flags experimental collection of code coverage via our internal ModuleCodeCollector.
+# It is disabled by default because it is not production-ready.
 USE_DD_COVERAGE = asbool(os.environ.get("_DD_USE_INTERNAL_COVERAGE", "false"))
 
 try:
@@ -51,6 +53,7 @@ def _initialize_coverage(root_dir):
 
 
 def _start_coverage(root_dir: str):
+    # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         ctx = ModuleCodeCollector.CollectInContext()
         return ctx
@@ -60,6 +63,7 @@ def _start_coverage(root_dir: str):
 
 
 def _stop_coverage(module):
+    # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         module._dd_coverage.__exit__()
         return
@@ -70,6 +74,7 @@ def _stop_coverage(module):
 
 
 def _module_has_dd_coverage_enabled(module, silent_mode: bool = False) -> bool:
+    # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:
         return hasattr(module, "_dd_coverage")
     if not hasattr(module, "_dd_coverage"):
@@ -90,6 +95,7 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 def _switch_coverage_context(
     coverage_data: Union[Coverage, ModuleCodeCollector.CollectInContext], unique_test_name: str
 ):
+    # Experimental feature to use internal coverage collection
     if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
         if USE_DD_COVERAGE:
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
@@ -107,6 +113,7 @@ def _switch_coverage_context(
 def _report_coverage_to_span(
     coverage_data: Union[Coverage, ModuleCodeCollector.CollectInContext], span: ddtrace.Span, root_dir: str
 ):
+    # Experimental feature to use internal coverage collection
     if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
         if USE_DD_COVERAGE:
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext

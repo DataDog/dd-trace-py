@@ -74,6 +74,8 @@ log = get_logger(__name__)
 
 _global_skipped_elements = 0
 
+# COVER_SESSION is an experimental feature flag that provides full coverage (similar to coverage run), and is an
+# experimental feature. It currently significantly increases test import time and should not be used.
 COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
 
@@ -828,6 +830,7 @@ def pytest_runtest_protocol(item, nextitem):
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
+    # Enables experimental use of ModuleCodeCollector for coverage collection.
     if USE_DD_COVERAGE:
         if not ModuleCodeCollector.is_installed():
             ModuleCodeCollector.install()
@@ -959,5 +962,6 @@ def pytest_ddtrace_get_item_test_name(item):
 
 @pytest.hookimpl(trylast=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    # Reports coverage if experimental session-level coverage is enabled.
     if USE_DD_COVERAGE and COVER_SESSION:
         ModuleCodeCollector.report()
