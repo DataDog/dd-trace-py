@@ -243,8 +243,10 @@ def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vc
 
 @pytest.mark.snapshot
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
-    """Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
-    Test that input messages with nested contents are still tagged without error"""
+    """
+    Test that input messages with nested contents are still tagged without error
+    Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
+    """
     image_url = (
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
