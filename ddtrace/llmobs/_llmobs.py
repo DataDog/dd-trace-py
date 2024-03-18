@@ -17,7 +17,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -70,7 +69,16 @@ class LLMObs(Service):
 
         if not config._dd_api_key:
             cls.enabled = False
-            raise ValueError("DD_API_KEY is required for sending LLMObs data")
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+        if not config._llmobs_ml_app:
+            cls.enabled = False
+            raise ValueError(
+                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
@@ -388,7 +396,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "env:{}".format(config.env or ""),
             "service:{}".format(span.service or ""),
             "source:integration",
-            "ml_app:{}".format(self._get_ml_app_name(span)),
+            "ml_app:{}".format(config._llmobs_ml_app or "unnamed-ml-app"),
             "ddtrace.version:{}".format(ddtrace.__version__),
             "error:%d" % span.error,
         ]
@@ -400,21 +408,6 @@ class LLMObsTraceProcessor(TraceProcessor):
             span_tags = json.loads(existing_tags)
             tags.extend(["{}:{}".format(k, v) for k, v in span_tags.items()])
         return tags
-
-    @staticmethod
-    def _get_ml_app_name(span: Span) -> str:
-        """
-        Return the ML app name in the following priority order:
-        1) DD_LLMOBS_APP_NAME env var
-        2) DD_SERVICE or manual service name set on the span
-        3) Default unnamed-ml-app.
-        """
-        ml_app_name = os.getenv("DD_LLMOBS_APP_NAME")
-        if ml_app_name is not None:
-            return ml_app_name
-        if span.service is not None:
-            return span.service
-        return DEFAULT_ML_APP_NAME
 
     def _get_session_id(self, span: Span) -> str:
         """
