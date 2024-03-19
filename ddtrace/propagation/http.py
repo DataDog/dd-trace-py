@@ -954,7 +954,7 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-        if ddtrace.tracer.sampler:
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sampler") and ddtrace.tracer.sampler:
             if span is None:
                 # if a span is not passed in explicitly, we do our best to grab the current root span to sample
                 span = ddtrace.tracer.current_root_span()
