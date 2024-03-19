@@ -620,9 +620,11 @@ class TestCheckEnabledFeatures:
     # All requests to setting endpoint are the same within a call of _check_enabled_features()
     expected_do_request_method = "POST"
     expected_do_request_urls = {
-        REQUESTS_MODE.AGENTLESS_EVENTS: re.compile(r"https://api.datad0g.com/api/v2/libraries/tests/services/setting"),
+        REQUESTS_MODE.AGENTLESS_EVENTS: re.compile(
+            r"^https://api\.datad0g\.com/api/v2/libraries/tests/services/setting$"
+        ),
         REQUESTS_MODE.EVP_PROXY_EVENTS: re.compile(
-            r"http://localhost:[89]126/evp_proxy/v2/api/v2/libraries/tests/services/setting"
+            r"^http://localhost:[89]126/evp_proxy/v2/api/v2/libraries/tests/services/setting$"
         ),
     }
     expected_do_request_headers = {
