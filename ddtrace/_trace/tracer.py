@@ -233,7 +233,7 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
         self.sampler: BaseSampler = DatadogSampler()
-        forksafe.register_before_in_child(self.sample_before_fork)
+        forksafe.register_before_fork(self.sample_before_fork)
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -1046,7 +1046,7 @@ class Tracer(object):
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
-            forksafe.unregister_before_in_child(self.sample_before_fork)
+            forksafe.unregister_before_fork(self.sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 

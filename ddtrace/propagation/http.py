@@ -961,7 +961,7 @@ class HTTPPropagator(object):
             else:
                 span = span._local_root
             if span is not None and span.context.sampling_priority is None:
-                    ddtrace.tracer.sampler.sample(span._local_root)
+                ddtrace.tracer.sampler.sample(span._local_root)
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
