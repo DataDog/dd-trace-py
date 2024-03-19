@@ -196,10 +196,6 @@ class TopLevelSpanProcessor(SpanProcessor):
             span.set_metric("_dd.top_level", 1)
 
 
-def _update_span_tags_from_context(span, context):
-    context._update_tags(span)
-
-
 @attr.s
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
@@ -223,7 +219,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        _update_span_tags_from_context(chunk_root, ctx)
+        ctx._update_tags(chunk_root)
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
         # for 128 bit trace ids
