@@ -1,4 +1,6 @@
 from functools import wraps
+from typing import Callable
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
@@ -7,7 +9,13 @@ from ddtrace.llmobs import LLMObs
 log = get_logger(__name__)
 
 
-def llm(model_name, model_provider=None, name=None, session_id=None):
+def llm(
+    model_name: str,
+    model_provider: Optional[str] = None,
+    name: Optional[str] = None,
+    session_id: Optional[str] = None,
+    ml_app: Optional[str] = None,
+):
     def inner(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -22,6 +30,7 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
                 model_provider=model_provider,
                 name=span_name,
                 session_id=session_id,
+                ml_app=ml_app,
             ):
                 return func(*args, **kwargs)
 
@@ -31,7 +40,12 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
 
 
 def llmobs_decorator(operation_kind):
-    def decorator(original_func=None, name=None, session_id=None):
+    def decorator(
+        original_func: Optional[Callable] = None,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+    ):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -42,7 +56,7 @@ def llmobs_decorator(operation_kind):
                 if span_name is None:
                     span_name = func.__name__
                 traced_operation = getattr(LLMObs, operation_kind, "workflow")
-                with traced_operation(name=span_name, session_id=session_id):
+                with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app):
                     return func(*args, **kwargs)
 
             return wrapper
