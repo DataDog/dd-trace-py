@@ -82,7 +82,7 @@ context::
     be finished in the same execution. The span context can be used to continue
     a trace in a different execution by passing it and activating it on the other
     end. Note that in all instances of crossing into another 
-    execution (besides `os.fork` which is automatically instrumented),
+    execution,
     sampling should be run manually before entering the new execution 
     to ensure that the sampling decision is the same across the trace.
     This can be done using `tracer.sampler.sample(tracer.current_root_span())`
