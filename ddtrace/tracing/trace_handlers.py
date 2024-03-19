@@ -16,6 +16,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.ci_visibility.api.handlers import _register_civisibility_handlers
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import nullcontext
 from ddtrace.internal.constants import COMPONENT
@@ -579,6 +580,8 @@ def listen():
         "django.func.wrapped",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
+
+    _register_civisibility_handlers()
 
 
 listen()

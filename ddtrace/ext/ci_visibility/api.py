@@ -26,9 +26,12 @@ from typing import Type
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
+from ddtrace.ext.ci_visibility.constants import DEFAULT_OPERATION_NAMES
+from ddtrace.ext.ci_visibility.constants import DEFAULT_SESSION_NAME
 from ddtrace.ext.ci_visibility.util import _catch_and_log_exceptions
 from ddtrace.ext.test import Status as TestStatus
 from ddtrace.internal import core
+from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
 
 
@@ -43,17 +46,6 @@ class CITestStatus(Enum):
     XPASS = TestStatus.XPASS.value
 
 
-DEFAULT_SESSION_NAME = "ci_visibility_session"
-
-
-class DEFAULT_OPERATION_NAMES(Enum):
-    SESSION = "ci_visibility.session"
-    MODULE = "ci_visibility.module"
-    SUITE = "ci_visibility.suite"
-    TEST = "ci_visibility.test"
-    UNSET = "ci_visibility.unset"
-
-
 @dataclasses.dataclass(frozen=True)
 class CISessionId(_CIVisibilityRootItemIdBase):
     name: str = DEFAULT_SESSION_NAME
@@ -64,14 +56,12 @@ class CISessionId(_CIVisibilityRootItemIdBase):
 
 @dataclasses.dataclass(frozen=True)
 class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId]):
-
     def __repr__(self):
         return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
 
 
 @dataclasses.dataclass(frozen=True)
 class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
-
     def __repr__(self):
         return "CISuiteId(session={}, module={}, suite={})".format(
             self.get_session_id().name, self.parent_id.name, self.name
@@ -106,6 +96,18 @@ class CIExcInfo:
     exc_type: Type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
+
+
+def enable_ci_visibility():
+    results = core.dispatch_with_results("ci_visibility.enable")
+    if results["ci_visibility.enable"].value != ResultType.RESULT_OK:
+        log.warning("CI Visibility is not enabled")
+
+
+def disable_ci_visibility():
+    results = core.dispatch_with_results("ci_visibility.disable")
+    if results["ci_visibility.disable"].value != ResultType.RESULT_OK:
+        log.warning("CI Visibility is not disabled")
 
 
 class CISession(_CIVisibilityAPIBase):
@@ -143,12 +145,6 @@ class CISession(_CIVisibilityAPIBase):
         item_id = item_id or CISessionId()
 
         log.debug("Registering session %s with test command: %s", item_id, test_command)
-        from ddtrace.internal.ci_visibility import CIVisibility
-
-        CIVisibility.enable()
-        if not CIVisibility.enabled:
-            log.debug("CI Visibility enabling failed, session not registered.")
-            return
 
         core.dispatch(
             "ci_visibility.session.register",
