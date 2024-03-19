@@ -209,7 +209,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
     def _set_test_hierarchy_tags(self):
         """Add module, suite, and test name and id tags"""
-        self.set_tags(self._get_hierarchy_tags())
+        self.set_tags(self._collect_hierarchy_tags())
 
     def start(self):
         self._start_span()
