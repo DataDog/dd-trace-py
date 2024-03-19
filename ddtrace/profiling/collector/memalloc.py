@@ -64,13 +64,15 @@ class MemoryCollector(collector.PeriodicCollector):
     heap_sample_size = attr.ib(type=int, default=config.heap.sample_size)
     ignore_profiler = attr.ib(default=config.ignore_profiler, type=bool)
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_py_enabled = attr.ib(type=bool, default=config.export.py_enabled)
 
     def _start_service(self):
         # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
+
+        if self._export_libdd_enabled and not ddup.is_available:
+            self._export_libdd_enabled = False
 
         try:
             _memalloc.start(self.max_nframe, self._max_events, self.heap_sample_size)
@@ -128,8 +130,8 @@ class MemoryCollector(collector.PeriodicCollector):
                         # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                         #      re-initialization.
                         LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
-        if self._export_py_enabled:
+            return tuple()
+        else:
             return (
                 tuple(
                     MemoryHeapSampleEvent(
@@ -145,8 +147,6 @@ class MemoryCollector(collector.PeriodicCollector):
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
-        else:
-            return tuple()
 
     def collect(self):
         # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
@@ -182,8 +182,8 @@ class MemoryCollector(collector.PeriodicCollector):
                     # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
-
-        if self._export_py_enabled:
+            return tuple()
+        else:
             return (
                 tuple(
                     MemoryAllocSampleEvent(
@@ -200,5 +200,3 @@ class MemoryCollector(collector.PeriodicCollector):
                     if not self.ignore_profiler or thread_id not in thread_id_ignore_set
                 ),
             )
-        else:
-            return []

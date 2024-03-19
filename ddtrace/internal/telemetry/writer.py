@@ -59,7 +59,6 @@ from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
 from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
-from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
 from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
 from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
 from .constants import TELEMETRY_PROFILING_MAX_FRAMES
@@ -449,7 +448,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
                 (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
                 (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
-                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
                 (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
@@ -708,9 +706,8 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._update_dependencies_event(newly_imported_deps)
 
-        if not self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
-            self._app_heartbeat_event()
+        # Send a heartbeat event to the agent, this is required to keep RC connections alive
+        self._app_heartbeat_event()
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
