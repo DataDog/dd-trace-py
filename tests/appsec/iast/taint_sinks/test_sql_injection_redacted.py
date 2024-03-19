@@ -19,6 +19,7 @@ from ddtrace.internal.utils.cache import LFUCache
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks.test_taint_sinks_utils import get_parametrize
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 # FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
@@ -57,8 +58,7 @@ _ignore_list = {
     list(get_parametrize(VULN_SQL_INJECTION, ignore_list=_ignore_list)),
 )
 def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_span_defaults):
-    env = {"_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
-    with override_env(env):
+    with override_global_config(dict(_deduplication_enabled=False)):
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
             [

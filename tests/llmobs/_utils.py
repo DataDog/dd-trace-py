@@ -2,6 +2,8 @@ import os
 
 import vcr
 
+import ddtrace
+
 
 logs_vcr = vcr.VCR(
     cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
@@ -22,6 +24,7 @@ def _expected_llmobs_tags(error=None, tags=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
         expected_tags.append("error:1")
@@ -48,6 +51,7 @@ def _expected_llmobs_llm_span_event(
     session_id=None,
     error=None,
     error_message=None,
+    error_stack=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -62,8 +66,9 @@ def _expected_llmobs_llm_span_event(
     session_id: session ID
     error: error type
     error_message: error message
+    error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message)
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
     if input_messages is not None:
         meta_dict["input"].update({"messages": input_messages})
@@ -96,6 +101,7 @@ def _expected_llmobs_non_llm_span_event(
     session_id=None,
     error=None,
     error_message=None,
+    error_stack=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool).
@@ -108,8 +114,9 @@ def _expected_llmobs_non_llm_span_event(
     session_id: session ID
     error: error type
     error_message: error message
+    error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message)
+    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
     meta_dict = {"input": {}, "output": {}}
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
@@ -134,11 +141,12 @@ def _llmobs_base_span_event(
     session_id=None,
     error=None,
     error_message=None,
+    error_stack=None,
 ):
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": "",
+        "parent_id": "undefined",
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(tags=tags, error=error),
@@ -150,4 +158,5 @@ def _llmobs_base_span_event(
     }
     if error:
         span_event["meta"]["error.message"] = error_message
+        span_event["meta"]["error.stack"] = error_stack
     return span_event

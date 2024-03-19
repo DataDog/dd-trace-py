@@ -11,6 +11,7 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
@@ -68,7 +69,16 @@ class LLMObs(Service):
 
         if not config._dd_api_key:
             cls.enabled = False
-            raise ValueError("DD_API_KEY is required for sending LLMObs data")
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+        if not config._llmobs_ml_app:
+            cls.enabled = False
+            raise ValueError(
+                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
@@ -359,6 +369,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span.error:
             meta["error.message"] = span.get_tag(ERROR_MSG)
+            meta["error.stack"] = span.get_tag(ERROR_STACK)
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:
@@ -368,7 +379,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(self._get_llmobs_parent_id(span) or ""),
+            "parent_id": str(self._get_llmobs_parent_id(span) or "undefined"),
             "session_id": self._get_session_id(span),
             "name": span.name,
             "tags": tags,
@@ -379,14 +390,14 @@ class LLMObsTraceProcessor(TraceProcessor):
             "metrics": metrics,
         }
 
-    @staticmethod
-    def _llmobs_tags(span: Span) -> List[str]:
+    def _llmobs_tags(self, span: Span) -> List[str]:
         tags = [
             "version:{}".format(config.version or ""),
             "env:{}".format(config.env or ""),
             "service:{}".format(span.service or ""),
             "source:integration",
-            "ml_app:{}".format(os.getenv("DD_LLMOBS_APP_NAME", "unnamed-ml-app")),
+            "ml_app:{}".format(config._llmobs_ml_app or "unnamed-ml-app"),
+            "ddtrace.version:{}".format(ddtrace.__version__),
             "error:%d" % span.error,
         ]
         err_type = span.get_tag(ERROR_TYPE)

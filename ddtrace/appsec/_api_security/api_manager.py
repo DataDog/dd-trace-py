@@ -23,8 +23,6 @@ log = get_logger(__name__)
 metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
 
-# Delay in seconds to avoid sampling the same route too often
-DELAY = 30.0
 
 # Max number of endpoint hashes to keep in the hashtable
 MAX_HASHTABLE_SIZE = 4096
@@ -55,6 +53,7 @@ class APIManager(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = True
         log.debug("Enabling %s", cls.__name__)
         metrics.enable()
         cls._instance = cls()
@@ -67,6 +66,7 @@ class APIManager(Service):
             log.debug("%s not enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = False
         log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
@@ -107,7 +107,7 @@ class APIManager(Service):
         end_point_hash = hash((route, method, status))
         current_time = time.monotonic()
         previous_time = self._hashtable.get(end_point_hash, M_INFINITY)
-        if previous_time >= current_time - DELAY:
+        if previous_time >= current_time - asm_config._api_security_sample_delay:
             return False
         if previous_time is M_INFINITY:
             if len(self._hashtable) >= MAX_HASHTABLE_SIZE:
@@ -150,7 +150,7 @@ class APIManager(Service):
         except Exception:
             log.debug("Failed to enrich request span with headers", exc_info=True)
 
-        waf_payload = {}
+        waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
         for address, _, transform in self.COLLECTED:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
@@ -161,28 +161,27 @@ class APIManager(Service):
             if transform is not None:
                 value = transform(value)
             waf_payload[address] = value
-        if waf_payload:
-            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
-            result = call_waf_callback(waf_payload)
-            if result is None:
-                return
-            for meta, schema in result.items():
-                b64_gzip_content = b""
-                try:
-                    b64_gzip_content = base64.b64encode(
-                        gzip.compress(json.dumps(schema, separators=",:").encode())
-                    ).decode()
-                    if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                        raise TooLargeSchemaException
-                    root._meta[meta] = b64_gzip_content
-                except Exception as e:
-                    self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
-                    self._log_limiter.limit(
-                        log.warning,
-                        "Failed to get schema from %r [schema length=%d]:\n%s",
-                        address,
-                        len(b64_gzip_content),
-                        repr(value)[:256],
-                        exc_info=True,
-                    )
+
+        result = call_waf_callback(waf_payload)
+        if result is None:
+            return
+        for meta, schema in result.derivatives.items():
+            b64_gzip_content = b""
+            try:
+                b64_gzip_content = base64.b64encode(
+                    gzip.compress(json.dumps(schema, separators=",:").encode())
+                ).decode()
+                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
+                    raise TooLargeSchemaException
+                root._meta[meta] = b64_gzip_content
+            except Exception as e:
+                self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
+                self._log_limiter.limit(
+                    log.warning,
+                    "Failed to get schema from %r [schema length=%d]:\n%s",
+                    address,
+                    len(b64_gzip_content),
+                    repr(value)[:256],
+                    exc_info=True,
+                )
         self._schema_meter.increment("spans")

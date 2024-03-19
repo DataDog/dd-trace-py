@@ -666,6 +666,12 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
 
+    LARGE_BODY = {
+        f"key_{i}": {f"key_{i}_{j}": {f"key_{i}_{j}_{k}": f"value_{i}_{j}_{k}" for k in range(4)} for j in range(4)}
+        for i in range(254)
+    }
+    LARGE_BODY["attack"] = "yqrweytqwreasldhkuqwgervflnmlnli"
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
@@ -674,6 +680,7 @@ class Contrib_TestClass_For_Threats:
             # json body must be blocked
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "text/json", "tst-037-003"),
+            (json.dumps(LARGE_BODY), "text/json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
@@ -694,6 +701,7 @@ class Contrib_TestClass_For_Threats:
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
+        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
@@ -949,9 +957,7 @@ class Contrib_TestClass_For_Threats:
 
         from ddtrace.ext import http
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_rate=1.0)
-        ):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
             self.update_tracer(interface)
             response = interface.client.post(
                 "/",
@@ -961,7 +967,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert get_tag(http.STATUS_CODE) == "200"
             assert asm_config._api_security_enabled == apisec_enabled
-            assert asm_config._api_security_sample_rate == 1.0
 
             value = get_tag("_dd.appsec.s.req.body")
             if apisec_enabled:
@@ -973,11 +978,14 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
-    def test_api_security_sampling(self, interface: Interface, get_tag, apisec_enabled, priority):
+    @pytest.mark.parametrize("delay", [0.0, 120.0])
+    def test_api_security_sampling(self, interface: Interface, get_tag, apisec_enabled, priority, delay):
         from ddtrace.ext import http
 
         payload = {"mastercard": "5123456789123456"}
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _api_security_sample_delay=delay)
+        ):
             self.update_tracer(interface)
             response = interface.client.post(
                 f"/asm/?priority={priority}",
@@ -1005,7 +1013,10 @@ class Contrib_TestClass_For_Threats:
             assert asm_config._api_security_enabled == apisec_enabled
 
             value = get_tag("_dd.appsec.s.req.body")
-            assert value is None
+            if apisec_enabled and priority == "keep" and delay == 0.0:
+                assert value
+            else:
+                assert value is None
 
     def test_request_invalid_rule_file(self, interface):
         """
@@ -1033,6 +1044,44 @@ class Contrib_TestClass_For_Threats:
                 time.sleep(1)
             else:
                 raise AssertionError("extra service not found")
+
+    def test_global_callback_list_length(self, interface):
+        from ddtrace.appsec import _asm_request_context
+
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _telemetry_enabled=True,
+            )
+        ):
+            self.update_tracer(interface)
+            assert ddtrace.config._remote_config_enabled
+            for _ in range(20):
+                response = interface.client.get("/new_service/awesome_test")
+            assert self.status(response) == 200
+            assert self.body(response) == "awesome_test"
+            # only two global callbacks are expected for API Security and Nested Events
+            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
+    def test_stream_response(
+        self,
+        interface: Interface,
+        get_tag,
+        asm_enabled,
+        metastruct,
+        root_span,
+    ):
+        if interface.name != "fastapi":
+            raise pytest.skip("only fastapi tests have support for stream response")
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            self.update_tracer(interface)
+            response = interface.client.get("/stream/")
+            assert self.body(response) == "0123456789"
 
 
 @contextmanager

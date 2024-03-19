@@ -398,7 +398,9 @@ def test_readlines_error(bedrock_client, request_vcr):
                 response.get("body").readlines()
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 class TestLLMObsBedrock:
     @staticmethod
     def _expected_llmobs_calls(span, n_output):
@@ -422,7 +424,7 @@ class TestLLMObsBedrock:
                         "completion_tokens": completion_tokens,
                         "total_tokens": prompt_tokens + completion_tokens,
                     },
-                    tags={"service": "aws.bedrock-runtime"},
+                    tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
                 )
             )
         ]
@@ -578,7 +580,8 @@ class TestLLMObsBedrock:
                     output_messages=[{"content": ""}],
                     error=span.get_tag("error.type"),
                     error_message=span.get_tag("error.message"),
-                    tags={"service": "aws.bedrock-runtime"},
+                    error_stack=span.get_tag("error.stack"),
+                    tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
                 )
             ),
         ]

@@ -25,6 +25,7 @@ from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
@@ -203,6 +204,16 @@ def w3c_encode_tag(args):
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
     return tag_val.replace("=", "~")
+
+
+def w3c_tracestate_add_p(tracestate, span_id):
+    # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
+    p_member = "{}:{:016x}".format(W3C_TRACESTATE_PARENT_ID_KEY, span_id)
+    if "dd=" in tracestate:
+        return tracestate.replace("dd=", f"dd={p_member};")
+    elif tracestate:
+        return f"dd={p_member},{tracestate}"
+    return f"dd={p_member}"
 
 
 class Response(object):
