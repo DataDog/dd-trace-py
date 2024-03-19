@@ -86,7 +86,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
-        path, line = arg
+        line, path = arg
         lines = self.covered[path]
         if line in lines:
             # This line has already been covered
