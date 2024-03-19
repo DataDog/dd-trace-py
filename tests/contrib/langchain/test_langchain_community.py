@@ -243,6 +243,35 @@ def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vc
         )
 
 
+@pytest.mark.snapshot
+def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
+    """
+    Test that input messages with nested contents are still tagged without error
+    Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
+    """
+    image_url = (
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+        ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    )
+    chat = langchain_openai.ChatOpenAI(model="gpt-4-vision-preview", temperature=0, max_tokens=256)
+    with request_vcr.use_cassette("openai_chat_completion_image_input_sync_generate.yaml"):
+        chat.generate(
+            [
+                [
+                    langchain.schema.HumanMessage(
+                        content=[
+                            {"type": "text", "text": "What’s in this image?"},
+                            {
+                                "type": "image_url",
+                                "image_url": image_url,
+                            },
+                        ],
+                    ),
+                ],
+            ]
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_openai_chat_model_async_call(langchain, langchain_openai, request_vcr):
