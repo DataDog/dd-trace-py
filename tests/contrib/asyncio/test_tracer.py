@@ -4,7 +4,16 @@ import asyncio
 import pytest
 
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.asyncio import patch
+from ddtrace.contrib.asyncio import unpatch
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
+
+
+@pytest.fixture(autouse=True)
+def patch_asyncio():
+    patch()
+    yield
+    unpatch()
 
 
 def test_get_call_context_twice(tracer):
@@ -178,3 +187,24 @@ async def test_wrapped_coroutine(tracer):
     assert 1 == len(spans)
     span = spans[0]
     assert span.duration > 0.25, "span.duration={}".format(span.duration)
+
+
+def test_asyncio_scheduled_tasks_parenting(tracer):
+    async def task(i):
+        with tracer.trace(f"task {i}"):
+            await asyncio.sleep(0.1)
+
+    @tracer.wrap()
+    async def runner():
+        await task(1)
+        t = asyncio.create_task(task(2))
+        return t
+
+    async def test():
+        await runner()
+
+    asyncio.run(test())
+
+    spans = tracer.get_spans()
+    assert len(spans) == 3
+    assert spans[0].trace_id == spans[1].trace_id == spans[2].trace_id
