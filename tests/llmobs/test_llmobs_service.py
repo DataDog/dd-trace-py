@@ -346,3 +346,37 @@ def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypa
             tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
         )
     )
+
+
+def test_llmobs_ml_app_override(LLMObs, mock_llmobs_writer):
+    with LLMObs.task(name="test_task", ml_app="test_app") as span:
+        pass
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
+    )
+
+    with LLMObs.tool(name="test_tool", ml_app="test_app") as span:
+        pass
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
+    )
+
+    with LLMObs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
+        pass
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
+
+    with LLMObs.workflow(name="test_workflow", ml_app="test_app") as span:
+        pass
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
+    )
+
+    with LLMObs.agent(name="test_agent", ml_app="test_app") as span:
+        pass
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
+    )
