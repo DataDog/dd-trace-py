@@ -6,9 +6,10 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.compat import Path
-from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.packages import purelib_path
+from ddtrace.internal.packages import stdlib_path
 
 
 CWD = Path.cwd()
@@ -86,7 +87,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             pass
 
     def hook(self, arg):
-        path, line = arg
+        line, path = arg
         lines = self.covered[path]
         if line in lines:
             # This line has already been covered
@@ -147,24 +148,11 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename).resolve()
         # TODO: Remove hardcoded paths
-        if all(not code_path.is_relative_to(CWD / folder) for folder in ("starlette", "tests")):
+        if any(code_path.is_relative_to(_) for _ in (stdlib_path, purelib_path)):
             # Not a code object we want to instrument
             return code
 
-        # Recursively instrument nested code objects, in topological order
-        # DEV: We need to make a list of the code objects because when we start
-        # mutating the parent code objects, the hashes maintained by the
-        # generator will be invalidated.
-        for nested_code, parent_code in list(collect_code_objects(code)):
-            # Instrument the code object
-            new_code = self.instrument_code(nested_code)
-
-            # If it has a parent, update the parent's co_consts to point to the
-            # new code object.
-            if parent_code is not None:
-                replace_in_tuple(parent_code.co_consts, nested_code, new_code)
-
-        return new_code
+        return self.instrument_code(code)
 
     def after_import(self, _module: ModuleType) -> None:
         pass
