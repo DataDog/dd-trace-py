@@ -197,7 +197,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
 
 def _update_span_tags_from_context(span, context):
-    span._context._update_tags(span)
+    context._update_tags(span)
 
 
 @attr.s
