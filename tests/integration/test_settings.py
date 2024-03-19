@@ -12,8 +12,7 @@ def _get_telemetry_config_items(events, item_name):
             if item_name == item["name"]:
                 items.append(item)
     if items:
-        return items
-    return None
+        return items or None
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
