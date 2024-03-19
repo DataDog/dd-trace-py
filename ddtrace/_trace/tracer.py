@@ -234,7 +234,6 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
         self.sampler: BaseSampler = DatadogSampler()
-        forksafe.register_before_fork(self.sample_before_fork)
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -283,6 +282,7 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+        forksafe.register_before_fork(self.sample_before_fork)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
