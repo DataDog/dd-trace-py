@@ -1,10 +1,9 @@
 import re
-from typing import AsyncGenerator  # noqa:F401
-from typing import Generator  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import AsyncGenerator
+from typing import Dict
+from typing import Generator
+from typing import List
 
 from ddtrace.internal.logger import get_logger
 
@@ -22,10 +21,10 @@ log = get_logger(__name__)
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-def _compute_prompt_token_count(prompt, model):
+def _compute_token_count(content, model):
     # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
     """
-    Takes in a prompt(s) and model pair, and returns a tuple of whether or not the number of prompt
+    Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
     tokens was estimated, and the estimated/calculated prompt token count.
     """
     num_prompt_tokens = 0
@@ -33,10 +32,10 @@ def _compute_prompt_token_count(prompt, model):
     if model is not None and tiktoken_available is True:
         try:
             enc = encoding_for_model(model)
-            if isinstance(prompt, str):
-                num_prompt_tokens += len(enc.encode(prompt))
-            elif isinstance(prompt, list) and isinstance(prompt[0], int):
-                num_prompt_tokens += len(prompt)
+            if isinstance(content, str):
+                num_prompt_tokens += len(enc.encode(content))
+            elif isinstance(content, list) and isinstance(content[0], int):
+                num_prompt_tokens += len(content)
             return estimated, num_prompt_tokens
         except KeyError:
             # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
@@ -45,7 +44,7 @@ def _compute_prompt_token_count(prompt, model):
         estimated = True
 
     # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
-    return estimated, _est_tokens(prompt)
+    return estimated, _est_tokens(content)
 
 
 def _est_tokens(prompt):
@@ -103,6 +102,114 @@ def _is_async_generator(resp):
     if hasattr(openai, "AsyncStream") and isinstance(resp, openai.AsyncStream):
         return True
     return False
+
+
+def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
+    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
+    if streamed_chunks[-1].finish_reason is not None:
+        completion["finish_reason"] = streamed_chunks[-1].finish_reason
+    return completion
+
+
+def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+    """Constructs a chat completion message dictionary from streamed chunks.
+    The resulting message dictionary is of form {"content": "...", "role": "...", "finish_reason": "..."}
+    """
+    message = {}
+    content = "".join(c.delta.content for c in streamed_chunks if getattr(c.delta, "content", None))
+    if getattr(streamed_chunks[0].delta, "tool_calls", None):
+        content = "".join(
+            c.delta.tool_calls.function.arguments for c in streamed_chunks if getattr(c.delta, "tool_calls", None)
+        )
+    elif getattr(streamed_chunks[0].delta, "function_call", None):
+        content = "".join(
+            c.delta.function_call.arguments for c in streamed_chunks if getattr(c.delta, "function_call", None)
+        )
+    message["role"] = streamed_chunks[0].delta.role
+    if streamed_chunks[-1].finish_reason is not None:
+        message["finish_reason"] = streamed_chunks[-1].finish_reason
+    message["content"] = content
+    return message
+
+
+def _tag_streamed_completion_response(integration, span, completions):
+    """Tagging logic for streamed completions."""
+    for idx, choice in enumerate(completions):
+        span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice["text"]))
+        if choice.get("finish_reason") is not None:
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, choice["finish_reason"])
+
+
+def _tag_streamed_chat_completion_response(integration, span, messages):
+    """Tagging logic for streamed chat completions."""
+    for idx, message in enumerate(messages):
+        span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(message["content"]))
+        span.set_tag_str("openai.response.choices.%d.message.role" % idx, message["role"])
+        if message.get("finish_reason") is not None:
+            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, message["finish_reason"])
+
+
+def _set_metrics_on_request(integration, span, kwargs, prompts=None, messages=None):
+    """Set token span metrics on streamed chat/completion requests."""
+    num_prompt_tokens = 0
+    estimated = False
+    if messages is not None:
+        for m in messages:
+            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), kwargs.get("model"))
+            num_prompt_tokens += prompt_tokens
+    elif prompts is not None:
+        if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
+            prompts = [prompts]
+        for prompt in prompts:
+            estimated, prompt_tokens = _compute_token_count(prompt, kwargs.get("model"))
+            num_prompt_tokens += prompt_tokens
+    span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
+    span.set_metric("openai.response.usage.prompt_tokens", num_prompt_tokens)
+    if not estimated:
+        integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens)
+    else:
+        integration.metric(span, "dist", "tokens.prompt", num_prompt_tokens, tags=["openai.estimated:true"])
+
+
+def _set_metrics_on_streamed_response(integration, span, completions=None, messages=None):
+    """Set token span metrics on streamed chat/completion responses."""
+    num_completion_tokens = 0
+    estimated = False
+    if messages is not None:
+        for m in messages:
+            estimated, completion_tokens = _compute_token_count(
+                m.get("content", ""), span.get_tag("openai.response.model")
+            )
+            num_completion_tokens += completion_tokens
+    elif completions is not None:
+        for c in completions:
+            estimated, completion_tokens = _compute_token_count(
+                c.get("text", ""), span.get_tag("openai.response.model")
+            )
+            num_completion_tokens += completion_tokens
+    span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
+    span.set_metric("openai.response.usage.completion_tokens", num_completion_tokens)
+    num_prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens") or 0
+    total_tokens = num_prompt_tokens + num_completion_tokens
+    span.set_metric("openai.response.usage.total_tokens", total_tokens)
+    if not estimated:
+        integration.metric(span, "dist", "tokens.completion", num_completion_tokens)
+        integration.metric(span, "dist", "tokens.total", total_tokens)
+    else:
+        integration.metric(span, "dist", "tokens.completion", num_completion_tokens, tags=["openai.estimated:true"])
+        integration.metric(span, "dist", "tokens.total", total_tokens, tags=["openai.estimated:true"])
+
+
+def _loop_handler(span, chunk, streamed_chunks):
+    """Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
+
+    When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
+    """
+    if span.get_tag("openai.response.model") is None:
+        span.set_tag("openai.response.model", chunk.model)
+    for choice in chunk.choices:
+        streamed_chunks[choice.index].append(choice)
 
 
 def _tag_tool_calls(integration, span, tool_calls, choice_idx):

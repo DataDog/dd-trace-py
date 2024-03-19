@@ -199,6 +199,21 @@ def test_django_login_sucess_safe_is_default_if_wrong(client, test_spans, tracer
 
 
 @pytest.mark.django_db
+def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="foobar")):
+        test_user = User.objects.create(username="AnonymousUser")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="AnonymousUser", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "1"
+
+
+@pytest.mark.django_db
 def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User

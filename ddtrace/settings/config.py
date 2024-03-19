@@ -1,5 +1,4 @@
 from copy import deepcopy
-import multiprocessing
 import os
 import re
 import sys
@@ -11,6 +10,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal.compat import get_mp_context
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -327,11 +327,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = (
-        None
-        if in_aws_lambda()
-        else multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)
-    )  # type: multiprocessing.Queue | None
+    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -556,6 +552,7 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -572,7 +569,7 @@ class Config(object):
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
-            except BaseException:  # nosec
+            except Exception:  # nosec
                 pass
 
     def _get_extra_services(self):
@@ -584,7 +581,7 @@ class Config(object):
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
                 if len(self._extra_services) > 64:
                     self._extra_services.pop()
-        except BaseException:  # nosec
+        except Exception:  # nosec
             pass
         return self._extra_services
 
@@ -796,4 +793,7 @@ class Config(object):
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
+        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)

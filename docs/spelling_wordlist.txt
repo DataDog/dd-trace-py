@@ -224,6 +224,7 @@ statsd
 stderr
 stdout
 stringable
+struct
 structlog
 subclass
 subdirectory
@@ -284,3 +285,4 @@ Enablement
 hotspot
 CMake
 libdatadog
+importlib

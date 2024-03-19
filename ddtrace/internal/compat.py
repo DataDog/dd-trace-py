@@ -6,6 +6,7 @@ import functools
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import ipaddress
+import multiprocessing
 import os
 import platform
 import re
@@ -273,7 +274,7 @@ def is_valid_ip(ip: str) -> bool:
         # try parsing the IP address
         ipaddress.ip_address(str(ip))
         return True
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -473,3 +474,7 @@ else:
             return False
 
     Path.is_relative_to = is_relative_to  # type: ignore[assignment]
+
+
+def get_mp_context():
+    return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")

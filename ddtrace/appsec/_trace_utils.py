@@ -296,25 +296,21 @@ def _on_django_login(
         return
 
     if user:
-        if str(user) != "AnonymousUser":
+        from ddtrace.contrib.django.compat import user_is_authenticated
+
+        if user_is_authenticated(user):
             user_id, user_extra = info_retriever.get_user_info()
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-                from ddtrace.contrib.django.compat import user_is_authenticated
-
-                if user_is_authenticated(user):
-                    session_key = getattr(request, "session_key", None)
-                    track_user_login_success_event(
-                        pin.tracer,
-                        user_id=user_id,
-                        session_id=session_key,
-                        propagate=True,
-                        login_events_mode=mode,
-                        **user_extra,
-                    )
-                else:
-                    # Login failed but the user exists
-                    track_user_login_failure_event(pin.tracer, user_id=user_id, exists=True, login_events_mode=mode)
+                session_key = getattr(request, "session_key", None)
+                track_user_login_success_event(
+                    pin.tracer,
+                    user_id=user_id,
+                    session_id=session_key,
+                    propagate=True,
+                    login_events_mode=mode,
+                    **user_extra,
+                )
         else:
             # Login failed and the user is unknown
             user_id = info_retriever.get_userid()

@@ -11,6 +11,7 @@ from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
@@ -41,7 +42,8 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.tracing._span_link import SpanLink
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -75,14 +77,13 @@ class Span(object):
         "trace_id",
         "parent_id",
         "_meta",
+        "_meta_struct",
         "error",
         "_metrics",
         "_store",
         "span_type",
         "start_ns",
         "duration_ns",
-        # Sampler attributes
-        "sampled",
         # Internal attributes
         "_context",
         "_local_root",
@@ -150,6 +151,8 @@ class Span(object):
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
 
+        self._meta_struct: Dict[str, Dict[str, Any]] = {}
+
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
         self.duration_ns = None  # type: Optional[int]
@@ -165,10 +168,8 @@ class Span(object):
         self.parent_id = parent_id  # type: Optional[int]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        # sampling
-        self.sampled = True  # type: bool
-
         self._context = context._with_span(self) if context else None  # type: Optional[Context]
+
         self._links = {}  # type: Dict[int, SpanLink]
         if links:
             self._links = {link.span_id: link for link in links}
@@ -256,6 +257,30 @@ class Span(object):
     def duration(self, value):
         # type: (float) -> None
         self.duration_ns = int(value * 1e9)
+
+    @property
+    def sampled(self):
+        # type: () -> Optional[bool]
+        deprecate(
+            "span.sampled is deprecated and will be removed in a future version of the tracer.",
+            message="""span.sampled references the state of span.context.sampling_priority.
+            Please use span.context.sampling_priority instead to check if a span is sampled.""",
+            category=DDTraceDeprecationWarning,
+        )
+        if self.context.sampling_priority is None:
+            # this maintains original span.sampled behavior, where all spans would start
+            # with span.sampled = True until sampling runs
+            return True
+        return self.context.sampling_priority > 0
+
+    @sampled.setter
+    def sampled(self, value):
+        deprecate(
+            "span.sampled is deprecated and will be removed in a future version of the tracer.",
+            message="""span.sampled has a no-op setter.
+            Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",
+            category=DDTraceDeprecationWarning,
+        )
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
@@ -371,6 +396,17 @@ class Span(object):
                 del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        """
+        Set a tag key/value pair on the span meta_struct
+        Currently it will only be exported with V3/V4 encoding
+        """
+        self._meta_struct[key] = value
+
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        """Return the given struct or None if it doesn't exist."""
+        return self._meta_struct.get(key, None)
 
     def set_tag_str(self, key: _TagNameType, value: Text) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
@@ -532,7 +568,7 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         return self._context
 
     def link_span(self, context, attributes=None):

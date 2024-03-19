@@ -10,7 +10,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import SAMPLE_RATE_METRIC_KEY
 from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -94,7 +93,9 @@ class RateSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
 
-            tracer._sampler = RateSampler(sample_rate)
+            # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+            # with rate limiting disabled.
+            tracer.sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
 
             iterations = int(1e4 / sample_rate)
 
@@ -104,10 +105,11 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
             # non sampled spans do not have sample rate applied
-            sampled_spans = [s for s in samples if s.sampled]
-            assert (
-                sampled_spans[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
-            ), "Sampled span should have sample rate properly assigned"
+            sampled_spans = [s for s in samples if s.context.sampling_priority > 0]
+            if sample_rate != 1:
+                assert len(sampled_spans) != len(samples)
+            else:
+                assert len(sampled_spans) == len(samples)
 
             deviation = abs(len(sampled_spans) - (iterations * sample_rate)) / (iterations * sample_rate)
             assert (
@@ -120,8 +122,9 @@ class RateSamplerTest(unittest.TestCase):
     def test_deterministic_behavior(self):
         """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
-
-        tracer._sampler = RateSampler(0.5)
+        # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
+        # with rate limiting disabled.
+        tracer.sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
 
         for i in range(10):
             span = tracer.trace(str(i))
@@ -129,25 +132,25 @@ class RateSamplerTest(unittest.TestCase):
 
             samples = tracer.pop()
             assert (
-                len(samples) <= 1
-            ), "evaluating sampling rules against a span should result in either dropping or not dropping it"
-            sampled = 1 == len([sample for sample in samples if sample.sampled is True])
+                len(samples) == 1
+            ), f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
+            sampled = len(samples) == 1 and samples[0].context.sampling_priority > 0
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
-                assert sampled == tracer._sampler.sample(
+                assert sampled == tracer.sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
         with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
-            tracer._sampler = RateSampler(sample_rate=-0.5)
+            tracer.sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         tracer = DummyTracer()
-        tracer._sampler = RateSampler(sample_rate=0)
+        tracer.sampler = RateSampler(sample_rate=0)
         assert (
-            tracer._sampler.sample_rate == 0
+            tracer.sampler.sample_rate == 0
         ), "Setting the sample rate to zero should result in the sample rate being zero"
 
 
@@ -186,7 +189,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
             tracer.configure(sampler=RateByServiceSampler())
-            tracer._sampler.set_sample_rate(sample_rate)
+            tracer.sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
@@ -194,20 +197,16 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(str(i))
                 span.finish()
 
-            samples = tracer._writer.pop()
+            samples = tracer.pop()
             samples_with_high_priority = 0
             for sample in samples:
-                sample_priority = sample.get_metric(SAMPLING_PRIORITY_KEY)
-                if sample_priority is not None:
-                    samples_with_high_priority += int(bool(sample_priority > 0))
+                sample_priority = sample.context.sampling_priority
+                samples_with_high_priority += int(bool(sample_priority > 0))
                 assert_sampling_decision_tags(
                     sample,
                     agent=sample_rate,
                     trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
                 )
-            assert (
-                samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
-            ), "A sampled span should not have the SAMPLE_RATE_METRIC_KEY tag set"
 
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
             assert (
@@ -780,7 +779,7 @@ class MatchSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return True
 
 
@@ -788,7 +787,7 @@ class NoMatch(SamplingRule):
     def matches(self, span):
         return False
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return True
 
 
@@ -796,7 +795,7 @@ class MatchNoSample(SamplingRule):
     def matches(self, span):
         return True
 
-    def sample(self, span, allow_false=False):
+    def sample(self, span):
         return False
 
 
@@ -916,10 +915,11 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
     dummy_tracer.configure(sampler=sampler)
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
-
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
     span = spans[0]
-    assert span.sampled, "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
+    assert (
+        span.context.sampling_priority is not None
+    ), "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
     assert_sampling_decision_tags(
         span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag

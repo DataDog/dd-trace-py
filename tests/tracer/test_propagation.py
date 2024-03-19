@@ -6,10 +6,13 @@ import pickle
 
 import pytest
 
+from ddtrace import tracer as ddtracer
+from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -29,7 +32,6 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.tracing._span_link import SpanLink
 from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import tracer  # noqa:F401
@@ -158,7 +160,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"traceparent": "00-%s-%s-00" % (trace_id_hex, span_id_hex)}
+            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
@@ -284,6 +286,7 @@ def test_extract(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -293,6 +296,7 @@ def test_extract(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -430,6 +434,39 @@ def test_extract_128bit_trace_ids_tracecontext():
                 assert child_span.trace_id == trace_id
 
 
+def test_last_dd_span_id():
+    non_dd_remote_context = HTTPPropagator.extract(
+        {
+            "traceparent": "00-70f198ee56343ba864fe8b2a57d4eff7-34f067aa0ba902b9-01",
+            "tracestate": "dd=p:123067aa0ba902a6;s:2;o:rum",
+        }
+    )
+
+    with ddtracer.start_span("local-root", child_of=non_dd_remote_context) as local_root:
+        with ddtracer.start_span("child1", child_of=local_root) as child1:
+            pass
+
+    with ddtracer.start_span("child2", child_of=local_root) as chunk_root:
+        pass
+
+    with ddtracer.start_span("root", child_of=None) as root:
+        pass
+
+    # The last parent span_id tag should be set ONLY on the local root spans
+    assert local_root.get_tag(LAST_DD_PARENT_ID_KEY) == "123067aa0ba902a6"
+    for span in (root, child1, chunk_root):
+        assert span.get_tag(LAST_DD_PARENT_ID_KEY) is None
+    # `p` value in tracestate headers is set using the current active datadog span
+    for span in (child1, chunk_root, root, local_root):
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+        assert "p:{:016x}".format(span.span_id) in headers["tracestate"]
+    # If a Datadog span is not active, `p` value is set to the last datadog span in the trace
+    headers = {}
+    HTTPPropagator.inject(non_dd_remote_context, headers)
+    assert "p:123067aa0ba902a6" in headers["tracestate"]
+
+
 def test_extract_unicode(tracer):  # noqa: F811
     """
     When input data is unicode
@@ -464,6 +501,7 @@ def test_extract_unicode(tracer):  # noqa: F811
 
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -473,6 +511,7 @@ def test_extract_unicode(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -526,6 +565,7 @@ def test_WSGI_extract(tracer):  # noqa: F811
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
+            "_dd.p.dm": "-3",
         }
 
 
@@ -549,6 +589,7 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "decoding_error",
         }
 
@@ -573,6 +614,7 @@ def test_extract_tags_large(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "extract_max_size",
         }
 
@@ -631,7 +673,12 @@ TRACE_ID_HEX = "80f198ee56343ba864fe8b2a57d3eff7"
 # for testing with other propagation styles
 TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+    _HTTP_HEADER_TRACESTATE: "dd=p:00f067aa0ba902b7;s:2;o:rum",
+}
+
+TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
 TRACECONTEXT_HEADERS_VALID = {
@@ -779,8 +826,8 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     "ts_string,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;p:a0000000000000ff,congo=t61rcWkgMzE,mako=s:2;o:rum",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -788,13 +835,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:0;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:0;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 0,
                 {
@@ -802,13 +850,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -816,13 +865,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 None,
                 {
@@ -830,13 +880,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:-1;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 -1,
                 {
@@ -844,13 +895,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=p:a0000000000000ff;s:2;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -858,13 +910,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -873,20 +926,21 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.unk": "unk",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
-            (None, {}, None),
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
+            (None, {}, None, None),
             None,
             None,
         ),
         (
             "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, other_propagated_tags, origin
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -894,6 +948,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
+                "0000000000000000",
             ),
             None,
             None,
@@ -906,13 +961,13 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
-            (None, {}, None),
+            (None, {}, None, "0000000000000000"),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz6~~~4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz6~~~4",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -920,13 +975,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz6===4",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz:6:4",
-            # sampling_priority_ts, other_propagated_tags, origin
+            "dd=s:2;o:rum;p:a0000000000000ff;t.dm:-4;t.usr.id:baz:6:4",
+            # sampling_priority_ts, other_propagated_tags, origin, parent id
             (
                 2,
                 {
@@ -934,6 +990,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                     "_dd.p.usr.id": "baz:6:4",
                 },
                 "rum",
+                "a0000000000000ff",
             ),
             None,
             None,
@@ -982,6 +1039,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
+                    LAST_DD_PARENT_ID_KEY: "0000000000000000",
                     "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
                 },
                 "metrics": {"_sampling_priority_v1": 2},
@@ -993,7 +1051,8 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "trace_id": TRACE_ID,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "tracestate": "dd=s:2;o:rum",
+                    "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
+                    LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
                     "_dd.origin": "rum",
                     "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
                 },
@@ -1052,6 +1111,11 @@ DATADOG_HEADERS_VALID = {
     HTTP_HEADER_TRACE_ID: "13088165645273925489",
     HTTP_HEADER_PARENT_ID: "5678",
     HTTP_HEADER_SAMPLING_PRIORITY: "1",
+    HTTP_HEADER_ORIGIN: "synthetics",
+}
+DATADOG_HEADERS_VALID_NO_PRIORITY = {
+    HTTP_HEADER_TRACE_ID: "13088165645273925489",
+    HTTP_HEADER_PARENT_ID: "5678",
     HTTP_HEADER_ORIGIN: "synthetics",
 }
 DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID = {
@@ -1124,6 +1188,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1135,6 +1200,19 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
+        },
+    ),
+    (
+        "valid_datadog_no_priority",
+        None,
+        DATADOG_HEADERS_VALID_NO_PRIORITY,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 2,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1152,6 +1230,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1174,6 +1253,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1185,6 +1265,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1417,6 +1498,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1444,6 +1526,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1483,6 +1566,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1517,6 +1601,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1528,6 +1613,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1596,6 +1682,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     # Testing that order matters
@@ -1664,7 +1751,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE]},
+            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
@@ -1677,6 +1764,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1717,8 +1805,24 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "sampling_priority": 2,
             "dd_origin": "rum",
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
+            },
+        },
+    ),
+    (
+        "valid_tracecontext_rum_no_sampling_decision",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
+        {
+            "trace_id": TRACE_ID,
+            "span_id": 67667974448284343,
+            "dd_origin": "rum",
+            "meta": {
+                "tracestate": "dd=o:rum",
+                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
     ),
@@ -1872,6 +1976,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[],
@@ -1898,6 +2003,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -1931,6 +2037,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
+                LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -1958,7 +2065,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=13088165645273925489,
             span_id=5678,
-            meta={"_dd.origin": "synthetics"},
+            meta={"_dd.origin": "synthetics", "_dd.p.dm": "-3"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2001,7 +2108,14 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=7277407061855694839,
             span_id=5678,
-            meta={"_dd.origin": "synthetics", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+            # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
+            # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
+            # in the styles configuration
+            meta={
+                "_dd.p.dm": "-3",
+                "_dd.origin": "synthetics",
+                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+            },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2018,7 +2132,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
-def test_mutliple_context_interactions(name, styles, headers, expected_context):
+def test_multiple_context_interactions(name, styles, headers, expected_context):
     with override_global_config(dict(_propagation_style_extract=styles)):
         context = HTTPPropagator.extract(headers)
         assert context == expected_context
@@ -2295,6 +2409,7 @@ INJECT_FIXTURES = [
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
                 "_dd.origin": "rum",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
                 "traceparent": TRACECONTEXT_HEADERS_VALID_BASIC[_HTTP_HEADER_TRACEPARENT],
             },
             "metrics": {"_sampling_priority_v1": 2},
@@ -2311,7 +2426,10 @@ INJECT_FIXTURES = [
                 "traceparent": "00-%s-00f067aa0ba902b7-01" % (TRACE_ID_HEX,),
             },
         },
-        {_HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,)},
+        {
+            _HTTP_HEADER_TRACEPARENT: "00-%s-00f067aa0ba902b7-00" % (TRACE_ID_HEX,),
+            _HTTP_HEADER_TRACESTATE: "",
+        },
     ),
     (
         "only_tracestate",
@@ -2333,7 +2451,7 @@ INJECT_FIXTURES = [
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=p:00f067aa0ba902b7;s:2;o:rum",
                 "_dd.origin": "rum",
             },
             "metrics": {"_sampling_priority_v1": 2},
@@ -2444,6 +2562,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
+            _HTTP_HEADER_TRACESTATE: "",
         },
     ),
 ]

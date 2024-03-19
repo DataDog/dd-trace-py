@@ -32,7 +32,7 @@ def _get_content_length(environ):
 
     try:
         return max(0, int(content_length))
-    except ValueError:
+    except Exception:
         return 0
 
 
@@ -95,8 +95,11 @@ async def _on_asgi_request_parse_body(receive, headers):
         data_received = await receive()
         body = data_received.get("body", b"")
 
-        async def receive():
-            return data_received
+        async def receive_wrapped(once=[True]):
+            if once[0]:
+                once[0] = False
+                return data_received
+            return await receive()
 
         content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
@@ -111,9 +114,9 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
-            return receive, req_body
-        except BaseException:
-            return receive, None
+            return receive_wrapped, req_body
+        except Exception:
+            return receive_wrapped, None
 
     return receive, None
 
@@ -133,7 +136,8 @@ def _on_request_span_modifier(
         if wsgi_input:
             try:
                 seekable = wsgi_input.seekable()
-            except AttributeError:
+            # expect AttributeError in normal error cases
+            except Exception:
                 seekable = False
             if not seekable:
                 # https://gist.github.com/mitsuhiko/5721547
@@ -162,16 +166,7 @@ def _on_request_span_modifier(
             else:
                 # no raw body
                 req_body = None
-        except (
-            exception_type,
-            AttributeError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            json.JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
-        ):
+        except Exception:
             log.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
@@ -190,6 +185,13 @@ def _on_request_init(wrapped, instance, args, kwargs):
             from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -204,8 +206,6 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -269,6 +269,10 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return
 
         http_req = fn_args[0]
 
@@ -318,6 +322,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -329,6 +334,9 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
         _set_metric_iast_instrumented_source(OriginType.BODY)
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return wrapped(*args, **kwargs)
 
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 

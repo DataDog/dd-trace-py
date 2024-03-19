@@ -1,7 +1,6 @@
 import os
 from time import sleep
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -102,11 +101,8 @@ def test_metrics_when_appsec_block(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_init(telemetry_writer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(
-        dict(
-            _DD_APPSEC_DEDUPLICATION_ENABLED="false",
-            DD_APPSEC_RULES=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
-        )
+    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)), override_env(
+        dict(DD_APPSEC_RULES=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"))
     ):
         AppSecSpanProcessor()
 
@@ -118,9 +114,9 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
 
 
 def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
-    with override_env(
-        dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false", DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
-    ), override_global_config(dict(_asm_enabled=True, _waf_timeout=0.0)):
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)), override_global_config(
+        dict(_asm_enabled=True, _waf_timeout=0.0, _deduplication_enabled=False)
+    ):
         _enable_appsec(tracer)
         with _asm_request_context.asm_request_context_manager(rules._IP.BLOCKED, {}):
             with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -137,7 +133,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):
-    with override_env(dict(_DD_APPSEC_DEDUPLICATION_ENABLED="false")), override_global_config(dict(_asm_enabled=True)):
+    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules({})
 
@@ -159,17 +155,18 @@ def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
         assert len(list_metrics_logs) == 0
 
 
-@mock.patch.object(deduplication, "get_last_time_reported")
-def test_log_metric_error_ddwaf_update_deduplication_timelapse(mock_last_time_reported, telemetry_writer):
+def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer):
     old_value = deduplication._time_lapse
-    deduplication._time_lapse = 0.3
-    mock_last_time_reported.return_value = 1592357416.0
+    deduplication._time_lapse = 0.1
     try:
         with override_global_config(dict(_asm_enabled=True)):
+            sleep(0.2)
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
+            list_metrics_logs = list(telemetry_writer._logs)
+            assert len(list_metrics_logs) == 1
             telemetry_writer.reset_queues()
-            sleep(0.4)
+            sleep(0.2)
             span_processor = AppSecSpanProcessor()
             span_processor._update_rules({})
             list_metrics_logs = list(telemetry_writer._logs)

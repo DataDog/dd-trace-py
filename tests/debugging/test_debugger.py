@@ -8,6 +8,7 @@ from mock.mock import call
 import pytest
 
 import ddtrace
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
@@ -963,6 +964,7 @@ class SpanProbeTestCase(TracerTestCase):
             tags = span.get_tags()
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
+            assert tags[ORIGIN_KEY] == "di"
 
     def test_debugger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
@@ -1152,7 +1154,7 @@ def test_debugger_redacted_identifiers():
                 probe_id="foo",
                 version=1,
                 source_file="tests/submod/stuff.py",
-                line=164,
+                line=169,
                 **compile_template(
                     "token=",
                     {"dsl": "token", "json": {"ref": "token"}},
@@ -1176,11 +1178,15 @@ def test_debugger_redacted_identifiers():
             f"pii_dict['jwt']={REDACTED}"
         )
 
-        assert msg["debugger.snapshot"]["captures"]["lines"]["164"] == {
+        assert msg["debugger.snapshot"]["captures"]["lines"]["169"] == {
             "arguments": {"pwd": redacted_value(str())},
             "locals": {
                 "token": redacted_value(str()),
                 "answer": {"type": "int", "value": "42"},
+                "data": {
+                    "type": "SensitiveData",
+                    "fields": {"password": {"notCapturedReason": "redactedIdent", "type": "str"}},
+                },
                 "pii_dict": {
                     "type": "dict",
                     "entries": [
@@ -1212,9 +1218,14 @@ def test_debugger_exception_conditional_function_probe():
                 dsl="expr.__class__.__name__ == 'Exception'",
                 callable=dd_compile(
                     {
-                        "eq": [
-                            {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
-                            "Exception",
+                        "and": [
+                            {"isDefined": "@exception"},
+                            {
+                                "eq": [
+                                    {"getmember": [{"getmember": [{"ref": "@exception"}, "__class__"]}, "__name__"]},
+                                    "Exception",
+                                ]
+                            },
                         ]
                     }
                 ),

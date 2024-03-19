@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-import pytest
 
 from ddtrace.appsec._iast import oce
+from tests.utils import override_env
 
 
-try:
+with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-except (ImportError, AttributeError):
-    pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
 
 def setup():

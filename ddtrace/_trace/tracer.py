@@ -64,7 +64,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.sampler import BasePrioritySampler
 from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -136,7 +135,10 @@ def _default_span_processors_factory(
             if appsec_processor:
                 span_processors.append(appsec_processor)
         else:
-            if asm_config._api_security_enabled:
+            # api_security_active will keep track of the service status of APIManager
+            # we don't want to import the module if it was not started before due to
+            # one click activation of ASM via Remote Config
+            if asm_config._api_security_active:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
                 APIManager.disable()
@@ -226,7 +228,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
-        self._sampler: BaseSampler = DatadogSampler()
+        self.sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -413,8 +415,8 @@ class Tracer(object):
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
         if sampler is not None:
-            self._sampler = sampler
-            self._user_sampler = self._sampler
+            self.sampler = sampler
+            self._user_sampler = self.sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -452,7 +454,9 @@ class Tracer(object):
 
         if writer is not None:
             self._writer = writer
-        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
+        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
+            if self._asm_enabled:
+                api_version = "v0.4"
             self._writer = AgentWriter(
                 self._agent_url,
                 priority_sampling=priority_sampling in (None, True) or config._priority_sampling,
@@ -515,8 +519,8 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self._sampler, BasePrioritySampler):
-                self._sampler.update_rate_by_service_sample_rates(
+            if isinstance(self.sampler, BasePrioritySampler):
+                self.sampler.update_rate_by_service_sample_rates(
                     resp.rate_by_service,
                 )
         except ValueError:
@@ -637,6 +641,7 @@ class Tracer(object):
                     sampling_priority=child_of.context.sampling_priority,
                     span_id=child_of.span_id,
                     trace_id=child_of.trace_id,
+                    is_remote=False,
                 )
 
                 # If the child_of span was active then activate the new context
@@ -654,7 +659,7 @@ class Tracer(object):
                 context = child_of.context
                 parent = child_of
         else:
-            context = Context()
+            context = Context(is_remote=False)
 
         trace_id = context.trace_id
         parent_id = context.span_id
@@ -693,7 +698,6 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
                 span._local_root = parent._local_root
 
@@ -748,7 +752,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            span.sampled = self._sampler.sample(span, allow_false=isinstance(self._sampler, RateSampler))
+            self.sampler.sample(span)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
@@ -1068,7 +1072,7 @@ class Tracer(object):
         if "_trace_sample_rate" in items:
             # Reset the user sampler if one exists
             if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                self._sampler = self._user_sampler
+                self.sampler = self._user_sampler
                 return
 
             if cfg._get_source("_trace_sample_rate") != "default":
@@ -1076,7 +1080,7 @@ class Tracer(object):
             else:
                 sample_rate = None
             sampler = DatadogSampler(default_sample_rate=sample_rate)
-            self._sampler = sampler
+            self.sampler = sampler
 
         if "tags" in items:
             self._tags = cfg.tags.copy()

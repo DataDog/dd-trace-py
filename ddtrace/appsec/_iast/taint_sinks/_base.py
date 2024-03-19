@@ -1,5 +1,4 @@
 import os
-import time
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import cast  # noqa:F401
 
@@ -11,12 +10,12 @@ from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.settings.asm import config as asm_config
 
 from ..._deduplications import deduplication
-from .. import oce
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
 from .._utils import _has_to_scrub
 from .._utils import _is_evidence_value_parts
 from .._utils import _scrub
+from ..processor import AppSecIastSpanProcessor
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -40,18 +39,9 @@ CWD = os.path.abspath(os.getcwd())
 
 
 class taint_sink_deduplication(deduplication):
-    def __call__(self, *args, **kwargs):
+    def _extract(self, args):
         # we skip 0, 1 and last position because its the cls, span and sources respectively
-        result = None
-        if self.is_deduplication_enabled() is False:
-            result = self.func(*args, **kwargs)
-        else:
-            raw_log_hash = hash("".join([str(arg) for arg in args[2:-1]]))
-            last_reported_timestamp = self.get_last_time_reported(raw_log_hash)
-            if time.time() > last_reported_timestamp:
-                result = self.func(*args, **kwargs)
-                self.reported_logs[raw_log_hash] = time.time() + self._time_lapse
-        return result
+        return args[2:-1]
 
 
 def _check_positions_contained(needle, container):
@@ -83,7 +73,7 @@ class VulnerabilityBase(Operation):
             """Get the current root Span and attach it to the wrapped function. We need the span to report the
             vulnerability and update the context with the report information.
             """
-            if oce.request_has_quota and cls.has_quota():
+            if AppSecIastSpanProcessor.is_span_analyzed() and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
             else:
                 log.debug("IAST: no vulnerability quota to analyze more sink points")
@@ -94,6 +84,9 @@ class VulnerabilityBase(Operation):
     @classmethod
     @taint_sink_deduplication
     def _prepare_report(cls, span, vulnerability_type, evidence, file_name, line_number, sources):
+        if line_number is not None and (line_number == 0 or line_number < -1):
+            line_number = -1
+
         report = core.get_item(IAST.CONTEXT_KEY, span=span)
         if report:
             report.vulnerabilities.add(
@@ -139,7 +132,6 @@ class VulnerabilityBase(Operation):
     def report(cls, evidence_value="", sources=None):
         # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug(
