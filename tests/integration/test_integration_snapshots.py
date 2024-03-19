@@ -115,7 +115,9 @@ def test_synchronous_writer():
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process
+        The trace should be continued in the child process. The fact that
+        the child span has does not have '_dd.p.dm' shows that sampling was run
+        before fork automatically.
     """
     tracer = Tracer()
 
@@ -124,9 +126,7 @@ def test_tracer_trace_across_popen():
             pass
         tracer.shutdown()
 
-    with tracer.trace("parent") as parent:
-        # need to manually sample before Popen
-        tracer.sampler.sample(parent)
+    with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
@@ -138,7 +138,9 @@ def test_tracer_trace_across_popen():
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
-        The trace should be continued in the child processes
+        The trace should be continued in the child processes. The fact that
+        the child span has does not have '_dd.p.dm' shows that sampling was run
+        before fork automatically.
     """
     tracer = Tracer()
 
@@ -154,35 +156,10 @@ def test_tracer_trace_across_multiple_popens():
             p.join()
         tracer.shutdown()
 
-    with tracer.trace("parent") as parent:
-        # need to manually sample before Popen
-        tracer.sampler.sample(parent)
+    with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-    tracer.shutdown()
-
-
-@snapshot(async_mode=False)
-def test_tracer_trace_across_only_fork():
-    """
-    When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
-    """
-    tracer = Tracer()
-
-    with tracer.trace("parent"):
-        # Create a child process
-        # using os.fork() method
-        pid = os.fork()
-
-        # pid greater than 0 represents
-        # the parent process
-        if pid == 0:
-            tracer.trace("child")
-
     tracer.shutdown()
 
 
