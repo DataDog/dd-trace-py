@@ -53,6 +53,9 @@ target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
 declare -A compiler_args
+compiler_args["address"]="-DSANITIZE_OPTIONS=address"
+compiler_args["leak"]="-DSANITIZE_OPTIONS=leak"
+compiler_args["undefined"]="-DSANITIZE_OPTIONS=undefined"
 compiler_args["safety"]="-DSANITIZE_OPTIONS=address,leak,undefined"
 compiler_args["thread"]="-DSANITIZE_OPTIONS=thread"
 compiler_args["numerical"]="-DSANITIZE_OPTIONS=integer,nullability,signed-integer-overflow,bounds,float-divide-by-zero"
@@ -139,10 +142,13 @@ print_help() {
   echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
   echo "Options (one of)"
   echo "  -h, --help        Show this help message and exit"
-  echo "  -s, --safety      GCC + " ${compile_args["safety"]}
+  echo "  -a, --address     Clang + " ${compile_args["address"]}
+  echo "  -l, --leak        Clang + " ${compile_args["leak"]}
+  echo "  -u, --undefined   Clang + " ${compile_args["undefined"]}
+  echo "  -s, --safety      Clang + " ${compile_args["safety"]}
   echo "  -t, --thread      Clang + " ${compile_args["thread"]}
   echo "  -n, --numerical   Clang + " ${compile_args["numerical"]}
-  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}
+  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}  # Requires custom libstdc++ to work
   echo "  -m  --memory      Clang + " ${compile_args["memory"]}
   echo "  -C  --cppcheck    Clang + " ${compile_args["cppcheck"]}
   echo "  -I  --infer       Clang + " ${compile_args["infer"]}
@@ -183,6 +189,18 @@ add_compiler_args() {
     -h|--help)
       print_help
       exit 0
+      ;;
+    -a|--address)
+      cmake_args+=(${compiler_args["address"]})
+      set_clang
+      ;;
+    -l|--leak)
+      cmake_args+=(${compiler_args["leak"]})
+      set_clang
+      ;;
+    -u|--undefined)
+      cmake_args+=(${compiler_args["undefined"]})
+      set_clang
       ;;
     -s|--safety)
       cmake_args+=(${compiler_args["safety"]})
