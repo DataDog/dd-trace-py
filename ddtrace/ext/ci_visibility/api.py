@@ -64,14 +64,12 @@ class CISessionId(_CIVisibilityRootItemIdBase):
 
 @dataclasses.dataclass(frozen=True)
 class CIModuleId(_CIVisibilityChildItemIdBase[CISessionId]):
-
     def __repr__(self):
         return "CIModuleId(session={}, module={})".format(self.get_session_id().name, self.name)
 
 
 @dataclasses.dataclass(frozen=True)
 class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
-
     def __repr__(self):
         return "CISuiteId(session={}, module={}, suite={})".format(
             self.get_session_id().name, self.parent_id.name, self.name
@@ -106,6 +104,22 @@ class CIExcInfo:
     exc_type: Type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
+
+
+def enable_ci_visibility():
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.enable()
+    if not CIVisibility.enabled:
+        log.warning("CI Visibility enabling failed.")
+
+
+def disable_ci_visibility():
+    from ddtrace.internal.ci_visibility import CIVisibility
+
+    CIVisibility.disable()
+    if CIVisibility.enabled:
+        log.warning("CI Visibility disabling failed.")
 
 
 class CISession(_CIVisibilityAPIBase):
@@ -189,10 +203,6 @@ class CISession(_CIVisibilityAPIBase):
         core.dispatch(
             "ci_visibility.session.finish", (CISession.FinishArgs(item_id, force_finish_children, override_status),)
         )
-
-        from ddtrace.internal.ci_visibility import CIVisibility
-
-        CIVisibility.disable()
 
     @staticmethod
     @_catch_and_log_exceptions
