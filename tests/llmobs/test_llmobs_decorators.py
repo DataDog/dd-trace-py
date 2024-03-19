@@ -428,10 +428,15 @@ def test_llm_annotate(LLMObs, mock_llmobs_writer):
 
 
 def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
+    total_iters = 15
+    reached_annotation_iter = 5
+    unreached_annotation_iter = 9
+    break_at = 7
+
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
-        for i in range(10):
-            if i == 5:
+        for i in range(total_iters):
+            if i == reached_annotation_iter:
                 LLMObs.annotate(
                     parameters={"temperature": 0.9, "max_tokens": 50},
                     input_data=[{"content": "test_prompt"}],
@@ -439,10 +444,21 @@ def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
                     tags={"custom_tag": "tag_value"},
                     metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
                 )
+            elif i == unreached_annotation_iter:
+                LLMObs.annotate(
+                    parameters={"unreached": 0},
+                    input_data=[{"content": "unreached"}],
+                    output_data=[{"content": "unreached"}],
+                    tags={"custom_tag": "unreached"},
+                )
             yield i
 
+    i = 0
     for _ in f():
-        pass
+        if i == break_at:
+            break
+        i += 1
+
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
@@ -456,6 +472,9 @@ def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
             token_metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             tags={"custom_tag": "tag_value"},
             session_id="test_session_id",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
         )
     )
 
