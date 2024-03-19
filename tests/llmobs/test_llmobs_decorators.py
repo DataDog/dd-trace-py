@@ -53,12 +53,35 @@ def test_llm_decorator(LLMObs, mock_llmobs_writer):
     )
 
 
+def test_llm_decorator_gen(LLMObs, mock_llmobs_writer):
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
+    def f_gen():
+        for i in range(10):
+            yield i
+
+    for _ in f_gen():
+        pass
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
 def test_llm_decorator_no_model_name_raises_error(LLMObs, mock_llmobs_writer):
     with pytest.raises(TypeError):
 
         @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
         def f():
             pass
+
+    with pytest.raises(TypeError):
+
+        @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
+        def f_gen():
+            for i in range(10):
+                yield i
 
 
 def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
@@ -67,6 +90,20 @@ def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="custom")
+    )
+
+
+def test_llm_decorator_gen_default_kwargs(LLMObs, mock_llmobs_writer):
+    @llm(model_name="test_model")
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="custom")
@@ -85,12 +122,38 @@ def test_task_decorator(LLMObs, mock_llmobs_writer):
     )
 
 
+def test_task_decorator_gen(LLMObs, mock_llmobs_writer):
+    @task(name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "task", session_id="test_session_id")
+    )
+
+
 def test_task_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
     @task()
     def f():
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
+
+
+def test_task_decorator_gen_default_kwargs(LLMObs, mock_llmobs_writer):
+    @task()
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
@@ -107,12 +170,38 @@ def test_tool_decorator(LLMObs, mock_llmobs_writer):
     )
 
 
+def test_tool_decorator_gen(LLMObs, mock_llmobs_writer):
+    @tool(name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "tool", session_id="test_session_id")
+    )
+
+
 def test_tool_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
     @tool()
     def f():
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
+
+
+def test_tool_decorator_gen_default_kwargs(LLMObs, mock_llmobs_writer):
+    @tool()
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
@@ -129,12 +218,38 @@ def test_workflow_decorator(LLMObs, mock_llmobs_writer):
     )
 
 
+def test_workflow_decorator_gen(LLMObs, mock_llmobs_writer):
+    @workflow(name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "workflow", session_id="test_session_id")
+    )
+
+
 def test_workflow_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
     @workflow()
     def f():
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
+
+
+def test_workflow_decorator_gen_default_kwargs(LLMObs, mock_llmobs_writer):
+    @workflow()
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
@@ -151,12 +266,38 @@ def test_agent_decorator(LLMObs, mock_llmobs_writer):
     )
 
 
+def test_agent_decorator_gen(LLMObs, mock_llmobs_writer):
+    @agent(name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "agent", session_id="test_session_id")
+    )
+
+
 def test_agent_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
     @agent()
     def f():
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+
+
+def test_agent_decorator_gen_default_kwargs(LLMObs, mock_llmobs_writer):
+    @agent()
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
@@ -168,6 +309,32 @@ def test_llm_decorator_with_error(LLMObs, mock_llmobs_writer):
 
     with pytest.raises(ValueError):
         f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            "llm",
+            model_name="test_model",
+            model_provider="test_provider",
+            session_id="test_session_id",
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+        )
+    )
+
+
+def test_llm_decorator_gen_with_error(LLMObs, mock_llmobs_writer):
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            if i == 5:
+                raise ValueError("test_error")
+            yield i
+
+    with pytest.raises(ValueError):
+        for _ in f():
+            pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
@@ -205,6 +372,32 @@ def test_non_llm_decorators_with_error(LLMObs, mock_llmobs_writer):
         )
 
 
+def test_non_llm_decorators_gen_with_error(LLMObs, mock_llmobs_writer):
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)]:
+
+        @decorator(name="test_function", session_id="test_session_id")
+        def f():
+            for i in range(10):
+                if i == 5:
+                    raise ValueError("test_error")
+                yield i
+
+        with pytest.raises(ValueError):
+            for _ in f():
+                pass
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                decorator_name,
+                session_id="test_session_id",
+                error=span.get_tag("error.type"),
+                error_message=span.get_tag("error.message"),
+                error_stack=span.get_tag("error.stack"),
+            )
+        )
+
+
 def test_llm_annotate(LLMObs, mock_llmobs_writer):
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
@@ -217,6 +410,39 @@ def test_llm_annotate(LLMObs, mock_llmobs_writer):
         )
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            "llm",
+            model_name="test_model",
+            model_provider="test_provider",
+            input_messages=[{"content": "test_prompt"}],
+            output_messages=[{"content": "test_response"}],
+            parameters={"temperature": 0.9, "max_tokens": 50},
+            token_metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            tags={"custom_tag": "tag_value"},
+            session_id="test_session_id",
+        )
+    )
+
+
+def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
+    def f():
+        for i in range(10):
+            if i == 5:
+                LLMObs.annotate(
+                    parameters={"temperature": 0.9, "max_tokens": 50},
+                    input_data=[{"content": "test_prompt"}],
+                    output_data=[{"content": "test_response"}],
+                    tags={"custom_tag": "tag_value"},
+                    metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                )
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
@@ -284,5 +510,34 @@ def test_agent_decorator_no_args(LLMObs, mock_llmobs_writer):
         pass
 
     f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+
+
+def test_non_llm_decorators_gen_no_args(LLMObs, mock_llmobs_writer):
+    """Test that using the decorators without any arguments, i.e. @tool, works the same as @tool(...)."""
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
+
+        @decorator
+        def f():
+            for i in range(10):
+                yield i
+
+        for _ in f():
+            pass
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, decorator_name))
+
+
+def test_agent_decorator_gen_no_args(LLMObs, mock_llmobs_writer):
+    """Test that using agent decorator without any arguments, i.e. @agent, works the same as @agent(...)."""
+
+    @agent
+    def f():
+        for i in range(10):
+            yield i
+
+    for _ in f():
+        pass
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))

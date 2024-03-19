@@ -15,10 +15,11 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
             span_name = func.__name__
 
         @wraps(func)
-        def generator_wrapper(*args, **kwargs):
+        def gen_wrapper(*args, **kwargs):
             if not LLMObs.enabled or LLMObs._instance is None:
                 log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
-                return func(*args, **kwargs)
+                for ret in func(*args, **kwargs):
+                    yield ret
             with LLMObs.llm(
                 model_name=model_name,
                 model_provider=model_provider,
@@ -41,7 +42,7 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
             ):
                 return func(*args, **kwargs)
 
-        return generator_wrapper if inspect.isgeneratorfunction(func) else wrapper
+        return gen_wrapper if inspect.isgeneratorfunction(func) else wrapper
 
     return inner
 
@@ -49,16 +50,16 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
 def llmobs_decorator(operation_kind):
     def decorator(original_func=None, name=None, session_id=None):
         def inner(func):
-
             span_name = name
             if span_name is None:
                 span_name = func.__name__
 
             @wraps(func)
-            def generator_wrapper(*args, **kwargs):
+            def gen_wrapper(*args, **kwargs):
                 if not LLMObs.enabled or LLMObs._instance is None:
                     log.warning("LLMObs.{}() cannot be used while LLMObs is disabled.", operation_kind)
-                    return func(*args, **kwargs)
+                    for ret in func(*args, **kwargs):
+                        yield ret
                 traced_operation = getattr(LLMObs, operation_kind, "workflow")
                 with traced_operation(name=span_name, session_id=session_id):
                     for ret in func(*args, **kwargs):
@@ -73,7 +74,7 @@ def llmobs_decorator(operation_kind):
                 with traced_operation(name=span_name, session_id=session_id):
                     return func(*args, **kwargs)
 
-            return generator_wrapper if inspect.isgeneratorfunction(func) else wrapper
+            return gen_wrapper if inspect.isgeneratorfunction(func) else wrapper
 
         if original_func and callable(original_func):
             return inner(original_func)
