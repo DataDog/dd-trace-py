@@ -345,3 +345,9 @@ def test_no_configured_processor():
 
     cf.logger.calls.clear()
     unpatch()
+
+# write a test with two loggers and confirm there is only processor per logger
+
+# write a test with a get_logger then new configure call and confirm there is only processor
+
+# write a test with an empty configure block and confirm there is no processor injected

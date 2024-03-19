@@ -12,7 +12,7 @@ from ..logging.constants import RECORD_ATTR_VALUE_ZERO
 from ..logging.constants import RECORD_ATTR_VERSION
 from ..trace_utils import unwrap as _u
 from ..trace_utils import wrap as _w
-
+from ...internal.utils import get_argument_value, set_argument_value
 
 config._add(
     "structlog",
@@ -50,6 +50,7 @@ def _tracer_injection(_, __, event_dict):
 def _w_get_logger(func, instance, args, kwargs):
     """
     Append the tracer injection processor to the ``default_processors`` list used by the logger
+    Ensures that the tracer injection processor is the first processor in the chain and only injected once
     The ``default_processors`` list has built in defaults which protects against a user configured ``None`` value.
     The argument to configure ``default_processors`` accepts an iterable type:
         - List: default use case which has been accounted for
@@ -59,7 +60,25 @@ def _w_get_logger(func, instance, args, kwargs):
     """
 
     dd_processor = [_tracer_injection]
-    structlog._config._CONFIG.default_processors = dd_processor + list(structlog._config._CONFIG.default_processors)
+    if _tracer_injection not in list(structlog._config._CONFIG.default_processors):
+        structlog._config._CONFIG.default_processors = (dd_processor +
+                                                        list(structlog._config._CONFIG.default_processors))
+
+    return func(*args, **kwargs)
+
+
+def _w_configure(func, instance, args, kwargs):
+    """
+    Injects the tracer injection processor to the ``processors`` list parameter when configuring a logger
+    Ensures that the tracer injection processor is the first processor in the chain and only injected once
+    In addition, the tracer injection processor is only injected if there is a renderer processor in the chain
+    """
+
+    dd_processor = [_tracer_injection]
+    arg_processors = get_argument_value(args, kwargs, 0, "processors", True)
+    if arg_processors and len(arg_processors) != 0:
+        set_argument_value(args, kwargs, 0, "processors", dd_processor + list(arg_processors))
+
     return func(*args, **kwargs)
 
 
@@ -79,6 +98,9 @@ def patch():
     if hasattr(structlog, "getLogger"):
         _w(structlog, "getLogger", _w_get_logger)
 
+    if hasattr(structlog, "configure"):
+        _w(structlog, "configure", _w_configure)
+
 
 def unpatch():
     if getattr(structlog, "_datadog_patch", False):
@@ -88,3 +110,5 @@ def unpatch():
             _u(structlog, "get_logger")
         if hasattr(structlog, "getLogger"):
             _u(structlog, "getLogger")
+        if hasattr(structlog, "configure"):
+            _u(structlog, "configure")
