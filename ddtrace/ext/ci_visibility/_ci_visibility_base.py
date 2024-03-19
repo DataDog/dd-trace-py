@@ -15,9 +15,6 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-
-
-
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityRootItemIdBase:
     """This class exists for the ABC class below"""
@@ -33,6 +30,7 @@ class _CIVisibilityRootItemIdBase:
 
 RT = TypeVar("RT", bound="_CIVisibilityRootItemIdBase")
 
+
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityIdBase(abc.ABC):
     @abc.abstractmethod
@@ -44,6 +42,7 @@ class _CIVisibilityIdBase(abc.ABC):
 
 
 PT = TypeVar("PT", bound=Union[_CIVisibilityIdBase, _CIVisibilityRootItemIdBase])
+
 
 @dataclasses.dataclass(frozen=True)
 class _CIVisibilityChildItemIdBase(_CIVisibilityIdBase, Generic[PT]):
