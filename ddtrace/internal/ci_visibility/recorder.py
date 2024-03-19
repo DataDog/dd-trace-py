@@ -185,14 +185,20 @@ class CIVisibility(Service):
 
         self._session_data: Dict[_CIVisibilityRootItemIdBase, CIVisibilitySession] = {}
 
-        int_service = None
-        if self.config is not None:
-            int_service = trace_utils.int_service(None, self.config)
-        # check if repository URL detected from environment or .git, and service name unchanged
-        if self._tags.get(ci.git.REPOSITORY_URL, None) and self.config and int_service == self.config._default_service:
-            self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
-        elif self._service is None and int_service is not None:
-            self._service = int_service
+        if service is None:
+            # Use service if provided to enable() or __init__()
+            int_service = None
+            if self.config is not None:
+                int_service = trace_utils.int_service(None, self.config)
+            # check if repository URL detected from environment or .git, and service name unchanged
+            if (
+                self._tags.get(ci.git.REPOSITORY_URL, None)
+                and self.config
+                and int_service == self.config._default_service
+            ):
+                self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
+            elif self._service is None and int_service is not None:
+                self._service = int_service
 
         if ddconfig._ci_visibility_agentless_enabled:
             if not self._api_key:
@@ -870,7 +876,6 @@ def _register_suite_handlers():
 def _on_discover_test(discover_args: CITest.DiscoverArgs):
     log.warning("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
-    # breakpoint()
     if discover_args.test_id in suite.children:
         log.warning("Test with id %s already exists", discover_args.test_id)
 
