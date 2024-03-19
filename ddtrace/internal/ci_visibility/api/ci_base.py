@@ -16,13 +16,13 @@ from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
+from ddtrace.ext.ci_visibility.api import DEFAULT_OPERATION_NAMES
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.ext.ci_visibility.api import CITestStatus
-from ddtrace.ext.ci_visibility.constants import DEFAULT_OPERATION_NAMES
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError

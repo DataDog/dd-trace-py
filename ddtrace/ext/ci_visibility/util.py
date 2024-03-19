@@ -16,9 +16,11 @@ def _catch_and_log_exceptions(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception:
-            log.error("Uncaught exception occurred while calling %s", func.__name__, exc_info=True)
+        # try:
+        return func(*args, **kwargs)
+
+    # except Exception:
+    #     log.error("Uncaught exception occurred while calling %s", func.__name__, exc_info=True)
+    #     raise
 
     return wrapper
