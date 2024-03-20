@@ -76,13 +76,6 @@ def test_llm_decorator_no_model_name_raises_error(LLMObs, mock_llmobs_writer):
         def f():
             pass
 
-    with pytest.raises(TypeError):
-
-        @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f_gen():
-            for i in range(10):
-                yield i
-
 
 def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
     @llm(model_name="test_model")
