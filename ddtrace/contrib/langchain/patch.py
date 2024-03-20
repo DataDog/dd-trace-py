@@ -155,12 +155,12 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        SpanTypes.LLM,
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
     )
-    span.span_type = SpanTypes.LLM
     completions = None
     try:
         if integration.is_pc_sampled_span(span):
@@ -203,7 +203,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span,
                 prompts,
                 completions,
-                error=bool(span.error),  # error
+                error=bool(span.error),
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -235,12 +235,12 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        SpanTypes.LLM,
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
     )
-    span.span_type = SpanTypes.LLM
     completions = None
     try:
         if integration.is_pc_sampled_span(span):
@@ -283,7 +283,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span,
                 prompts,
                 completions,
-                error=bool(span.error),  # error
+                error=bool(span.error),
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -314,12 +314,12 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        SpanTypes.LLM,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
-    span.span_type = SpanTypes.LLM
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -371,11 +371,11 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(
-                "chat_model",
+                "chat",
                 span,
                 chat_messages,
                 chat_completions,
-                error=bool(span.error),  # error
+                error=bool(span.error),
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -421,12 +421,12 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        SpanTypes.LLM,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
-    span.span_type = SpanTypes.LLM
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -478,11 +478,11 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(
-                "chat_model",
+                "chat",
                 span,
                 chat_messages,
                 chat_completions,
-                error=bool(span.error),  # error
+                error=bool(span.error),
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)

@@ -44,26 +44,37 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, model_provider or "")
 
-        # input parameters
-        if model_provider:
-            input_parameters = {}
-            temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
-            max_tokens = span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-            if temperature:
-                input_parameters["temperature"] = float(temperature)
-            if max_tokens:
-                input_parameters["max_tokens"] = int(max_tokens)
-            if input_parameters:
-                span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+        self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
-        elif operation == "chat_model":
+        elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            # TODO to be added as a follow-up PR
             pass
         self._llmobs_set_metrics_tags(span)
+
+    def _llmobs_set_input_parameters(
+        self,
+        span: Span,
+        model_provider: Optional[str],
+    ):
+        if model_provider:
+            input_parameters = {}
+            temperature = (
+                span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
+                or span.get_tag(f"langchain.request.{model_provider}.request.model_kwargs.temperature")
+                or 0.0  # huggingface
+            )
+            max_tokens = (
+                span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
+                or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")
+                or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # ai21
+                or 0  # huggingface
+            )
+            input_parameters["temperature"] = float(temperature)
+            input_parameters["max_tokens"] = int(max_tokens)
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
     def _llmobs_set_meta_tags_from_llm(
         self,
@@ -72,15 +83,13 @@ class LangChainIntegration(BaseLLMIntegration):
         completions: Any,
         err: bool = False,
     ) -> None:
-        # input messages
         if isinstance(prompts, str):
             prompts = [prompts]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
 
-        # output messages
         message_content = [{"content": ""}]
         if not err:
-            message_content = [{"content": self.trunc(completion[0].text)} for completion in completions.generations]
+            message_content = [{"content": completion[0].text} for completion in completions.generations]
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
@@ -90,19 +99,18 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         err: bool = False,
     ) -> None:
-        # input messages
         input_messages = []
         for message_set in chat_messages:
             for message in message_set:
+                content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                 input_messages.append(
                     {
-                        "content": self.trunc(message.content),
+                        "content": content,
                         "role": str(message.type),
                     }
                 )
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
 
-        # output messages
         output_messages = [{"content": ""}]
         if not err:
             output_messages = []
@@ -110,7 +118,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 for chat_completion in message_set:
                     output_messages.append(
                         {
-                            "content": self.trunc(chat_completion.text),
+                            "content": chat_completion.text,
                             "role": str(chat_completion.message.type),
                         }
                     )
@@ -123,8 +131,6 @@ class LangChainIntegration(BaseLLMIntegration):
         metrics = {}
         prompt_tokens = span.get_metric("langchain.tokens.prompt_tokens")
         completion_tokens = span.get_metric("langchain.tokens.completion_tokens")
-        # grab off tag directly to minimize differences in reported total tokens and just summing,
-        # in case of discrepancies
         total_tokens = span.get_metric("langchain.tokens.total_tokens")
 
         if prompt_tokens:
