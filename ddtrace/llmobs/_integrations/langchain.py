@@ -63,23 +63,26 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_input_parameters(
         self,
         span: Span,
-        model_provider: Optional[str],
-    ):
-        if model_provider:
-            input_parameters = {}
-            temperature = (
-                span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
-                or span.get_tag(f"langchain.request.{model_provider}.request.model_kwargs.temperature")  # huggingface
-                or 0.0
-            )
-            max_tokens = (
-                span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-                or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
-                or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
-                or 0
-            )
+        model_provider: Optional[str] = None,
+    ) -> None:
+        if not model_provider:
+            return
+        
+        input_parameters = {}
+        temperature = (
+            span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
+            or span.get_tag(f"langchain.request.{model_provider}.request.model_kwargs.temperature")  # huggingface
+        )
+        max_tokens = (
+            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
+            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
+            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
+        )
+        if temperature:
             input_parameters["temperature"] = float(temperature)
+        if max_tokens:
             input_parameters["max_tokens"] = int(max_tokens)
+        if input_parameters:
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
     def _llmobs_set_meta_tags_from_llm(
