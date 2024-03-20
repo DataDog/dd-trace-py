@@ -755,7 +755,7 @@ class Tracer(object):
             self._services.add(service)
 
         if not trace_id:
-            self._sampler.sample(span)
+            self.sample(span)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
