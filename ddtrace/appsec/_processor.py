@@ -129,7 +129,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
-    _span_to_waf_ctx: Dict[Span, ddwaf_context_capsule] = dataclasses.field(default_factory=dict)
+    _span_to_waf_ctx: Dict[Span, Optional[ddwaf_context_capsule]] = dataclasses.field(default_factory=dict)
 
     @property
     def enabled(self):
