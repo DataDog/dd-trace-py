@@ -12,6 +12,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+import weakref
 
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
@@ -24,6 +25,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
@@ -128,6 +130,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+    _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
 
     @property
     def enabled(self):
@@ -222,7 +225,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
-
+        self._span_to_waf_ctx[span] = ctx
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -254,7 +257,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _waf_action(
         self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -362,7 +365,7 @@ class AppSecSpanProcessor(SpanProcessor):
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results.derivatives
+                return waf_results
 
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
@@ -390,7 +393,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_manual_keep(span)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
-        return waf_results.derivatives
+        return waf_results
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
@@ -412,3 +415,19 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
+
+            if span.span_type != SpanTypes.WEB:
+                return
+
+            to_delete = []
+            for iterspan, ctx in self._span_to_waf_ctx.items():
+                # delete all the ddwaf ctxs associated with this span or finished or deleted ones
+                if iterspan == span or iterspan.finished:
+                    # so we don't change the dictionary size on iteration
+                    to_delete.append(iterspan)
+
+            for s in to_delete:
+                try:
+                    del self._span_to_waf_ctx[s]
+                except Exception:  # nosec B110
+                    pass
