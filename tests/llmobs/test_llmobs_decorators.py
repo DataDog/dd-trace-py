@@ -286,3 +286,40 @@ def test_agent_decorator_no_args(LLMObs, mock_llmobs_writer):
     f()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+
+
+def test_ml_app_override(LLMObs, mock_llmobs_writer):
+    """Test that setting ml_app kwarg on the LLMObs decorators will override the DD_LLMOBS_APP_NAME value."""
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
+
+        @decorator(ml_app="test_ml_app")
+        def f():
+            pass
+
+        f()
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(span, decorator_name, tags={"ml_app": "test_ml_app"})
+        )
+
+    @llm(model_name="test_model", ml_app="test_ml_app")
+    def g():
+        pass
+
+    g()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "llm", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
+        )
+    )
+
+    @agent(ml_app="test_ml_app")
+    def h():
+        pass
+
+    h()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_ml_app"})
+    )
