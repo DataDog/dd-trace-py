@@ -36,7 +36,6 @@ from typing import Tuple
 from typing import Union
 
 import attr
-import bytecode
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
