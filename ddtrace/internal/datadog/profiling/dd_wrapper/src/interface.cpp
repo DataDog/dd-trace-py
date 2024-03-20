@@ -40,73 +40,57 @@ ddup_prefork()
 
 // Configuration
 void
-ddup_config_env(const char* dd_env)
+ddup_config_env(std::string_view dd_env)
 {
-    if (dd_env) {
-        Datadog::UploaderBuilder::set_env(dd_env);
-    }
+    Datadog::UploaderBuilder::set_env(dd_env);
 }
 
 void
-ddup_config_service(const char* service)
+ddup_config_service(std::string_view service)
 {
-    if (service) {
-        Datadog::UploaderBuilder::set_service(service);
-    }
+    Datadog::UploaderBuilder::set_service(service);
 }
 
 void
-ddup_config_version(const char* version)
+ddup_config_version(std::string_view version)
 {
-    if (version) {
-        Datadog::UploaderBuilder::set_version(version);
-    }
+    Datadog::UploaderBuilder::set_version(version);
 }
 
 void
-ddup_config_runtime(const char* runtime)
+ddup_config_runtime(std::string_view runtime)
 {
-    if (runtime) {
-        Datadog::UploaderBuilder::set_runtime(runtime);
-    }
+    Datadog::UploaderBuilder::set_runtime(runtime);
 }
 
 void
-ddup_config_runtime_version(const char* runtime_version)
+ddup_config_runtime_version(std::string_view runtime_version)
 {
-    if (runtime_version) {
-        Datadog::UploaderBuilder::set_runtime_version(runtime_version);
-    }
+    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
 }
 
 void
-ddup_config_profiler_version(const char* profiler_version)
+ddup_config_profiler_version(std::string_view profiler_version)
 {
-    if (profiler_version) {
-        Datadog::UploaderBuilder::set_profiler_version(profiler_version);
-    }
+    Datadog::UploaderBuilder::set_profiler_version(profiler_version);
 }
 
 void
-ddup_config_url(const char* url)
+ddup_config_url(std::string_view url)
 {
-    if (url) {
-        Datadog::UploaderBuilder::set_url(url);
-    }
+    Datadog::UploaderBuilder::set_url(url);
 }
 
 void
-ddup_config_user_tag(const char* key, const char* val)
+ddup_config_user_tag(std::string_view key, std::string_view val)
 {
-    if (key && val) {
-        Datadog::UploaderBuilder::set_tag(key, val);
-    }
+    Datadog::UploaderBuilder::set_tag(key, val);
 }
 
 void
-ddup_set_runtime_id(const char* id, size_t sz)
+ddup_set_runtime_id(std::string_view id)
 {
-    Datadog::UploaderBuilder::set_runtime_id(std::string_view(id, sz));
+    Datadog::UploaderBuilder::set_runtime_id(id);
 }
 
 void
@@ -193,21 +177,15 @@ ddup_push_heap(Datadog::Sample* sample, uint64_t size)
 }
 
 void
-ddup_push_lock_name(Datadog::Sample* sample, const char* lock_name)
+ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name)
 {
-    if (lock_name) {
-        sample->push_lock_name(lock_name);
-    }
+    sample->push_lock_name(lock_name);
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, const char* thread_name)
+ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, std::string_view thread_name)
 {
-    if (thread_name) {
-        sample->push_threadinfo(thread_id, thread_native_id, thread_name);
-    } else {
-        sample->push_threadinfo(thread_id, thread_native_id, "");
-    }
+    sample->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
 
 void
@@ -217,11 +195,9 @@ ddup_push_task_id(Datadog::Sample* sample, int64_t task_id)
 }
 
 void
-ddup_push_task_name(Datadog::Sample* sample, const char* task_name)
+ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name)
 {
-    if (task_name) {
-        sample->push_task_name(task_name);
-    }
+    sample->push_task_name(task_name);
 }
 
 void
@@ -237,43 +213,37 @@ ddup_push_local_root_span_id(Datadog::Sample* sample, int64_t local_root_span_id
 }
 
 void
-ddup_push_trace_type(Datadog::Sample* sample, const char* trace_type)
+ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type)
 {
-    if (trace_type) {
-        sample->push_trace_type(trace_type);
-    }
+    sample->push_trace_type(trace_type);
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample, const char* trace_resource_container)
+ddup_push_trace_resource_container(Datadog::Sample* sample, std::string_view trace_resource_container)
 {
-    if (trace_resource_container) {
-        sample->push_trace_resource_container(trace_resource_container);
-    }
+    sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample* sample, const char* exception_type, int64_t count)
+ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count)
 {
-    if (exception_type) {
-        sample->push_exceptioninfo(exception_type, count);
-    }
+    sample->push_exceptioninfo(exception_type, count);
 }
 
 void
-ddup_push_class_name(Datadog::Sample* sample, const char* class_name)
+ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name)
 {
-    if (class_name) {
-        sample->push_class_name(class_name);
-    }
+    sample->push_class_name(class_name);
 }
 
 void
-ddup_push_frame(Datadog::Sample* sample, const char* _name, const char* _filename, uint64_t address, int64_t line)
+ddup_push_frame(Datadog::Sample* sample,
+                std::string_view _name,
+                std::string_view _filename,
+                uint64_t address,
+                int64_t line)
 {
-    if (_name && _filename) {
-        sample->push_frame(_name, _filename, address, line);
-    }
+    sample->push_frame(_name, _filename, address, line);
 }
 
 void
@@ -299,28 +269,23 @@ ddup_upload()
 
     bool success = false;
     {
-        // The borrow operation takes a reference, then locks the areas where
-        // the ddog_prof_Profile might be modified.  We need to return it
-        ddog_prof_Profile upload_profile = Datadog::Sample::profile_borrow();
-
-        // We create a new uploader just for this operation
-        try {
-            auto uploader = Datadog::UploaderBuilder::build();
-
-            // NB, upload() cancels any inflight uploads in order to ensure only
-            // one is active at a time.  This simplifies the fork/thread logic.
-            // This is usually fine, but when the user specifies a profiling
-            // upload interval less than the upload timeout, we have a potential
-            // backlog situation which isn't handled.  This is against recommended
-            // practice, but it wouldn't be crazy to add a small backlog queue.
-            success = uploader.upload(upload_profile);
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to create uploader: " << e.what() << std::endl;
-        }
-
-        // We're done with the profile
-        Datadog::Sample::profile_release();
-        Datadog::Sample::profile_clear_state();
+        // There are a few things going on here.
+        //   * profile_borrow takes a reference in a way that locks the areas where the profile might
+        //     be modified.  It gets released and cleared after uploading.
+        //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+        //     we have for now.
+        auto uploader = Datadog::UploaderBuilder::build();
+        struct
+        {
+            void operator()(Datadog::Uploader& uploader)
+            {
+                uploader.upload(Datadog::Sample::profile_borrow());
+                Datadog::Sample::profile_release();
+                Datadog::Sample::profile_clear_state();
+            }
+            void operator()(std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
+        } visitor;
+        std::visit(visitor, uploader);
     }
     return success;
 }
