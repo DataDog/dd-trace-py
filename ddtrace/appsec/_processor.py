@@ -13,6 +13,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
@@ -23,6 +24,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
@@ -233,7 +235,8 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        if config._telemetry_enabled:
+            _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
             _asm_request_context.set_waf_address(
@@ -252,7 +255,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _waf_action(
         self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -297,7 +300,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
 
         waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
-        if waf_results and waf_results.data:
+        if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         for action in waf_results.actions:
@@ -318,7 +321,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 break
         else:
             blocked = {}
-        _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, bool(blocked))
+        _asm_request_context.set_waf_telemetry_results(
+            self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
+        )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked)
@@ -344,7 +349,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-            if waf_results:
+            if waf_results.runtime:
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (JSONDecodeError, ValueError):
@@ -352,13 +357,13 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
-        if (waf_results and waf_results.data) or blocked:
+        if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results.derivatives
+                return waf_results
 
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
@@ -386,7 +391,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_manual_keep(span)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
-        return waf_results.derivatives
+        return waf_results
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep

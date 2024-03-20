@@ -150,7 +150,7 @@ class APIManager(Service):
         except Exception:
             log.debug("Failed to enrich request span with headers", exc_info=True)
 
-        waf_payload = {}
+        waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
         for address, _, transform in self.COLLECTED:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
@@ -161,28 +161,27 @@ class APIManager(Service):
             if transform is not None:
                 value = transform(value)
             waf_payload[address] = value
-        if waf_payload:
-            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
-            result = call_waf_callback(waf_payload)
-            if result is None:
-                return
-            for meta, schema in result.items():
-                b64_gzip_content = b""
-                try:
-                    b64_gzip_content = base64.b64encode(
-                        gzip.compress(json.dumps(schema, separators=",:").encode())
-                    ).decode()
-                    if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                        raise TooLargeSchemaException
-                    root._meta[meta] = b64_gzip_content
-                except Exception as e:
-                    self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
-                    self._log_limiter.limit(
-                        log.warning,
-                        "Failed to get schema from %r [schema length=%d]:\n%s",
-                        address,
-                        len(b64_gzip_content),
-                        repr(value)[:256],
-                        exc_info=True,
-                    )
+
+        result = call_waf_callback(waf_payload)
+        if result is None:
+            return
+        for meta, schema in result.derivatives.items():
+            b64_gzip_content = b""
+            try:
+                b64_gzip_content = base64.b64encode(
+                    gzip.compress(json.dumps(schema, separators=",:").encode())
+                ).decode()
+                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
+                    raise TooLargeSchemaException
+                root._meta[meta] = b64_gzip_content
+            except Exception as e:
+                self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
+                self._log_limiter.limit(
+                    log.warning,
+                    "Failed to get schema from %r [schema length=%d]:\n%s",
+                    address,
+                    len(b64_gzip_content),
+                    repr(value)[:256],
+                    exc_info=True,
+                )
         self._schema_meter.increment("spans")
