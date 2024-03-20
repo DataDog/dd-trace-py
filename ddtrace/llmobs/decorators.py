@@ -46,7 +46,6 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
                     except Exception as e:
                         gen.throw(e)
 
-
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not LLMObs.enabled or LLMObs._instance is None:
