@@ -96,7 +96,7 @@ def inject_trace_to_eventbridge_detail(params, span):
                 continue
 
         detail["_datadog"] = {}
-        HTTPPropagator.inject(span.context, detail["_datadog"], span)
+        HTTPPropagator.inject(span.context, detail["_datadog"])
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -120,7 +120,7 @@ def modify_client_context(client_context_object, trace_headers):
 
 def inject_trace_to_client_context(params, span):
     trace_headers = {}
-    HTTPPropagator.inject(span.context, trace_headers, span)
+    HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
     if "ClientContext" in params:
         try:

@@ -60,7 +60,7 @@ def inject_trace_to_kinesis_stream_data(record, span, stream, inject_trace_conte
             data_obj["_datadog"] = {}
 
             if config.botocore["distributed_tracing"] and inject_trace_context:
-                HTTPPropagator.inject(span.context, data_obj["_datadog"], span)
+                HTTPPropagator.inject(span.context, data_obj["_datadog"])
 
             core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"], record])
 

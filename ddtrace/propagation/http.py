@@ -926,8 +926,8 @@ class HTTPPropagator(object):
 
     # DEV: Change method signature to just take span and pull out context for next major version 3.0
     @staticmethod
-    def inject(span_context, headers, span=None):
-        # type: (Context, Dict[str, str], Optional[Span]) -> None
+    def inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -954,14 +954,12 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sampler") and ddtrace.tracer.sampler:
-            if span is None:
-                # if a span is not passed in explicitly, we do our best to grab the current root span to sample
-                span = ddtrace.tracer.current_root_span()
-            else:
-                span = span._local_root
-            if span is not None and span.context.sampling_priority is None:
-                ddtrace.tracer.sampler.sample(span._local_root)
+
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            root_span = ddtrace.tracer.current_root_span()
+            if root_span is not None and root_span.context.sampling_priority is None:
+                ddtrace.tracer.sample(root_span)
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:

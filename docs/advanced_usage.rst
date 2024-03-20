@@ -85,7 +85,7 @@ context::
     execution,
     sampling should be run manually before entering the new execution 
     to ensure that the sampling decision is the same across the trace.
-    This can be done using `tracer.sampler.sample(tracer.current_root_span())`
+    This can be done using `tracer.sample(tracer.current_root_span())`
     
     See the sections below for how to propagate traces across task, thread or
     process boundaries.
@@ -108,7 +108,7 @@ threads::
 
     with tracer.trace("main_thread") as root_span:
         # sample so the sampling_priority is the same across the trace
-        tracer.sampler.sample(tracer.current_root_span())
+        tracer.sample(tracer.current_root_span())
         thread = threading.Thread(target=_target, args=(tracer.current_trace_context(),))
         thread.start()
         thread.join()
@@ -127,7 +127,7 @@ to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
     @tracer.wrap()
     def eat_all_the_things():
         # sample so the sampling_priority is the same across the trace
-        tracer.sampler.sample(tracer.current_root_span())
+        tracer.sample(tracer.current_root_span())
         with ThreadPoolExecutor() as e:
             e.submit(eat, "cookie")
             e.map(eat, ("panna cotta", "tiramisu", "gelato"))
@@ -151,7 +151,7 @@ span has to be propagated as a context::
 
     with tracer.trace("work"):
         # sample so the sampling_priority is the same across the trace
-        tracer.sampler.sample(tracer.current_root_span())
+        tracer.sample(tracer.current_root_span())
         proc = Process(target=_target, args=(tracer.current_trace_context(),))
         proc.start()
         time.sleep(1)
@@ -239,7 +239,7 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
 
 `ddtrace` already provides default propagators but you can also implement your own. If utilizing your own propagator
-make sure to run `tracer.sampler.sample(tracer.current_root_span())` before propagating downstream,
+make sure to run `tracer.sample(tracer.current_root_span())` before propagating downstream,
 to ensure that the sampling decision is the same across the trace.
 
 Web Frameworks

@@ -42,7 +42,7 @@ def inject_trace_to_stepfunction_input(params, span):
             log.warning("Input already has trace context.")
             return
         params["input"]["_datadog"] = {}
-        HTTPPropagator.inject(span.context, params["input"]["_datadog"], span)
+        HTTPPropagator.inject(span.context, params["input"]["_datadog"])
         return
 
     elif isinstance(params["input"], str):
@@ -54,7 +54,7 @@ def inject_trace_to_stepfunction_input(params, span):
 
         if isinstance(input_obj, dict):
             input_obj["_datadog"] = {}
-            HTTPPropagator.inject(span.context, input_obj["_datadog"], span)
+            HTTPPropagator.inject(span.context, input_obj["_datadog"])
             input_json = json.dumps(input_obj)
 
             params["input"] = input_json
