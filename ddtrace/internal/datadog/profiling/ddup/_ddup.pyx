@@ -11,7 +11,7 @@ from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace._trace.span import Span
 
-from .utils import sanitize_string
+from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
 
 
 IF UNAME_SYSNAME == "Linux":
@@ -97,12 +97,12 @@ IF UNAME_SYSNAME == "Linux":
         ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
     def init(
-            service: Optional[str],
-            env: Optional[str],
-            version: Optional[str],
-            tags: Optional[typing.Dict[str, str]],
-            max_nframes: Optional[int],
-            url: Optional[str]) -> None:
+            service: Optional[str] = None,
+            env: Optional[str] = None,
+            version: Optional[str] = None,
+            tags: Optional[typing.Dict[str, str]] = None,
+            max_nframes: Optional[int] = None,
+            url: Optional[str] = None) -> None:
 
         # Try to provide a ddtrace-specific default service if one is not given
         service = service or DEFAULT_SERVICE_NAME
@@ -121,7 +121,10 @@ IF UNAME_SYSNAME == "Linux":
         call_ddup_config_runtime(ensure_binary_or_empty(platform.python_implementation()))
         call_ddup_config_runtime_version(ensure_binary_or_empty(platform.python_version()))
         call_ddup_config_profiler_version(ensure_binary_or_empty(ddtrace.__version__))
-        ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
+
+        if max_nframes is not None:
+            ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
+
         if tags is not None:
             for key, val in tags.items():
                 if key and val:
