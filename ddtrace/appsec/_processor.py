@@ -416,6 +416,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
             for iterspan, ctx in self._span_to_waf_ctx.items():
+                # delete all the ddwaf ctxs associated with this span or finished or deleted ones
                 if iterspan == span or (not iterspan or iterspan.finished):
                     try:
                         del self._span_to_waf_ctx[iterspan]
