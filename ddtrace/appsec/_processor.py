@@ -420,5 +420,5 @@ class AppSecSpanProcessor(SpanProcessor):
                 if iterspan == span or (not iterspan or iterspan.finished):
                     try:
                         del self._span_to_waf_ctx[iterspan]
-                    except Exception:
+                    except Exception:  # noqa
                         pass
