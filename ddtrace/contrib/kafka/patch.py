@@ -197,7 +197,7 @@ def traced_produce(func, instance, args, kwargs):
         if config.kafka.distributed_tracing_enabled:
             # inject headers with Datadog tags:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
-            Propagator.inject(span.context, headers, span)
+            Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers)
         return func(*args, **kwargs)
 

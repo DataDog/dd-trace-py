@@ -160,7 +160,7 @@ def traced_publish(func, instance, args, kwargs):
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.kombu.get_analytics_sample_rate())
         # run the command
         if config.kombu.distributed_tracing_enabled:
-            propagator.inject(s.context, args[HEADER_POS], s)
+            propagator.inject(s.context, args[HEADER_POS])
         core.dispatch(
             "kombu.amqp.publish.pre", [args, kwargs, s]
         )  # Has to happen after trace injection for actual payload size

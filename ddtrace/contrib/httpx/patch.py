@@ -89,7 +89,7 @@ def _init_span(span, request):
     span.set_tag(SPAN_MEASURED_KEY)
 
     if distributed_tracing_enabled(config.httpx):
-        HTTPPropagator.inject(span.context, request.headers, span)
+        HTTPPropagator.inject(span.context, request.headers)
 
     sample_rate = config.httpx.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:

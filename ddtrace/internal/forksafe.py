@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
-_registry_before_in_child = []  # type: typing.List[typing.Callable[[], None]]
+_registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -51,13 +51,13 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def ddtrace_before_in_child():
+def ddtrace_before_fork():
     # type: () -> None
-    global _registry_before_in_child
+    global _registry_before_fork
 
     # DEV: we make a copy of the registry to prevent hook execution from
     # introducing new hooks, potentially causing an infinite loop.
-    for hook in list(_registry_before_in_child):
+    for hook in list(_registry_before_fork):
         try:
             hook()
         except Exception:
@@ -76,15 +76,15 @@ def register(after_in_child):
     return after_in_child
 
 
-def register_before_in_child(before_in_child):
+def register_before_fork(before_fork):
     # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
     """Register a function to be called before fork in the parent process.
 
     Note that ``before_in_child`` will be called in all parent processes across
     multiple forks unless it is unregistered.
     """
-    _registry_before_in_child.append(before_in_child)
-    return before_in_child
+    _registry_before_fork.append(before_fork)
+    return before_fork
 
 
 def unregister(after_in_child):
@@ -95,18 +95,16 @@ def unregister(after_in_child):
         log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
 
-def unregister_before_in_child(before_in_child):
+def unregister_before_fork(before_fork):
     # type: (typing.Callable[[], None]) -> None
     try:
-        _registry_before_in_child.remove(before_in_child)
+        _registry_before_fork.remove(before_fork)
     except ValueError:
-        log.info("before_in_child hook %s was unregistered without first being registered", before_in_child.__name__)
+        log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(
-        before=ddtrace_before_in_child, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked
-    )
+    os.register_at_fork(before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 

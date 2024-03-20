@@ -76,7 +76,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     """
 
     trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data, span)
+    HTTPPropagator.inject(span.context, trace_data)
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
@@ -99,8 +99,7 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
     Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data, span)
-
+    HTTPPropagator.inject(span.context, trace_data)
     core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 

@@ -1,7 +1,7 @@
 ---
 prelude: >
     tracing: This release adds support for lazy sampling, essentially moving when we make a sampling decision for
-    a trace to the latest possible moment, these include the following:
+    a trace to the latest possible moment. These include the following:
     1. Before encoding a trace chunk to be sent to the agent
     2. Before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration
     3. Before running ``os.fork()``
