@@ -16,18 +16,36 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
 
         @wraps(func)
         def gen_wrapper(*args, **kwargs):
+            gen = func(*args, **kwargs)
+
             if not LLMObs.enabled or LLMObs._instance is None:
                 log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
-                for ret in func(*args, **kwargs):
-                    yield ret
+                for ret in gen:
+                    try:
+                        i = yield ret
+                        if i:
+                            gen.send(i)
+                    except GeneratorExit:
+                        gen.close()
+                        return
+                    except Exception as e:
+                        gen.throw(e)
+                return
+
             with LLMObs.llm(
-                model_name=model_name,
-                model_provider=model_provider,
-                name=span_name,
-                session_id=session_id,
+                model_name=model_name, model_provider=model_provider, name=span_name, session_id=session_id
             ):
-                for ret in func(*args, **kwargs):
-                    yield ret
+                for ret in gen:
+                    try:
+                        i = yield ret
+                        if i:
+                            gen.send(i)
+                    except GeneratorExit:
+                        gen.close()
+                        return
+                    except Exception as e:
+                        gen.throw(e)
+                return
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -56,14 +74,34 @@ def llmobs_decorator(operation_kind):
 
             @wraps(func)
             def gen_wrapper(*args, **kwargs):
+                gen = func(*args, **kwargs)
+
                 if not LLMObs.enabled or LLMObs._instance is None:
                     log.warning("LLMObs.{}() cannot be used while LLMObs is disabled.", operation_kind)
-                    for ret in func(*args, **kwargs):
-                        yield ret
+                    for ret in gen:
+                        try:
+                            i = yield ret
+                            if i:
+                                gen.send(i)
+                        except GeneratorExit:
+                            gen.close()
+                            return
+                        except Exception as e:
+                            gen.throw(e)
+                    return
+
                 traced_operation = getattr(LLMObs, operation_kind, "workflow")
                 with traced_operation(name=span_name, session_id=session_id):
-                    for ret in func(*args, **kwargs):
-                        yield ret
+                    for ret in gen:
+                        try:
+                            i = yield ret
+                            if i:
+                                gen.send(i)
+                        except GeneratorExit:
+                            gen.close()
+                            return
+                        except Exception as e:
+                            gen.throw(e)
 
             @wraps(func)
             def wrapper(*args, **kwargs):

@@ -26,6 +26,83 @@ def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     mock_logs.warning.assert_called_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
 
 
+def test_llm_gen_decorator_with_llmobs_disabled(LLMObs, mock_logs):
+    # make sure the decorator doesn't break generator when LLMObs is disabled
+    sent = None
+    cleanup = None
+    valerror = None
+
+    @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
+    def f():
+        nonlocal sent
+        nonlocal cleanup
+        nonlocal valerror
+        try:
+            for i in range(10):
+                try:
+                    g = yield i
+                    if g:
+                        sent = g
+                except ValueError:
+                    valerror = "valerror"
+        except GeneratorExit:
+            cleanup = "cleanup"
+            raise GeneratorExit
+
+    LLMObs.disable()
+    gen = f()
+    for i in gen:
+        if i == 5:
+            gen.send("hi")
+            gen.throw(ValueError)
+            gen.close()
+
+    assert sent == "hi"
+    assert cleanup == "cleanup"
+    assert valerror == "valerror"
+    mock_logs.warning.assert_called_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
+
+
+def test_non_llm_gen_decorator_with_llmobs_disabled(LLMObs, mock_logs):
+    # make sure the decorator doesn't break generator when LLMObs is disabled
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)]:
+        sent = None
+        cleanup = None
+        valerror = None
+
+        @decorator(name="test_function", session_id="test_session_id")
+        def f():
+            nonlocal sent
+            nonlocal cleanup
+            nonlocal valerror
+            try:
+                for i in range(10):
+                    try:
+                        g = yield i
+                        if g:
+                            sent = g
+                    except ValueError:
+                        valerror = "valerror"
+            except GeneratorExit:
+                cleanup = "cleanup"
+                raise GeneratorExit
+
+        LLMObs.disable()
+        gen = f()
+        for i in gen:
+            if i == 5:
+                gen.send("hi")
+                gen.throw(ValueError)
+                gen.close()
+
+        assert sent == "hi"
+        assert cleanup == "cleanup"
+        assert valerror == "valerror"
+
+        mock_logs.warning.assert_called_with("LLMObs.{}() cannot be used while LLMObs is disabled.", decorator_name)
+        mock_logs.reset_mock()
+
+
 def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)]:
 
@@ -75,13 +152,6 @@ def test_llm_decorator_no_model_name_raises_error(LLMObs, mock_llmobs_writer):
         @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
         def f():
             pass
-
-    with pytest.raises(TypeError):
-
-        @llm(model_provider="test_provider", name="test_function", session_id="test_session_id")
-        def f_gen():
-            for i in range(10):
-                yield i
 
 
 def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_writer):
@@ -428,36 +498,41 @@ def test_llm_annotate(LLMObs, mock_llmobs_writer):
 
 
 def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
-    total_iters = 15
-    reached_annotation_iter = 5
-    unreached_annotation_iter = 9
-    break_at = 7
+    annotate_at = 5
+    close_at = annotate_at * 2  # close the generator at this iteration
+    total_iters = annotate_at * 4
 
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
-        for i in range(total_iters):
-            if i == reached_annotation_iter:
-                LLMObs.annotate(
-                    parameters={"temperature": 0.9, "max_tokens": 50},
-                    input_data=[{"content": "test_prompt"}],
-                    output_data=[{"content": "test_response"}],
-                    tags={"custom_tag": "tag_value"},
-                    metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-                )
-            elif i == unreached_annotation_iter:
-                LLMObs.annotate(
-                    parameters={"unreached": 0},
-                    input_data=[{"content": "unreached"}],
-                    output_data=[{"content": "unreached"}],
-                    tags={"custom_tag": "unreached"},
-                )
-            yield i
+        count_signals = 0
+        try:
+            for i in range(total_iters):
+                if i == annotate_at:
+                    LLMObs.annotate(
+                        parameters={"temperature": 0.9, "max_tokens": 50},
+                        input_data=[{"content": "test_prompt"}],
+                        output_data=[{"content": "test_response"}],
+                        metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                    )
+                elif i == total_iters - 1:
+                    # we should never reach this iteration send .close() is called
+                    LLMObs.annotate(tags={"unreached_key": "unreached_val"})
+                got = yield i
+                if got is not None:
+                    count_signals += got
+        except GeneratorExit:
+            # custom cleanups on generator exit should still work
+            count_signals += 1
+            LLMObs.annotate(tags={"signals": count_signals})
+            raise GeneratorExit
 
-    i = 0
-    for _ in f():
-        if i == break_at:
-            break
-        i += 1
+    gen = f()
+
+    for i in gen:
+        if i == annotate_at:
+            gen.send(1)
+        elif i == close_at:
+            gen.close()
 
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_writer.enqueue.assert_called_with(
@@ -470,11 +545,8 @@ def test_llm_gen_annotate(LLMObs, mock_llmobs_writer):
             output_messages=[{"content": "test_response"}],
             parameters={"temperature": 0.9, "max_tokens": 50},
             token_metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-            tags={"custom_tag": "tag_value"},
+            tags={"signals": 2},
             session_id="test_session_id",
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
         )
     )
 
