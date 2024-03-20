@@ -45,7 +45,7 @@ def llm(model_name, model_provider=None, name=None, session_id=None):
                         return
                     except Exception as e:
                         gen.throw(e)
-                return
+
 
         @wraps(func)
         def wrapper(*args, **kwargs):
