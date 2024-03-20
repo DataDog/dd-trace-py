@@ -414,8 +414,7 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
-            ctx = self._span_to_waf_ctx.get(span)
-            if ctx:
-                # Needed because ctx is not always automatically cleared at the end of the span
-                ctx.__del__()
+            try:
                 del self._span_to_waf_ctx[span]
+            except IndexError:
+                pass
