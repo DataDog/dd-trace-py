@@ -677,9 +677,8 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._update_dependencies_event(newly_imported_deps)
 
-        if not self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
-            self._app_heartbeat_event()
+        # Send a heartbeat event to the agent, this is required to keep RC connections alive
+        self._app_heartbeat_event()
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:
