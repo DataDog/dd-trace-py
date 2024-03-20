@@ -62,7 +62,11 @@ class TraceMiddleware(object):
         if not span:
             return  # unexpected
 
-        status = resp.status.partition(" ")[0]
+        if isinstance(resp.status, str):
+            status = resp.status.partition(" ")[0]
+
+        elif isinstance(resp.status, int):
+            status = str(resp.status)
 
         # falcon does not map errors or unmatched routes
         # to proper status codes, so we have to try to infer them
