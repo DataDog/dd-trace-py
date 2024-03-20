@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.19)
 # setup.py to build the wheel. Otherwise, we have to propagate a lot of state all around.
 # Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
 # ddup is used by a default for standalone/test builds.
-set(EXTENSION_NAME "_ddup" CACHE STRING "Name of the extension")
+set(EXTENSION_NAME "_ddup.so" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
