@@ -416,11 +416,15 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
+            to_delete = []
             for iterspan, ctx in self._span_to_waf_ctx.items():
                 # delete all the ddwaf ctxs associated with this span or finished or deleted ones
-                resolved_weak_span = iterspan()
-                if resolved_weak_span == span or (not resolved_weak_span or resolved_weak_span.finished):
-                    try:
-                        del self._span_to_waf_ctx[resolved_weak_span]
-                    except Exception:  # nosec B110
-                        pass
+                if iterspan == span or (not iterspan or iterspan.finished):
+                    # so we dont change the dictionary size on iteration
+                    to_delete.append(iterspan)
+
+            for s in to_delete:
+                try:
+                    del self._span_to_waf_ctx[s]
+                except Exception:  # nosec B110
+                    pass
