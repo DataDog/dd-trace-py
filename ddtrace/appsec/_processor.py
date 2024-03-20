@@ -398,23 +398,26 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
+        if span.span_type != SpanTypes.WEB:
+            return
         try:
-            if span.span_type == SpanTypes.WEB:
-                # Force to set respond headers at the end
-                headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
-                if headers_req:
-                    _set_headers(span, headers_req, kind="response")
+            # Force to set respond headers at the end
+            headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+            if headers_req:
+                _set_headers(span, headers_req, kind="response")
 
-                # this call is only necessary for tests or frameworks that are not using blocking
-                if not has_triggers(span) and _asm_request_context.in_context():
-                    log.debug("metrics waf call")
-                    _asm_request_context.call_waf_callback()
+            # this call is only necessary for tests or frameworks that are not using blocking
+            if not has_triggers(span) and _asm_request_context.in_context():
+                log.debug("metrics waf call")
+                _asm_request_context.call_waf_callback()
 
-                self._ddwaf._at_request_end()
+            self._ddwaf._at_request_end()
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
-            try:
-                del self._span_to_waf_ctx[span]
-            except Exception:
-                pass
+            for span, ctx in self._span_to_waf_ctx.items():
+                if not span or span.finished:
+                    try:
+                        del self._span_to_waf_ctx[span]
+                    except Exception:
+                        pass
