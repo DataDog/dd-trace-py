@@ -418,6 +418,6 @@ class AppSecSpanProcessor(SpanProcessor):
             for iterspan, ctx in self._span_to_waf_ctx.items():
                 if iterspan == span or (not iterspan or iterspan.finished):
                     try:
-                        del self._span_to_waf_ctx[span]
+                        del self._span_to_waf_ctx[iterspan]
                     except Exception:
                         pass
