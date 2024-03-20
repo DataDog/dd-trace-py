@@ -420,7 +420,7 @@ class AppSecSpanProcessor(SpanProcessor):
             for iterspan, ctx in self._span_to_waf_ctx.items():
                 # delete all the ddwaf ctxs associated with this span or finished or deleted ones
                 if iterspan == span or (not iterspan or iterspan.finished):
-                    # so we dont change the dictionary size on iteration
+                    # so we don't change the dictionary size on iteration
                     to_delete.append(iterspan)
 
             for s in to_delete:
