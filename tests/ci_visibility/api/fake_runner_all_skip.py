@@ -1,4 +1,4 @@
-"""Fake test runner where all tests pass"""
+"""Fake test runner where all tests skip"""
 
 from multiprocessing import freeze_support
 

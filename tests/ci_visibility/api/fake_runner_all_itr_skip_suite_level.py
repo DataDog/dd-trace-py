@@ -1,4 +1,4 @@
-"""Fake test runner where all tests pass"""
+"""Fake test runner where all tests are skipped by ITR at suite level"""
 
 from multiprocessing import freeze_support
 
