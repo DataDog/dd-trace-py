@@ -16,8 +16,7 @@ Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 
     // If the user has requested more than we're allowed to give, reduce the limit and warn the user.
     if (max_nframes > g_backend_max_nframes) {
-        std::cerr << "Requested limit of " << max_nframes << " will be reduced to " << g_backend_max_nframes
-                  << std::endl;
+        // We don't emit an error here for now.
         max_nframes = g_backend_max_nframes;
     }
 }
