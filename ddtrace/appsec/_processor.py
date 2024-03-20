@@ -416,5 +416,5 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.unregister(span)
             try:
                 del self._span_to_waf_ctx[span]
-            except IndexError:
+            except Exception:
                 pass
