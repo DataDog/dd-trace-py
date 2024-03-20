@@ -5,6 +5,7 @@ from json.decoder import JSONDecodeError
 import os
 import os.path
 import traceback
+import weakref
 from typing import Any
 from typing import Dict
 from typing import List
@@ -129,7 +130,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
-    _span_to_waf_ctx: Dict[Span, Optional[ddwaf_context_capsule]] = dataclasses.field(default_factory=dict)
+    _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
 
     @property
     def enabled(self):
@@ -417,8 +418,9 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.unregister(span)
             for iterspan, ctx in self._span_to_waf_ctx.items():
                 # delete all the ddwaf ctxs associated with this span or finished or deleted ones
-                if iterspan == span or (not iterspan or iterspan.finished):
+                resolved_weak_span = iterspan()
+                if resolved_weak_span == span or (not resolved_weak_span or resolved_weak_span.finished):
                     try:
-                        del self._span_to_waf_ctx[iterspan]
-                    except Exception:  # noqa
+                        del self._span_to_waf_ctx[resolved_weak_span]
+                    except Exception:  # nosec B110
                         pass
