@@ -429,6 +429,5 @@ class AppSecSpanProcessor(SpanProcessor):
             for s in to_delete:
                 try:
                     del self._span_to_waf_ctx[s]
-                    del s
                 except Exception:  # nosec B110
                     pass
