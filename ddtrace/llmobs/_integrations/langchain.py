@@ -24,6 +24,12 @@ PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
 
+ROLE_MAPPING = {
+    "human": "user",
+    "ai": "assistant",
+    "system": "system",
+}
+
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
@@ -106,7 +112,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_messages.append(
                     {
                         "content": content,
-                        "role": str(message.type),
+                        "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
                     }
                 )
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
@@ -116,10 +122,12 @@ class LangChainIntegration(BaseLLMIntegration):
             output_messages = []
             for message_set in chat_completions.generations:
                 for chat_completion in message_set:
+                    chat_completion_msg = chat_completion.message
+                    role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                     output_messages.append(
                         {
                             "content": chat_completion.text,
-                            "role": str(chat_completion.message.type),
+                            "role": role,
                         }
                     )
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))

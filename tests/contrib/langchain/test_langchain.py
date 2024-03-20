@@ -1408,6 +1408,20 @@ class TestLLMObsLangchain:
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            input_role="human",
-            output_role="ai",
+            input_role="user",
+            output_role="assistant",
+        )
+
+    def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+
+        self._test_llmobs_invoke(
+            provider="openai",
+            generate_trace=lambda prompt: chat([langchain.schema.ChatMessage(content=prompt, role="custom")]),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chat_completion_sync_call.yaml",
+            input_role="custom",
+            output_role="assistant",
         )
