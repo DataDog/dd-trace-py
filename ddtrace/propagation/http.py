@@ -924,7 +924,6 @@ class HTTPPropagator(object):
         primary_context._span_links = links
         return primary_context
 
-    # DEV: Change method signature to just take span and pull out context for next major version 3.0
     @staticmethod
     def inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None

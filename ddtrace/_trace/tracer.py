@@ -271,7 +271,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
-            self.sampler,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
@@ -356,12 +356,11 @@ class Tracer(object):
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
 
-
     @property
     def _sampler(self):
         return self._sampler_current
 
-    @sampler.setter
+    @_sampler.setter
     def _sampler(self, value):
         self._sampler_current = value
         # we need to update the processor that uses the sampler
@@ -559,7 +558,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
-                self.sampler,
+                self._sampler,
                 self._endpoint_call_counter_span_processor,
             )
 
@@ -625,7 +624,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
-            self.sampler,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
 

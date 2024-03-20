@@ -66,7 +66,7 @@ class _DBM_Propagator(object):
         # run sampling before injection to propagate correct sampling priority
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
             if dbspan.context.sampling_priority is None:
-                ddtrace.tracer.sample(dbspan)
+                ddtrace.tracer.sample(dbspan.local_root)
 
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
