@@ -67,17 +67,17 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         if not model_provider:
             return
-        
+
         input_parameters = {}
-        temperature = (
-            span.get_tag(f"langchain.request.{model_provider}.parameters.temperature")
-            or span.get_tag(f"langchain.request.{model_provider}.request.model_kwargs.temperature")  # huggingface
-        )
+        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
+            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
+        )  # huggingface
         max_tokens = (
             span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
             or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
+
         if temperature:
             input_parameters["temperature"] = float(temperature)
         if max_tokens:
