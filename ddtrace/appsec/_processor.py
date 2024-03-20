@@ -5,7 +5,6 @@ from json.decoder import JSONDecodeError
 import os
 import os.path
 import traceback
-import weakref
 from typing import Any
 from typing import Dict
 from typing import List
@@ -13,6 +12,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+import weakref
 
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
