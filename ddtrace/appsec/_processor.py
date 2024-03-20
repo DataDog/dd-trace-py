@@ -129,6 +129,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+    _span_to_waf_ctx: Dict[Span, ddwaf_context_capsule] = dataclasses.field(default_factory=dict)
 
     @property
     def enabled(self):
@@ -223,7 +224,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
-
+        self._span_to_waf_ctx[span] = ctx
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -413,3 +414,8 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
+            ctx = self._span_to_waf_ctx.get(span)
+            if ctx:
+                # Needed because ctx is not always automatically cleared at the end of the span
+                ctx.__del__()
+                del self._span_to_waf_ctx[span]
