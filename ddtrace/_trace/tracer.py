@@ -57,6 +57,7 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -66,6 +67,7 @@ from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:
@@ -297,6 +299,25 @@ class Tracer(object):
 
     def sample(self, span):
         self._sampler.sample(span)
+
+    @property
+    def sampler(self):
+        deprecate(
+            "tracer.sampler is deprecated and will be removed.",
+            message="To manually sample call tracer.sample(span) instead.",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._sampler
+
+    @sampler.setter
+    def sampler(self, value):
+        deprecate(
+            "Setting a custom sampler is deprecated and will be removed.",
+            message="""Please use DD_TRACE_SAMPLING_RULES to configure the sampler instead:
+    https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
+            category=DDTraceDeprecationWarning,
+        )
+        self._sampler = value
 
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
