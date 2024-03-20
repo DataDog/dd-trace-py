@@ -30,7 +30,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def llmobs_set_tags(
         self,
-        operation: str,  # oneof "llm","chat_model","chain"
+        operation: str,  # oneof "llm","chat","chain"
         span: Span,
         inputs: Any,
         response: Any,
