@@ -10,6 +10,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import SpanSamplingProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
@@ -385,6 +386,24 @@ def test_span_creation_metrics_disabled_telemetry():
                 aggr.on_span_start(span)
                 span.finish()
         mock_tm.assert_not_called()
+
+
+def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
+    """Changing the tracer sampler should change the sampling processor's sampler"""
+    tracer = Tracer()
+    # get processor
+    for aggregator in tracer._deferred_processors:
+        if type(aggregator) == SpanAggregator:
+            for processor in aggregator._trace_processors:
+                if type(processor) == TraceSamplingProcessor:
+                    sampling_processor = processor
+
+    assert sampling_processor.sampler is tracer._sampler
+
+    new_sampler = mock.Mock()
+    tracer._sampler = new_sampler
+
+    assert sampling_processor.sampler is new_sampler
 
 
 def test_single_span_sampling_processor():
