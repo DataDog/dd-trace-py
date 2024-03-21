@@ -53,7 +53,7 @@ ddtrace_after_in_child = functools.partial(run_hooks, _registry)
 
 
 def register_hook(registry, hook):
-    _registry.append(hook)
+    registry.append(hook)
     return hook
 
 
