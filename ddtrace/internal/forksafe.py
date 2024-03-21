@@ -1,6 +1,7 @@
 """
 An API to provide fork-safe functions.
 """
+import functools
 import logging
 import os
 import threading
@@ -37,13 +38,9 @@ def has_forked():
     return _forked
 
 
-def ddtrace_after_in_child():
-    # type: () -> None
-    global _registry
-
-    # DEV: we make a copy of the registry to prevent hook execution from
-    # introducing new hooks, potentially causing an infinite loop.
-    for hook in list(_registry):
+def run_hooks(registry):
+    # type: (typing.List[typing.Callable[[], None]]) -> None
+    for hook in registry:
         try:
             hook()
         except Exception:
@@ -51,18 +48,8 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def ddtrace_before_fork():
-    # type: () -> None
-    global _registry_before_fork
-
-    # DEV: we make a copy of the registry to prevent hook execution from
-    # introducing new hooks, potentially causing an infinite loop.
-    for hook in list(_registry_before_fork):
-        try:
-            hook()
-        except Exception:
-            # Mimic the behaviour of Python's fork hooks.
-            log.exception("Exception ignored in forksafe hook %r", hook)
+ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
+ddtrace_after_in_child = functools.partial(run_hooks, _registry)
 
 
 def register(after_in_child):
