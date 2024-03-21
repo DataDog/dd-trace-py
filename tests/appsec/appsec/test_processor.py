@@ -97,7 +97,7 @@ def test_enable_custom_rules():
 def test_ddwaf_ctx(tracer_appsec):
     tracer = tracer_appsec
 
-    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
             processor = AppSecSpanProcessor()
             processor.on_span_start(span)
