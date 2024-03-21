@@ -21,7 +21,6 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.processor import SpanSamplingProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
@@ -123,7 +122,7 @@ def _default_span_processors_factory(
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceSamplingProcessor(compute_stats_enabled, trace_sampler),
+        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules),
         TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
@@ -171,9 +170,6 @@ def _default_span_processors_factory(
         )
 
     span_processors.append(profiling_span_processor)
-
-    if single_span_sampling_rules:
-        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
     # These need to run after all the other processors
     deferred_processors: List[SpanProcessor] = [
