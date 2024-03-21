@@ -32,7 +32,7 @@ def _get_content_length(environ):
 
     try:
         return max(0, int(content_length))
-    except ValueError:
+    except Exception:
         return 0
 
 
@@ -136,7 +136,8 @@ def _on_request_span_modifier(
         if wsgi_input:
             try:
                 seekable = wsgi_input.seekable()
-            except AttributeError:
+            # expect AttributeError in normal error cases
+            except Exception:
                 seekable = False
             if not seekable:
                 # https://gist.github.com/mitsuhiko/5721547
