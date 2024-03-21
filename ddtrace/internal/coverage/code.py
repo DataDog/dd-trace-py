@@ -124,15 +124,20 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                     if found_node is not None:
                         return found_node
 
+            # If the start and end line numbers are the same, we're (almost certainly) dealing with some kind of
+            # statement instead of the sort of block statements we're looking for.
+            if node.lineno == node.end_lineno:
+                return None
+
             if node.lineno <= line <= node.end_lineno:
                 return node
 
             return None
 
-        def no_cover(path, src_line):
-            """Returns the number of lines to skip if the line includes pragma nocover
+        def no_cover(path, src_line) -> t.Optional[t.Tuple[int, int]]:
+            """Returns the start and end lines of statements to ignore the line includes pragma nocover.
 
-            If the line includes a :, parse the AST and skip the whole block.
+            If the line ends with a :, parse the AST and return the block the line belongs to.
             """
             text = linecache.getline(path, src_line).strip()
             matches = NOCOVER_PRAGMA_RE.match(text)
@@ -145,11 +150,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                     parsed = ast.parse(file_src)
                     statement = find_statement_for_line(parsed, src_line)
                     if statement is not None:
-                        return statement.end_lineno - statement.lineno
+                        return statement.lineno, statement.end_lineno
                     # We shouldn't get here, in theory, but if we do, let's not consider anything uncovered.
-                    return 0
-                return 1
-            return 0
+                    return None
+                # If our line does not end in ':', assume it's just one line that needs to be removed
+                return src_line, src_line
+            return None
 
         total_executable_lines = 0
         total_covered_lines = 0
@@ -175,10 +181,9 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                         continue
                     no_cover_lines = no_cover(path, line)
                     if no_cover_lines:
-                        for no_cover_line in range(no_cover_lines + 1):
-                            line_to_remove = line + no_cover_line
-                            path_lines.discard(line_to_remove)
-                            path_covered.discard(line_to_remove)
+                        for no_cover_line in range(no_cover_lines[0], no_cover_lines[1] + 1):
+                            path_lines.discard(no_cover_line)
+                            path_covered.discard(no_cover_line)
 
             n_lines = len(path_lines)
             n_covered = len(path_covered)
@@ -188,7 +193,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             total_missed_lines += n_missed
             if n_covered == 0:
                 continue
-            missed_ranges = collapse_ranges(sorted(path_lines - covered_lines[path]))
+            missed_ranges = collapse_ranges(sorted(path_lines - path_covered))
             missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
             missed_str = f"  [{missed}]" if missed else ""
             print(f"{path:{n}s}{n_lines:>8}{n_missed:>8}{int(n_covered/n_lines * 100):>8}%{missed_str}")
