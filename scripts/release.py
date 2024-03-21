@@ -254,7 +254,7 @@ def add_release_to_changelog(name: str, release_notes: str):
     new_notes = [separator, "", f"## {name}", ""] + release_notes_lines
     composite = release_notes_lines[: insert_index - 1] + new_notes + release_notes_lines[insert_index:0]
     with open(CHANGELOG_FILENAME, "w") as changelog_file:
-        changelog_file.writelines(composite)
+        changelog_file.write("\n".join(composite))
 
 
 def commit_and_push(dd_repo, branch_name: str, release_name: str):
@@ -273,7 +273,7 @@ def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
         commit_and_push(f"release.script/changelog-update-{name}", name)
     else:
         diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
-        subprocess.check_output(f"git stash -- {CHANGELOG_FILENAME}", shell=True, cwd=os.pardir)
+        subprocess.check_output("git stash", shell=True, cwd=os.pardir)
         print(f"DRY RUN: The following diff would be committed:\n\n{diff}\n\nThese changes have been stashed.")
 
 
