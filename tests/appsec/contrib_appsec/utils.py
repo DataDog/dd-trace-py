@@ -63,6 +63,7 @@ class Contrib_TestClass_For_Threats:
 
     def check_single_rule_triggered(self, rule_id: str, root_span):
         triggers = get_triggers(root_span())
+        print(triggers)
         assert triggers is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
@@ -1096,9 +1097,11 @@ class Contrib_TestClass_For_Threats:
             dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
         ):
             self.update_tracer(interface)
-            response = interface.client.get("/rasp/lfi/?filename=/etc/passwd")
+            response = interface.client.get("/rasp/lfi/?filename1=/etc/passwd&filename2=/etc/master.passwd")
             assert self.status(response) == 200
             assert get_tag(http.STATUS_CODE) == "200"
+            assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
+            print(self.body(response))
             self.check_single_rule_triggered("rasp-930-100", root_span)
             assert self.check_for_stack_trace(root_span)
 

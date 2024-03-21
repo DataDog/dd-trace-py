@@ -30,12 +30,13 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     if asm_config._asm_enabled and asm_config._ep_enabled:
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import in_context
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
             return original_open_callable(*args, **kwargs)
 
-        if len(args) > 0:
+        if len(args) > 0 and in_context():
             call_waf_callback({"LFI_ADDRESS": args[0]}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
