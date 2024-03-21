@@ -107,6 +107,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return
         instance: ModuleCodeCollector = cls._instance
 
+        import ast
         import os
         import re
 
@@ -116,6 +117,15 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             w = 80
 
         NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
+
+        ast_cache: t.Dict[str, t.Any] = {}
+
+        def _get_ast_for_path(path: str):
+            if path not in ast_cache:
+                with open(path, "r") as f:
+                    file_src = f.read()
+                ast_cache[path] = ast.parse(file_src)
+            return ast_cache[path]
 
         def find_statement_for_line(node, line):
             if hasattr(node, "body"):
@@ -143,11 +153,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             matches = NOCOVER_PRAGMA_RE.match(text)
             if matches:
                 if matches["command"].strip().endswith(":"):
-                    import ast
-
-                    with open(path, "r") as f:
-                        file_src = f.read()
-                    parsed = ast.parse(file_src)
+                    parsed = _get_ast_for_path(path)
                     statement = find_statement_for_line(parsed, src_line)
                     if statement is not None:
                         return statement.lineno, statement.end_lineno
