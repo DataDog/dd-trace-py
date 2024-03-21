@@ -262,6 +262,7 @@ def add_release_to_changelog(name: str, release_notes: str):
 def commit_and_push(dd_repo, branch_name: str, release_name: str):
     subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
     subprocess.check_output(f"git add {CHANGELOG_FILENAME}", shell=True, cwd=os.pardir)
+    print(f"Committing changes to {CHANGELOG_FILENAME} on branch {branch_name}")
     subprocess.check_output(
         f"git commit -m 'update changelog for version {release_name} via release script'", shell=True, cwd=os.pardir
     )
