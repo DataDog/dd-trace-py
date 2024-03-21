@@ -282,13 +282,13 @@ class AppSecSpanProcessor(SpanProcessor):
         if data_already_sent is None:
             data_already_sent = set()
 
-        # type ignore because mypy seems to not detect that both results of the if
-        # above can iter if not None
+        # persistent addresses must be sent if api security is used
         force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
+
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if self._is_needed(waf_name) or force_keys:
+            if self._is_needed(waf_name) or force_keys or waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                 value = None
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
@@ -297,7 +297,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 # if value is a callable, it's a lazy value for api security that should not be sent now
                 if value is not None and not hasattr(value, "__call__"):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    data_already_sent.add(key)
+                    if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
+                        data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
         waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
         if waf_results.data:
