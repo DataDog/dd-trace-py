@@ -278,7 +278,9 @@ def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
         diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
         subprocess.check_output("git stash", shell=True, cwd=os.pardir)
         diff = "\n".join(line.decode() for line in diff.split(b"\n"))
-        print(f"DRY RUN: The following diff would be committed:\n\n{diff}\n\nThese changes have been stashed.")
+        print(
+            f"\nDRY RUN: The following diff would be committed:\n\n{diff}\n\nDRY RUN: These changes have been stashed."
+        )
 
 
 def create_notebook(dd_repo, name, rn, base):
