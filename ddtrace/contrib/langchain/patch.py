@@ -585,6 +585,53 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
             )
     return final_outputs
 
+@with_traced_module
+def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
+    integration = langchain._datadog_integration
+    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    try:
+        inputs = get_argument_value(args, kwargs, 0, "input")
+        if not isinstance(inputs, dict):
+            pass
+        if integration.is_pc_sampled_span(span):
+            for k, v in inputs.items():
+                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
+        steps = [instance.first] + instance.middle + [instance.last]
+        for step in steps:
+            if isinstance(step, langchain_core.prompts.BasePromptTemplate):
+                if getattr(step, "messages"):
+                    for idx, message in enumerate(step.messages):
+                        prompt = getattr(message, "prompt", "")
+                        template = getattr(prompt, "template", "")
+                        span.set_tag_str("langchain.request.prompt.%d.template" % idx, integration.trunc(str(template)))
+                break
+        final_output = func(*args, **kwargs)
+        if integration.is_pc_sampled_span(span):
+            # final_output could be different types? depends on what the input type is
+            span.set_tag_str("langchain.response.output", integration.trunc(str(final_output)))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.metric(span, "incr", "request.error", 1)
+        raise
+    finally:
+        span.finish()
+        integration.metric(span, "dist", "request.duration", span.duration_ns)
+        if integration.is_pc_sampled_log(span):
+            log_inputs = {}
+            for k, v in inputs.items():
+                log_inputs[k] = str(v)
+            integration.log(
+                span,
+                "info" if span.error == 0 else "error",
+                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+                attrs={
+                    "inputs": log_inputs,
+                    # "prompt": str(deep_getattr(instance, "prompt.template", default="")),
+                    "outputs": str(final_output),
+                },
+            )
+    return final_output
+
 
 @with_traced_module
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
@@ -630,7 +677,6 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
                 },
             )
     return final_outputs
-
 
 @with_traced_module
 def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
@@ -733,6 +779,8 @@ def patch():
         )
         wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_chain_invoke(langchain))
+        # wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_chain_acall(langchain))
         wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
     else:
@@ -746,10 +794,10 @@ def patch():
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
         wrap(
             "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
-        )  # might need to change back to langchain_community
+        )
         wrap(
             "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
-        )  # might need to change back to langchain_community
+        )
         wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))

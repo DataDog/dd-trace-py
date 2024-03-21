@@ -102,6 +102,13 @@ def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_lo
 
     yield langchain_community
 
+@pytest.fixture
+def langchain_core(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    import langchain_core
+    import langchain_core.prompts  # noqa: F401
+
+    yield langchain_core
+
 
 @pytest.fixture
 def langchain_openai(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
