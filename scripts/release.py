@@ -273,7 +273,7 @@ def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
     subprocess.check_output(f"git checkout {DEFAULT_BRANCH}", shell=True, cwd=os.pardir)
     add_release_to_changelog(name, release_notes)
     if not DRY_RUN:
-        commit_and_push(f"release.script/changelog-update-{name}", name)
+        commit_and_push(dd_repo, f"release.script/changelog-update-{name}", name)
     else:
         diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
         subprocess.check_output("git stash", shell=True, cwd=os.pardir)
