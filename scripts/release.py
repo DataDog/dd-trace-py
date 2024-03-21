@@ -266,7 +266,7 @@ def commit_and_push(dd_repo, branch_name: str, release_name: str):
     pr_body = f"update changelog for version {release_name}"
     subprocess.check_output(f"git commit -m '{pr_body} via release script'", shell=True, cwd=os.pardir)
     subprocess.check_output(f"git push origin {branch_name}", shell=True, cwd=os.pardir)
-    dd_repo.create_pull(DEFAULT_BRANCH, branch_name, title=pr_body, body=pr_body, draft=False)
+    dd_repo.create_pull(DEFAULT_BRANCH, branch_name, title=pr_body, body=f"- [x] {pr_body}", draft=False)
 
 
 def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
