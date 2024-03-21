@@ -58,7 +58,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
       # Taken from install script inside of .github/workflows of test suite (https://github.com/bottlepy/bottle/blob/master/.github/workflows/run_tests.yml)
         run: |
-          pip install -U pip pytest
+          pip install -U pip pytest==8.0.2
           pip install mako jinja2
           for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
             gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do
@@ -332,6 +332,7 @@ jobs:
         # test_exception_propagation is broken upstream
         run: |
           source .tox/py38/bin/activate
+          pip install "pytest<8.1"
           pip install ../ddtrace
           pip install -e .
           pip install --upgrade MarkupSafe==2.0.1

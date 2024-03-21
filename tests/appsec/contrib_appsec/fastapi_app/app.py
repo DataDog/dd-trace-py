@@ -1,10 +1,15 @@
+import asyncio
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from ddtrace import tracer
+import ddtrace.constants
 
 
 fake_secret_token = "DataDog"
@@ -51,6 +56,11 @@ def get_app():
         }
         status = int(query_params.get("status", "200"))
         headers_query = query_params.get("headers", "").split(",")
+        priority = query_params.get("priority", None)
+        if priority in ("keep", "drop"):
+            tracer.current_span().set_tag(
+                ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
+            )
         response_headers = {}
         for header in headers_query:
             vk = header.split("=")
@@ -71,7 +81,18 @@ def get_app():
             "method": request.method,
         }
         status = int(query_params.get("status", "200"))
-        return JSONResponse(body, status_code=status)
+        headers_query = query_params.get("headers", "").split(",")
+        priority = query_params.get("priority", None)
+        if priority in ("keep", "drop"):
+            tracer.current_span().set_tag(
+                ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
+            )
+        response_headers = {}
+        for header in headers_query:
+            vk = header.split("=")
+            if len(vk) == 2:
+                response_headers[vk[0]] = vk[1]
+        return JSONResponse(body, status_code=status, headers=response_headers)
 
     @app.get("/new_service/{service_name:str}/")
     @app.post("/new_service/{service_name:str}/")
@@ -82,5 +103,14 @@ def get_app():
 
         ddtrace.Pin.override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
+
+    async def slow_numbers(minimum, maximum):
+        for number in range(minimum, maximum):
+            yield "%d" % number
+            await asyncio.sleep(0.25)
+
+    @app.get("/stream/")
+    async def stream():
+        return StreamingResponse(slow_numbers(0, 10), media_type="text/html")
 
     return app

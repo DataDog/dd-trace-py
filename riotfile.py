@@ -455,11 +455,9 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": "~=1.5.0",
-                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
-                                # This issue was fixed in gevent v20.9:
-                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "gevent": "~=20.12.0",
+                                # greenlet v1.0.0 adds support for contextvars
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
@@ -1231,26 +1229,33 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "requests": latest,
                 "aiofiles": latest,
-                "sqlalchemy": latest,
+                "sqlalchemy": "<2.0",
                 "aiosqlite": latest,
                 "databases": latest,
                 "pytest-randomly": latest,
+                "anyio": "<4.0",
             },
             venvs=[
+                # starlette added new TestClient after v0.20
+                # starlette added new root_path/path definitions after v0.33
+                Venv(
+                    pys="3.7",
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", latest]},
+                ),
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14", "~=0.20", latest]},
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15", "~=0.20", latest]},
+                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest]},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
                     pys="3.11",
-                    pkgs={"starlette": ["~=0.21", latest]},
+                    pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
                 ),
             ],
         ),
@@ -1271,35 +1276,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.7", max_version="3.9"),
-                            pkgs={
-                                "sqlalchemy": ["~=1.3", "~=1.4"],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        Venv(
-                            # sqlalchemy added support for Python 3.10 in 1.4.26
-                            pys="3.10",
-                            pkgs={
-                                "sqlalchemy": "~=1.4",
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
-                            },
-                        ),
-                        # FIXME: tests fail with sqlalchemy 2.0
-                        # Venv(
-                        #     # sqlalchemy added support for Python 3.11 in 2.0
-                        #     pys="3.11",
-                        #     pkgs={
-                        #         "sqlalchemy": ["~=2.0.0", latest],
-                        #         "psycopg2-binary": latest,
-                        #         "mysql-connector-python": latest,
-                        #     },
-                        # ),
-                    ],
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
+                    pkgs={
+                        "sqlalchemy": ["~=1.3.0", latest],
+                        "psycopg2-binary": latest,
+                        "mysql-connector-python": latest,
+                    },
                 ),
             ],
         ),
@@ -1552,7 +1534,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -2204,8 +2186,11 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.8")),
-                Venv(pys=["3.7"], pkgs={"importlib-metadata": latest}),
+                # sqlite3 is tied to the Python version and is not installable via pip
+                # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
+                # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
+                Venv(pys=select_pys(min_version="3.9"), pkgs={"pysqlite3-binary": [latest]}),
+                Venv(pys=select_pys(max_version="3.8"), pkgs={"importlib-metadata": latest}),
             ],
         ),
         Venv(
@@ -2359,31 +2344,24 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
                             pkgs={
-                                "gevent": ["~=1.4.0"],
+                                "gevent": ["~=20.12.0"],
                                 # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
                                 # This issue was fixed in gevent v20.9:
                                 # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
-                                "greenlet": "<0.4.17",
+                                "greenlet": "~=1.0.0",
                             },
                         ),
                         Venv(
                             pys="3.9",
-                            pkgs={
-                                "gevent": "~=21.1.0",
-                                "greenlet": "~=1.0",
-                            },
+                            pkgs={"gevent": "~=21.1.0", "greenlet": "~=1.0"},
                         ),
                         Venv(
                             pys="3.10",
-                            pkgs={
-                                "gevent": "~=21.8.0",
-                            },
+                            pkgs={"gevent": "~=21.8.0"},
                         ),
                         Venv(
                             pys="3.11",
-                            pkgs={
-                                "gevent": "~=22.8.0",
-                            },
+                            pkgs={"gevent": "~=22.8.0"},
                         ),
                     ],
                 ),
@@ -2499,19 +2477,39 @@ venv = Venv(
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "langchain": ["==0.0.192", "==0.0.259"],
-                "openai": "==0.27.8",
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "pinecone-client": latest,
                 "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
                 "pytest-randomly": latest,
+                "numexpr": latest,
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "langchain": "==0.0.192",
+                        "langchain-community": "==0.0.14",
+                        "openai": "==0.27.8",
+                        "pinecone-client": "==2.2.4",
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.1.9",
+                        "langchain-community": "==0.0.24",
+                        "langchain-core": "==0.1.27",
+                        "langchain-openai": "==0.0.8",
+                        "langchain-pinecone": "==0.0.3",
+                        "langsmith": "==0.1.9",
+                        "openai": "==1.12.0",
+                        "pinecone-client": latest,
+                    }
+                ),
+            ],
         ),
         Venv(
             name="logbook",

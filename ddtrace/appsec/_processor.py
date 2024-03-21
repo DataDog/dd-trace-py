@@ -12,7 +12,9 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+import weakref
 
+from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
@@ -23,12 +25,14 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._metrics import _set_waf_error_metric
 from ddtrace.appsec._metrics import _set_waf_init_metric
 from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
@@ -126,6 +130,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+    _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
 
     @property
     def enabled(self):
@@ -220,7 +225,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
-
+        self._span_to_waf_ctx[span] = ctx
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -232,7 +237,8 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        if config._telemetry_enabled:
+            _asm_request_context.add_context_callback(_set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers, span)
             _asm_request_context.set_waf_address(
@@ -251,7 +257,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _waf_action(
         self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -277,13 +283,13 @@ class AppSecSpanProcessor(SpanProcessor):
         if data_already_sent is None:
             data_already_sent = set()
 
-        # type ignore because mypy seems to not detect that both results of the if
-        # above can iter if not None
+        # persistent addresses must be sent if api security is used
         force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
+
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if self._is_needed(waf_name) or force_keys:
+            if self._is_needed(waf_name) or force_keys or waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                 value = None
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
@@ -292,11 +298,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 # if value is a callable, it's a lazy value for api security that should not be sent now
                 if value is not None and not hasattr(value, "__call__"):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
-                    data_already_sent.add(key)
+                    if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
+                        data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
 
         waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
-        if waf_results and waf_results.data:
+        if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         for action in waf_results.actions:
@@ -317,7 +324,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 break
         else:
             blocked = {}
-        _asm_request_context.set_waf_results(waf_results, self._ddwaf.info, bool(blocked))
+        _asm_request_context.set_waf_telemetry_results(
+            self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
+        )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked)
@@ -343,7 +352,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-            if waf_results:
+            if waf_results.runtime:
                 update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
                 update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (JSONDecodeError, ValueError):
@@ -351,13 +360,13 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing ASM In-App WAF metrics report: %s", exc_info=True)
 
-        if (waf_results and waf_results.data) or blocked:
+        if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results.derivatives
+                return waf_results
 
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
@@ -385,7 +394,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_manual_keep(span)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
-        return waf_results.derivatives
+        return waf_results
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
@@ -399,7 +408,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     _set_headers(span, headers_req, kind="response")
 
                 # this call is only necessary for tests or frameworks that are not using blocking
-                if span.get_tag(APPSEC.JSON) is None and _asm_request_context.in_context():
+                if not has_triggers(span) and _asm_request_context.in_context():
                     log.debug("metrics waf call")
                     _asm_request_context.call_waf_callback()
 
@@ -407,3 +416,19 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
+
+            if span.span_type != SpanTypes.WEB:
+                return
+
+            to_delete = []
+            for iterspan, ctx in self._span_to_waf_ctx.items():
+                # delete all the ddwaf ctxs associated with this span or finished or deleted ones
+                if iterspan == span or iterspan.finished:
+                    # so we don't change the dictionary size on iteration
+                    to_delete.append(iterspan)
+
+            for s in to_delete:
+                try:
+                    del self._span_to_waf_ctx[s]
+                except Exception:  # nosec B110
+                    pass

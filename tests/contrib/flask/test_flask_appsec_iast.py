@@ -16,7 +16,7 @@ from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
-IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100", "_DD_APPSEC_DEDUPLICATION_ENABLED": "false"}
+IAST_ENV = {"DD_IAST_REQUEST_SAMPLING": "100"}
 IAST_ENV_SAMPLING_0 = {"DD_IAST_REQUEST_SAMPLING": "0"}
 
 werkzeug_version = version("werkzeug")
@@ -24,8 +24,9 @@ werkzeug_version = version("werkzeug")
 
 @pytest.fixture(autouse=True)
 def reset_context():
-    from ddtrace.appsec._iast._taint_tracking import create_context
-    from ddtrace.appsec._iast._taint_tracking import reset_context
+    with override_env({"DD_IAST_ENABLED": "True"}):
+        from ddtrace.appsec._iast._taint_tracking import create_context
+        from ddtrace.appsec._iast._taint_tracking import reset_context
 
     yield
     reset_context()
@@ -42,6 +43,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
@@ -341,6 +343,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV_SAMPLING_0):
             oce.reconfigure()
@@ -372,6 +375,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             dict(
                 _iast_enabled=True,
                 _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV):
             oce.reconfigure()

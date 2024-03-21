@@ -8,7 +8,6 @@ from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import Tuple
 from urllib import parse
 
 from ddtrace._trace.span import Span
@@ -16,7 +15,9 @@ from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
@@ -33,7 +34,7 @@ _TELEMETRY = "telemetry"
 _CONTEXT_CALL = "context"
 _WAF_CALL = "waf_run"
 _BLOCK_CALL = "block"
-_WAF_RESULTS = "waf_results"
+_TELEMETRY_WAF_RESULTS = "t_waf_results"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {}
@@ -82,7 +83,7 @@ def is_blocked() -> bool:
         if not env.active or env.span is None:
             return False
         return bool(core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=env.span))
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -109,19 +110,15 @@ def unregister(span: Span) -> None:
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if env.waf_triggers and env.span:
         root_span = env.span._local_root or env.span
-        old_tags = root_span.get_tag(APPSEC.JSON)
-        if old_tags is not None:
-            try:
-                new_json = json.loads(old_tags)
-                if "triggers" not in new_json:
-                    new_json["triggers"] = []
-                new_json["triggers"].extend(env.waf_triggers)
-            except BaseException:
-                new_json = {"triggers": env.waf_triggers}
+        report_list = get_triggers(root_span)
+        if report_list is not None:
+            report_list.extend(env.waf_triggers)
         else:
-            new_json = {"triggers": env.waf_triggers}
-        root_span.set_tag_str(APPSEC.JSON, json.dumps(new_json, separators=(",", ":")))
-
+            report_list = env.waf_triggers
+        if asm_config._use_metastruct_for_triggers:
+            root_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+        else:
+            root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
 
 
@@ -145,22 +142,27 @@ class _DataHandler:
         self.active = True
         self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
-        env.telemetry[_WAF_RESULTS] = [], [], []
+        env.telemetry[_TELEMETRY_WAF_RESULTS] = {
+            "blocked": False,
+            "triggered": False,
+            "timeout": False,
+            "version": None,
+        }
         env.callbacks[_CONTEXT_CALL] = []
 
     def finalise(self):
         if self.active:
+            self.active = False
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
-            env.must_call_globals = False
-            if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks += env.callbacks.get(_CONTEXT_CALL)
-            if callbacks:
-                if env is not None:
+            if env is not None:
+                callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+                env.must_call_globals = False
+                if env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
+                    callbacks = callbacks + env.callbacks.get(_CONTEXT_CALL)
+                if callbacks:
                     for function in callbacks:
                         function(env)
                 self.execution_context.end()
-            self.active = False
 
 
 def set_value(category: str, address: str, value: Any) -> None:
@@ -244,7 +246,7 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[DDWaf_result]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
@@ -327,21 +329,20 @@ def asm_request_context_set(
     set_block_request_callable(block_request_callable)
 
 
-def set_waf_results(result_data, result_info, is_blocked) -> None:
-    three_lists = get_waf_results()
-    if three_lists is not None:
-        list_results_data, list_result_info, list_is_blocked = three_lists
-        list_results_data.append(result_data)
-        list_result_info.append(result_info)
-        list_is_blocked.append(is_blocked)
+def set_waf_telemetry_results(
+    rules_version: Optional[str], is_triggered: bool, is_blocked: bool, is_timeout: bool
+) -> None:
+    result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    if result is not None:
+        result["triggered"] |= is_triggered
+        result["blocked"] |= is_blocked
+        result["timeout"] |= is_timeout
+        if rules_version is not None:
+            result["version"] = rules_version
 
 
-def get_waf_results() -> Optional[Tuple[List[Any], List[Any], List[bool]]]:
-    return get_value(_TELEMETRY, _WAF_RESULTS)
-
-
-def reset_waf_results() -> None:
-    set_value(_TELEMETRY, _WAF_RESULTS, ([], [], []))
+def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
+    return get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
 
 
 def store_waf_results_data(data) -> None:
@@ -504,7 +505,8 @@ def _call_waf_first(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _call_waf(integration, *_):
@@ -512,7 +514,8 @@ def _call_waf(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _on_block_decided(callback):

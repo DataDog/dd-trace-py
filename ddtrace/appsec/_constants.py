@@ -44,6 +44,7 @@ class APPSEC(metaclass=Constant_Class):
     ENV = "DD_APPSEC_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
+    STRUCT = "appsec"
     EVENT_RULE_VERSION = "_dd.appsec.event_rules.version"
     EVENT_RULE_ERRORS = "_dd.appsec.event_rules.errors"
     EVENT_RULE_LOADED = "_dd.appsec.event_rules.loaded"
@@ -95,6 +96,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 class WAF_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the waf library for requesting data from requests"""
 
+    # PERSISTENT ADDRESSES
     REQUEST_BODY = "server.request.body"
     REQUEST_QUERY = "server.request.query"
     REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
@@ -107,7 +109,26 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "server.response.body"
+    PERSISTENT_ADDRESSES = frozenset(
+        (
+            REQUEST_BODY,
+            REQUEST_QUERY,
+            REQUEST_HEADERS_NO_COOKIES,
+            REQUEST_URI_RAW,
+            REQUEST_METHOD,
+            REQUEST_PATH_PARAMS,
+            REQUEST_COOKIES,
+            REQUEST_HTTP_IP,
+            REQUEST_USER_ID,
+            RESPONSE_STATUS,
+            RESPONSE_HEADERS_NO_COOKIES,
+            RESPONSE_BODY,
+        )
+    )
+
+    # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
+    LFI_ADDRESS = "server.io.fs.file"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -143,6 +164,7 @@ class API_SECURITY(metaclass=Constant_Class):
     RESPONSE_HEADERS_NO_COOKIES = "_dd.appsec.s.res.headers"
     RESPONSE_BODY = "_dd.appsec.s.res.body"
     SAMPLE_RATE = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
+    SAMPLE_DELAY = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE = 0x1000000  # 16MB maximum size
 
 

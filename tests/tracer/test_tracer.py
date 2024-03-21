@@ -352,6 +352,7 @@ class TracerTestCases(TracerTestCase):
         ctx = self.tracer.current_trace_context()
         assert ctx.trace_id == span.trace_id
         assert ctx.span_id == span.span_id
+        assert ctx._is_remote is False
 
     def test_tracer_current_span(self):
         # the current span is in the local Context()
@@ -1713,25 +1714,25 @@ def test_context_priority(tracer, test_spans):
 
 def test_spans_sampled_out(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
 
     spans = test_spans.pop()
     assert len(spans) == 3
     for span in spans:
-        assert span.sampled is False
+        assert span.context.sampling_priority <= 0
 
 
 def test_spans_sampled_one(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = False
+        span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = False
+            span.context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1739,11 +1740,11 @@ def test_spans_sampled_one(tracer, test_spans):
 
 def test_spans_sampled_all(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.sampled = True
+        span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.sampled = True
+            span.context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
