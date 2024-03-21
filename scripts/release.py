@@ -274,6 +274,7 @@ def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
     else:
         diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
         subprocess.check_output("git stash", shell=True, cwd=os.pardir)
+        diff = "\n".join(diff.split(b"\n"))
         print(f"DRY RUN: The following diff would be committed:\n\n{diff}\n\nThese changes have been stashed.")
 
 
