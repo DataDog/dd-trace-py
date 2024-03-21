@@ -25,13 +25,16 @@ class TestStructlogPatch(PatchTestCase.Base):
         self.assert_wrapped(structlog.get_logger)
         self.assert_wrapped(structlog.getLogger)
         self.assert_wrapped(structlog.configure)
+        self.assert_wrapped(structlog.reset_defaults)
 
     def assert_not_module_patched(self, structlog):
         self.assert_not_wrapped(structlog.get_logger)
         self.assert_not_wrapped(structlog.getLogger)
         self.assert_not_wrapped(structlog.configure)
+        self.assert_not_wrapped(structlog.reset_defaults)
 
     def assert_not_module_double_patched(self, structlog):
         self.assert_not_double_wrapped(structlog.get_logger)
         self.assert_not_double_wrapped(structlog.getLogger)
         self.assert_not_double_wrapped(structlog.configure)
+        self.assert_not_double_wrapped(structlog.reset_defaults)
