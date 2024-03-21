@@ -774,8 +774,8 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     processor = AppSecSpanProcessor()
     processor._update_rules(CUSTOM_RULE_METHOD)
 
-    with override_global_config(dict(_asm_enabled=True)), override_env(
-        dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
+    with override_global_config(
+        dict(_asm_enabled=True)
     ), _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
