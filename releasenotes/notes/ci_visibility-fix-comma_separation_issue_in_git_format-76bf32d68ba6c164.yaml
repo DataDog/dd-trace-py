@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where git author or committer names containing commas (eg: "Lastname, Firstname")
+    would not work (and log an error) due to the use of comma as a separator.

@@ -16,6 +16,7 @@ from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
+from ..processor import AppSecIastSpanProcessor
 from ..reporter import IastSpanReporter  # noqa:F401
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
@@ -164,7 +165,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
     _set_metric_iast_executed_sink(SSRF.vulnerability_type)
     if report_ssrf:
-        if oce.request_has_quota and SSRF.has_quota():
+        if AppSecIastSpanProcessor.is_span_analyzed() and SSRF.has_quota():
             try:
                 from .._taint_tracking import is_pyobject_tainted
 

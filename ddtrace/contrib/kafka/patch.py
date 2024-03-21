@@ -209,9 +209,9 @@ def traced_poll(func, instance, args, kwargs):
     except Exception as e:
         err = e
     ctx = None
-    if message and config.kafka.distributed_tracing_enabled and message.headers():
+    if message is not None and config.kafka.distributed_tracing_enabled and message.headers():
         ctx = Propagator.extract(dict(message.headers()))
-    if message or config.kafka.trace_empty_poll_enabled:
+    if message is not None or config.kafka.trace_empty_poll_enabled:
         with pin.tracer.start_span(
             name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
             service=trace_utils.ext_service(pin, config.kafka),
@@ -244,7 +244,12 @@ def traced_poll(func, instance, args, kwargs):
                 ):
                     span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
                 span.set_tag(kafkax.PARTITION, message.partition())
-                span.set_tag_str(kafkax.TOMBSTONE, str(len(message) == 0))
+                is_tombstone = False
+                try:
+                    is_tombstone = len(message) == 0
+                except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
+                    pass
+                span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
                 span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.kafka.get_analytics_sample_rate()

@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os
+import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from uuid import uuid4
@@ -416,7 +417,7 @@ class CIVisibility(Service):
 
         try:
             response = _do_request("POST", url, json.dumps(payload), _headers)
-        except TimeoutError:
+        except (TimeoutError, socket.timeout):
             log.warning("Request timeout while fetching skippable tests")
             self._test_suites_to_skip = []
             return

@@ -9,7 +9,7 @@ from ddtrace.appsec._iast.taint_sinks._base import taint_sink_deduplication
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
 from ddtrace.internal import core
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
-from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_week_hash
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_env
 
@@ -28,16 +28,42 @@ WEAK_HASH_FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_weak_hash.py"
     ],
 )
 def test_weak_hash_hashlib(iast_span_defaults, hash_func, method):
-    parametrized_week_hash(hash_func, method)
+    parametrized_weak_hash(hash_func, method)
 
     line, hash_value = get_line_and_hash(
-        "parametrized_week_hash", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH
+        "parametrized_weak_hash", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH
     )
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_ALGOS_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].location.line == line
+    assert list(span_report.vulnerabilities)[0].evidence.value == hash_func
+    assert list(span_report.vulnerabilities)[0].hash == hash_value
+
+
+@pytest.mark.parametrize(
+    "hash_func,method,fake_line",
+    [
+        ("md5", "hexdigest", 0),
+        ("md5", "hexdigest", -100),
+        ("md5", "hexdigest", -1),
+    ],
+)
+def test_ensure_line_reported_is_minus_one_for_edge_cases(iast_span_defaults, hash_func, method, fake_line):
+    with mock.patch(
+        "ddtrace.appsec._iast.taint_sinks._base.get_info_frame", return_value=(WEAK_ALGOS_FIXTURES_PATH, fake_line)
+    ):
+        parametrized_weak_hash(hash_func, method)
+
+    _, hash_value = get_line_and_hash(
+        "parametrized_weak_hash", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH, fixed_line=-1
+    )
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+    assert list(span_report.vulnerabilities)[0].location.path == WEAK_ALGOS_FIXTURES_PATH
+    assert list(span_report.vulnerabilities)[0].location.line == -1
     assert list(span_report.vulnerabilities)[0].evidence.value == hash_func
     assert list(span_report.vulnerabilities)[0].hash == hash_value
 

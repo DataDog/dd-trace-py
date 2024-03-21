@@ -125,17 +125,17 @@ class _DataHandler:
 
     def finalise(self):
         if self.active:
+            self.active = False
             env = self.execution_context.get_item("asm_env")
-            callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
-            env.must_call_globals = False
-            if env is not None and env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
-                callbacks += env.callbacks.get(_CONTEXT_CALL)
-            if callbacks:
-                if env is not None:
+            if env is not None:
+                callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL, []) if env.must_call_globals else []
+                env.must_call_globals = False
+                if env.callbacks is not None and env.callbacks.get(_CONTEXT_CALL):
+                    callbacks = callbacks + env.callbacks.get(_CONTEXT_CALL)
+                if callbacks:
                     for function in callbacks:
                         function(env)
                 self.execution_context.end()
-            self.active = False
 
 
 def set_value(category: str, address: str, value: Any) -> None:
@@ -399,6 +399,10 @@ def _on_wrapped_view(kwargs):
     if _is_iast_enabled() and kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return return_value
 
         _kwargs = {}
         for k, v in kwargs.items():
@@ -414,9 +418,14 @@ def _on_set_request_tags(request, span, flask_config):
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
+
+        if not AppSecIastSpanProcessor.is_span_analyzed(span._local_root or span):
+            return
+
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,
