@@ -52,26 +52,13 @@ ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
 ddtrace_after_in_child = functools.partial(run_hooks, _registry)
 
 
-def register(after_in_child):
-    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
-    """Register a function to be called after fork in the child process.
-
-    Note that ``after_in_child`` will be called in all child processes across
-    multiple forks unless it is unregistered.
-    """
-    _registry.append(after_in_child)
-    return after_in_child
+def register_hook(registry, hook):
+    registry.append(hook)
+    return hook
 
 
-def register_before_fork(before_fork):
-    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
-    """Register a function to be called before fork in the parent process.
-
-    Note that ``before_in_child`` will be called in all parent processes across
-    multiple forks unless it is unregistered.
-    """
-    _registry_before_fork.append(before_fork)
-    return before_fork
+register_before_fork = functools.partial(register_hook, _registry_before_fork)
+register = functools.partial(register_hook, _registry)
 
 
 def unregister(after_in_child):
