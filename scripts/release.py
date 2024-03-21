@@ -258,10 +258,12 @@ def add_release_to_changelog(name: str, release_notes: str):
 
 
 def commit_and_push(dd_repo, branch_name: str, release_name: str):
-    subprocess.check_output(f"git checkout -b {branch_name}")
-    subprocess.check_output(f"git add {CHANGELOG_FILENAME}")
-    subprocess.check_output(f"git commit -m 'update changelog for version {release_name} via release script'")
-    subprocess.check_output(f"git push origin {branch_name}")
+    subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
+    subprocess.check_output(f"git add {CHANGELOG_FILENAME}", shell=True, cwd=os.pardir)
+    subprocess.check_output(
+        f"git commit -m 'update changelog for version {release_name} via release script'", shell=True, cwd=os.pardir
+    )
+    subprocess.check_output(f"git push origin {branch_name}", shell=True, cwd=os.pardir)
     dd_repo.create_pull(DEFAULT_BRANCH, branch_name)
 
 
@@ -270,8 +272,8 @@ def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
     if not DRY_RUN:
         commit_and_push(f"release.script/changelog-update-{name}", name)
     else:
-        diff = subprocess.check_output("git diff")
-        subprocess.check_output(f"git stash -- {CHANGELOG_FILENAME}")
+        diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
+        subprocess.check_output(f"git stash -- {CHANGELOG_FILENAME}", shell=True, cwd=os.pardir)
         print(f"DRY RUN: The following diff would be committed:\n\n{diff}\n\nThese changes have been stashed.")
 
 
