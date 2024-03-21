@@ -270,6 +270,7 @@ def commit_and_push(dd_repo, branch_name: str, release_name: str):
 
 
 def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
+    subprocess.check_output(f"git checkout {DEFAULT_BRANCH}", shell=True, cwd=os.pardir)
     add_release_to_changelog(name, release_notes)
     if not DRY_RUN:
         commit_and_push(f"release.script/changelog-update-{name}", name)
