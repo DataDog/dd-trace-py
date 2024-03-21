@@ -925,8 +925,8 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def inject(span_context, headers, non_active_span=None):
+        # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -944,7 +944,18 @@ class HTTPPropagator(object):
 
         :param Context span_context: Span context to propagate.
         :param dict headers: HTTP headers to extend with tracing attributes.
+        :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if non_active_span is not None and non_active_span.context is not span_context:
+            log.error(
+                "span_context and non_active_span.context are not the same, but should be, non_active_span.context "
+                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
+                span_context,
+                non_active_span.context,
+            )
+
+            span_context = non_active_span.context
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
