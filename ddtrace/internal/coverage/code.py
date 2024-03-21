@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+import linecache
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -70,6 +71,8 @@ def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optio
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):
+    _instance: t.Optional["ModuleCodeCollector"] = None
+
     def __init__(self):
         super().__init__()
         self.seen = set()
@@ -99,34 +102,85 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                 ctx_lines.add(line)
 
     @classmethod
-    def report(cls):
+    def report(cls, ignore_nocover: bool = False):
         if cls._instance is None:
             return
+        instance: ModuleCodeCollector = cls._instance
 
-        instance = cls._instance
+        import os
+        import re
+
+        try:
+            w, _ = os.get_terminal_size()
+        except OSError:
+            w = 80
+
+        NOCOVER_PRAGMA_RE = re.compile(r"\s*(?P<command>.*?)\s*#.*\s+pragma\s*:\s*(?:no\s?cover).*")
+
+        def no_cover(path, src_line):
+            """Returns the number of lines to skip if the line includes pragma nocover
+
+            If the line includes a :, parse the AST and skip the whole block.
+            """
+            text = linecache.getline(path, src_line).strip()
+            matches = NOCOVER_PRAGMA_RE.match(text)
+            if matches:
+                if ":" in matches["command"]:
+                    import ast
+
+                    with open(path, "r") as f:
+                        file_src = f.read()
+                    parsed = ast.parse(file_src)
+                    statements = [node for node in parsed.body if node.lineno == src_line]
+                    if statements:
+                        return statements[0].end_lineno - statements[0].lineno
+                    # We shouldn't get here, in theory, but if we do, let's not consider anything uncovered.
+                    return 0
+                return 1
+            return 0
+
         total_executable_lines = 0
         total_covered_lines = 0
         total_missed_lines = 0
         n = max(len(path) for path in instance.lines) + 4
-        width = n + 8 + 8 + 8 + 1
-        print(f"{'COVERAGE REPORT:':^{width}}")
+
+        covered_lines = instance._get_covered_lines()
+
+        # Title
+        print(" DATADOG LINE COVERAGE REPORT ".center(w, "="))
+
+        # Header
         print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
-        print("-" * (width))
-        for path, lines in sorted(instance.lines.items()):
-            covered_lines = cls._instance._get_covered_lines()
-            n_covered = len(covered_lines[path])
-            total_executable_lines += len(lines)
+        print("-" * (w))
+
+        for path, orig_lines in sorted(instance.lines.items()):
+            path_lines = orig_lines.copy()
+            path_covered = covered_lines[path].copy()
+            if not ignore_nocover:
+                for line in orig_lines:
+                    # We may have already deleted this line due to no_cover
+                    if line not in path_lines and line not in path_covered:
+                        continue
+                    no_cover_lines = no_cover(path, line)
+                    if no_cover_lines:
+                        for no_cover_line in range(no_cover_lines + 1):
+                            line_to_remove = line + no_cover_line
+                            path_lines.discard(line_to_remove)
+                            path_covered.discard(line_to_remove)
+
+            n_lines = len(path_lines)
+            n_covered = len(path_covered)
+            n_missed = n_lines - n_covered
+            total_executable_lines += n_lines
             total_covered_lines += n_covered
-            total_missed_lines += len(lines) - n_covered
+            total_missed_lines += n_missed
             if n_covered == 0:
                 continue
-            missed_ranges = collapse_ranges(sorted(lines - covered_lines[path]))
+            missed_ranges = collapse_ranges(sorted(path_lines - covered_lines[path]))
             missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
             missed_str = f"  [{missed}]" if missed else ""
-            print(
-                f"{path:{n}s}{len(lines):>8}{len(lines)-n_covered:>8}{int(n_covered/len(lines) * 100):>8}%{missed_str}"
-            )
-        print("-" * width)
+            print(f"{path:{n}s}{n_lines:>8}{n_missed:>8}{int(n_covered/n_lines * 100):>8}%{missed_str}")
+        print("-" * (w))
         total_covered_percent = int((total_covered_lines / total_executable_lines) * 100)
         print(f"{'TOTAL':<{n}}{total_executable_lines:>8}{total_missed_lines:>8}{total_covered_percent:>8}%")
         print()
