@@ -58,6 +58,7 @@ MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
 DEFAULT_BRANCH = "main"
 DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
+CHANGELOG_FILENAME = "../CHANGELOG.md"
 
 
 def _ensure_current_checkout():
@@ -246,29 +247,32 @@ def get_ddtrace_repo():
 
 def add_release_to_changelog(name: str, release_notes: str):
     separator = "---"
-    with open("../CHANGELOG.md", "r") as changelog_file:
+    with open(CHANGELOG_FILENAME, "r") as changelog_file:
         contents = changelog_file.read()
     release_notes_lines = contents.split("\n")
     insert_index = release_notes_lines.index(separator)
     new_notes = [separator, "", f"## {name}", ""] + release_notes_lines
     composite = release_notes_lines[: insert_index - 1] + new_notes + release_notes_lines[insert_index:0]
-    with open("../CHANGELOG.md", "w") as changelog_file:
+    with open(CHANGELOG_FILENAME, "w") as changelog_file:
         changelog_file.writelines(composite)
 
 
-def commit_and_push(branch_name: str):
-    pass
-
-
-def edit_and_commit_changelog(name: str, release_notes: str):
-    add_release_to_changelog(name, release_notes)
-    commit_and_push(f"release.script/changelog-update-{name}")
+def commit_and_push(dd_repo, branch_name: str, release_name: str):
+    subprocess.check_output(f"git checkout -b {branch_name}")
+    subprocess.check_output(f"git add {CHANGELOG_FILENAME}")
+    subprocess.check_output(f"git commit -m 'update changelog for version {release_name} via release script'")
+    subprocess.check_output(f"git push origin {branch_name}")
+    dd_repo.create_pull(DEFAULT_BRANCH, branch_name)
 
 
 def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
-    edit_and_commit_changelog(name, release_notes)
-    # push
-    # open pull request
+    add_release_to_changelog(name, release_notes)
+    if not DRY_RUN:
+        commit_and_push(f"release.script/changelog-update-{name}", name)
+    else:
+        diff = subprocess.check_output("git diff")
+        subprocess.check_output(f"git stash -- {CHANGELOG_FILENAME}")
+        print(f"DRY RUN: The following diff would be committed:\n\n{diff}\n\nThese changes have been stashed.")
 
 
 def create_notebook(dd_repo, name, rn, base):
