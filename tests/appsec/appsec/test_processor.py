@@ -82,6 +82,19 @@ def test_enable_custom_rules():
     assert processor.rules == rules.RULES_GOOD_PATH
 
 
+def test_ddwaf_ctx(tracer_appsec):
+    tracer = tracer_appsec
+
+    with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            processor = AppSecSpanProcessor()
+            processor.on_span_start(span)
+            ctx = processor._span_to_waf_ctx.get(span)
+            assert ctx
+            processor.on_span_finish(span)
+            assert span not in processor._span_to_waf_ctx
+
+
 @pytest.mark.parametrize("rule,exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
     # with override_env(dict(DD_APPSEC_RULES=rule)):
