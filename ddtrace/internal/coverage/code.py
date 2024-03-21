@@ -117,6 +117,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
         NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
 
+        def find_statement_for_line(node, line):
+            if hasattr(node, "body"):
+                for child_node in node.body:
+                    found_node = find_statement_for_line(child_node, line)
+                    if found_node is not None:
+                        return found_node
+
+            if node.lineno <= line <= node.end_lineno:
+                return node
+
+            return None
+
         def no_cover(path, src_line):
             """Returns the number of lines to skip if the line includes pragma nocover
 
@@ -131,9 +143,9 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                     with open(path, "r") as f:
                         file_src = f.read()
                     parsed = ast.parse(file_src)
-                    statements = [node for node in parsed.body if node.lineno == src_line]
-                    if statements:
-                        return statements[0].end_lineno - statements[0].lineno
+                    statement = find_statement_for_line(parsed, src_line)
+                    if statement is not None:
+                        return statement.end_lineno - statement.lineno
                     # We shouldn't get here, in theory, but if we do, let's not consider anything uncovered.
                     return 0
                 return 1
