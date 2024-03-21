@@ -115,7 +115,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         except OSError:
             w = 80
 
-        NOCOVER_PRAGMA_RE = re.compile(r"\s*(?P<command>.*?)\s*#.*\s+pragma\s*:\s*(?:no\s?cover).*")
+        NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
 
         def no_cover(path, src_line):
             """Returns the number of lines to skip if the line includes pragma nocover
@@ -125,7 +125,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             text = linecache.getline(path, src_line).strip()
             matches = NOCOVER_PRAGMA_RE.match(text)
             if matches:
-                if ":" in matches["command"]:
+                if matches["command"].strip().endswith(":"):
                     import ast
 
                     with open(path, "r") as f:
