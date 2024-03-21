@@ -251,7 +251,7 @@ def add_release_to_changelog(name: str, release_notes: str):
         contents = changelog_file.read()
     existing_release_notes_lines = contents.split("\n")
     insert_index = existing_release_notes_lines.index(separator)
-    new_notes = [separator, "", f"## {name}", ""] + release_notes
+    new_notes = [separator, "", f"## {name}", ""] + release_notes.split("\n")
     composite = (
         existing_release_notes_lines[: insert_index - 1] + new_notes + existing_release_notes_lines[insert_index:]
     )
