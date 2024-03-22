@@ -4,9 +4,7 @@ from .utils import sanitize_string  # noqa: F401
 try:
     from ._ddup import *  # noqa: F403, F401
 
-    def is_available():
-        # type: () -> bool
-        return True
+    is_available = True
 
 except Exception as e:
     from typing import Dict  # noqa:F401
@@ -17,9 +15,7 @@ except Exception as e:
     LOG = get_logger(__name__)
     LOG.debug("Failed to import _ddup: %s", e)
 
-    def is_available():
-        # type: () -> bool
-        return False
+    is_available = False
 
     # Decorator for not-implemented
     def not_implemented(func):
