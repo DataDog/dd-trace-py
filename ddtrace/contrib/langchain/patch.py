@@ -585,6 +585,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
             )
     return final_outputs
 
+
 @with_traced_module
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
@@ -630,6 +631,7 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
             )
     return final_outputs
 
+
 @with_traced_module
 def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
@@ -666,6 +668,7 @@ def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
             )
     return final_output
 
+
 @with_traced_module
 async def traced_lcel_chain_ainvoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
@@ -701,6 +704,7 @@ async def traced_lcel_chain_ainvoke(langchain, pin, func, instance, args, kwargs
                 },
             )
     return final_output
+
 
 @with_traced_module
 def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
@@ -816,12 +820,8 @@ def patch():
 
         wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-        wrap(
-            "langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain)
-        )
-        wrap(
-            "langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain)
-        )
+        wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
+        wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
         wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
         wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
@@ -924,6 +924,7 @@ def unpatch():
                 unwrap(getattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore), "similarity_search")
 
     delattr(langchain, "_datadog_integration")
+
 
 def taint_outputs(instance, inputs, outputs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric

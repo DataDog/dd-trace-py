@@ -1079,17 +1079,18 @@ def test_embedding_logs_when_response_not_completed(
         ]
     )
 
+
 @pytest.mark.snapshot
 def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
-    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([
-        ("system", "You are world class technical documentation writer."),
-        ("user", "{input}")
-    ])
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
     llm = langchain_openai.OpenAI()
 
     chain = prompt | llm
     with request_vcr.use_cassette("lcel_openai_chain_call.yaml"):
         chain.invoke({"input": "how can langsmith help with testing?"})
+
 
 @pytest.mark.snapshot
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
@@ -1100,13 +1101,10 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     chat_openai = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo")
     openai = langchain_openai.OpenAI(model="gpt-3.5-turbo-instruct")
 
-    model = (
-        chat_openai
-        .configurable_alternatives(
-            langchain_core.runnables.ConfigurableField(id="model"),
-            default_key="chat_openai",
-            openai=openai,
-        )
+    model = chat_openai.configurable_alternatives(
+        langchain_core.runnables.ConfigurableField(id="model"),
+        default_key="chat_openai",
+        openai=openai,
     )
 
     chain = (
@@ -1122,13 +1120,13 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     with request_vcr.use_cassette("lcel_openai_chain_call_complicated.yaml"):
         chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
 
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
-    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([
-        ("system", "You are world class technical documentation writer."),
-        ("user", "{input}")
-    ])
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
     llm = langchain_openai.OpenAI()
 
     chain = prompt | llm
