@@ -5,7 +5,7 @@ endif()
 
 include(ExternalProject)
 set(TAG_LIBDATADOG
-    "v5.0.0"
+    "v7.0.0"
     CACHE STRING "libdatadog github tag")
 
 set(Datadog_BUILD_DIR ${CMAKE_BINARY_DIR}/libdatadog)
