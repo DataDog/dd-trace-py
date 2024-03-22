@@ -45,6 +45,7 @@ Uploader::upload(ddog_prof_Profile& profile)
                                                       &tags,
                                                       nullptr,
                                                       nullptr,
+                                                      nullptr,
                                                       max_timeout_ms);
     ddog_prof_EncodedProfile_drop(encoded);
 
