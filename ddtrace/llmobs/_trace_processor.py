@@ -65,8 +65,9 @@ class LLMObsTraceProcessor(TraceProcessor):
         if span.get_tag(OUTPUT_VALUE):
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
         if span.error:
-            meta["error.message"] = span.get_tag(ERROR_MSG)
-            meta["error.stack"] = span.get_tag(ERROR_STACK)
+            meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
+            meta[ERROR_STACK] = span.get_tag(ERROR_STACK)
+            meta[ERROR_TYPE] = span.get_tag(ERROR_TYPE)
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:
