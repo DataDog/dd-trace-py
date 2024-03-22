@@ -8,6 +8,7 @@ import typing
 
 import attr
 
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
@@ -66,8 +67,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
     def __init__(
-        self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled
-    ):
+        self,
+        wrapped: typing.Any,
+        recorder: collector.Recorder,
+        tracer: typing.Optional[Tracer],
+        max_nframes: int,
+        capture_sampler: collector.CaptureSampler,
+        endpoint_collection_enabled: bool,
+        export_libdd_enabled: bool,
+    ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
