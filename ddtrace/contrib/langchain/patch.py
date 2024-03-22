@@ -596,15 +596,17 @@ def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in inputs.items():
                 span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-        steps = [instance.first] + instance.middle + [instance.last]
-        for step in steps:
-            if isinstance(step, langchain_core.prompts.BasePromptTemplate):
-                if getattr(step, "messages"):
-                    for idx, message in enumerate(step.messages):
-                        prompt = getattr(message, "prompt", "")
-                        template = getattr(prompt, "template", "")
-                        span.set_tag_str("langchain.request.prompt.%d.template" % idx, integration.trunc(str(template)))
-                break
+            steps = [instance.first] + instance.middle + [instance.last]
+            for step_idx, step in enumerate(steps):
+                if isinstance(step, langchain_core.prompts.BasePromptTemplate):
+                    if getattr(step, "messages"):
+                        for message_idx, message in enumerate(step.messages):
+                            prompt = getattr(message, "prompt", "")
+                            template = getattr(prompt, "template", "")
+                            span.set_tag_str(
+                                "langchain.request.prompts.%d.%d.template" % (step_idx, message_idx),
+                                integration.trunc(str(template))
+                            )
         final_output = func(*args, **kwargs)
         if integration.is_pc_sampled_span(span):
             # final_output could be different types? depends on what the input type is
@@ -616,20 +618,20 @@ def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
     finally:
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "inputs": log_inputs,
-                    # "prompt": str(deep_getattr(instance, "prompt.template", default="")),
-                    "outputs": str(final_output),
-                },
-            )
+        # if integration.is_pc_sampled_log(span):
+        #     log_inputs = {}
+        #     for k, v in inputs.items():
+        #         log_inputs[k] = str(v)
+        #     integration.log(
+        #         span,
+        #         "info" if span.error == 0 else "error",
+        #         "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
+        #         attrs={
+        #             "inputs": log_inputs,
+        #             # "prompt": str(deep_getattr(instance, "prompt.template", default="")),
+        #             "outputs": str(final_output),
+        #         },
+        #     )
     return final_output
 
 
