@@ -251,7 +251,7 @@ def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) ->
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
-        return callback(custom_data, **kargs)
+        return callback(custom_data, **kwargs)
     else:
         log.warning("WAF callback called but not set")
         return None
