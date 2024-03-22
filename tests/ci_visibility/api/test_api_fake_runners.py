@@ -134,3 +134,41 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
                 subprocess.run(["python", "fake_runner_all_itr_skip_suite_level.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_runner_mix_pass(self):
+        import fake_runner_mix_pass
+
+        fake_runner_src = inspect.getsource(fake_runner_mix_pass)
+        self.testdir.makepyfile(fake_runner_mix_pass=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
+                return_value=_CIVisibilitySettings(False, False, False, False),
+            ):
+                subprocess.run(["python", "fake_runner_mix_pass.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_runner_mix_fail(self):
+        import fake_runner_mix_fail
+
+        fake_runner_src = inspect.getsource(fake_runner_mix_fail)
+        self.testdir.makepyfile(fake_runner_mix_fail=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
+                return_value=_CIVisibilitySettings(False, False, False, False),
+            ):
+                subprocess.run(["python", "fake_runner_mix_fail.py"])
