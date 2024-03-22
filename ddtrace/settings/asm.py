@@ -91,8 +91,9 @@ class ASMConfig(Env):
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
-    # default will be set to True once the feature is GA
-    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
+    # default will be set to True once the feature is GA. For now it's always False
+    # _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
+    _ep_enabled = False
     _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = Env.var(

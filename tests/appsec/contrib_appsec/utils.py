@@ -63,7 +63,6 @@ class Contrib_TestClass_For_Threats:
 
     def check_single_rule_triggered(self, rule_id: str, root_span):
         triggers = get_triggers(root_span())
-        print(triggers)
         assert triggers is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
@@ -1088,6 +1087,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
 
+    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
     def test_exploit_prevention_lfi(self, interface, root_span, get_tag):
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.ext import http
@@ -1101,7 +1101,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert get_tag(http.STATUS_CODE) == "200"
             assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
-            print(self.body(response))
             self.check_single_rule_triggered("rasp-930-100", root_span)
             assert self.check_for_stack_trace(root_span)
 
