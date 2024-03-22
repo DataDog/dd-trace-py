@@ -204,7 +204,7 @@ cdef class SampleHandle:
             lock_name_bytes = ensure_binary_or_empty(lock_name)
             ddup_push_lock_name(self.ptr, string_view(<const char*>lock_name_bytes, len(lock_name_bytes)))
 
-    def push_frame(self, name: StringType, filename: StringType, int address, int line) -> None:
+    def push_frame(self, name: StringType, filename: StringType, address: int, line: int) -> None:
         if self.ptr is not NULL:
             # Customers report `name` and `filename` may be unexpected objects, so sanitize.
             name_bytes = ensure_binary_or_empty(sanitize_string(name))
@@ -213,8 +213,8 @@ cdef class SampleHandle:
                     self.ptr,
                     string_view(<const char*>name_bytes, len(name_bytes)),
                     string_view(<const char*>filename_bytes, len(filename_bytes)),
-                    address,
-                    line
+                    clamp_to_uint64_unsigned(address),
+                    clamp_to_int64_unsigned(line),
             )
 
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
