@@ -246,7 +246,7 @@ cdef class SampleHandle:
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
-                ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), clamp_to_int64_unsigned(count))
+            ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), clamp_to_int64_unsigned(count))
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:
