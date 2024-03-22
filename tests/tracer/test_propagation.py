@@ -2156,6 +2156,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
         attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
+    assert spans[0][1].context._span_links == []
 
 
 VALID_DATADOG_CONTEXT = {
