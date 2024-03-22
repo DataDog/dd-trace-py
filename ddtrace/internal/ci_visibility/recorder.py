@@ -48,7 +48,6 @@ from .api.ci_test import CIVisibilityTest
 from .constants import AGENTLESS_API_KEY_HEADER_NAME
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import CUSTOM_CONFIGURATIONS_PREFIX
-from .constants import DEFAULT_CI_VISIBILITY_SERVICE
 from .constants import EVP_PROXY_AGENT_BASE_PATH
 from .constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from .constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -86,13 +85,6 @@ DEFAULT_TIMEOUT = 15
 _CIVisibilitySettings = NamedTuple(
     "_CIVisibilitySettings",
     [("coverage_enabled", bool), ("skipping_enabled", bool), ("require_git", bool), ("itr_enabled", bool)],
-)
-
-ddconfig._add(
-    "ci_visibility",
-    {
-        "_default_service": DEFAULT_CI_VISIBILITY_SERVICE,
-    },
 )
 
 
