@@ -88,7 +88,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
         // Build and check the response object
         ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
+        ddog_prof_Exporter_SendResult res =
+          ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
             errmsg = err_to_msg(&err, "Error uploading");

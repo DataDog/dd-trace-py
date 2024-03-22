@@ -178,7 +178,10 @@ ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppc
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample* sample, int64_t thread_id, int64_t thread_native_id, std::string_view thread_name) // cppcheck-suppress unusedFunction
+ddup_push_threadinfo(Datadog::Sample* sample,
+                     int64_t thread_id,
+                     int64_t thread_native_id,
+                     std::string_view thread_name) // cppcheck-suppress unusedFunction
 {
     sample->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
@@ -214,13 +217,16 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample, std::string_view trace_resource_container) // cppcheck-suppress unusedFunction
+ddup_push_trace_resource_container(Datadog::Sample* sample,
+                                   std::string_view trace_resource_container) // cppcheck-suppress unusedFunction
 {
     sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count) // cppcheck-suppress unusedFunction
+ddup_push_exceptioninfo(Datadog::Sample* sample,
+                        std::string_view exception_type,
+                        int64_t count) // cppcheck-suppress unusedFunction
 {
     sample->push_exceptioninfo(exception_type, count);
 }

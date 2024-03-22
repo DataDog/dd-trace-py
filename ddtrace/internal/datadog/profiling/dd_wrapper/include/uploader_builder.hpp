@@ -12,7 +12,7 @@ namespace Datadog {
 
 class UploaderBuilder
 {
-    using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
+    using ExporterTagset = std::unordered_map<std::string, std::string>;
     static inline std::mutex tag_mutex{};
 
     // Building parameters

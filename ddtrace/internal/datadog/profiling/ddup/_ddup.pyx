@@ -103,6 +103,7 @@ def ensure_binary_or_empty(s: StringType) -> bytes:
         pass
     return b""
 
+
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
     # The name is redundant, but consistent with the other clamping function.
@@ -120,6 +121,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
     if value > INT64_MAX:
         return INT64_MAX
     return value
+
 
 # Public API
 def init(
@@ -246,7 +248,11 @@ cdef class SampleHandle:
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
-            ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), clamp_to_int64_unsigned(count))
+            ddup_push_exceptioninfo(
+                self.ptr,
+                string_view(<const char*>exc_name, len(exc_name)),
+                clamp_to_int64_unsigned(count)
+            )
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:
