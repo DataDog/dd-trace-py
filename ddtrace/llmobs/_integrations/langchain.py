@@ -58,7 +58,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
             pass
-        self._llmobs_set_metrics_tags(span)
+
+        span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_input_parameters(
         self,
@@ -134,24 +135,6 @@ class LangChainIntegration(BaseLLMIntegration):
                         }
                     )
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
-
-    def _llmobs_set_metrics_tags(
-        self,
-        span: Span,
-    ) -> None:
-        metrics = {}
-        prompt_tokens = span.get_metric("langchain.tokens.prompt_tokens")
-        completion_tokens = span.get_metric("langchain.tokens.completion_tokens")
-        total_tokens = span.get_metric("langchain.tokens.total_tokens")
-
-        if prompt_tokens:
-            metrics["prompt_tokens"] = int(prompt_tokens)
-        if completion_tokens:
-            metrics["completion_tokens"] = int(completion_tokens)
-        if total_tokens:
-            metrics["total_tokens"] = int(total_tokens)
-
-        span.set_tag_str(METRICS, json.dumps(metrics))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

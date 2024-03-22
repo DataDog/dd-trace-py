@@ -1099,15 +1099,6 @@ class TestLLMObsLangchain:
 
         expected_llmobs_writer_calls = [mock.call.start()]
 
-        token_metrics = {}
-        if provider == "openai":
-            # these are only populated for openai
-            token_metrics = {
-                "prompt_tokens": span.get_metric("langchain.tokens.prompt_tokens"),
-                "completion_tokens": span.get_metric("langchain.tokens.completion_tokens"),
-                "total_tokens": span.get_metric("langchain.tokens.total_tokens"),
-            }
-
         temperature_key = "temperature"
         if provider == "huggingface_hub":
             max_tokens_key = "model_kwargs.max_tokens"
@@ -1133,7 +1124,7 @@ class TestLLMObsLangchain:
                             span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}") or 0
                         ),
                     },
-                    token_metrics=token_metrics,
+                    token_metrics={},
                     tags={
                         "ml_app": "langchain_community_test",
                     },
