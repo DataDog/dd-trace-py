@@ -233,8 +233,8 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_metric(APPSEC.ENABLED, 1.0)
         span.set_tag_str(RUNTIME_FAMILY, "python")
 
-        def waf_callable(custom_data=None, **kargs):
-            return self._waf_action(span._local_root or span, ctx, custom_data, **kargs)
+        def waf_callable(custom_data=None, **kwargs):
+            return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
         if config._telemetry_enabled:
@@ -256,7 +256,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
-        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kargs
+        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -322,7 +322,7 @@ class AppSecSpanProcessor(SpanProcessor):
             elif action == WAF_ACTIONS.STACK:
                 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 
-                stack_trace_id = report_stack("exploit detected", span, kargs.get("crop_trace"))
+                stack_trace_id = report_stack("exploit detected", span, kwargs.get("crop_trace"))
                 for rule in waf_results.data:
                     rule["stack_trace_id"] = stack_trace_id
 
