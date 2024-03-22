@@ -100,7 +100,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, span_type: Optional[str] = None, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -114,8 +114,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
-        if span_type and span_type == SpanTypes.LLM:
-            span.span_type = span_type
+        if submit_to_llmobs:
+            span.span_type = SpanTypes.LLM
         return span
 
     @classmethod
