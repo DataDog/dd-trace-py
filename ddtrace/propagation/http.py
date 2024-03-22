@@ -11,6 +11,7 @@ from typing import cast  # noqa:F401
 
 import ddtrace
 from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace._trace.span import _is_top_level
 
 
 if sys.version_info >= (3, 8):
@@ -966,7 +967,14 @@ class HTTPPropagator(object):
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
-            root_span = ddtrace.tracer.current_root_span()
+            if non_active_span is not None:
+                if _is_top_level(non_active_span):
+                    root_span = non_active_span
+                else:
+                    root_span = non_active_span._local_root  # type: ignore
+            else:
+                root_span = ddtrace.tracer.current_root_span()  # type: ignore
+
             if root_span is not None and root_span.context.sampling_priority is None:
                 ddtrace.tracer.sample(root_span)
 
