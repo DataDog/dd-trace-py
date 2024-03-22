@@ -115,7 +115,6 @@ class Context(object):
             metrics=self._metrics,
             lock=self._lock,
             baggage=self._baggage,
-            span_links=self._span_links,
             is_remote=False,
         )
 

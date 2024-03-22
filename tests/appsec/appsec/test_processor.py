@@ -9,6 +9,7 @@ from six import ensure_binary
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -708,6 +709,28 @@ def test_asm_context_registration(tracer_appsec):
     assert core.get_item("asm_env") is None
 
 
+CUSTOM_RULE_METHOD = {
+    "custom_rules": [
+        {
+            "conditions": [
+                {
+                    "operator": "match_regex",
+                    "parameters": {
+                        "inputs": [{"address": "server.request.method"}],
+                        "options": {"case_sensitive": False},
+                        "regex": "GET",
+                    },
+                }
+            ],
+            "id": "32b243c7-26eb-4046-adf4-custom",
+            "name": "test required",
+            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+            "transformers": [],
+        }
+    ]
+}
+
+
 def test_required_addresses():
     with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
@@ -724,28 +747,7 @@ def test_required_addresses():
         "usr.id",
     }
 
-    processor._update_rules(
-        {
-            "custom_rules": [
-                {
-                    "conditions": [
-                        {
-                            "operator": "match_regex",
-                            "parameters": {
-                                "inputs": [{"address": "server.request.method"}],
-                                "options": {"case_sensitive": False},
-                                "regex": "GET",
-                            },
-                        }
-                    ],
-                    "id": "32b243c7-26eb-4046-adf4-custom",
-                    "name": "test required",
-                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-                    "transformers": [],
-                }
-            ]
-        }
-    )
+    processor._update_rules(CUSTOM_RULE_METHOD)
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -759,3 +761,30 @@ def test_required_addresses():
         "server.response.headers.no_cookies",
         "usr.id",
     }
+
+
+@pytest.mark.parametrize(
+    "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
+)
+@pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+    from ddtrace import tracer
+
+    processor = AppSecSpanProcessor()
+    processor._update_rules(CUSTOM_RULE_METHOD)
+
+    with override_global_config(
+        dict(_asm_enabled=True)
+    ), _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        # first call must send all data to the waf
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
+        assert mock_run.call_args[0][1] == {
+            WAF_DATA_NAMES[persistent]: {"key_1": "value_1"},
+            WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"},
+        }
+        # second call must only send ephemeral data to the waf, not persistent data again
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
+        assert mock_run.call_args[0][1] == {
+            WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
+        }
