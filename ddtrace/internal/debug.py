@@ -73,8 +73,8 @@ def collect(tracer):
         agent_error = None
 
     sampler_rules = None
-    if isinstance(tracer.sampler, DatadogSampler):
-        sampler_rules = [str(rule) for rule in tracer.sampler.rules]
+    if isinstance(tracer._sampler, DatadogSampler):
+        sampler_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
@@ -138,7 +138,7 @@ def collect(tracer):
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
         tracer_enabled=tracer.enabled,
-        sampler_type=type(tracer.sampler).__name__ if tracer.sampler else "N/A",
+        sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
         priority_sampler_type="N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
