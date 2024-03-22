@@ -157,6 +157,7 @@ def _llmobs_base_span_event(
         "metrics": {},
     }
     if error:
+        span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
