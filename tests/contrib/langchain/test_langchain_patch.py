@@ -27,6 +27,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
             self.assert_wrapped(langchain.chains.base.Chain.invoke)
             self.assert_wrapped(langchain.chains.base.Chain.ainvoke)
+            self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
+            self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
             self.assert_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
         else:
@@ -64,6 +66,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
             self.assert_not_wrapped(langchain.chains.base.Chain.invoke)
             self.assert_not_wrapped(langchain.chains.base.Chain.ainvoke)
+            self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
+            self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
             self.assert_not_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
         else:
@@ -98,6 +102,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
             self.assert_not_double_wrapped(langchain.chains.base.Chain.invoke)
             self.assert_not_double_wrapped(langchain.chains.base.Chain.ainvoke)
+            self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
+            self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
             self.assert_not_double_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_double_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
         else:

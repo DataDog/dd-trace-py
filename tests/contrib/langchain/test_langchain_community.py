@@ -1121,3 +1121,16 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
 
     with request_vcr.use_cassette("lcel_openai_chain_call_complicated.yaml"):
         chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([
+        ("system", "You are world class technical documentation writer."),
+        ("user", "{input}")
+    ])
+    llm = langchain_openai.OpenAI()
+
+    chain = prompt | llm
+    with request_vcr.use_cassette("lcel_openai_chain_acall.yaml"):
+        await chain.ainvoke({"input": "how can langsmith help with testing?"})
