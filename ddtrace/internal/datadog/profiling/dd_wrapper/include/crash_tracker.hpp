@@ -2,14 +2,17 @@
 
 #include "libdatadog_helpers.hpp"
 
+#include <optional>
+#include <string>
+
 namespace Datadog {
-class CrashTracker {
+class Crashtracker {
   private:
     bool collect_stacktrace;
     bool create_alt_stack;
     std::string url;
-    std::string stderr_filename;
-    std::string stdout_filename;
+    std::optional<std::string> stderr_filename{std::nullopt};
+    std::optional<std::string> stdout_filename{std::nullopt};
     std::string path_to_receiver_binary;
     ddog_prof_CrashtrackerResolveFrames resolve_frames;
 
