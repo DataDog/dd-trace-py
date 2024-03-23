@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+apt-get update && apt-get install -y --no-install-recommends gdb
+
+for core in core.*
+do
+    echo "========  Core dump: ${core}  ========"
+    binary=$(echo ${core} | sed -e 's/core\.[0-9]*\.//' -e 's/!/\//g')
+    echo "Binary: ${binary}"
+    echo "Backtrace:"
+    gdb -q -batch -ex "bt full" -ex q ${binary} ${core}
+done

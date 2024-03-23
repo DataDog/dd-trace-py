@@ -126,7 +126,8 @@ class SubprocessTestCase(unittest.TestCase):
         if sp.returncode and "_pytest.outcomes.xfailed" not in stderr.lower():
             try:
                 cmdf = " ".join(sp_test_cmd)
-                raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
+                msg = f'Subprocess Test "{cmdf}" Failed (exit code {sp.returncode}):\n{stderr}'
+                raise Exception(msg)
             except Exception:
                 exc_info = sys.exc_info()
 

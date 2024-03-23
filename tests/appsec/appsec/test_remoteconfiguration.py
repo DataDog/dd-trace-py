@@ -28,6 +28,7 @@ from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
@@ -899,8 +900,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 ]
             }
         }
-        # flaky test
-        # assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
         with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
@@ -930,7 +930,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
             }
         }
 
-        assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
 
@@ -960,7 +960,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             }
         }
 
-        assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
 
