@@ -9,6 +9,7 @@ from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import ProbeLocationKind
 from ddtrace.debugging._probe.model import ProbeType
 from ddtrace.debugging._probe.remoteconfig import InvalidProbeConfiguration
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
@@ -165,7 +166,7 @@ def test_poller_remove_probe():
                 "type": ProbeType.SPAN_PROBE,
                 "active": True,
                 "tags": ["foo:bar"],
-                "where": {"type": "Stuff", "method": "foo"},
+                "where": {"kind": ProbeLocationKind.FUNCTION, "type": "Stuff", "method": "foo"},
                 "resource": "resourceX",
             },
             "",
@@ -211,7 +212,7 @@ def test_poller_remove_multiple_probe():
                 "type": ProbeType.SPAN_PROBE,
                 "active": True,
                 "tags": ["foo:bar"],
-                "where": {"type": "Stuff", "method": "foo"},
+                "where": {"kind": ProbeLocationKind.FUNCTION, "type": "Stuff", "method": "foo"},
                 "resource": "resourceX",
             },
             "",
@@ -224,7 +225,7 @@ def test_poller_remove_multiple_probe():
                 "type": ProbeType.SPAN_PROBE,
                 "active": True,
                 "tags": ["foo:bar"],
-                "where": {"type": "Stuff", "method": "foo"},
+                "where": {"kind": ProbeLocationKind.FUNCTION, "type": "Stuff", "method": "foo"},
                 "resource": "resourceX",
             },
             "",
@@ -369,7 +370,7 @@ def test_multiple_configs(remote_config_worker):
                 "type": ProbeType.SPAN_PROBE,
                 "active": True,
                 "tags": ["foo:bar"],
-                "where": {"type": "Stuff", "method": "foo"},
+                "where": {"kind": ProbeLocationKind.FUNCTION, "type": "Stuff", "method": "foo"},
                 "resource": "resourceX",
             },
             "",
@@ -387,7 +388,7 @@ def test_multiple_configs(remote_config_worker):
                 "version": 1,
                 "type": ProbeType.METRIC_PROBE,
                 "tags": ["foo:bar"],
-                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "metricName": "test.counter",
                 "kind": "COUNTER",
             },
@@ -407,7 +408,7 @@ def test_multiple_configs(remote_config_worker):
                 "version": 1,
                 "type": ProbeType.LOG_PROBE,
                 "tags": ["foo:bar"],
-                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
                 "template": "hello {#foo}",
                 "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             },
@@ -459,6 +460,7 @@ def test_log_probe_attributes_parsing():
             "type": ProbeType.LOG_PROBE,
             "language": "python",
             "where": {
+                "kind": ProbeLocationKind.LINE,
                 "sourceFile": "foo.py",
                 "lines": ["57"],
             },
@@ -488,7 +490,7 @@ def test_parse_log_probe_with_rate():
             "version": 0,
             "type": ProbeType.LOG_PROBE,
             "tags": ["foo:bar"],
-            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
             "template": "hello {#foo}",
             "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             "sampling": {"snapshotsPerSecond": 1337},
@@ -505,7 +507,7 @@ def test_parse_log_probe_default_rates():
             "version": 0,
             "type": ProbeType.LOG_PROBE,
             "tags": ["foo:bar"],
-            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
             "template": "hello {#foo}",
             "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             "captureSnapshot": True,
@@ -520,7 +522,7 @@ def test_parse_log_probe_default_rates():
             "version": 0,
             "type": ProbeType.LOG_PROBE,
             "tags": ["foo:bar"],
-            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
             "template": "hello {#foo}",
             "segments:": [{"str": "hello "}, {"dsl": "foo", "json": "#foo"}],
             "captureSnapshot": False,
@@ -538,7 +540,7 @@ def test_parse_metric_probe_with_probeid_tags():
             "version": 0,
             "type": ProbeType.METRIC_PROBE,
             "tags": ["foo:bar"],
-            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "where": {"kind": ProbeLocationKind.LINE, "sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
             "metricName": "test.counter",
             "kind": "COUNTER",
         }
