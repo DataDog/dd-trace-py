@@ -135,14 +135,14 @@ class GrpcTestCase(TracerTestCase):
         unpatch()
         super(GrpcTestCase, self).tearDown()
 
-    def get_spans_with_sync_and_assert(self, size=0, retry=20):
+    def get_spans_with_sync_and_assert(self, size=0, retry=20, should_retry=(_GRPC_VERSION < (1, 14))):
         # testing instrumentation with grpcio < 1.14.0 presents a problem for
         # checking spans written to the dummy tracer
         # see https://github.com/grpc/grpc/issues/14621
 
         spans = super(GrpcTestCase, self).get_spans()
 
-        if _GRPC_VERSION >= (1, 14):
+        if not should_retry:
             assert len(spans) == size
             return spans
 
@@ -297,6 +297,43 @@ class GrpcTestCase(TracerTestCase):
         self._check_client_span(spans[0], "grpc1", "SayHello", "unary")
         self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
+
+    def test_span_parent_is_maintained(self):
+        with self.tracer.trace("root"):
+            with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+                stub = HelloStub(channel)
+                stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=3, should_retry=True)
+        root = spans[0]
+        client = spans[1]
+        server = spans[2]
+        assert root.span_id == client.parent_id
+        assert client.span_id == server.parent_id
+
+    def test_active_span_doesnt_leak_with_future(self):
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            future = stub.SayHello.future(HelloRequest(name="test"))
+            assert self.tracer.current_span() is None
+            # wait so that we don't cancel the request
+            future.result()
+
+        self.get_spans_with_sync_and_assert(size=2, should_retry=True)
+
+    def test_span_active_in_custom_interceptor(self):
+        # add an interceptor that raises a custom exception and check error tags
+        # are added to spans
+        interceptor = _SpanActivatationClientInterceptor(self.tracer)
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            intercept_channel = grpc.intercept_channel(channel, interceptor)
+            stub = HelloStub(intercept_channel)
+            stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span = spans[0]
+
+        assert client_span.get_tag("custom_interceptor_worked")
 
     def test_analytics_default(self):
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -751,6 +788,24 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
         continuation(client_call_details, request_or_iterator).result()
 
         raise _CustomException("custom")
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        return self._intercept_call(continuation, client_call_details, request)
+
+
+class _SpanActivatationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
+    def __init__(self, tracer) -> None:
+        super().__init__()
+        self.tracer = tracer
+
+    def _intercept_call(self, continuation, client_call_details, request_or_iterator):
+        # allow computation to complete
+        span = self.tracer.current_span()
+        assert span is not None
+
+        span.set_tag("custom_interceptor_worked")
+
+        return continuation(client_call_details, request_or_iterator)
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
