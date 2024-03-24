@@ -365,7 +365,10 @@ class PatchTestCase(object):
             """
             The integration should test that each class, method or function that
             is to be patched is in fact done so when ddtrace.patch() is called
-            after the module is imported.
+            after the module is imported. In addition, we check that the integration has
+            not been imported due to patching.
+
+            For example:
 
             an appropriate ``test_patch_import`` would be::
 
@@ -373,8 +376,10 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            module = importlib.import_module(self.__module_name__)
             self.__patch_func__()
+            for modname in sys.modules:
+                assert not modname.startswith(self.__module_name__), "{} module is imported".format(modname)
+            module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
 
         @raise_if_no_attrs
