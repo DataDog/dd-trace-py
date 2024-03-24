@@ -11,7 +11,8 @@ prelude: >
     to other Datadog components (downstream instrumented services, databases, or execution context changes),
     and rely on the Python tracer to make the sampling decision (don't have an upstream service doing this),
     they will need to manually run the sampler for those traces, or use ``HttpPropagator.inject()``. 
-    For more information please see:
+    For more information please see the following:
+    https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#distributed-tracing
     https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-context-management
 features:
   - |

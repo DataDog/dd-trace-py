@@ -280,7 +280,7 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
-        forksafe.register_before_fork(self.sample_before_fork)
+        forksafe.register_before_fork(self._sample_before_fork)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
@@ -304,7 +304,7 @@ class Tracer(object):
         if self._sampler is not None:
             self._sampler.sample(span)
         else:
-            log.debug("No sampler available to sample span")
+            log.error("No sampler available to sample span")
 
     @property
     def sampler(self):
@@ -347,7 +347,7 @@ class Tracer(object):
         self._hooks.deregister(self.__class__.start_span, func)
         return func
 
-    def sample_before_fork(self) -> None:
+    def _sample_before_fork(self) -> None:
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -1070,7 +1070,7 @@ class Tracer(object):
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
-            forksafe.unregister_before_fork(self.sample_before_fork)
+            forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 

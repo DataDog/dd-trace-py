@@ -67,6 +67,8 @@ class _DBM_Propagator(object):
         if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
             if dbspan.context.sampling_priority is None:
                 ddtrace.tracer.sample(dbspan._local_root)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
