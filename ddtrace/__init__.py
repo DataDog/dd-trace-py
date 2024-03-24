@@ -1,3 +1,4 @@
+import logging
 import sys
 import warnings
 
@@ -52,6 +53,14 @@ with warnings.catch_warnings():
 
 
 __version__ = get_version()
+
+try:
+    import freezegun
+
+    logging.debug("freezegun detected, adding ddtrace to the ignore list")
+    freezegun.configure(extend_ignore_list=["ddtrace"])
+except ImportError:
+    pass
 
 # a global tracer instance with integration settings
 tracer = Tracer()
