@@ -11,7 +11,6 @@ from typing import cast  # noqa:F401
 
 import ddtrace
 from ddtrace._trace.span import Span  # noqa:F401
-from ddtrace._trace.span import _is_top_level
 
 
 if sys.version_info >= (3, 8):
@@ -957,6 +956,17 @@ class HTTPPropagator(object):
 
             span_context = non_active_span.context
 
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if non_active_span is not None:
+                root_span = non_active_span._local_root
+            else:
+                root_span = ddtrace.tracer.current_root_span()
+
+            if root_span is not None and root_span.context.sampling_priority is None:
+                ddtrace.tracer.sample(root_span)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
@@ -965,18 +975,6 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
-
-        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
-            if non_active_span is not None:
-                if _is_top_level(non_active_span):
-                    root_span = non_active_span
-                else:
-                    root_span = non_active_span._local_root  # type: ignore
-            else:
-                root_span = ddtrace.tracer.current_root_span()  # type: ignore
-
-            if root_span is not None and root_span.context.sampling_priority is None:
-                ddtrace.tracer.sample(root_span)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)

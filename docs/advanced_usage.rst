@@ -82,8 +82,7 @@ context::
     be finished in the same execution. The span context can be used to continue
     a trace in a different execution by passing it and activating it on the other
     end. Note that in all instances of crossing into another 
-    execution,
-    sampling should be run manually before entering the new execution 
+    execution, sampling should be run manually before entering the new execution 
     to ensure that the sampling decision is the same across the trace.
     This can be done using `tracer.sample(tracer.current_root_span())`
     
@@ -238,9 +237,11 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
 
-`ddtrace` already provides default propagators but you can also implement your own. If utilizing your own propagator
-make sure to run `tracer.sample(tracer.current_root_span())` before propagating downstream,
-to ensure that the sampling decision is the same across the trace.
+`ddtrace` already provides default propagators but you can also implement your own. Note that `ddtrace`` makes
+use of lazy sampling, essentially making the sampling decision for a trace at the latest possible moment. This 
+includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented 
+integration. If utilizing your own propagator make sure to run `tracer.sample(tracer.current_root_span())` 
+before propagating downstream, to ensure that the sampling decision is the same across the trace.
 
 Web Frameworks
 ^^^^^^^^^^^^^^
