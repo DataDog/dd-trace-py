@@ -145,10 +145,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return []
         files = []
-        if ctx_coverage_enabed.get():
-            covered = ctx_covered.get()
-        else:
-            covered = cls._instance.covered
+        covered = cls._instance._get_covered_lines()
+
         for path, lines in covered.items():
             sorted_lines = sorted(lines)
             collapsed_ranges = collapse_ranges(sorted_lines)
