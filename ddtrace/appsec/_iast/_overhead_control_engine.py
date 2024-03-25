@@ -98,13 +98,19 @@ class OverheadControl(object):
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span):
+    def acquire_span(self, span):
+        if not self._sampler.sample(span):
+            return False
+
+        return True
+
+    def acquire_request(self, request):
         # type: (Span) -> bool
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if self._request_quota <= 0 or not self._sampler.sample(span):
+        if self._request_quota <= 0:  # or not self._sampler.sample(span):
             return False
 
         with self._lock:

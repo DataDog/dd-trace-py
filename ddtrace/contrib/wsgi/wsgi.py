@@ -20,6 +20,7 @@ from urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -93,6 +94,10 @@ class _DDWSGIMiddlewareBase(object):
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
+        if _is_iast_enabled():
+            from ddtrace.appsec._iast.processor import AppSecIastRequestProcessor
+
+            AppSecIastRequestProcessor.should_analyze_request(self)
         with core.context_with_data(
             "wsgi.__call__",
             remote_addr=environ.get("REMOTE_ADDR"),

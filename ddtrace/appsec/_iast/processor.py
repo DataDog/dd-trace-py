@@ -26,6 +26,27 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
+class AppSecIastRequestProcessor:
+    @staticmethod
+    def is_request_analyzed(request):
+        return request.__dd_iast_analyzed
+
+    def should_analyze_request(request):
+        if not _is_iast_enabled():
+            request.__dd_iast_analyzed = False
+            return
+
+        request_iast_enabled = False
+        if oce.acquire_request(request):
+            from ._taint_tracking import create_context
+
+            create_context()
+            request_iast_enabled = True
+
+        # core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
+        request.__dd_iast_analyzed = request_iast_enabled
+
+
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     @staticmethod
