@@ -127,7 +127,7 @@ def track_user_login_success_event(
 def track_user_login_failure_event(
     tracer: Tracer,
     user_id: Optional[str],
-    exists: bool,
+    exists: Optional[bool] = None,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
 ) -> None:
@@ -152,8 +152,10 @@ def track_user_login_failure_event(
 
     if user_id:
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
-    exists_str = "true" if exists else "false"
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
+
+    if exists is not None:
+        exists_str = "true" if exists else "false"
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
 
 
 def track_user_signup_event(
@@ -312,9 +314,9 @@ def _on_django_login(
                     **user_extra,
                 )
         else:
-            # Login failed and the user is unknown
+            # Login failed and the user is unknown (may exist or not)
             user_id = info_retriever.get_userid()
-            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+            track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
 
 
 def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
@@ -333,7 +335,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            track_user_login_failure_event(pin.tracer, user_id=user_id, exists=False, login_events_mode=mode)
+            track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
 
     return False, None
 
