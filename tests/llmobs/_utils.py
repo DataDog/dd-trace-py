@@ -3,7 +3,6 @@ import os
 import vcr
 
 import ddtrace
-from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
 
 
 logs_vcr = vcr.VCR(
@@ -24,7 +23,7 @@ def _expected_llmobs_tags(error=None, tags=None):
         "env:{}".format(tags.get("env", "")),
         "service:{}".format(tags.get("service", "")),
         "source:integration",
-        "ml_app:{}".format(tags.get("ml_app", DEFAULT_ML_APP_NAME)),
+        "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
@@ -158,6 +157,7 @@ def _llmobs_base_span_event(
         "metrics": {},
     }
     if error:
+        span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
