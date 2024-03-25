@@ -73,6 +73,7 @@ cdef extern from "interface.hpp":
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
     bint ddup_upload() nogil
+    void ddup_crashtracker_set_receiver_binary_path(std::string_view path)
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):

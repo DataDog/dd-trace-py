@@ -1,5 +1,6 @@
 #include "crash_tracker.hpp"
 
+#include <filesystem>
 #include <iostream>
 #include <vector>
 
@@ -78,12 +79,6 @@ Datadog::Crashtracker::set_stdout_filename(std::string_view _stdout_filename)
 }
 
 void
-Datadog::Crashtracker::set_path_to_receiver_binary(std::string_view _path_to_receiver_binary)
-{
-    path_to_receiver_binary = std::string(_path_to_receiver_binary);
-}
-
-void
 Datadog::Crashtracker::set_resolve_frames(ddog_prof_CrashtrackerResolveFrames _resolve_frames)
 {
     resolve_frames = _resolve_frames;
@@ -93,6 +88,20 @@ void
 Datadog::Crashtracker::set_library_version(std::string_view _library_version)
 {
     library_version = std::string(_library_version);
+}
+
+bool
+Datadog::Crashtracker::set_receiver_binary_path(std::string_view _path)
+{
+    // First, check that the path is valid
+    if (!std::filesystem::exists(_path)) {
+        // TODO in the future, we could verify that this object has executable permissions
+        // and possibly check the header or run the binary in some kind of diagnostic mode to get
+        // output, but existence is fine for now.
+        return false;
+    }
+    path_to_receiver_binary = std::string(_path);
+    return true;
 }
 
 ddog_prof_CrashtrackerConfiguration
@@ -160,6 +169,29 @@ Datadog::Crashtracker::start()
   auto metadata = get_metadata(tags);
 
   auto result = ddog_prof_Crashtracker_init(config, metadata);
+  ddog_Vec_Tag_drop(tags);
+  if (result.tag != DDOG_PROF_PROFILE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
+    std::cerr << errmsg << std::endl;
+    ddog_Error_drop(&err);
+    return false;
+  }
+
+  // Set the base state for profiling ops
+  start_not_profiling();
+
+  return true;
+}
+
+bool
+Datadog::Crashtracker::atfork_child()
+{
+  auto config = get_config();
+  auto tags = get_tags();
+  auto metadata = get_metadata(tags);
+
+  auto result = ddog_prof_Crashtracker_update_on_fork(config, metadata);
   ddog_Vec_Tag_drop(tags);
   if (result.tag != DDOG_PROF_PROFILE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
     auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)

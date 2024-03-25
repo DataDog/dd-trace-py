@@ -48,7 +48,7 @@ class Crashtracker {
     void set_create_alt_stack(bool _create_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
     void set_stdout_filename(std::string_view _stdout_filename);
-    void set_path_to_receiver_binary(std::string_view _path_to_receiver_binary);
+    bool set_receiver_binary_path(std::string_view _path_to_receiver_binary);
 
     void set_resolve_frames(ddog_prof_CrashtrackerResolveFrames _resolve_frames);
 

@@ -24,6 +24,7 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
+    crashtracker.atfork_child();
 }
 
 void
@@ -143,16 +144,6 @@ ddup_start()
     if (initialized_count > 1) {
         std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
     }
-}
-
-void
-ddup_start_crashtracker()
-{
-    const static bool initialized = []() {
-        return crashtracker.start();
-    }();
-
-    (void)initialized;
 }
 
 Datadog::Sample*
@@ -314,7 +305,18 @@ ddup_upload()
 
 // Crashtracker
 void
-ddup_start_crashtacker()
+ddup_crashtracker_start()
 {
-    return crashtracker.start();
+    const static bool initialized = []() {
+        crashtracker.start();
+        return true;
+    }();
+
+    (void)initialized;
+}
+
+bool
+ddup_crashtracker_set_receiver_binary_path(std::string_view path)
+{
+    return crashtracker.set_receiver_binary_path(path);
 }
