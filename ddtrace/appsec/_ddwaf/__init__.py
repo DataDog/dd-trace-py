@@ -203,6 +203,7 @@ else:
             self,
             ctx: Any,
             data: Any,
+            ephemeral_data: Any = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
