@@ -1274,6 +1274,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             pkgs={
                 "pytest-randomly": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
