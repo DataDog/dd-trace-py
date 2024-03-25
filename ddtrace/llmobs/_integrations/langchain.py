@@ -115,7 +115,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                 input_messages.append(
                     {
-                        "content": content,
+                        "content": str(content),
                         "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
                     }
                 )
@@ -130,7 +130,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                     output_messages.append(
                         {
-                            "content": chat_completion.text,
+                            "content": str(chat_completion.text),
                             "role": role,
                         }
                     )
