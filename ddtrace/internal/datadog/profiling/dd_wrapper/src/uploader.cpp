@@ -3,12 +3,6 @@
 
 using namespace Datadog;
 
-void
-DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
-{
-    ddog_prof_Exporter_drop(ptr);
-}
-
 Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : url{ _url }
   , ddog_exporter{ _ddog_exporter }

@@ -48,7 +48,8 @@ cdef extern from "interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_init()
+    void ddup_start()
+    void ddup_start_crashtracker()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -99,7 +100,7 @@ cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
 
-def init(
+def config(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
@@ -131,7 +132,14 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
-    ddup_init()
+
+
+def start() -> None:
+    ddup_start()
+
+
+def start_crashtracker() -> None:
+    ddup_start_crashtracker()
 
 
 def upload() -> None:

@@ -26,6 +26,7 @@ namespace Datadog {
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
+    X(library_version, "library_version")                                                                              \
     X(profile_seq, "profile_seq")
 
 // Here there are two columns because the Datadog backend expects these labels
@@ -56,6 +57,15 @@ enum class ExportTagKey
 enum class ExportLabelKey
 {
     EXPORTER_LABELS(X_ENUM) Length_
+};
+
+struct DdogProfExporterDeleter
+{
+    void operator()(ddog_prof_Exporter* ptr) const {
+        if (ptr) {
+            ddog_prof_Exporter_drop(ptr);
+        }
+    }
 };
 
 inline ddog_CharSlice

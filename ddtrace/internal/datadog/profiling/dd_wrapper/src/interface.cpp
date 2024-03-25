@@ -1,3 +1,4 @@
+#include "crash_tracker.hpp"
 #include "interface.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
@@ -12,6 +13,9 @@
 
 // State
 bool is_ddup_initialized = false;
+
+// A global instance of the crashtracker is created here.
+Datadog::Crashtracker crashtracker;
 
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
@@ -43,42 +47,49 @@ void
 ddup_config_env(std::string_view dd_env)
 {
     Datadog::UploaderBuilder::set_env(dd_env);
+    crashtracker.set_env(dd_env);
 }
 
 void
 ddup_config_service(std::string_view service)
 {
     Datadog::UploaderBuilder::set_service(service);
+    crashtracker.set_service(service);
 }
 
 void
 ddup_config_version(std::string_view version)
 {
     Datadog::UploaderBuilder::set_version(version);
+    crashtracker.set_version(version);
 }
 
 void
 ddup_config_runtime(std::string_view runtime)
 {
     Datadog::UploaderBuilder::set_runtime(runtime);
+    crashtracker.set_runtime(runtime);
 }
 
 void
 ddup_config_runtime_version(std::string_view runtime_version)
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    crashtracker.set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version)
 {
     Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    crashtracker.set_library_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url)
 {
     Datadog::UploaderBuilder::set_url(url);
+    crashtracker.set_url(url);
 }
 
 void
@@ -91,6 +102,7 @@ void
 ddup_set_runtime_id(std::string_view id)
 {
     Datadog::UploaderBuilder::set_runtime_id(id);
+    crashtracker.set_runtime_id(id);
 }
 
 void
@@ -112,7 +124,7 @@ ddup_is_initialized()
 
 std::atomic<int> initialized_count{ 0 };
 void
-ddup_init()
+ddup_start()
 {
     const static bool initialized = []() {
         // Perform any one-time startup operations
@@ -131,6 +143,16 @@ ddup_init()
     if (initialized_count > 1) {
         std::cerr << "ddup_init() called " << initialized_count << " times" << std::endl;
     }
+}
+
+void
+ddup_start_crashtracker()
+{
+    const static bool initialized = []() {
+        return crashtracker.start();
+    }();
+
+    (void)initialized;
 }
 
 Datadog::Sample*
@@ -288,4 +310,11 @@ ddup_upload()
         std::visit(visitor, uploader);
     }
     return success;
+}
+
+// Crashtracker
+void
+ddup_start_crashtacker()
+{
+    return crashtracker.start();
 }

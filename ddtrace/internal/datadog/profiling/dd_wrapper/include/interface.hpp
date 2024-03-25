@@ -26,7 +26,8 @@ extern "C"
     void ddup_config_sample_type(unsigned int type);
 
     bool ddup_is_initialized();
-    void ddup_init();
+    void ddup_start();
+    void ddup_start_crashtracker();
     void ddup_set_runtime_id(std::string_view id);
     bool ddup_upload();
 
@@ -58,6 +59,9 @@ extern "C"
                          int64_t line);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+    void ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace);
+    void ddup_config_crashtracker_create_alt_stack(bool create_alt_stack);
+    void ddup_config_crashtracker_binary_path(std::string_view binary_path);
 
 #ifdef __cplusplus
 } // extern "C"
