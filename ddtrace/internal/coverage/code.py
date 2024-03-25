@@ -1,6 +1,5 @@
 from collections import defaultdict
 from collections import deque
-import linecache
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -8,6 +7,8 @@ import typing as t
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
+from ddtrace.internal.coverage.report import print_coverage_report
+from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.vendor.contextvars import ContextVar
 
@@ -18,25 +19,6 @@ _original_exec = exec
 
 ctx_covered = ContextVar("ctx_covered", default=None)
 ctx_coverage_enabed = ContextVar("ctx_coverage_enabled", default=False)
-
-
-def collapse_ranges(numbers: t.List[int]) -> t.List[t.Tuple[int, int]]:
-    # This function turns an ordered list of numbers into a list of ranges.
-    # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
-    if not numbers:
-        return ""
-    ranges = []
-    start = end = numbers[0]
-    for number in numbers[1:]:
-        if number == end + 1:
-            end = number
-        else:
-            ranges.append((start, end))
-            start = end = number
-
-    ranges.append((start, end))
-
-    return ranges
 
 
 def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
@@ -106,108 +88,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return
         instance: ModuleCodeCollector = cls._instance
 
-        import ast
-        import os
-        import re
-
-        try:
-            w, _ = os.get_terminal_size()
-        except OSError:
-            w = 80
-
-        NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
-
-        ast_cache: t.Dict[str, t.Any] = {}
-
-        def _get_ast_for_path(path: str):
-            if path not in ast_cache:
-                with open(path, "r") as f:
-                    file_src = f.read()
-                ast_cache[path] = ast.parse(file_src)
-            return ast_cache[path]
-
-        def find_statement_for_line(node, line):
-            if hasattr(node, "body"):
-                for child_node in node.body:
-                    found_node = find_statement_for_line(child_node, line)
-                    if found_node is not None:
-                        return found_node
-
-            # If the start and end line numbers are the same, we're (almost certainly) dealing with some kind of
-            # statement instead of the sort of block statements we're looking for.
-            if node.lineno == node.end_lineno:
-                return None
-
-            if node.lineno <= line <= node.end_lineno:
-                return node
-
-            return None
-
-        def no_cover(path, src_line) -> t.Optional[t.Tuple[int, int]]:
-            """Returns the start and end lines of statements to ignore the line includes pragma nocover.
-
-            If the line ends with a :, parse the AST and return the block the line belongs to.
-            """
-            text = linecache.getline(path, src_line).strip()
-            matches = NOCOVER_PRAGMA_RE.match(text)
-            if matches:
-                if matches["command"].strip().endswith(":"):
-                    parsed = _get_ast_for_path(path)
-                    statement = find_statement_for_line(parsed, src_line)
-                    if statement is not None:
-                        return statement.lineno, statement.end_lineno
-                    # We shouldn't get here, in theory, but if we do, let's not consider anything uncovered.
-                    return None
-                # If our line does not end in ':', assume it's just one line that needs to be removed
-                return src_line, src_line
-            return None
-
-        total_executable_lines = 0
-        total_covered_lines = 0
-        total_missed_lines = 0
-        n = max(len(path) for path in instance.lines) + 4
-
+        executable_lines = instance.lines
         covered_lines = instance._get_covered_lines()
 
-        # Title
-        print(" DATADOG LINE COVERAGE REPORT ".center(w, "="))
+        print_coverage_report(executable_lines, covered_lines, ignore_nocover=ignore_nocover)
 
-        # Header
-        print(f"{'PATH':<{n}}{'LINES':>8}{'MISSED':>8} {'COVERED':>8}  MISSED LINES")
-        print("-" * (w))
-
-        for path, orig_lines in sorted(instance.lines.items()):
-            path_lines = orig_lines.copy()
-            path_covered = covered_lines[path].copy()
-            if not ignore_nocover:
-                for line in orig_lines:
-                    # We may have already deleted this line due to no_cover
-                    if line not in path_lines and line not in path_covered:
-                        continue
-                    no_cover_lines = no_cover(path, line)
-                    if no_cover_lines:
-                        for no_cover_line in range(no_cover_lines[0], no_cover_lines[1] + 1):
-                            path_lines.discard(no_cover_line)
-                            path_covered.discard(no_cover_line)
-
-            n_lines = len(path_lines)
-            n_covered = len(path_covered)
-            n_missed = n_lines - n_covered
-            total_executable_lines += n_lines
-            total_covered_lines += n_covered
-            total_missed_lines += n_missed
-            if n_covered == 0:
-                continue
-            missed_ranges = collapse_ranges(sorted(path_lines - path_covered))
-            missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
-            missed_str = f"  [{missed}]" if missed else ""
-            print(f"{path:{n}s}{n_lines:>8}{n_missed:>8}{int(n_covered/n_lines * 100):>8}%{missed_str}")
-        print("-" * (w))
-        total_covered_percent = int((total_covered_lines / total_executable_lines) * 100)
-        print(f"{'TOTAL':<{n}}{total_executable_lines:>8}{total_missed_lines:>8}{total_covered_percent:>8}%")
-        print()
-
-    def _get_covered_lines(self):
+    def _get_covered_lines(self) -> t.Dict[str, t.Set[int]]:
         if ctx_coverage_enabed.get(False):
             return ctx_covered.get()
         return self.covered
