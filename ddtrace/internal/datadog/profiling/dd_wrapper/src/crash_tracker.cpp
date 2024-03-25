@@ -98,6 +98,7 @@ Datadog::Crashtracker::set_receiver_binary_path(std::string_view _path)
         // TODO in the future, we could verify that this object has executable permissions
         // and possibly check the header or run the binary in some kind of diagnostic mode to get
         // output, but existence is fine for now.
+        std::cerr << "Receiver binary path does not exist: " << _path << std::endl;
         return false;
     }
     path_to_receiver_binary = std::string(_path);

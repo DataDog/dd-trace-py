@@ -1,6 +1,7 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import os
 import platform
 from typing import Dict
 from typing import Optional
@@ -73,7 +74,7 @@ cdef extern from "interface.hpp":
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
     bint ddup_upload() nogil
-    void ddup_crashtracker_set_receiver_binary_path(std::string_view path)
+    void ddup_crashtracker_set_receiver_binary_path(string_view path)
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
@@ -140,6 +141,10 @@ def start() -> None:
 
 
 def start_crashtracker() -> None:
+    # The file is "crashtracker_exe" in the same directory as this .so
+    exe_dir = os.path.dirname(__file__)
+    crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
+    ddup_crashtracker_set_receiver_binary_path(string_view(<const char*>crashtracker_path, len(crashtracker_path)))
     ddup_start_crashtracker()
 
 

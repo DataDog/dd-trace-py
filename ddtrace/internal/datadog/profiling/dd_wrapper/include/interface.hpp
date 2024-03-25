@@ -61,7 +61,7 @@ extern "C"
     void ddup_drop_sample(Datadog::Sample* sample);
     void ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace);
     void ddup_config_crashtracker_create_alt_stack(bool create_alt_stack);
-    void ddup_config_crashtracker_binary_path(std::string_view binary_path);
+    bool ddup_crashtracker_set_receiver_binary_path(std::string_view path);
 
 #ifdef __cplusplus
 } // extern "C"
