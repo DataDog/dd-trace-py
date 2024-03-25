@@ -40,7 +40,7 @@ def has_forked():
 
 def run_hooks(registry):
     # type: (typing.List[typing.Callable[[], None]]) -> None
-    for hook in registry:
+    for hook in list(registry):
         try:
             hook()
         except Exception:
