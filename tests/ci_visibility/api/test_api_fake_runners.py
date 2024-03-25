@@ -5,12 +5,14 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
+from tests import utils
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 from tests.utils import snapshot
 
 
 SNAPSHOT_IGNORES = [
+    "meta.ci.workspace_path",
     "meta.error.stack",
     "meta.library_version",
     "meta.os.architecture",
@@ -39,6 +41,7 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+        yield utils.git_repo_empty(self.testdir)
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
     def test_manual_api_fake_runner_all_pass(self):
@@ -172,3 +175,41 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
                 subprocess.run(["python", "fake_runner_mix_fail.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_runner_mix_fail_itr_test_level(self):
+        import fake_runner_mix_fail_itr_test_level
+
+        fake_runner_src = inspect.getsource(fake_runner_mix_fail_itr_test_level)
+        self.testdir.makepyfile(fake_runner_mix_fail_itr_test_level=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
+                return_value=_CIVisibilitySettings(False, False, False, False),
+            ):
+                subprocess.run(["python", "fake_runner_mix_fail_itr_test_level.py"])
+
+    @snapshot(ignores=SNAPSHOT_IGNORES)
+    def test_manual_api_fake_runner_mix_fail_itr_suite_level(self):
+        import fake_runner_mix_fail_itr_suite_level
+
+        fake_runner_src = inspect.getsource(fake_runner_mix_fail_itr_suite_level)
+        self.testdir.makepyfile(fake_runner_mix_fail_itr_suite_level=fake_runner_src)
+        self.testdir.chdir()
+
+        with override_env(
+            dict(
+                DD_API_KEY="foobar.baz",
+            )
+        ):
+            with mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
+                return_value=_CIVisibilitySettings(False, False, False, False),
+            ):
+                subprocess.run(["python", "fake_runner_mix_fail_itr_suite_level.py"])
