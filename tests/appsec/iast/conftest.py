@@ -144,8 +144,12 @@ def iast_span_only_sha1(tracer):
     yield from iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="SHA1"))
 
 
-@pytest.fixture
-def iast_context():
+@pytest.fixture(autouse=True)
+def iast_context(request):
+    if "no_iast_context" in request.keywords:
+        yield False
+        return
+
     _ = create_context()
     yield
     reset_context()
