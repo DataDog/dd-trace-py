@@ -58,10 +58,11 @@ def traced_login_user(func, instance, args, kwargs):
         user_id, user_extra = info_retriever.get_user_info()
         if user_id == -1:
             with pin.tracer.trace("flask_login.login_user", span_type=SpanTypes.AUTH):
-                track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
+                # track_user_login_failure_event(pin.tracer, user_id="missing", exists=False, login_events_mode=mode)
+                pass
             return ret
         if not user_id:
-            track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)
+            # track_user_login_failure_event(pin.tracer, user_id=None, exists=False, login_events_mode=mode)
             log.debug(
                 "Automatic Login Events Tracking: Could not determine user id field user for the %s user Model; "
                 "set DD_USER_MODEL_LOGIN_FIELD to the name of the field used for the user id or implement the "
