@@ -146,11 +146,13 @@ def bedrock_client(boto3, request_vcr):
 @pytest.fixture
 def mock_llmobs_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
-    LLMObsWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsWriterMock.return_value = m
-    yield m
-    patcher.stop()
+    try:
+        LLMObsWriterMock = patcher.start()
+        m = mock.MagicMock()
+        LLMObsWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 
 class TestBedrockConfig(SubprocessTestCase):

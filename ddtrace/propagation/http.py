@@ -1,5 +1,6 @@
 import re
 import sys
+from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
@@ -7,6 +8,9 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
+
+import ddtrace
+from ddtrace._trace.span import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):
@@ -921,8 +925,8 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def inject(span_context, headers, non_active_span=None):
+        # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -940,7 +944,29 @@ class HTTPPropagator(object):
 
         :param Context span_context: Span context to propagate.
         :param dict headers: HTTP headers to extend with tracing attributes.
+        :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if non_active_span is not None and non_active_span.context is not span_context:
+            log.error(
+                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
+                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
+                span_context,
+                non_active_span.context,
+            )
+
+            span_context = non_active_span.context
+
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if non_active_span is not None:
+                root_span = non_active_span._local_root
+            else:
+                root_span = ddtrace.tracer.current_root_span()
+
+            if root_span is not None and root_span.context.sampling_priority is None:
+                ddtrace.tracer.sample(root_span)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
