@@ -1101,7 +1101,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert get_tag(http.STATUS_CODE) == "200"
             assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
-            self.check_single_rule_triggered("rasp-930-100", root_span)
+            self.check_rules_triggered(["rasp-930-100"] * 2, root_span)
             assert self.check_for_stack_trace(root_span)
 
 

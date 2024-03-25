@@ -64,7 +64,7 @@ def rasp(request, endpoint: str):
         res = []
         for param in query_params:
             if param.startswith("filename"):
-                filename = query_params["filename"]
+                filename = query_params[param]
             try:
                 with open(filename, "rb") as f:
                     res.append(f"File: {f.read()}")

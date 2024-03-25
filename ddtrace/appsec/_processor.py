@@ -277,6 +277,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
         data = {}
+        ephemeral_data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
         data_already_sent = _asm_request_context.get_data_sent()
         if data_already_sent is None:
@@ -288,7 +289,12 @@ class AppSecSpanProcessor(SpanProcessor):
         for key, waf_name in iter_data:  # type: ignore[attr-defined]
             if key in data_already_sent:
                 continue
-            if self._is_needed(waf_name) or force_keys or waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
+            if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
+                value = custom_data.get(key) if custom_data else None
+                if value:
+                    ephemeral_data[waf_name] = value
+
+            elif self._is_needed(waf_name) or force_keys:
                 value = None
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
@@ -300,7 +306,9 @@ class AppSecSpanProcessor(SpanProcessor):
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
-        waf_results = self._ddwaf.run(ctx, data, asm_config._waf_timeout)
+        waf_results = self._ddwaf.run(
+            ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
+        )
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 

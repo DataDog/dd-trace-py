@@ -157,6 +157,7 @@ if _DDWAF_LOADED:
             self,
             ctx: ddwaf_context_capsule,
             data: DDWafRulesType,
+            ephemeral_data: DDWafRulesType = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             start = time.time()
@@ -167,7 +168,8 @@ if _DDWAF_LOADED:
             result = ddwaf_result()
             observator = _observator()
             wrapper = ddwaf_object(data, observator=observator)
-            error = ddwaf_run(ctx.ctx, wrapper, None, ctypes.byref(result), int(timeout_ms * 1000))
+            wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
+            error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
