@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: provides a workaround for a bug in `flexmock <https://pypi.org/project/flexmock/>_` versions
+    ``0.11.3`` and older  that calls the underlying addSuccess even in cases of test failure. This has been tested
+    with both ``0.10.10`` and `0.11.3``.
