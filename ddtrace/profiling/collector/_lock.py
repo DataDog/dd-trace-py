@@ -16,6 +16,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
@@ -69,7 +70,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __init__(
         self,
         wrapped: typing.Any,
-        recorder: collector.Recorder,
+        recorder: Recorder,
         tracer: typing.Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
