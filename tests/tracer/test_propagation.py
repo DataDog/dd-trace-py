@@ -76,6 +76,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
 def test_inject_128bit_trace_id_datadog():
     from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -93,7 +94,9 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-sampling-priority": "1",
             }
 
 
@@ -116,7 +119,7 @@ def test_inject_128bit_trace_id_b3multi():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
+            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
 @pytest.mark.subprocess(
@@ -138,7 +141,7 @@ def test_inject_128bit_trace_id_b3_single_header():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
+            assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
 @pytest.mark.subprocess(
@@ -160,7 +163,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
+            assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
