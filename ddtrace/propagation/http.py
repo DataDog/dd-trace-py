@@ -948,7 +948,7 @@ class HTTPPropagator(object):
         """
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
-                "span_context and non_active_span.context are not the same, but should be, non_active_span.context "
+                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
                 "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
                 span_context,
                 non_active_span.context,
