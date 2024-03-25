@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    datastreams: Changed DSM processor error logs to debug logs for a statement which is retried.  If all retries fail, the stack trace is included
