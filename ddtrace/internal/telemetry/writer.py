@@ -422,6 +422,11 @@ class TelemetryWriter(PeriodicService):
         if register_app_shutdown:
             atexit.register(self.app_shutdown)
 
+        package_source_entry = ["instrumentation_config_id", "", "default"]
+        if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
+            package_source_entry[1] = os.environ["DD_INSTRUMENTATION_CONFIG_ID"]
+            package_source_entry[2] = "environment"
+
         self.add_configurations(
             [
                 self._telemetry_entry("_trace_enabled"),
@@ -435,6 +440,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
                 self._telemetry_entry("_tracing_enabled"),
+                package_source_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
