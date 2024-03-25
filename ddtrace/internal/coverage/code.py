@@ -20,10 +20,9 @@ ctx_covered = ContextVar("ctx_covered", default=None)
 ctx_coverage_enabed = ContextVar("ctx_coverage_enabled", default=False)
 
 
-def collapse_ranges(numbers):
+def collapse_ranges(numbers: t.List[int]) -> t.List[t.Tuple[int, int]]:
     # This function turns an ordered list of numbers into a list of ranges.
     # For example, [1, 2, 3, 5, 6, 7, 9] becomes [(1, 3), (5, 7), (9, 9)]
-    # WARNING: Written by Copilot
     if not numbers:
         return ""
     ranges = []
