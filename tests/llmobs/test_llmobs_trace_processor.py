@@ -2,11 +2,13 @@ import mock
 
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
+from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
+from tests.utils import override_global_config
 
 
 def test_processor_returns_all_traces():
@@ -117,3 +119,23 @@ def test_session_id_defaults_to_trace_id():
                 pass
     tp = LLMObsTraceProcessor(dummy_tracer._writer)
     assert tp._get_session_id(llm_span) == "{:x}".format(llm_span.trace_id)
+
+
+def test_ml_app_tag_defaults_to_env_var():
+    """Test that no ml_app defaults to the environment variable DD_LLMOBS_APP_NAME."""
+    with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
+        dummy_tracer = DummyTracer()
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            pass
+        tp = LLMObsTraceProcessor(dummy_tracer._writer)
+        assert "ml_app:<not-a-real-app-name>" in tp._llmobs_tags(llm_span)
+
+
+def test_ml_app_tag_overrides_env_var():
+    """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_APP_NAME."""
+    with override_global_config(dict(_llmobs_ml_app="<not-a-real-app-name>")):
+        dummy_tracer = DummyTracer()
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(ML_APP, "test-ml-app")
+        tp = LLMObsTraceProcessor(dummy_tracer._writer)
+        assert "ml_app:test-ml-app" in tp._llmobs_tags(llm_span)

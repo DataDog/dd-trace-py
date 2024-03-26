@@ -5,16 +5,20 @@
     "resource": "child",
     "trace_id": 0,
     "span_id": 1,
-    "parent_id": 13700571859906052169,
+    "parent_id": 6958320721841808734,
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": ""
+      "_dd.base_service": "",
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65cfa9ba00000000",
+      "language": "python"
     },
     "metrics": {
       "_dd.span_sampling.mechanism": 8,
-      "_dd.tracer_kr": 1.0
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1
     },
-    "duration": 14791,
-    "start": 1692900312248783421
+    "duration": 48000,
+    "start": 1708108218885144000
   }]]

@@ -9,6 +9,7 @@ from ddtrace import config as tracer_config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
@@ -17,6 +18,11 @@ from ddtrace.constants import IAST_ENV
 def _validate_sample_rate(r: float) -> None:
     if r < 0.0 or r > 1.0:
         raise ValueError("sample rate value must be between 0.0 and 1.0")
+
+
+def _validate_non_negative_int(r: int) -> None:
+    if r < 0:
+        raise ValueError("value must be non negative")
 
 
 def build_libddwaf_filename() -> str:
@@ -83,11 +89,26 @@ class ASMConfig(Env):
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
+    _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
+
+    # default will be set to True once the feature is GA. For now it's always False
+    # _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
+    _ep_enabled = False
+    _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
+    # for max_stack_traces, 0 == unlimited
+    _ep_max_stack_traces = Env.var(
+        int, EXPLOIT_PREVENTION.MAX_STACK_TRACES, default=2, validator=_validate_non_negative_int
+    )
+    # for max_stack_trace_depth, 0 == unlimited
+    _ep_max_stack_trace_depth = Env.var(
+        int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
+    )
 
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
         "_iast_enabled",
+        "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
         "_user_model_login_field",
@@ -102,7 +123,11 @@ class ASMConfig(Env):
         "_iast_redaction_name_pattern",
         "_iast_redaction_value_pattern",
         "_iast_lazy_taint",
+        "_ep_stack_trace_enabled",
+        "_ep_max_stack_traces",
+        "_ep_max_stack_trace_depth",
         "_asm_config_keys",
+        "_deduplication_enabled",
     ]
     _iast_redaction_numeral_pattern = Env.var(
         str,

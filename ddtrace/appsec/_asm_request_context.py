@@ -15,6 +15,7 @@ from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -245,12 +246,12 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, str]]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[DDWaf_result]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
-        return callback(custom_data)
+        return callback(custom_data, **kwargs)
     else:
         log.warning("WAF callback called but not set")
         return None
@@ -504,7 +505,8 @@ def _call_waf_first(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _call_waf(integration, *_):
@@ -512,7 +514,8 @@ def _call_waf(integration, *_):
         return
 
     log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
-    return call_waf_callback()
+    result = call_waf_callback()
+    return result.derivatives if result is not None else None
 
 
 def _on_block_decided(callback):

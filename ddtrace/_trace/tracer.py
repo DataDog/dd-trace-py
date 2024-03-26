@@ -21,7 +21,6 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.processor import SpanSamplingProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
@@ -57,6 +56,7 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -66,6 +66,7 @@ from ddtrace.sampler import BaseSampler
 from ddtrace.sampler import DatadogSampler
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:
@@ -112,13 +113,18 @@ def _default_span_processors_factory(
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
+    trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
-    trace_processors += [TraceTagsProcessor(), PeerServiceProcessor(_ps_config), BaseServiceProcessor()]
-    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    trace_processors += [
+        PeerServiceProcessor(_ps_config),
+        BaseServiceProcessor(),
+        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules),
+        TraceTagsProcessor(),
+    ]
     trace_processors += trace_filters
 
     span_processors: List[SpanProcessor] = []
@@ -164,9 +170,6 @@ def _default_span_processors_factory(
         )
 
     span_processors.append(profiling_span_processor)
-
-    if single_span_sampling_rules:
-        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
     # These need to run after all the other processors
     deferred_processors: List[SpanProcessor] = [
@@ -228,7 +231,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         self._user_sampler: Optional[BaseSampler] = None
-        self.sampler: BaseSampler = DatadogSampler()
+        self._sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -264,6 +267,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
@@ -276,6 +280,7 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
+        forksafe.register_before_fork(self._sample_before_fork)
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
@@ -294,6 +299,31 @@ class Tracer(object):
             key,
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
+
+    def sample(self, span):
+        if self._sampler is not None:
+            self._sampler.sample(span)
+        else:
+            log.error("No sampler available to sample span")
+
+    @property
+    def sampler(self):
+        deprecate(
+            "tracer.sampler is deprecated and will be removed.",
+            message="To manually sample call tracer.sample(span) instead.",
+            category=DDTraceDeprecationWarning,
+        )
+        return self._sampler
+
+    @sampler.setter
+    def sampler(self, value):
+        deprecate(
+            "Setting a custom sampler is deprecated and will be removed.",
+            message="""Please use DD_TRACE_SAMPLING_RULES to configure the sampler instead:
+    https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
+            category=DDTraceDeprecationWarning,
+        )
+        self._sampler = value
 
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
@@ -316,6 +346,29 @@ class Tracer(object):
 
         self._hooks.deregister(self.__class__.start_span, func)
         return func
+
+    def _sample_before_fork(self) -> None:
+        span = self.current_root_span()
+        if span is not None and span.context.sampling_priority is None:
+            self.sample(span)
+
+    @property
+    def _sampler(self):
+        return self._sampler_current
+
+    @_sampler.setter
+    def _sampler(self, value):
+        self._sampler_current = value
+        # we need to update the processor that uses the sampler
+        if getattr(self, "_deferred_processors", None):
+            for aggregator in self._deferred_processors:
+                if type(aggregator) == SpanAggregator:
+                    for processor in aggregator._trace_processors:
+                        if type(processor) == TraceSamplingProcessor:
+                            processor.sampler = value
+                            break
+            else:
+                log.debug("No TraceSamplingProcessor available to update sampling rate")
 
     @property
     def debug_logging(self):
@@ -415,8 +468,8 @@ class Tracer(object):
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
         if sampler is not None:
-            self.sampler = sampler
-            self._user_sampler = self.sampler
+            self._sampler = sampler
+            self._user_sampler = self._sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -501,6 +554,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self._sampler,
                 self._endpoint_call_counter_span_processor,
             )
 
@@ -519,8 +573,8 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self.sampler, BasePrioritySampler):
-                self.sampler.update_rate_by_service_sample_rates(
+            if isinstance(self._sampler, BasePrioritySampler):
+                self._sampler.update_rate_by_service_sample_rates(
                     resp.rate_by_service,
                 )
         except ValueError:
@@ -566,6 +620,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._sampler,
             self._endpoint_call_counter_span_processor,
         )
 
@@ -750,9 +805,6 @@ class Tracer(object):
         # update set of services handled by tracer
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
-
-        if not trace_id:
-            self.sampler.sample(span)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
@@ -1018,6 +1070,7 @@ class Tracer(object):
 
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
+            forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
@@ -1072,15 +1125,16 @@ class Tracer(object):
         if "_trace_sample_rate" in items:
             # Reset the user sampler if one exists
             if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                self.sampler = self._user_sampler
+                self._sampler = self._user_sampler
                 return
 
             if cfg._get_source("_trace_sample_rate") != "default":
                 sample_rate = cfg._trace_sample_rate
             else:
                 sample_rate = None
+
             sampler = DatadogSampler(default_sample_rate=sample_rate)
-            self.sampler = sampler
+            self._sampler = sampler
 
         if "tags" in items:
             self._tags = cfg.tags.copy()
