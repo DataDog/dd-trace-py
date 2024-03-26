@@ -1,6 +1,4 @@
 # 3p
-import asyncio
-
 import aiopg.connection
 import psycopg2.extensions
 
@@ -25,20 +23,19 @@ def patch():
         return
     aiopg._datadog_patch = True
 
-    wrapt.wrap_function_wrapper(aiopg.connection, "_connect", patched_connect)
+    wrapt.wrap_function_wrapper(aiopg.connection, "connect", patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
 
 
 def unpatch():
     if getattr(aiopg, "_datadog_patch", False):
         aiopg._datadog_patch = False
-        _u(aiopg.connection, "_connect")
+        _u(aiopg.connection, "connect")
         _unpatch_extensions(_aiopg_extensions)
 
 
-@asyncio.coroutine
-def patched_connect(connect_func, _, args, kwargs):
-    conn = yield from connect_func(*args, **kwargs)
+async def patched_connect(connect_func, _, args, kwargs):
+    conn = await connect_func(*args, **kwargs)
     return psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
 
 
