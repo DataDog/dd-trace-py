@@ -128,46 +128,46 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("topP", None),
-            "max_tokens": request_body.get("maxTokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("topP", ""),
+            "max_tokens": request_body.get("maxTokens", ""),
             "stop_sequences": request_body.get("stopSequences", []),
         }
     elif provider == _AMAZON:
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),
-            "temperature": text_generation_config.get("temperature", None),
-            "top_p": text_generation_config.get("topP", None),
-            "max_tokens": text_generation_config.get("maxTokenCount", None),
+            "temperature": text_generation_config.get("temperature", ""),
+            "top_p": text_generation_config.get("topP", ""),
+            "max_tokens": text_generation_config.get("maxTokenCount", ""),
             "stop_sequences": text_generation_config.get("stopSequences", []),
         }
     elif provider == _ANTHROPIC:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "top_k": request_body.get("top_k", None),
-            "max_tokens": request_body.get("max_tokens_to_sample", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "top_k": request_body.get("top_k", ""),
+            "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
         }
     elif provider == _COHERE:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("p", None),
-            "top_k": request_body.get("k", None),
-            "max_tokens": request_body.get("max_tokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("p", ""),
+            "top_k": request_body.get("k", ""),
+            "max_tokens": request_body.get("max_tokens", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
-            "stream": request_body.get("stream", None),
-            "n": request_body.get("num_generations", None),
+            "stream": request_body.get("stream", ""),
+            "n": request_body.get("num_generations", ""),
         }
     elif provider == _META:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "max_tokens": request_body.get("max_gen_len", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "max_tokens": request_body.get("max_gen_len", ""),
         }
     elif provider == _STABILITY:
         # TODO: request/response formats are different for image-based models. Defer for now
