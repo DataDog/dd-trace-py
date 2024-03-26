@@ -31,17 +31,17 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
         session_settings: CIVisibilitySessionSettings,
         initial_tags: Optional[Dict[str, str]] = None,
     ):
-        log.warning("Initializing CI Visibility session %s", item_id)
+        log.debug("Initializing CI Visibility session %s", item_id)
         super().__init__(item_id, session_settings, initial_tags)
         self._test_command = self._session_settings.test_command
         self._operation_name = self._session_settings.session_operation_name
 
     def start(self):
-        log.warning("Starting CI Visibility instance %s", self.item_id)
+        log.debug("Starting CI Visibility instance %s", self.item_id)
         super().start()
 
     def finish(self, force: bool = False, override_status: Optional[Enum] = None):
-        log.warning("Finishing CI Visibility instance %s", self.item_id)
+        log.debug("Finishing CI Visibility instance %s", self.item_id)
         super().finish()
 
     def _get_hierarchy_tags(self) -> Dict[str, Any]:

@@ -36,11 +36,11 @@ class CIVisibilityModule(
         self._operation_name = session_settings.module_operation_name
 
     def start(self):
-        log.warning("Starting CI Visibility module %s", self.item_id)
+        log.debug("Starting CI Visibility module %s", self.item_id)
         super().start()
 
     def finish(self, force: bool = False, override_status: Optional[Enum] = None):
-        log.warning("Finishing CI Visibility module %s", self.item_id)
+        log.debug("Finishing CI Visibility module %s", self.item_id)
         super().finish()
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
