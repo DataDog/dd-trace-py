@@ -253,7 +253,7 @@ tracer.trace("hello").finish()
 
     events = test_agent_session.get_events("app-started")
 
-    assert len(events) >= initial_event_count + 3
+    assert len(events) == 1
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
