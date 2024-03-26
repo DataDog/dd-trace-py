@@ -293,6 +293,8 @@ class DatadogSampler(RateByServiceSampler):
         return sampling_rules
 
     def sample(self, span):
+        span.context._update_tags(span)
+
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
         sampler = self._default_sampler  # type: BaseSampler

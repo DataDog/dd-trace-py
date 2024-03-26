@@ -168,7 +168,7 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 5,
-             "type": "",
+             "type": "llm",
              "error": 0,
              "meta": {
                "_dd.p.tid": "654a694400000000",

@@ -46,16 +46,6 @@ class CIVisibilitySessionSettings(NamedTuple):
     reject_duplicates: bool = True
 
 
-# These keys are used to explicitly call Span.set_tag() instead of Span.set_tag_str()
-# - optimizes the use of set_tag() which is slightly heavier than set_tag_str()
-# - set_tag_str() uses ensure_text() to make sure the value is a properly encoded string
-USE_SET_TAG_KEYS = {
-    test.SOURCE_START,
-    test.SOURCE_END,
-    test.TEST_LINES_PCT,
-}
-
-
 class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
 
@@ -122,12 +112,12 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         return wrapper
 
     def _add_all_tags_to_span(self):
-        for tag in self._tags:
+        for tag, tag_value in self._tags.items():
             try:
-                if tag in USE_SET_TAG_KEYS:
-                    self._span.set_tag(tag, self._tags[tag])
+                if isinstance(tag_value, str):
+                    self._span.set_tag_str(tag, tag_value)
                 else:
-                    self._span.set_tag_str(tag, self._tags[tag])
+                    self._span.set_tag(tag, tag_value)
             except Exception as e:
                 log.debug("Error setting tag %s: %s", tag, e)
 
@@ -340,7 +330,8 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             return CITestStatus.FAIL
         if children_status_counts[CITestStatus.SKIP.value] == len(self.children):
             return CITestStatus.SKIP
-        if children_status_counts[CITestStatus.PASS.value] == len(self.children):
+        # We can assume the current item passes if not all children are skipped, and there were no failures
+        if children_status_counts[CITestStatus.FAIL.value] == 0:
             return CITestStatus.PASS
 
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution

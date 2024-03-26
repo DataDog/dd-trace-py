@@ -113,4 +113,22 @@ def get_app():
     async def stream():
         return StreamingResponse(slow_numbers(0, 10), media_type="text/html")
 
+    @app.get("/rasp/{endpoint:str}/")
+    @app.post("/rasp/{endpoint:str}/")
+    @app.options("/rasp/{endpoint:str}/")
+    async def rasp(endpoint: str, request: Request):
+        query_params = dict(request.query_params)
+        if endpoint == "lfi":
+            res = []
+            for param in query_params:
+                if param.startswith("filename"):
+                    filename = query_params[param]
+                try:
+                    with open(filename, "rb") as f:
+                        res.append(f"File: {f.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            return HTMLResponse("<\br>\n".join(res))
+        return HTMLResponse(f"Unknown endpoint: {endpoint}")
+
     return app
