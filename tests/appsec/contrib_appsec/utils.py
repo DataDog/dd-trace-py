@@ -1087,22 +1087,41 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
 
-    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
-    def test_exploit_prevention_lfi(self, interface, root_span, get_tag):
+    # @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("ep_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ["endpoint", "parameters", "rule"],
+        [
+            ("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100"),
+            ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100"),
+        ],
+    )
+    def test_exploit_prevention_lfi(
+        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule
+    ):
         from ddtrace.appsec._common_module_patches import patch_common_modules
+        from ddtrace.appsec._common_module_patches import unpatch_common_modules
         from ddtrace.ext import http
 
-        patch_common_modules()
-        with override_global_config(dict(_asm_enabled=True, _ep_enabled=True)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
-        ):
-            self.update_tracer(interface)
-            response = interface.client.get("/rasp/lfi/?filename1=/etc/passwd&filename2=/etc/master.passwd")
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
-            self.check_rules_triggered(["rasp-930-100"] * 2, root_span)
-            assert self.check_for_stack_trace(root_span)
+        try:
+            patch_common_modules()
+            with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
+                dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
+            ):
+                self.update_tracer(interface)
+                response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert self.body(response).startswith(f"{endpoint} endpoint")
+                if asm_enabled and ep_enabled:
+                    self.check_rules_triggered([rule] * 2, root_span)
+                    assert self.check_for_stack_trace(root_span)
+                else:
+                    assert get_triggers(root_span()) is None
+                    assert self.check_for_stack_trace(root_span) == []
+        finally:
+            unpatch_common_modules()
 
 
 @contextmanager
