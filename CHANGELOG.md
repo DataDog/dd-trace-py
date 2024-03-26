@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.5
+
+
+### New Features
+
+- kafka: Adds tracing and DSM support for `confluent_kafka.Consumer.consume()`. Previously only <span class="title-ref">confluent_kafka.Consumer.poll</span> was instrumented.
+
+### Bug Fixes
+
+- ASM: always clear the DDWaf context at the end of the span to avoid gc-induced latency spikes at the end of some requests.
+- structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection when resetting to defaults.
+
+
+---
+
 ## 2.6.9
 
 
