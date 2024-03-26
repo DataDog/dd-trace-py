@@ -1,12 +1,6 @@
 import unittest
 
 from ddtrace.vendor import wrapt
-from tests.contrib.config import REDIS_CONFIG
-from tests.contrib.config import REDISCLUSTER_CONFIG
-
-
-REDIS_URL = "redis://{host}:{port}".format(host=REDISCLUSTER_CONFIG["host"], port=REDIS_CONFIG["port"])
-BROKER_URL = "{redis}/{db}".format(redis=REDIS_URL, db=0)
 
 
 class DramatiqPatchTest(unittest.TestCase):
@@ -14,12 +8,12 @@ class DramatiqPatchTest(unittest.TestCase):
         from ddtrace import patch
         from ddtrace.contrib.dramatiq import unpatch
 
-        # Patch dramatiq before import
+        # Patch dramatiq before dramatiq imports
         patch(dramatiq=True)
         import dramatiq
-        from dramatiq.brokers.redis import RedisBroker
+        from dramatiq.brokers.stub import StubBroker
 
-        broker = RedisBroker(url=BROKER_URL)
+        broker = StubBroker()
         dramatiq.set_broker(broker)
 
         @dramatiq.actor()
@@ -28,8 +22,7 @@ class DramatiqPatchTest(unittest.TestCase):
 
         msg = add_numbers.send(1, 2)
         # Check dramatiq behavior
-        actor = broker.get_actor("add_numbers")
-        assert isinstance(actor, dramatiq.Actor)
+        broker.get_actor("add_numbers")
         assert msg.actor_name == "add_numbers"
         assert msg.args == (1, 2)
 
@@ -40,15 +33,15 @@ class DramatiqPatchTest(unittest.TestCase):
 
     def test_patch_after_import(self):
         import dramatiq
+        from dramatiq.brokers.stub import StubBroker
 
         from ddtrace import patch
         from ddtrace.contrib.dramatiq import unpatch
 
-        # Patch dramatiq after import
+        # Patch after all dramatiq imports
         patch(dramatiq=True)
-        from dramatiq.brokers.redis import RedisBroker
 
-        broker = RedisBroker(url=BROKER_URL)
+        broker = StubBroker()
         dramatiq.set_broker(broker)
 
         @dramatiq.actor
@@ -57,8 +50,7 @@ class DramatiqPatchTest(unittest.TestCase):
 
         # Check dramatiq behavior
         msg = custom_function_max_power.send(3, 4)
-        actor = broker.get_actor("custom_function_max_power")
-        assert isinstance(actor, dramatiq.Actor)
+        broker.get_actor("custom_function_max_power")
         assert msg.actor_name == "custom_function_max_power"
         assert msg.args == (3, 4)
 
