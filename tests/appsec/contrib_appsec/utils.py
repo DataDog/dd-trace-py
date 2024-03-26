@@ -56,10 +56,14 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
+    def check_for_stack_trace(self, root_span):
+        appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
+        exploit = appsec_traces.get("exploit", [])
+        return exploit
+
     def check_single_rule_triggered(self, rule_id: str, root_span):
         triggers = get_triggers(root_span())
         assert triggers is not None, "no appsec struct in root span"
-        print(triggers)
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
@@ -1082,6 +1086,23 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
+
+    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
+    def test_exploit_prevention_lfi(self, interface, root_span, get_tag):
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+        from ddtrace.ext import http
+
+        patch_common_modules()
+        with override_global_config(dict(_asm_enabled=True, _ep_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/rasp/lfi/?filename1=/etc/passwd&filename2=/etc/master.passwd")
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
+            self.check_rules_triggered(["rasp-930-100"] * 2, root_span)
+            assert self.check_for_stack_trace(root_span)
 
 
 @contextmanager
