@@ -246,7 +246,6 @@ tracer.configure(
 # generate and encode span
 tracer.trace("hello").finish()
 """
-    initial_event_count = len(test_agent_session.get_events())
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
@@ -254,7 +253,6 @@ tracer.trace("hello").finish()
     events = test_agent_session.get_events("app-started")
 
     assert len(events) == 1
-
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
