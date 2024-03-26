@@ -251,7 +251,7 @@ tracer.trace("hello").finish()
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-started")
 
     assert len(events) >= initial_event_count + 3
 
