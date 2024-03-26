@@ -1,6 +1,7 @@
 import unittest
 
 import dramatiq
+import pytest
 
 from ddtrace.contrib.dramatiq import patch
 from ddtrace.contrib.dramatiq import unpatch
@@ -85,8 +86,9 @@ class DramatiqSnapshotTests(unittest.TestCase):
         def fn_task(a: int, b: int) -> int:
             return a + b
 
-        # send() with missing pararms
-        fn_task.send()
+        # send() with invalid pararms
+        with pytest.raises(TypeError):
+            fn_task.send_with_options([])
 
 
 @snapshot(wait_for_num_traces=1)
