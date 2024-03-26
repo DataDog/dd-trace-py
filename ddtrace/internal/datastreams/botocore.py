@@ -151,7 +151,6 @@ def record_data_streams_path_for_kinesis_stream(params, results):
         log.debug("Unable to determine StreamARN for request with params: ", params)
         return
 
-<<<<<<< HEAD
     pathway = processor().new_pathway()
     for record in results.get("Records", []):
         time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
@@ -160,14 +159,6 @@ def record_data_streams_path_for_kinesis_stream(params, results):
             edge_start_sec_override=time_estimate,
             pathway_start_sec_override=time_estimate,
         )
-=======
-    ctx = DsmPathwayCodec.decode(context_json, processor())
-    ctx.set_checkpoint(
-        ["direction:in", "topic:" + stream, "type:kinesis"],
-        edge_start_sec_override=time_estimate,
-        pathway_start_sec_override=time_estimate,
-    )
->>>>>>> 3dd4c9d9c (feat(datastreams): change DSM encoding to use base64 and decoding to handle multiple encoding types (#8611))
 
 
 def handle_kinesis_receive(params, result):
