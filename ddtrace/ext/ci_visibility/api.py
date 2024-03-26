@@ -20,9 +20,9 @@ from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Tuple
 from typing import Type
 
+from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
@@ -78,7 +78,7 @@ class CISuiteId(_CIVisibilityChildItemIdBase[CIModuleId]):
 
 @dataclasses.dataclass(frozen=True)
 class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
-    test_parameters: Optional[Tuple[Tuple[str, Any], ...]] = None
+    parameters: Optional[str] = None  # For hashability, a JSON string of a dictionary of parameters
     retry_number: int = 0
 
     def __repr__(self):
@@ -87,7 +87,7 @@ class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
             self.parent_id.parent_id.name,
             self.parent_id.name,
             self.name,
-            self.test_parameters,
+            self.parameters,
             self.retry_number,
         )
 
@@ -122,7 +122,29 @@ def disable_ci_visibility():
         log.warning("CI Visibility disabling failed.")
 
 
-class CISession(_CIVisibilityAPIBase):
+class CIBase(_CIVisibilityAPIBase):
+    @staticmethod
+    def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any, recurse: bool = False):
+        log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
+        core.dispatch("ci_visibility.item.set_tag", (_CIVisibilityAPIBase.SetTagArgs(item_id, tag_name, tag_value),))
+
+    @staticmethod
+    def set_tags(item_id: CIItemId, tags: Dict[str, Any], recurse: bool = False):
+        log.debug("Setting tags for item %s: %s", item_id, tags)
+        core.dispatch("ci_visibility.item.set_tags", (_CIVisibilityAPIBase.SetTagsArgs(item_id, tags),))
+
+    @staticmethod
+    def delete_tag(item_id: CIItemId, tag_name: str, recurse: bool = False):
+        log.debug("Deleting tag for item %s: %s", item_id, tag_name)
+        core.dispatch("ci_visibility.item.delete_tag", (_CIVisibilityAPIBase.DeleteTagArgs(item_id, tag_name),))
+
+    @staticmethod
+    def delete_tags(item_id: CIItemId, tag_names: List[str], recurse: bool = False):
+        log.debug("Deleting tags for item %s: %s", item_id, tag_names)
+        core.dispatch("ci_visibility.item.delete_tags", (_CIVisibilityAPIBase.DeleteTagsArgs(item_id, tag_names),))
+
+
+class CISession(CIBase):
     class DiscoverArgs(NamedTuple):
         session_id: CISessionId
         test_command: str
@@ -219,28 +241,8 @@ class CISession(_CIVisibilityAPIBase):
     def get_known_tests(item_id: Optional[CISessionId] = None):
         pass
 
-    @staticmethod
-    @_catch_and_log_exceptions
-    def set_tag(tag_name: str, tag_value: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
-        pass
 
-    @staticmethod
-    @_catch_and_log_exceptions
-    def set_tags(tags: Dict[str, str], item_id: Optional[CISessionId] = None, recurse: bool = False):
-        pass
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def delete_tag(tag_name: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
-        pass
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def delete_tags(tag_name: str, item_id: Optional[CISessionId] = None, recurse: bool = False):
-        pass
-
-
-class CIModule(_CIVisibilityAPIBase):
+class CIModule(CIBase):
     class DiscoverArgs(NamedTuple):
         module_id: CIModuleId
 
@@ -279,7 +281,7 @@ class CIModule(_CIVisibilityAPIBase):
         )
 
 
-class CISuite(_CIVisibilityAPIBase):
+class CISuite(CIBase):
     class DiscoverArgs(NamedTuple):
         suite_id: CISuiteId
         codeowners: Optional[List[str]] = None
@@ -339,7 +341,7 @@ class CISuite(_CIVisibilityAPIBase):
         log.debug("Adding coverage data for suite %s: %s", item_id, coverage_data)
 
 
-class CITest(_CIVisibilityAPIBase):
+class CITest(CIBase):
     class DiscoverArgs(NamedTuple):
         test_id: CITestId
         codeowners: Optional[List[str]] = None
@@ -373,8 +375,8 @@ class CITest(_CIVisibilityAPIBase):
             log.warning(
                 "Cannot register early flake retry of test %s with retry number %s", item_id, item_id.retry_number
             )
-        log.warning("Registered early flake retry for test %s, retry number: %s", item_id, item_id.retry_number)
-        original_test_id = CITestId(item_id.parent_id, item_id.name, item_id.test_parameters)
+        log.debug("Registered early flake retry for test %s, retry number: %s", item_id, item_id.retry_number)
+        original_test_id = CITestId(item_id.parent_id, item_id.name, item_id.parameters)
         core.dispatch(
             "ci_visibility.test.discover_early_flake_retry",
             (CITest.DiscoverEarlyFlakeRetryArgs(original_test_id, item_id.retry_number),),
@@ -402,7 +404,7 @@ class CITest(_CIVisibilityAPIBase):
         exc_info: Optional[CIExcInfo] = None,
         is_itr_skipped: bool = False,
     ):
-        log.warning(
+        log.debug(
             "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s, is_itr_skipped: %s",
             item_id,
             status,
@@ -427,7 +429,7 @@ class CITest(_CIVisibilityAPIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_fail(item_id: CITestId, exc_info: CIExcInfo):
+    def mark_fail(item_id: CITestId, exc_info: Optional[CIExcInfo] = None):
         log.debug("Marking test %s as failed, exc_info: %s", item_id, exc_info)
         CITest.finish(item_id, CITestStatus.FAIL, exc_info=exc_info)
 

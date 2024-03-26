@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "parent",
+    "service": "",
+    "resource": "parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65f8a77100000000",
+      "language": "python",
+      "runtime-id": "005360373bf04c7fb732555994db4f78"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 5837
+    },
+    "duration": 1004386709,
+    "start": 1710794609240060721
+  }]]

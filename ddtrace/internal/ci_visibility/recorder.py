@@ -13,6 +13,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
+from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -662,6 +663,24 @@ class CIVisibility(Service):
         return cls._instance._session_data[session_id]
 
     @classmethod
+    def get_item_by_id(cls, item_id: CIItemId):
+        if cls._instance is None:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        if isinstance(item_id, CISessionId):
+            return cls.get_session_by_id(item_id)
+        if isinstance(item_id, CIModuleId):
+            return cls.get_module_by_id(item_id)
+        if isinstance(item_id, CISuiteId):
+            return cls.get_suite_by_id(item_id)
+        if isinstance(item_id, CITestId):
+            return cls.get_test_by_id(item_id)
+        error_msg = f"Unknown item id type: {type(item_id)}"
+        log.warning(error_msg)
+        raise CIVisibilityError(error_msg)
+
+    @classmethod
     def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
@@ -740,7 +759,7 @@ def _requires_civisibility_enabled(func):
 
 @_requires_civisibility_enabled
 def _on_discover_session(discover_args: CISession.DiscoverArgs):
-    log.error("Handling session discovery")
+    log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
     tracer = CIVisibility.get_tracer()
@@ -774,14 +793,14 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
 
 @_requires_civisibility_enabled
 def _on_start_session(session_id: CISessionId):
-    log.warning("Handling start for session id %s", session_id)
+    log.debug("Handling start for session id %s", session_id)
     session = CIVisibility.get_session_by_id(session_id)
     session.start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_session(finish_args: CISession.FinishArgs):
-    log.warning("Handling finish for session id %s", finish_args)
+    log.debug("Handling finish for session id %s", finish_args)
     session = CIVisibility.get_session_by_id(finish_args.session_id)
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
@@ -795,7 +814,7 @@ def _register_session_handlers():
 
 @_requires_civisibility_enabled
 def _on_discover_module(discover_args: CIModule.DiscoverArgs):
-    log.warning("Handling discovery for module %s", discover_args.module_id)
+    log.debug("Handling discovery for module %s", discover_args.module_id)
     session = CIVisibility.get_session_by_id(discover_args.module_id.get_session_id())
 
     session.add_child(
@@ -808,13 +827,13 @@ def _on_discover_module(discover_args: CIModule.DiscoverArgs):
 
 @_requires_civisibility_enabled
 def _on_start_module(module_id: CIModuleId):
-    log.warning("Handling start for module id %s", module_id)
+    log.debug("Handling start for module id %s", module_id)
     CIVisibility.get_module_by_id(module_id).start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_module(finish_args: CIModule.FinishArgs):
-    log.warning("Handling finish for module id %s", finish_args.module_id)
+    log.debug("Handling finish for module id %s", finish_args.module_id)
     CIVisibility.get_module_by_id(finish_args.module_id).finish()
 
 
@@ -827,7 +846,7 @@ def _register_module_handlers():
 
 @_requires_civisibility_enabled
 def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
-    log.warning("Handling discovery for suite args %s", discover_args)
+    log.debug("Handling discovery for suite args %s", discover_args)
     module = CIVisibility.get_module_by_id(discover_args.suite_id.parent_id)
     if discover_args.suite_id in module.children:
         log.warning("Suite with id %s already exists", discover_args.suite_id)
@@ -845,13 +864,13 @@ def _on_discover_suite(discover_args: CISuite.DiscoverArgs):
 
 @_requires_civisibility_enabled
 def _on_start_suite(suite_id: CISuiteId):
-    log.warning("Handling start for suite id %s", suite_id)
+    log.debug("Handling start for suite id %s", suite_id)
     CIVisibility.get_suite_by_id(suite_id).start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_suite(finish_args: CISuite.FinishArgs):
-    log.warning("Handling finish for suite id %s", finish_args.suite_id)
+    log.debug("Handling finish for suite id %s", finish_args.suite_id)
     CIVisibility.get_suite_by_id(finish_args.suite_id).finish(
         finish_args.force_finish_children, finish_args.override_status, finish_args.is_itr_skipped
     )
@@ -866,7 +885,7 @@ def _register_suite_handlers():
 
 @_requires_civisibility_enabled
 def _on_discover_test(discover_args: CITest.DiscoverArgs):
-    log.warning("Handling discovery for test %s", discover_args.test_id)
+    log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
     if discover_args.test_id in suite.children:
         log.warning("Test with id %s already exists", discover_args.test_id)
@@ -883,7 +902,7 @@ def _on_discover_test(discover_args: CITest.DiscoverArgs):
 
 @_requires_civisibility_enabled
 def _on_discover_test_early_flake_retry(args: CITest.DiscoverEarlyFlakeRetryArgs):
-    log.warning("Handling early flake discovery for test %s", args.test_id)
+    log.debug("Handling early flake discovery for test %s", args.test_id)
     suite = CIVisibility.get_suite_by_id(args.test_id.parent_id)
     try:
         original_test = suite.get_child_by_id(args.test_id)
@@ -896,13 +915,13 @@ def _on_discover_test_early_flake_retry(args: CITest.DiscoverEarlyFlakeRetryArgs
 
 @_requires_civisibility_enabled
 def _on_start_test(test_id: CITestId):
-    log.warning("Handling start for test id %s", test_id)
+    log.debug("Handling start for test id %s", test_id)
     CIVisibility.get_test_by_id(test_id).start()
 
 
 @_requires_civisibility_enabled
 def _on_finish_test(finish_args: CITest.FinishArgs):
-    log.warning("Handling finish for test id %s, with status %s", finish_args.test_id, finish_args.status)
+    log.debug("Handling finish for test id %s, with status %s", finish_args.test_id, finish_args.status)
     CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
         finish_args.status, finish_args.skip_reason, finish_args.exc_info, finish_args.is_itr_skipped
     )
@@ -916,7 +935,49 @@ def _register_test_handlers():
     core.on("ci_visibility.test.finish", _on_finish_test)
 
 
+@_requires_civisibility_enabled
+def _on_set_tag(set_tag_args: _CIVisibilityAPIBase.SetTagArgs) -> None:
+    item_id = set_tag_args.item_id
+    key = set_tag_args.name
+    value = set_tag_args.value
+    log.debug("Handling set tag for item id %s, key %s, value %s", item_id, key, value)
+    CIVisibility.get_item_by_id(item_id).set_tag(key, value)
+
+
+@_requires_civisibility_enabled
+def _on_set_tags(set_tags_args: _CIVisibilityAPIBase.SetTagsArgs) -> None:
+    item_id = set_tags_args.item_id
+    tags = set_tags_args.tags
+    log.debug("Handling set tags for item id %s, tags %s", item_id, tags)
+    CIVisibility.get_item_by_id(item_id).set_tags(tags)
+
+
+@_requires_civisibility_enabled
+def _on_delete_tag(delete_tag_args: _CIVisibilityAPIBase.DeleteTagArgs) -> None:
+    item_id = delete_tag_args.item_id
+    key = delete_tag_args.name
+    log.debug("Handling delete tag for item id %s, key %s", item_id, key)
+    CIVisibility.get_item_by_id(item_id).delete_tag(key)
+
+
+@_requires_civisibility_enabled
+def _on_delete_tags(delete_tags_args: _CIVisibilityAPIBase.DeleteTagsArgs) -> None:
+    item_id = delete_tags_args.item_id
+    keys = delete_tags_args.names
+    log.debug("Handling delete tags for item id %s, keys %s", item_id, keys)
+    CIVisibility.get_item_by_id(item_id).delete_tags(keys)
+
+
+def _register_tag_handlers():
+    log.debug("Registering tag handlers")
+    core.on("ci_visibility.item.set_tag", _on_set_tag)
+    core.on("ci_visibility.item.set_tags", _on_set_tags)
+    core.on("ci_visibility.item.delete_tag", _on_delete_tag)
+    core.on("ci_visibility.item.delete_tags", _on_delete_tags)
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
 _register_test_handlers()
+_register_tag_handlers()
