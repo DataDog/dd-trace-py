@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection 
+    when resetting to defaults.
