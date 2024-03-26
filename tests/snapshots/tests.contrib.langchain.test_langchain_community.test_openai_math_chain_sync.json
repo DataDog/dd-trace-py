@@ -68,7 +68,7 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
+          "type": "llm",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",

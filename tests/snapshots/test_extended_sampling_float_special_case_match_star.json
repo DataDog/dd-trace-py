@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "should_send",
+    "service": "",
+    "resource": "should_send",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "6600aa0700000000",
+      "language": "python",
+      "runtime-id": "8eef084f89104256b5f82b95c235139c"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 53744,
+      "tag": 20.1
+    },
+    "duration": 25000,
+    "start": 1711319559844282297
+  }]]
