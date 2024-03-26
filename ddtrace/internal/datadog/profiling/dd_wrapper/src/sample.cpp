@@ -1,5 +1,6 @@
 #include "sample.hpp"
 
+#include <chrono>
 #include <thread>
 
 using namespace Datadog;
@@ -129,7 +130,7 @@ Sample::flush_sample()
         .labels = { labels.data(), cur_label },
     };
 
-    const bool ret = profile_state.collect(sample);
+    const bool ret = profile_state.collect(sample, endtime_ns);
     clear_buffers();
     return ret;
 }
@@ -312,6 +313,29 @@ Sample::push_class_name(std::string_view class_name)
         return false;
     }
     return true;
+}
+
+void
+Sample::push_monotonic_ns(int64_t _monotonic_ns)
+{
+    // Monotonic times have their epoch at the system start, so they need an
+    // adjustment to the standard epoch
+    // Just set a static for now and use a lambda to compute the offset once
+    const static auto offset = []() {
+        // Get the current epoch time
+        using namespace std::chrono;
+        auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+
+        // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
+        // which clock is actually used in std::chrono
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+
+        // Compute the difference.  We're after 1970, so epoch_ns will be larger
+        return epoch_ns - monotonic_ns;
+    }();
+    endtime_ns = _monotonic_ns + offset;
 }
 
 ddog_prof_Profile&
