@@ -255,8 +255,6 @@ tracer.trace("hello").finish()
 
     assert len(events) == 1
 
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
