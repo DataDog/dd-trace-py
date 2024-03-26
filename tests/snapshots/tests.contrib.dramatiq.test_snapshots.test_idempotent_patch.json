@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "dramatiq.Actor.send_with_options",
+    "service": "",
+    "resource": "dramatiq.Actor.send_with_options",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6602d56200000000",
+      "actor.name": "fn_task",
+      "actor.options": "{}",
+      "language": "python",
+      "runtime-id": "0dfd31a47b7b464e9ae9fc50458abec0",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 28429
+    },
+    "duration": 2302875,
+    "start": 1711461730557774711
+  }],
+[
+  {
+    "name": "dramatiq.Actor.send_with_options",
+    "service": "",
+    "resource": "dramatiq.Actor.send_with_options",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6602d56200000000",
+      "actor.name": "fn_task",
+      "actor.options": "{}",
+      "language": "python",
+      "runtime-id": "0dfd31a47b7b464e9ae9fc50458abec0",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 28429
+    },
+    "duration": 436917,
+    "start": 1711461730561025544
+  }]]

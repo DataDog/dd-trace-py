@@ -33,6 +33,7 @@ PATCH_MODULES = {
     "celery": True,
     "consul": True,
     "django": True,
+    "dramatiq": True,
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
