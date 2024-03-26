@@ -27,18 +27,6 @@ You may also enable dramatiq tracing automatically via ddtrace-run::
 
     ddtrace-run python app.py
 
-
-Configuration
-~~~~~~~~~~~~~
-
-.. py:data:: ddtrace.config.dramatiq['distributed_tracing']
-
-   Whether or not to pass distributed tracing headers to dramatiq
-
-   Can also be enabled with the ``DD_DRAMATIQ_DISTRIBUTED_TRACING`` environment variable.
-
-   Default: ``False``
-
 """
 from ...internal.utils.importlib import require_modules
 
