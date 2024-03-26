@@ -164,6 +164,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/ci_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -438,6 +439,7 @@
             "@tracing",
             "@contrib",
             "@kafka",
+            "@datastreams",
             "tests/contrib/kafka/*",
             "tests/snapshots/tests.contrib.kafka.*"
         ],
@@ -674,6 +676,7 @@
             "@llmobs",
             "@botocore",
             "@llmobs",
+            "@datastreams",
             "tests/contrib/botocore/*",
             "tests/contrib/boto/*",
             "tests/snapshots/tests.contrib.botocore*"
@@ -1284,6 +1287,7 @@
             "@contrib",
             "@tracing",
             "@kombu",
+            "@datastreams",
             "tests/contrib/kombu/*"
         ],
         "jinja2": [

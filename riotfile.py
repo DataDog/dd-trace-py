@@ -1227,6 +1227,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "greenlet": "==3.0.3",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": "<2.0",
@@ -1273,6 +1274,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             pkgs={
                 "pytest-randomly": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
@@ -1732,7 +1734,7 @@ venv = Venv(
             pkgs={
                 "graphene": ["~=3.0.0", latest],
                 "pytest-asyncio": "==0.21.1",
-                "graphql-relay": "~=3.1.5",
+                "graphql-relay": latest,
                 "pytest-randomly": latest,
             },
         ),
@@ -1742,7 +1744,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
+                "graphql-core": ["~=3.2.0", latest],
                 "pytest-randomly": latest,
             },
         ),
@@ -2477,19 +2479,39 @@ venv = Venv(
             # FIXME[python-3.12]: blocked on aiohttp release https://github.com/aio-libs/aiohttp/issues/7229
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "langchain": ["==0.0.192", "==0.0.259"],
-                "openai": "==0.27.8",
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "pinecone-client": latest,
                 "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
                 "pytest-randomly": latest,
+                "numexpr": latest,
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "langchain": "==0.0.192",
+                        "langchain-community": "==0.0.14",
+                        "openai": "==0.27.8",
+                        "pinecone-client": "==2.2.4",
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.1.9",
+                        "langchain-community": "==0.0.24",
+                        "langchain-core": "==0.1.27",
+                        "langchain-openai": "==0.0.8",
+                        "langchain-pinecone": "==0.0.3",
+                        "langsmith": "==0.1.9",
+                        "openai": "==1.12.0",
+                        "pinecone-client": latest,
+                    }
+                ),
+            ],
         ),
         Venv(
             name="logbook",
@@ -2600,7 +2622,8 @@ venv = Venv(
         ),
         Venv(
             name="profile",
-            command="python -m tests.profiling.run pytest --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            # NB riot commands that use this Venv must include --pass-env to work properly
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             pkgs={
                 "gunicorn": latest,
                 #

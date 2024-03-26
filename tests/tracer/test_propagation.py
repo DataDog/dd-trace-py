@@ -76,6 +76,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
 def test_inject_128bit_trace_id_datadog():
     from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -93,7 +94,9 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-sampling-priority": "1",
             }
 
 
@@ -116,7 +119,7 @@ def test_inject_128bit_trace_id_b3multi():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
+            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
 @pytest.mark.subprocess(
@@ -138,7 +141,7 @@ def test_inject_128bit_trace_id_b3_single_header():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
+            assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
 @pytest.mark.subprocess(
@@ -160,7 +163,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
+            assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
@@ -286,6 +289,7 @@ def test_extract(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -295,6 +299,7 @@ def test_extract(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -499,6 +504,7 @@ def test_extract_unicode(tracer):  # noqa: F811
 
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -508,6 +514,7 @@ def test_extract_unicode(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -561,6 +568,7 @@ def test_WSGI_extract(tracer):  # noqa: F811
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
+            "_dd.p.dm": "-3",
         }
 
 
@@ -584,6 +592,7 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "decoding_error",
         }
 
@@ -608,6 +617,7 @@ def test_extract_tags_large(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
             "_dd.propagation_error": "extract_max_size",
         }
 
@@ -1181,6 +1191,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1192,6 +1203,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1221,6 +1233,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1243,6 +1256,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1254,6 +1268,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1486,6 +1501,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1513,6 +1529,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1552,6 +1569,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1586,6 +1604,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1597,6 +1616,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     (
@@ -1665,6 +1685,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     # Testing that order matters
@@ -1733,7 +1754,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE]},
+            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
@@ -1746,6 +1767,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2046,7 +2068,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=13088165645273925489,
             span_id=5678,
-            meta={"_dd.origin": "synthetics"},
+            meta={"_dd.origin": "synthetics", "_dd.p.dm": "-3"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2089,7 +2111,14 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=7277407061855694839,
             span_id=5678,
-            meta={"_dd.origin": "synthetics", "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+            # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
+            # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
+            # in the styles configuration
+            meta={
+                "_dd.p.dm": "-3",
+                "_dd.origin": "synthetics",
+                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+            },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2106,7 +2135,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
 
 
 @pytest.mark.parametrize("name,styles,headers,expected_context", FULL_CONTEXT_EXTRACT_FIXTURES)
-def test_mutliple_context_interactions(name, styles, headers, expected_context):
+def test_multiple_context_interactions(name, styles, headers, expected_context):
     with override_global_config(dict(_propagation_style_extract=styles)):
         context = HTTPPropagator.extract(headers)
         assert context == expected_context
@@ -2127,6 +2156,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
         attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
+    assert spans[0][1].context._span_links == []
 
 
 VALID_DATADOG_CONTEXT = {

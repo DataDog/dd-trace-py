@@ -63,9 +63,11 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
-            fastapi_unpatch()
+            try:
+                with utils.post_tracer(interface):
+                    yield interface
+            finally:
+                fastapi_unpatch()
 
     def status(self, response):
         return response.status_code

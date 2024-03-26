@@ -4,6 +4,19 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.6.9
+
+
+### Bug Fixes
+
+- propagation: This fix resolves an issue where the sampling decision-maker tag in tracestate propagation headers was clobbered by a default value.
+- langchain: Ensures langchain vision APIs are correctly instrumented
+- ASM: This fix resolves an issue where the asgi middleware could crash with a RuntimeError "Unexpected message received".
+- kafka: This fix resolves an issue where `None` messages from confluent-kafka could cause crashes in the Kafka integration.
+
+
+---
+
 ## v2.6.0
 
 ### Upgrade Notes

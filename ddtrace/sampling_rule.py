@@ -168,6 +168,17 @@ class SamplingRule(object):
             # If the value doesn't match in meta, check the metrics
             if tag_match is False:
                 value = metrics.get(tag_key)
+                # Floats: Matching floating point values with a non-zero decimal part is not supported.
+                # For floating point values with a non-zero decimal part, any all * pattern always returns true.
+                # Other patterns always return false.
+                if isinstance(value, float):
+                    if not value.is_integer():
+                        if self._tag_value_matchers[tag_key].pattern == "*":
+                            tag_match = True
+                        else:
+                            return False
+                        continue
+
                 tag_match = self._tag_value_matchers[tag_key].match(str(value))
             else:
                 continue

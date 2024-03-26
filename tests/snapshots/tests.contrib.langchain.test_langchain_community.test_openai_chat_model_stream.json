@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ebbd0a00000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.messages.0.0.content": "What is the secret Krabby Patty recipe?",
+      "langchain.request.messages.0.0.message_type": "HumanMessage",
+      "langchain.request.model": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.stream": "True",
+      "langchain.request.openai.parameters.temperature": "0.0",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
+      "langchain.response.completions.0.0.content": "The secret Krabby Patty recipe is a closely guarded secret known only to Mr. Krabs and SpongeBob SquarePants. It has never been ...",
+      "langchain.response.completions.0.0.message_type": "AIMessage",
+      "language": "python",
+      "runtime-id": "48053d87731642bb8e6ded1fad5cb809"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 0,
+      "langchain.tokens.prompt_tokens": 0,
+      "langchain.tokens.total_cost": 0.0,
+      "langchain.tokens.total_tokens": 0,
+      "process_id": 99158
+    },
+    "duration": 25423000,
+    "start": 1709948170168790000
+  }]]
