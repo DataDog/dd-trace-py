@@ -62,19 +62,22 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         log.debug("Starting CI Visibility test %s", self.item_id)
         super().start()
 
+    def finish_itr_skipped(self):
+        log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
+        self.count_itr_skipped()
+        self.mark_itr_skipped()
+        self.finish_test(CITestStatus.SKIP)
+
     def finish_test(
         self,
         status: CITestStatus,
         reason: Optional[str] = None,
         exc_info: Optional[CIExcInfo] = None,
-        is_itr_skipped: bool = False,
     ):
         log.debug("Finishing CI Visibility test %s, with status: %s, reason: %s", self.item_id, status, reason)
         self.set_status(status)
         if reason is not None:
             self.set_tag(test.SKIP_REASON, reason)
-        elif is_itr_skipped:
-            self.mark_itr_skipped()
         if exc_info is not None:
             self._exc_info = exc_info
         super().finish()

@@ -16,6 +16,7 @@ from ddtrace.ext import test
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
+from ddtrace.ext.ci_visibility.api import CIITRMixin
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISession
@@ -419,6 +420,11 @@ class CIVisibility(Service):
         return False
 
     @classmethod
+    def is_itr_enabled(cls):
+        # cls.enabled guarantees _instance is not None
+        return cls.enabled and cls._instance._api_settings.itr_enabled
+
+    @classmethod
     def test_skipping_enabled(cls):
         if not cls.enabled or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False)):
             return False
@@ -766,6 +772,7 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
     tracer = CIVisibility.get_tracer()
     test_service = CIVisibility.get_service()
+    instance = CIVisibility.get_instance()
 
     if tracer is None or test_service is None:
         error_msg = "Tracer or test service is None"
@@ -788,6 +795,9 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
         root_dir=root_dir,
+        itr_enabled=CIVisibility.is_itr_enabled(),
+        itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
+        itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,
     )
 
     session = CIVisibilitySession(
@@ -878,7 +888,7 @@ def _on_start_suite(suite_id: CISuiteId):
 def _on_finish_suite(finish_args: CISuite.FinishArgs):
     log.debug("Handling finish for suite id %s", finish_args.suite_id)
     CIVisibility.get_suite_by_id(finish_args.suite_id).finish(
-        finish_args.force_finish_children, finish_args.override_status, finish_args.is_itr_skipped
+        finish_args.force_finish_children, finish_args.override_status
     )
 
 
@@ -929,7 +939,7 @@ def _on_start_test(test_id: CITestId):
 def _on_finish_test(finish_args: CITest.FinishArgs):
     log.debug("Handling finish for test id %s, with status %s", finish_args.test_id, finish_args.status)
     CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
-        finish_args.status, finish_args.skip_reason, finish_args.exc_info, finish_args.is_itr_skipped
+        finish_args.status, finish_args.skip_reason, finish_args.exc_info
     )
 
 
@@ -1002,9 +1012,31 @@ def _register_tag_handlers():
     core.on("ci_visibility.item.delete_tags", _on_delete_tags)
 
 
+@_requires_civisibility_enabled
+def _on_itr_finish_item_skipped(finish_args: CIITRMixin.ITRFinishArgs) -> None:
+    item_id = finish_args.item_id
+    log.debug("Handling finish ITR skipped for item id %s", item_id)
+    CIVisibility.get_item_by_id(item_id).finish_itr_skipped()
+
+
+@_requires_civisibility_enabled
+def _on_itr_get_skippable_items() -> None:
+    """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
+    log.debug("Handling get skippable items")
+    if CIVisibility.test_skipping_enabled():
+        pass
+
+
+def _register_itr_handlers():
+    log.debug("Registering ITR-related handlers")
+    core.on("ci_visibility.item.finish_skipped_by_itr", _on_itr_finish_item_skipped)
+    core.on("ci_visibility.item.get_skippable_items", _on_itr_get_skippable_items)
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
 _register_test_handlers()
 _register_tag_handlers()
 _register_coverage_handlers()
+_register_itr_handlers()

@@ -23,6 +23,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 from typing import Type
+from typing import Union
 
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
@@ -233,8 +234,9 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_skippable_items(item_id: Optional[CISessionId] = None):
-        pass
+    def get_skippable_items():
+        """Skippable items are not currently tied to a test session"""
+        core.dispatch_with_results("ci_visibility.get_skippable_items")
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -286,7 +288,26 @@ class CIModule(CIBase):
         )
 
 
-class CISuite(CIBase):
+class CIITRMixin(CIBase):
+    """Mixin class for ITR-related functionality."""
+
+    class ITRFinishArgs(NamedTuple):
+        item_id: Union[CISuiteId, CITestId]
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_itr_skipped(item_id: Union[CISuiteId, CITestId]):
+        log.debug("Marking test %s as skipped by ITR", item_id)
+        core.dispatch("ci_visibility.item.finish_skipped_by_itr", (CIITRMixin.ITRFinishArgs(item_id),))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
+        core.dispatch("ci_visibility.item.finish_skipped_by_itr", (CITest.AddCoverageArgs(item_id, coverage_data),))
+
+
+class CISuite(CIITRMixin, CIBase):
     class DiscoverArgs(NamedTuple):
         suite_id: CISuiteId
         codeowners: Optional[List[str]] = None
@@ -296,7 +317,6 @@ class CISuite(CIBase):
         suite_id: CISuiteId
         force_finish_children: bool = False
         override_status: Optional[CITestStatus] = None
-        is_itr_skipped: bool = False
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -321,7 +341,6 @@ class CISuite(CIBase):
         item_id: CISuiteId,
         force_finish_children: bool = False,
         override_status: Optional[CITestStatus] = None,
-        is_itr_skipped: bool = False,
     ):
         log.debug(
             "Finishing suite %s, override_status: %s, force_finish_children: %s",
@@ -331,22 +350,22 @@ class CISuite(CIBase):
         )
         core.dispatch(
             "ci_visibility.suite.finish",
-            (CISuite.FinishArgs(item_id, force_finish_children, override_status, is_itr_skipped),),
+            (CISuite.FinishArgs(item_id, force_finish_children, override_status),),
         )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: CITestId, force_finish_children: bool = False):
+    def mark_itr_skipped(item_id: CISuiteId, force_finish_children: bool = False):
         log.debug("Marking test %s as skipped by ITR", item_id)
-        CISuite.finish(item_id, force_finish_children, CITestStatus.SKIP, is_itr_skipped=True)
+        CISuite.finish(item_id, force_finish_children, CITestStatus.SKIP)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, Any]):
+    def add_coverage_data(item_id: CISuiteId, coverage_data: Dict[str, Any]):
         log.debug("Adding coverage data for suite %s: %s", item_id, coverage_data)
 
 
-class CITest(CIBase):
+class CITest(CIITRMixin, CIBase):
     class DiscoverArgs(NamedTuple):
         test_id: CITestId
         codeowners: Optional[List[str]] = None
@@ -398,7 +417,6 @@ class CITest(CIBase):
         status: CITestStatus
         skip_reason: Optional[str] = None
         exc_info: Optional[CIExcInfo] = None
-        is_itr_skipped: bool = False
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -407,24 +425,28 @@ class CITest(CIBase):
         status: CITestStatus,
         skip_reason: Optional[str] = None,
         exc_info: Optional[CIExcInfo] = None,
-        is_itr_skipped: bool = False,
     ):
         log.debug(
-            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s, is_itr_skipped: %s",
+            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s",
             item_id,
             status,
             skip_reason,
             exc_info,
-            is_itr_skipped,
         )
         core.dispatch(
             "ci_visibility.test.finish",
-            (
-                CITest.FinishArgs(
-                    item_id, status, skip_reason=skip_reason, exc_info=exc_info, is_itr_skipped=is_itr_skipped
-                ),
-            ),
+            (CITest.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info),),
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_unskippable():
+        log.debug("Marking test as unskippable")
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_forced_run():
+        log.debug("Marking test as forced run")
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -443,15 +465,3 @@ class CITest(CIBase):
     def mark_skip(item_id: CITestId, skip_reason: Optional[str] = None):
         log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
         CITest.finish(item_id, CITestStatus.SKIP, skip_reason=skip_reason)
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: CITestId):
-        log.debug("Marking test %s as skipped by ITR", item_id)
-        CITest.finish(item_id, CITestStatus.SKIP, is_itr_skipped=True)
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CITestId, coverage_data: Dict[Path, List[Tuple[int, int]]]):
-        log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
-        core.dispatch("ci_visibility.item.add_coverage_data", (CITest.AddCoverageArgs(item_id, coverage_data),))

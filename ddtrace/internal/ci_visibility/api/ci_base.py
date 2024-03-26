@@ -49,6 +49,9 @@ class CIVisibilitySessionSettings(NamedTuple):
     root_dir: Path
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
+    itr_enabled: bool = False
+    itr_test_skipping_enabled: bool = False
+    itr_test_skipping_level: str = ""
 
 
 class SPECIAL_STATUS(Enum):
@@ -95,7 +98,11 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._tags = initial_tags if initial_tags else {}
         self._children = None
 
+        # ITR-related attributes
         self._is_itr_skipped: bool = False
+        self._itr_skipped_count: int = 0
+        self._is_itr_unskippable: bool = False
+        self._is_itr_forced_run: bool = False
 
         # Internal state keeping
         self._status_set = False
@@ -133,6 +140,10 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._set_test_hierarchy_tags()
         self._add_coverage_data()
 
+        # ITR-related tags should only be set if ITR is enabled in the first place
+        if self._session_settings.itr_enabled:
+            self._set_itr_tags()
+
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
 
@@ -168,9 +179,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             if self._source_file_info.end_line is not None:
                 self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
 
+    def _set_itr_tags(self):
+        """Note: some tags are also added in the parent class as well as some individual item classes"""
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
             self.set_tag(test.ITR_SKIPPED, "true")
+
+        if self._is_itr_unskippable:
+            self.set_tag(test.ITR_UNSKIPPABLE, "true")
+        if self._is_itr_forced_run:
+            self.set_tag(test.ITR_FORCED_RUN, "true")
 
     def _set_span_tags(self):
         """This is effectively a callback method for exceptional cases where the item span
@@ -233,8 +251,23 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._status_set = True
         self._status = status
 
+    def count_itr_skipped(self):
+        self._itr_skipped_count += 1
+        if self.parent is not None:
+            self.parent.count_itr_skipped()
+
     def mark_itr_skipped(self):
         self._is_itr_skipped = True
+
+    def mark_itr_unskippable(self):
+        """Per RFC, unskippable only applies to a given item, not its ancestors"""
+        self._is_itr_unskippable = True
+
+    def mark_forced_run(self):
+        """If any item is forced to run, all ancestors are forced to run and increment by one"""
+        self._is_itr_forced_run = True
+        if self.parent is not None:
+            self.parent.mark_forced_run()
 
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:
@@ -393,3 +426,9 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             return self.children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
+
+    def _set_itr_tags(self):
+        """Only parent items set skipped counts because tests would always be 1 or 0"""
+        super()._set_itr_tags()
+        if self.children:
+            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
