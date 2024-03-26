@@ -1,77 +1,74 @@
 #include "uploader_builder.hpp"
 #include "libdatadog_helpers.hpp"
-#include "types.hpp"
 
-#include <algorithm>
 #include <mutex>
 #include <numeric>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-using namespace Datadog;
-
 void
-UploaderBuilder::set_env(std::string_view _dd_env)
+Datadog::UploaderBuilder::set_env(std::string_view _dd_env)
 {
     if (!_dd_env.empty()) {
         dd_env = _dd_env;
     }
 }
 void
-UploaderBuilder::set_service(std::string_view _service)
+Datadog::UploaderBuilder::set_service(std::string_view _service)
 {
     if (!_service.empty()) {
         service = _service;
     }
 }
 void
-UploaderBuilder::set_version(std::string_view _version)
+Datadog::UploaderBuilder::set_version(std::string_view _version)
 {
     if (!_version.empty()) {
         version = _version;
     }
 }
 void
-UploaderBuilder::set_runtime(std::string_view _runtime)
+Datadog::UploaderBuilder::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
         runtime = _runtime;
     }
 }
 void
-UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
+Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
     if (!_runtime_version.empty()) {
         runtime_version = _runtime_version;
     }
 }
 void
-UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
+Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
     if (!_profiler_version.empty()) {
         profiler_version = _profiler_version;
     }
 }
 void
-UploaderBuilder::set_url(std::string_view _url)
+Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
         url = _url;
     }
 }
 void
-UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
+Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
 
     if (!_key.empty() && !_val.empty()) {
         const std::lock_guard<std::mutex> lock(tag_mutex);
-        user_tags[_key] = _val;
+        user_tags[std::string(_key)] = std::string(_val);
     }
 }
 
 void
-UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
+Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
         runtime_id = _runtime_id;
@@ -81,20 +78,23 @@ UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {
-    return std::accumulate(
-      vec.begin(), vec.end(), std::string(), [&delim](const std::string& a, const std::string& b) -> std::string {
-          // if a and b are empty, it doesn't matter what we return, as long as there's no delimiter
-          if (a.empty()) {
-              return b;
-          } else if (b.empty()) {
-              return a;
-          }
-          return a + delim + b;
-      });
+    return std::accumulate(vec.begin(),
+                           vec.end(),
+                           std::string(),
+                           [&delim](const std::string& left, const std::string& right) -> std::string {
+                               // If the left and right operands are empty, we don't want to add a delimiter
+                               if (left.empty()) {
+                                   return right;
+                               }
+                               if (right.empty()) {
+                                   return left;
+                               }
+                               return left + delim + right;
+                           });
 }
 
-std::variant<Uploader, std::string>
-UploaderBuilder::build()
+std::variant<Datadog::Uploader, std::string>
+Datadog::UploaderBuilder::build()
 {
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -140,14 +140,16 @@ UploaderBuilder::build()
       to_slice("dd-trace-py"), to_slice(profiler_version), to_slice(family), &tags, ddog_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
+    auto ddog_exporter_result = Datadog::get_newexporter_result(res);
     ddog_prof_Exporter* ddog_exporter = nullptr;
-    if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
-        ddog_exporter = res.ok;
+    if (std::holds_alternative<ddog_prof_Exporter*>(ddog_exporter_result)) {
+        ddog_exporter = std::get<ddog_prof_Exporter*>(ddog_exporter_result);
     } else {
-        std::string errmsg = err_to_msg(&res.err, "Error initializing exporter");
-        ddog_Error_drop(&res.err); // errmsg contains a copy of res.err, OK to drop
+        auto& err = std::get<ddog_Error>(ddog_exporter_result);
+        std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
+        ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
     }
 
-    return Uploader{ url, ddog_exporter };
+    return Datadog::Uploader{ url, ddog_exporter };
 }

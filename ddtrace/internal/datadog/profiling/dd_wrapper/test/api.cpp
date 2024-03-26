@@ -16,6 +16,8 @@ single_sample_noframe()
     auto h = ddup_start_sample();
     ddup_push_walltime(h, 1.0, 1);
     ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -38,6 +40,8 @@ single_oneframe_sample()
     ddup_push_walltime(h, 1.0, 1);
     ddup_push_frame(h, "my_test_frame", "my_test_file", 1, 1);
     ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -68,6 +72,8 @@ single_manyframes_sample()
         ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
     }
     ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -98,6 +104,8 @@ single_toomanyframes_sample()
         ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
     }
     ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
 
     // Upload.  It'll fail, but whatever
     ddup_upload();
@@ -139,6 +147,8 @@ lotsa_frames_lotsa_samples()
             ddup_push_frame(h, name.c_str(), file.c_str(), 1, 1);
         }
         ddup_flush_sample(h);
+        ddup_drop_sample(h);
+        h = nullptr;
     }
 
     // Upload.  It'll fail, but whatever

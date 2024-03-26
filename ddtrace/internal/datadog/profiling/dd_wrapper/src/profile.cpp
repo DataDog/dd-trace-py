@@ -19,22 +19,21 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
     ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
-    if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) {
-        const std::string errmsg = Datadog::err_to_msg(&res.err, "Error initializing profile");
+    if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
+        const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
         std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&res.err);
+        ddog_Error_drop(&err);
         return false;
     }
-    profile = res.ok;
+    profile = res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
     return true;
 }
 
 }
 
-using namespace Datadog;
-
 bool
-Profile::cycle_buffers()
+Datadog::Profile::cycle_buffers()
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
 
@@ -42,17 +41,18 @@ Profile::cycle_buffers()
 
     // Clear the profile before using it
     auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
-    if (!res.ok) {
-        const std::string errmsg = err_to_msg(&res.err, "Error resetting profile");
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        const std::string errmsg = err_to_msg(&err, "Error resetting profile");
         std::cout << "Could not drop profile:" << errmsg << std::endl;
-        ddog_Error_drop(&res.err);
+        ddog_Error_drop(&err);
         return false;
     }
     return true;
 }
 
 void
-Profile::setup_samplers()
+Datadog::Profile::setup_samplers()
 {
     // TODO propagate error if no valid samplers are defined
     samplers.clear();
@@ -63,30 +63,30 @@ Profile::setup_samplers()
     };
 
     // Check which samplers were enabled by the user
-    if (type_mask & SampleType::CPU) {
+    if (0U != (type_mask & SampleType::CPU)) {
         val_idx.cpu_time = get_value_idx("cpu-time", "nanoseconds");
         val_idx.cpu_count = get_value_idx("cpu-samples", "count");
     }
-    if (type_mask & SampleType::Wall) {
+    if (0U != (type_mask & SampleType::Wall)) {
         val_idx.wall_time = get_value_idx("wall-time", "nanoseconds");
         val_idx.wall_count = get_value_idx("wall-samples", "count");
     }
-    if (type_mask & SampleType::Exception) {
+    if (0U != (type_mask & SampleType::Exception)) {
         val_idx.exception_count = get_value_idx("exception-samples", "count");
     }
-    if (type_mask & SampleType::LockAcquire) {
+    if (0U != (type_mask & SampleType::LockAcquire)) {
         val_idx.lock_acquire_time = get_value_idx("lock-acquire-wait", "nanoseconds");
         val_idx.lock_acquire_count = get_value_idx("lock-acquire", "count");
     }
-    if (type_mask & SampleType::LockRelease) {
+    if (0U != (type_mask & SampleType::LockRelease)) {
         val_idx.lock_release_time = get_value_idx("lock-release-hold", "nanoseconds");
         val_idx.lock_release_count = get_value_idx("lock-release", "count");
     }
-    if (type_mask & SampleType::Allocation) {
+    if (0U != (type_mask & SampleType::Allocation)) {
         val_idx.alloc_space = get_value_idx("alloc-space", "bytes");
         val_idx.alloc_count = get_value_idx("alloc-samples", "count");
     }
-    if (type_mask & SampleType::Heap) {
+    if (0U != (type_mask & SampleType::Heap)) {
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
 
@@ -98,13 +98,13 @@ Profile::setup_samplers()
 }
 
 size_t
-Profile::get_sample_type_length()
+Datadog::Profile::get_sample_type_length()
 {
     return samplers.size();
 }
 
 ddog_prof_Profile&
-Profile::profile_borrow()
+Datadog::Profile::profile_borrow()
 {
     // We could wrap this in an object for better RAII, but since this
     // sequence is only used in a single place, we'll hold off on that sidequest.
@@ -113,13 +113,13 @@ Profile::profile_borrow()
 }
 
 void
-Profile::profile_release()
+Datadog::Profile::profile_release()
 {
     profile_mtx.unlock();
 }
 
 void
-Profile::one_time_init(SampleType type, unsigned int _max_nframes)
+Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
     // In contemporary dd-trace-py, it is expected that the initialization path is in
     // a single thread, and done only once.
@@ -163,43 +163,44 @@ Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 }
 
 std::string_view
-Profile::insert_or_get(std::string_view sv)
+Datadog::Profile::insert_or_get(std::string_view str)
 {
     const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
 
-    auto it = strings.find(sv);
-    if (it != strings.end()) {
-        return *it;
+    auto str_it = strings.find(str);
+    if (str_it != strings.end()) {
+        return *str_it;
     }
 
-    string_storage.emplace_back(sv);
+    string_storage.emplace_back(str);
     strings.insert(string_storage.back());
     return string_storage.back();
 }
 
-const ValueIndex&
-Profile::val()
+const Datadog::ValueIndex&
+Datadog::Profile::val()
 {
     return val_idx;
 }
 
 bool
-Profile::collect(const ddog_prof_Sample& sample)
+Datadog::Profile::collect(const ddog_prof_Sample& sample)
 {
     // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, 0);
-    if (!res.ok) {
-        const std::string errmsg = err_to_msg(&res.err, "Error adding sample to profile");
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");
         std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&res.err);
+        ddog_Error_drop(&err);
         return false;
     }
     return true;
 }
 
 void
-Profile::postfork_child()
+Datadog::Profile::postfork_child()
 {
     profile_mtx.unlock();
     cycle_buffers();

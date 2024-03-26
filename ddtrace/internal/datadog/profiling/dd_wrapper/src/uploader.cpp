@@ -6,26 +6,38 @@ using namespace Datadog;
 void
 DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
 {
+    // According to the rust docs, the `cancel()` call is synchronous
+    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
     ddog_prof_Exporter_drop(ptr);
 }
 
-Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
+void
+DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
+{
+    if (ptr != nullptr) {
+        ddog_CancellationToken_cancel(ptr);
+        ddog_CancellationToken_drop(ptr);
+    }
+}
+
+Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
   : url{ _url }
   , ddog_exporter{ _ddog_exporter }
 {}
 
 bool
-Uploader::upload(ddog_prof_Profile& profile)
+Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
     // Serialize the profile
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
-    if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-        errmsg = err_to_msg(&result.err, "Error serializing pprof");
+    if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
+        errmsg = err_to_msg(&err, "Error serializing pprof");
         std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&result.err);
+        ddog_Error_drop(&err);
         return false;
     }
-    ddog_prof_EncodedProfile* encoded = &result.ok;
+    ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -48,10 +60,12 @@ Uploader::upload(ddog_prof_Profile& profile)
                                                       max_timeout_ms);
     ddog_prof_EncodedProfile_drop(encoded);
 
-    if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) {
-        errmsg = err_to_msg(&build_res.err, "Error building request");
+    if (build_res.tag ==
+        DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
+        errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&build_res.err);
+        ddog_Error_drop(&err);
         ddog_Vec_Tag_drop(tags);
         return false;
     }
@@ -61,9 +75,11 @@ Uploader::upload(ddog_prof_Profile& profile)
 
     // Create a new cancellation token.  Maybe we can get away without doing this, but
     // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
-    // NB `cancel_inflight()` already drops the old token.
-    cancel = ddog_CancellationToken_new();
-    auto* cancel_for_request = ddog_CancellationToken_clone(cancel);
+    // NB wrapping this in a unique_ptr to easily add RAII semantics; maybe should just wrap it in a
+    // class instead
+    cancel.reset(ddog_CancellationToken_new());
+    std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel_for_request;
+    cancel_for_request.reset(ddog_CancellationToken_clone(cancel.get()));
 
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
@@ -71,12 +87,14 @@ Uploader::upload(ddog_prof_Profile& profile)
         const std::lock_guard<std::mutex> lock_guard(upload_lock);
 
         // Build and check the response object
-        ddog_prof_Exporter_Request* req = build_res.ok;
-        ddog_prof_Exporter_SendResult res = ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request);
-        if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) {
-            errmsg = err_to_msg(&res.err, "Error uploading");
+        ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        ddog_prof_Exporter_SendResult res =
+          ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
+        if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+            auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
+            errmsg = err_to_msg(&err, "Error uploading");
             std::cerr << errmsg << std::endl;
-            ddog_Error_drop(&res.err);
+            ddog_Error_drop(&err);
             ddog_Vec_Tag_drop(tags);
             return false;
         }
@@ -85,50 +103,42 @@ Uploader::upload(ddog_prof_Profile& profile)
 
     // Cleanup
     ddog_Vec_Tag_drop(tags);
-    ddog_CancellationToken_drop(cancel_for_request);
-
     return true;
 }
 
 void
-Uploader::lock()
+Datadog::Uploader::lock()
 {
     upload_lock.lock();
 }
 
 void
-Uploader::unlock()
+Datadog::Uploader::unlock()
 {
     upload_lock.unlock();
 }
 
 void
-Uploader::cancel_inflight()
+Datadog::Uploader::cancel_inflight()
 {
-    // According to the rust docs, the `cancel()` call is synchronous
-    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
-    if (cancel) {
-        ddog_CancellationToken_cancel(cancel);
-        ddog_CancellationToken_drop(cancel);
-    }
-    cancel = nullptr;
+    cancel.reset();
 }
 
 void
-Uploader::prefork()
+Datadog::Uploader::prefork()
 {
     lock();
     cancel_inflight();
 }
 
 void
-Uploader::postfork_parent()
+Datadog::Uploader::postfork_parent()
 {
     unlock();
 }
 
 void
-Uploader::postfork_child()
+Datadog::Uploader::postfork_child()
 {
     unlock();
 }
