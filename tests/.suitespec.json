@@ -828,7 +828,8 @@
             "@contrib",
             "@tracing",
             "@dramatiq",
-            "tests/contrib/dramatiq/*"
+            "tests/contrib/dramatiq/*",
+            "tests/snapshots/tests.contrib.dramatiq.*"
         ],
         "elasticsearch": [
             "@bootstrap",
