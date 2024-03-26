@@ -478,6 +478,7 @@ class TelemetryWriter(PeriodicService):
 
         # Reset the error after it has been reported.
         self._error = (0, "")
+        print(payload)
         self.add_event(payload, "app-started")
 
     def _app_heartbeat_event(self):
