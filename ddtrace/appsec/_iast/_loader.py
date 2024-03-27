@@ -32,6 +32,14 @@ def _exec_iast_patched_module(module_watchdog, module):
 
     if compiled_code:
         # Patched source is executed instead of original module
-        exec(compiled_code, module.__dict__)  # nosec B102
-    elif module_watchdog.loader is not None:
-        module_watchdog.loader.exec_module(module)
+        log.warning("JJJ module: %s", module)
+        # JJJ catch ImportError here
+        try:
+            exec(compiled_code, module.__dict__)  # nosec B102
+            return
+        except ImportError:
+            log.debug("Unexpected exception while executing patched code", exc_info=True)
+
+    # Fallback
+    # JJJ: this also produces an ImportError with grpc modules!, how should we proceed here?
+    module_watchdog.loader.exec_module(module)

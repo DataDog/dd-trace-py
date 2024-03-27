@@ -358,6 +358,29 @@ def _on_django_patch():
         log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
+def _on_grpc_response(response, message):
+    # JJJ if not AppSecIastSpanProcessor.is_span_analyzed()?
+    log.warning("JJJ: _taint_response")
+    if not _is_iast_enabled():
+        return response
+
+    try:
+        from google.protobuf.json_format import MessageToDict, ParseDict
+        from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_utils import taint_structure
+
+        as_dict = taint_structure(MessageToDict(response), OriginType.GRPC_BODY, OriginType.GRPC_BODY)
+        # JJJ: check that we don't lose propagation here:
+        response = ParseDict(as_dict, message)
+        # jjjdict = MessageToDict(response)
+        # log.warning(f"JJJ: response: {jjjdict}")
+    except Exception:
+        log.debug("JJJ IAST: exception tainting grpc response", exc_info=True)
+    finally:
+        return response
+
+
+
 def listen():
     core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
     core.on("flask.request_init", _on_request_init)
@@ -370,3 +393,4 @@ core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+core.on("grpc.response_message", _on_grpc_response, "response")
