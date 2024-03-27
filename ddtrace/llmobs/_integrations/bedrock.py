@@ -27,10 +27,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
-        parameters = {
-            "temperature": float(span.get_tag("bedrock.request.temperature") or 0.0),
-            "max_tokens": int(span.get_tag("bedrock.request.max_tokens") or 0),
-        }
+        parameters = {"temperature": float(span.get_tag("bedrock.request.temperature") or 0.0)}
+        max_tokens = int(span.get_tag("bedrock.request.max_tokens") or 0)
+        if max_tokens:
+            parameters["max_tokens"] = max_tokens
+
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
