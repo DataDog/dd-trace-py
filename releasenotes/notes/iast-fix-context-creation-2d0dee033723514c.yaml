@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix addresses an issue where tainting objects may fail due to context not being created in the current span.

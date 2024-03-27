@@ -40,11 +40,11 @@ class CIVisibilitySuite(
         self._operation_name = session_settings.suite_operation_name
 
     def start(self):
-        log.warning("Starting CI Visibility suite %s", self.item_id)
+        log.debug("Starting CI Visibility suite %s", self.item_id)
         super().start()
 
     def finish(self, force: bool = False, override_status: Optional[Enum] = None, is_itr_skipped: bool = False):
-        log.warning("Finishing CI Visibility suite %s", self.item_id)
+        log.debug("Finishing CI Visibility suite %s", self.item_id)
         if is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
             self.set_tag(test.ITR_SKIPPED, "true")
