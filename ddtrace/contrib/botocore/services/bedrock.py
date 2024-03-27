@@ -128,46 +128,46 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("topP", None),
-            "max_tokens": request_body.get("maxTokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("topP", ""),
+            "max_tokens": request_body.get("maxTokens", ""),
             "stop_sequences": request_body.get("stopSequences", []),
         }
     elif provider == _AMAZON:
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),
-            "temperature": text_generation_config.get("temperature", None),
-            "top_p": text_generation_config.get("topP", None),
-            "max_tokens": text_generation_config.get("maxTokenCount", None),
+            "temperature": text_generation_config.get("temperature", ""),
+            "top_p": text_generation_config.get("topP", ""),
+            "max_tokens": text_generation_config.get("maxTokenCount", ""),
             "stop_sequences": text_generation_config.get("stopSequences", []),
         }
     elif provider == _ANTHROPIC:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "top_k": request_body.get("top_k", None),
-            "max_tokens": request_body.get("max_tokens_to_sample", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "top_k": request_body.get("top_k", ""),
+            "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
         }
     elif provider == _COHERE:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("p", None),
-            "top_k": request_body.get("k", None),
-            "max_tokens": request_body.get("max_tokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("p", ""),
+            "top_k": request_body.get("k", ""),
+            "max_tokens": request_body.get("max_tokens", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
-            "stream": request_body.get("stream", None),
-            "n": request_body.get("num_generations", None),
+            "stream": request_body.get("stream", ""),
+            "n": request_body.get("num_generations", ""),
         }
     elif provider == _META:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "max_tokens": request_body.get("max_gen_len", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "max_tokens": request_body.get("max_gen_len", ""),
         }
     elif provider == _STABILITY:
         # TODO: request/response formats are different for image-based models. Defer for now
@@ -231,7 +231,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
         elif provider == _COHERE and streamed_body:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    n = int(span.get_tag("bedrock.request.n"))
+                    n = int(span.get_tag("bedrock.request.n") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(n)
