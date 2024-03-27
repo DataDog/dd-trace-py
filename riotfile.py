@@ -1237,6 +1237,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "greenlet": "==3.0.3",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": "<2.0",
