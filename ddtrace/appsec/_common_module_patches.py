@@ -15,9 +15,8 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 
 def patch_common_modules():
-    if asm_config._ep_enabled:
-        try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-        try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
+    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
