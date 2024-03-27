@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os
+from pathlib import Path
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import NamedTuple  # noqa:F401
@@ -38,6 +39,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.writer.writer import Response
 
+from ...ext.git import extract_workspace_path
 from .. import agent
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -652,17 +654,6 @@ class CIVisibility(Service):
         cls._instance._session_data[session_item_id] = session
 
     @classmethod
-    def get_session_by_id(cls, session_id: _CIVisibilityRootItemIdBase) -> CIVisibilitySession:
-        if cls._instance is None:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        if session_id not in cls._instance._session_data:
-            log.warning("Session not found: %s", session_id)
-            raise CIVisibilityDataError(f"No session with id {session_id} found")
-        return cls._instance._session_data[session_id]
-
-    @classmethod
     def get_item_by_id(cls, item_id: CIItemId):
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
@@ -679,6 +670,17 @@ class CIVisibility(Service):
         error_msg = f"Unknown item id type: {type(item_id)}"
         log.warning(error_msg)
         raise CIVisibilityError(error_msg)
+
+    @classmethod
+    def get_session_by_id(cls, session_id: _CIVisibilityRootItemIdBase) -> CIVisibilitySession:
+        if cls._instance is None:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        if session_id not in cls._instance._session_data:
+            log.warning("Session not found: %s", session_id)
+            raise CIVisibilityDataError(f"No session with id {session_id} found")
+        return cls._instance._session_data[session_id]
 
     @classmethod
     def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
@@ -770,6 +772,9 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
         log.warning(error_msg)
         raise CIVisibilityError(error_msg)
 
+    # If we're not provided a root directory, try and extract it from CWD
+    root_dir = (discover_args.root_dir or Path(extract_workspace_path())).absolute()
+
     session_settings = CIVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
@@ -782,6 +787,7 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
         module_operation_name=discover_args.module_operation_name,
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
+        root_dir=root_dir,
     )
 
     session = CIVisibilitySession(
@@ -936,6 +942,26 @@ def _register_test_handlers():
 
 
 @_requires_civisibility_enabled
+def _on_add_coverage_data(add_coverage_args: _CIVisibilityAPIBase.AddCoverageArgs):
+    """Adds coverage data to an item, merging with existing coverage data if necessary"""
+    item_id = add_coverage_args.item_id
+    coverage_data = add_coverage_args.coverage_data
+
+    log.debug("Handling add coverage data for item id %s", item_id)
+
+    if not isinstance(item_id, (CISuiteId, CITestId)):
+        log.warning("Coverage data can only be added to suites and tests, not %s", type(item_id))
+        return
+
+    CIVisibility.get_item_by_id(item_id).add_coverage_data(coverage_data)
+
+
+def _register_coverage_handlers():
+    log.debug("Registering coverage handlers")
+    core.on("ci_visibility.item.add_coverage_data", _on_add_coverage_data)
+
+
+@_requires_civisibility_enabled
 def _on_set_tag(set_tag_args: _CIVisibilityAPIBase.SetTagArgs) -> None:
     item_id = set_tag_args.item_id
     key = set_tag_args.name
@@ -981,3 +1007,4 @@ _register_module_handlers()
 _register_suite_handlers()
 _register_test_handlers()
 _register_tag_handlers()
+_register_coverage_handlers()

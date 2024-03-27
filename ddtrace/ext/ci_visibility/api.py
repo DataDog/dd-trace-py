@@ -14,12 +14,14 @@ All types and methods for interacting with the API are provided and documented i
 """
 import dataclasses
 from enum import Enum
+from pathlib import Path
 from types import TracebackType
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
+from typing import Tuple
 from typing import Type
 
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
@@ -94,7 +96,7 @@ class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
 
 @dataclasses.dataclass(frozen=True)
 class CISourceFileInfo:
-    path: str
+    path: Path
     start_line: Optional[int] = None
     end_line: Optional[int] = None
 
@@ -156,6 +158,7 @@ class CISession(CIBase):
         module_operation_name: str
         suite_operation_name: str
         test_operation_name: str
+        root_dir: Optional[Path] = None
 
     class FinishArgs(NamedTuple):
         session_id: CISessionId
@@ -175,6 +178,7 @@ class CISession(CIBase):
         module_operation_name: str = DEFAULT_OPERATION_NAMES.MODULE.value,
         suite_operation_name: str = DEFAULT_OPERATION_NAMES.SUITE.value,
         test_operation_name: str = DEFAULT_OPERATION_NAMES.TEST.value,
+        root_dir: Optional[Path] = None,
     ):
         item_id = item_id or CISessionId()
 
@@ -200,6 +204,7 @@ class CISession(CIBase):
                     module_operation_name,
                     suite_operation_name,
                     test_operation_name,
+                    root_dir,
                 ),
             ),
         )
@@ -447,5 +452,6 @@ class CITest(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CITestId, coverage_data: Dict[str, Any]):
+    def add_coverage_data(item_id: CITestId, coverage_data: Dict[Path, List[Tuple[int, int]]]):
         log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
+        core.dispatch("ci_visibility.item.add_coverage_data", (CITest.AddCoverageArgs(item_id, coverage_data),))
