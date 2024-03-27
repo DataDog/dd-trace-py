@@ -2741,11 +2741,6 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==4.22.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
