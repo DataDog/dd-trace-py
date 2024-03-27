@@ -548,5 +548,6 @@ setup(
         compiler_directives={"language_level": "3"},
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil"),
+    + get_exts_for("psutil")
+    + get_exts_for("protobuf.dist"),
 )

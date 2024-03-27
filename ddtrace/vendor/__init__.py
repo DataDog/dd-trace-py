@@ -103,6 +103,14 @@ License: Apache License 2.0
 Notes:
   - We only vendor the packaging.version sub-module as this is all we currently
     need.
+
+
+protobuf
+--------
+
+Source: https://github.com/protocolbuffers/protobuf/tree/main
+Version: 5.27.0
+License: Google custom lax-permissive
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
