@@ -156,7 +156,6 @@ jobs:
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         id: compress-artifact
-        if: steps.build.outcome == 'success' || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
