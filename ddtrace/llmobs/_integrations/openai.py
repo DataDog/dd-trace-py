@@ -119,7 +119,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         resp: Any,
         span: Span,
         kwargs: Dict[str, Any],
-        streamed_resp: Optional[Any] = None,
+        streamed_completions: Optional[Any] = None,
         err: Optional[Any] = None,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
@@ -130,14 +130,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, model_name or "")
         span.set_tag_str(MODEL_PROVIDER, "openai")
         if record_type == "completion":
-            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_resp, span)
+            self._llmobs_set_meta_tags_from_completion(resp, err, kwargs, streamed_completions, span)
         elif record_type == "chat":
-            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_resp, span)
-        span.set_tag_str(METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_resp is not None)))
+            self._llmobs_set_meta_tags_from_chat(resp, err, kwargs, streamed_completions, span)
+        span.set_tag_str(
+            METRICS, json.dumps(self._set_llmobs_metrics_tags(span, resp, streamed_completions is not None))
+        )
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_completions: Optional[Any], span: Span
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
         prompt = kwargs.get("prompt", "")
@@ -150,54 +152,48 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_resp:
+        elif streamed_completions:
             span.set_tag_str(
-                OUTPUT_MESSAGES,
-                json.dumps([{"content": "".join([chunk.text for chunk in choice])} for choice in streamed_resp]),
+                OUTPUT_MESSAGES, json.dumps([{"content": choice["text"]} for choice in streamed_completions])
             )
         else:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(
-        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_resp: Optional[Any], span: Span
+        resp: Any, err: Any, kwargs: Dict[str, Any], streamed_messages: Optional[Any], span: Span
     ) -> None:
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-        span.set_tag_str(
-            INPUT_MESSAGES,
-            json.dumps(
-                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
-            ),
-        )
+        input_messages = []
+        for m in kwargs.get("messages", []):
+            if isinstance(m, dict):
+                input_messages.append({"content": str(m.get("content", "")), "role": str(m.get("role", ""))})
+            else:
+                input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_resp:
-            output_messages = []
-            for idx, choice in enumerate(streamed_resp):
-                content = "".join(c.delta.content for c in choice if getattr(c.delta, "content", None))
-                if getattr(choice[0].delta, "tool_calls", None):
-                    content = "".join(
-                        c.delta.tool_calls.function.arguments for c in choice if getattr(c.delta, "tool_calls", None)
-                    )
-                elif getattr(choice[0].delta, "function_call", None):
-                    content = "".join(
-                        c.delta.function_call.arguments for c in choice if getattr(c.delta, "function_call", None)
-                    )
-                output_messages.append({"content": content, "role": choice[0].delta.role})
-                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+        elif streamed_messages:
+            span.set_tag_str(
+                OUTPUT_MESSAGES, json.dumps([{"content": m["content"], "role": m["role"]} for m in streamed_messages])
+            )
         else:
             output_messages = []
             for idx, choice in enumerate(resp.choices):
                 content = getattr(choice.message, "content", "")
-                if getattr(choice.message, "function_call", None):
+                if content:
+                    output_messages.append({"content": str(content), "role": choice.message.role})
+                elif getattr(choice.message, "function_call", None):
                     content = choice.message.function_call.arguments
+                    output_messages.append({"content": str(content), "role": choice.message.role})
                 elif getattr(choice.message, "tool_calls", None):
-                    content = choice.message.tool_calls.function.arguments
-                output_messages.append({"content": str(content), "role": choice.message.role})
+                    for tool_call in choice.message.tool_calls:
+                        content = tool_call.function.arguments
+                        output_messages.append({"content": str(content), "role": choice.message.role})
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
