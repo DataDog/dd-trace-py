@@ -24,6 +24,7 @@ _MODELS = {
     "ai21": "ai21.j2-mid-v1",
     "amazon": "amazon.titan-tg1-large",
     "anthropic": "anthropic.claude-instant-v1",
+    "anthropic_message": "anthropic.claude-3-sonnet-20240229-v1:0",
     "cohere": "cohere.command-light-text-v14",
     "meta": "meta.llama2-13b-chat-v1",
 }
@@ -47,6 +48,17 @@ _REQUEST_BODIES = {
         "top_k": 250,
         "max_tokens_to_sample": 50,
         "stop_sequences": ["\n\nHuman:"],
+    },
+    "anthropic_message": {
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "summarize the plot to the lord of the rings in a dozen words"}],
+            }
+        ],
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 50,
+        "temperature": 0,
     },
     "cohere": {
         "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
@@ -405,32 +417,29 @@ def test_readlines_error(bedrock_client, request_vcr):
 )
 class TestLLMObsBedrock:
     @staticmethod
-    def _expected_llmobs_calls(span, n_output):
+    def expected_llmobs_span_event(span, n_output, message=False):
         prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
         completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
-        expected_llmobs_writer_calls = [mock.call.start()]
-        expected_llmobs_writer_calls += [
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=span.get_tag("bedrock.request.model"),
-                    model_provider=span.get_tag("bedrock.request.model_provider"),
-                    input_messages=[{"content": mock.ANY}],
-                    output_messages=[{"content": mock.ANY} for _ in range(n_output)],
-                    parameters={
-                        "temperature": float(span.get_tag("bedrock.request.temperature")),
-                        "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                    },
-                    token_metrics={
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "total_tokens": prompt_tokens + completion_tokens,
-                    },
-                    tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
-                )
-            )
-        ]
-        return expected_llmobs_writer_calls
+        expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
+        if span.get_tag("bedrock.request.max_tokens"):
+            expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
+        expected_input = [{"content": mock.ANY}]
+        if message:
+            expected_input = [{"content": mock.ANY, "role": "user"}]
+        return _expected_llmobs_llm_span_event(
+            span,
+            model_name=span.get_tag("bedrock.request.model"),
+            model_provider=span.get_tag("bedrock.request.model_provider"),
+            input_messages=expected_input,
+            output_messages=[{"content": mock.ANY} for _ in range(n_output)],
+            parameters=expected_parameters,
+            token_metrics={
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+        )
 
     @classmethod
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_writer, cassette_name=None, n_output=1):
@@ -461,9 +470,10 @@ class TestLLMObsBedrock:
             json.loads(response.get("body").read())
         span = mock_tracer.pop_traces()[0][0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, n_output)
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+        mock_llmobs_writer.enqueue.assert_called_with(
+            cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
+        )
 
     @classmethod
     def _test_llmobs_invoke_stream(cls, provider, bedrock_client, mock_llmobs_writer, cassette_name=None, n_output=1):
@@ -495,9 +505,10 @@ class TestLLMObsBedrock:
                 pass
         span = mock_tracer.pop_traces()[0][0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(span, n_output)
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+        mock_llmobs_writer.enqueue.assert_called_with(
+            cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
+        )
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_writer)
@@ -507,6 +518,9 @@ class TestLLMObsBedrock:
 
     def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke("anthropic", bedrock_client, mock_llmobs_writer)
+
+    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+        self._test_llmobs_invoke("anthropic_message", bedrock_client, mock_llmobs_writer)
 
     def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke(
@@ -530,6 +544,9 @@ class TestLLMObsBedrock:
 
     def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_writer)
+
+    def test_llmobs_anthropic_message_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, mock_llmobs_writer)
 
     def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
         self._test_llmobs_invoke_stream(

@@ -31,18 +31,18 @@ class BedrockIntegration(BaseLLMIntegration):
         max_tokens = int(span.get_tag("bedrock.request.max_tokens") or 0)
         if max_tokens:
             parameters["max_tokens"] = max_tokens
+        input_messages = self._extract_input_message(prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
-        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": prompt}]))
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err or formatted_response is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:
-            span.set_tag_str(
-                OUTPUT_MESSAGES, json.dumps([{"content": completion} for completion in formatted_response["text"]])
-            )
+            output_messages = self._extract_output_message(formatted_response)
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
         span.set_tag_str(METRICS, json.dumps(self._llmobs_metrics(span, formatted_response)))
 
     @staticmethod
@@ -55,3 +55,39 @@ class BedrockIntegration(BaseLLMIntegration):
             metrics["completion_tokens"] = completion_tokens
             metrics["total_tokens"] = prompt_tokens + completion_tokens
         return metrics
+
+    @staticmethod
+    def _extract_input_message(prompt):
+        """Extract input messages from the stored prompt.
+        Anthropic allows for messages and multiple texts in a message, which requires some special casing.
+        """
+        if isinstance(prompt, str):
+            return [{"content": prompt}]
+        if not isinstance(prompt, list):
+            return [{"content": ""}]
+        input_messages = []
+        for p in prompt:
+            content = p.get("content", "")
+            if isinstance(content, list) and isinstance(content[0], dict):
+                for entry in content:
+                    if entry.get("type") == "text":
+                        input_messages.append({"content": entry.get("text"), "role": str(p.get("role"))})
+                    elif entry.get("type") == "image":
+                        # Store a placeholder for potentially enormous binary image data.
+                        input_messages.append({"content": "{IMAGE DETECTED}", "role": str(p.get("role"))})
+            else:
+                input_messages.append({"content": content, "role": str(p.get("role"))})
+        return input_messages
+
+    @staticmethod
+    def _extract_output_message(formatted_response):
+        """Extract output messages from the stored response.
+        Anthropic allows for chat messages, which requires some special casing.
+        """
+        if isinstance(formatted_response["text"], str):
+            return [{"content": formatted_response["text"]}]
+        if isinstance(formatted_response["text"], list):
+            if isinstance(formatted_response["text"][0], str):
+                return [{"content": str(resp)} for resp in formatted_response["text"]]
+            if isinstance(formatted_response["text"][0], dict):
+                return [{"content": formatted_response["text"][0].get("text", "")}]
