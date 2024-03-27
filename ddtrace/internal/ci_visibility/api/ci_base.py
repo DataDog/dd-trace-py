@@ -263,11 +263,11 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         """Per RFC, unskippable only applies to a given item, not its ancestors"""
         self._is_itr_unskippable = True
 
-    def mark_forced_run(self):
+    def mark_itr_forced_run(self):
         """If any item is forced to run, all ancestors are forced to run and increment by one"""
         self._is_itr_forced_run = True
         if self.parent is not None:
-            self.parent.mark_forced_run()
+            self.parent.mark_itr_forced_run()
 
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:

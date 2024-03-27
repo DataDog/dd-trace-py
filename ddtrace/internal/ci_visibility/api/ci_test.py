@@ -62,12 +62,6 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         log.debug("Starting CI Visibility test %s", self.item_id)
         super().start()
 
-    def finish_itr_skipped(self):
-        log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
-        self.count_itr_skipped()
-        self.mark_itr_skipped()
-        self.finish_test(CITestStatus.SKIP)
-
     def finish_test(
         self,
         status: CITestStatus,
@@ -81,6 +75,20 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         if exc_info is not None:
             self._exc_info = exc_info
         super().finish()
+
+    def count_itr_skipped(self):
+        """Tests do not count skipping on themselves, so only count on the parent.
+
+        When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
+        """
+        if self._session_settings.itr_test_skipping_level is TEST:
+            self.parent.count_itr_skipped()
+
+    def finish_itr_skipped(self):
+        log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
+        self.count_itr_skipped()
+        self.mark_itr_skipped()
+        self.finish_test(CITestStatus.SKIP)
 
     @classmethod
     def make_early_flake_retry_from_test(cls, original_test, retry_number: int):

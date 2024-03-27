@@ -109,6 +109,7 @@ class CIExcInfo:
     exc_traceback: TracebackType
 
 
+@_catch_and_log_exceptions
 def enable_ci_visibility():
     from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -117,6 +118,7 @@ def enable_ci_visibility():
         log.warning("CI Visibility enabling failed.")
 
 
+@_catch_and_log_exceptions
 def disable_ci_visibility():
     from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -129,22 +131,22 @@ class CIBase(_CIVisibilityAPIBase):
     @staticmethod
     def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any, recurse: bool = False):
         log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
-        core.dispatch("ci_visibility.item.set_tag", (_CIVisibilityAPIBase.SetTagArgs(item_id, tag_name, tag_value),))
+        core.dispatch("ci_visibility.item.set_tag", (CIBase.SetTagArgs(item_id, tag_name, tag_value),))
 
     @staticmethod
     def set_tags(item_id: CIItemId, tags: Dict[str, Any], recurse: bool = False):
         log.debug("Setting tags for item %s: %s", item_id, tags)
-        core.dispatch("ci_visibility.item.set_tags", (_CIVisibilityAPIBase.SetTagsArgs(item_id, tags),))
+        core.dispatch("ci_visibility.item.set_tags", (CIBase.SetTagsArgs(item_id, tags),))
 
     @staticmethod
     def delete_tag(item_id: CIItemId, tag_name: str, recurse: bool = False):
         log.debug("Deleting tag for item %s: %s", item_id, tag_name)
-        core.dispatch("ci_visibility.item.delete_tag", (_CIVisibilityAPIBase.DeleteTagArgs(item_id, tag_name),))
+        core.dispatch("ci_visibility.item.delete_tag", (CIBase.DeleteTagArgs(item_id, tag_name),))
 
     @staticmethod
     def delete_tags(item_id: CIItemId, tag_names: List[str], recurse: bool = False):
         log.debug("Deleting tags for item %s: %s", item_id, tag_names)
-        core.dispatch("ci_visibility.item.delete_tags", (_CIVisibilityAPIBase.DeleteTagsArgs(item_id, tag_names),))
+        core.dispatch("ci_visibility.item.delete_tags", (CIBase.DeleteTagsArgs(item_id, tag_names),))
 
 
 class CISession(CIBase):
@@ -160,11 +162,6 @@ class CISession(CIBase):
         suite_operation_name: str
         test_operation_name: str
         root_dir: Optional[Path] = None
-
-    class FinishArgs(NamedTuple):
-        session_id: CISessionId
-        force_finish_children: bool
-        override_status: Optional[CITestStatus]
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -192,7 +189,7 @@ class CISession(CIBase):
             return
 
         core.dispatch(
-            "ci_visibility.session.register",
+            "ci_visibility.session.discover",
             (
                 CISession.DiscoverArgs(
                     item_id,
@@ -218,6 +215,11 @@ class CISession(CIBase):
         item_id = item_id or CISessionId()
         core.dispatch("ci_visibility.session.start", (item_id,))
 
+    class FinishArgs(NamedTuple):
+        session_id: CISessionId
+        force_finish_children: bool
+        override_status: Optional[CITestStatus]
+
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
@@ -234,14 +236,9 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_skippable_items():
-        """Skippable items are not currently tied to a test session"""
-        core.dispatch_with_results("ci_visibility.get_skippable_items")
-
-    @staticmethod
-    @_catch_and_log_exceptions
     def get_settings(item_id: Optional[CISessionId] = None):
-        pass
+        log.debug("Getting settings for session %s", item_id)
+        core.dispatch_with_results("ci_visibility.session.get_settings", (item_id,))
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -291,20 +288,41 @@ class CIModule(CIBase):
 class CIITRMixin(CIBase):
     """Mixin class for ITR-related functionality."""
 
-    class ITRFinishArgs(NamedTuple):
-        item_id: Union[CISuiteId, CITestId]
-
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_skipped(item_id: Union[CISuiteId, CITestId]):
         log.debug("Marking test %s as skipped by ITR", item_id)
-        core.dispatch("ci_visibility.item.finish_skipped_by_itr", (CIITRMixin.ITRFinishArgs(item_id),))
+        core.dispatch("ci_visibility.itr.finish_skipped_by_itr", (item_id,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_itr_unskippable(item_id: Union[CISuiteId, CITestId]):
+        log.debug("Marking test %s as unskippable by ITR", item_id)
+        core.dispatch("ci_visibility.itr.mark_unskippable", (item_id,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def mark_itr_forced_run(item_id: Union[CISuiteId, CITestId]):
+        log.debug("Marking test %s as unskippable by ITR", item_id)
+        core.dispatch("ci_visibility.itr.mark_forced_run", (item_id,))
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_item_itr_skippable(item_id: Union[CISuiteId, CITestId]):
+        """Skippable items are not currently tied to a test session, so no session ID is passed"""
+        log.debug("Getting skippable items")
+        skippable_items = core.dispatch_with_results("ci_visibility.itr.is_item_skippable", (item_id,))
+        return skippable_items["skippable_items"]
+
+    class AddCoverageArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        coverage_data: Dict[Path, List[Tuple[int, int]]]
 
     @staticmethod
     @_catch_and_log_exceptions
     def add_coverage_data(item_id: Union[CISuiteId, CITestId], coverage_data: Dict[Path, List[Tuple[int, int]]]):
         log.debug("Adding coverage data for test %s: %s", item_id, coverage_data)
-        core.dispatch("ci_visibility.item.finish_skipped_by_itr", (CITest.AddCoverageArgs(item_id, coverage_data),))
+        core.dispatch("ci_visibility.item.add_coverage_data", (CIITRMixin.AddCoverageArgs(item_id, coverage_data),))
 
 
 class CISuite(CIITRMixin, CIBase):
@@ -312,11 +330,6 @@ class CISuite(CIITRMixin, CIBase):
         suite_id: CISuiteId
         codeowners: Optional[List[str]] = None
         source_file_info: Optional[CISourceFileInfo] = None
-
-    class FinishArgs(NamedTuple):
-        suite_id: CISuiteId
-        force_finish_children: bool = False
-        override_status: Optional[CITestStatus] = None
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -335,6 +348,11 @@ class CISuite(CIITRMixin, CIBase):
         log.debug("Starting suite %s", item_id)
         core.dispatch("ci_visibility.suite.start", (item_id,))
 
+    class FinishArgs(NamedTuple):
+        suite_id: CISuiteId
+        force_finish_children: bool = False
+        override_status: Optional[CITestStatus] = None
+
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
@@ -352,17 +370,6 @@ class CISuite(CIITRMixin, CIBase):
             "ci_visibility.suite.finish",
             (CISuite.FinishArgs(item_id, force_finish_children, override_status),),
         )
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_itr_skipped(item_id: CISuiteId, force_finish_children: bool = False):
-        log.debug("Marking test %s as skipped by ITR", item_id)
-        CISuite.finish(item_id, force_finish_children, CITestStatus.SKIP)
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def add_coverage_data(item_id: CISuiteId, coverage_data: Dict[str, Any]):
-        log.debug("Adding coverage data for suite %s: %s", item_id, coverage_data)
 
 
 class CITest(CIITRMixin, CIBase):
@@ -442,11 +449,6 @@ class CITest(CIITRMixin, CIBase):
     @_catch_and_log_exceptions
     def mark_unskippable():
         log.debug("Marking test as unskippable")
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def mark_forced_run():
-        log.debug("Marking test as forced run")
 
     @staticmethod
     @_catch_and_log_exceptions

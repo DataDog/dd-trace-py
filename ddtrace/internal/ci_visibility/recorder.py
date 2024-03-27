@@ -6,6 +6,7 @@ import socket
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional
+from typing import Union  # noqa:F401
 from uuid import uuid4
 
 from ddtrace import Tracer
@@ -14,8 +15,8 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
-from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
+from ddtrace.ext.ci_visibility.api import CIBase
 from ddtrace.ext.ci_visibility.api import CIITRMixin
 from ddtrace.ext.ci_visibility.api import CIModule
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -646,7 +647,7 @@ class CIVisibility(Service):
 
     @classmethod
     def add_session(cls, session: CIVisibilitySession):
-        log.warning("Adding session: %s", session.item_id)
+        log.debug("Adding session: %s", session.item_id)
         if cls._instance is None:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -687,6 +688,14 @@ class CIVisibility(Service):
             log.warning("Session not found: %s", session_id)
             raise CIVisibilityDataError(f"No session with id {session_id} found")
         return cls._instance._session_data[session_id]
+
+    @classmethod
+    def get_session_settings_by_id(cls, session_id: CISessionId) -> CIVisibilitySessionSettings:
+        if cls._instance is None:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        return cls.get_session_by_id(session_id).get_session_settings()
 
     @classmethod
     def get_module_by_id(cls, module_id: CIModuleId) -> CIVisibilityModule:
@@ -753,6 +762,49 @@ class CIVisibility(Service):
         if instance is None:
             return None
         return instance._service
+
+    @classmethod
+    def is_item_itr_skippable(cls, item_id: CIItemId) -> bool:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+
+        if instance._suite_skipping_mode:
+            if isinstance(item_id, CISuiteId):
+                return CIVisibility.is_suite_itr_skippable(item_id)
+            log.debug("Skipping mode is suite, but item is not a suite: %s", item_id)
+            return False
+
+        if isinstance(item_id, CITestId):
+            return CIVisibility.is_test_itr_skippable(item_id)
+        log.debug("Skipping mode is test, but item is not a test: %s", item_id)
+
+        return False
+
+    @classmethod
+    def is_suite_itr_skippable(cls, item_id: CISuiteId) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+        item_module_path = item_id.parent_id.name.replace(".", "/")
+        item_path = "/".join((item_module_path, item_id.name)) if item_module_path else item_id.name
+        return instance._test_suites_to_skip is not None and item_path in instance._test_suites_to_skip
+
+    @classmethod
+    def is_test_itr_skippable(cls, item_id: CITestId) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+
+        item_module_path = item_id.parent_id.parent_id.name.replace(".", "/")
+        item_suite = item_id.parent_id.name
+        item_path = "/".join((item_module_path, item_suite)) if item_module_path else item_suite
+
+        return item_id.name in instance._tests_to_skip.get(item_path, [])
 
 
 def _requires_civisibility_enabled(func):
@@ -821,11 +873,18 @@ def _on_finish_session(finish_args: CISession.FinishArgs):
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
+@_requires_civisibility_enabled
+def _on_get_session_settings(session_id: CISessionId):
+    log.debug("Handling get session settings for session id %s", session_id)
+    return CIVisibility.get_session_settings(session_id)
+
+
 def _register_session_handlers():
     log.debug("Registering session handlers")
-    core.on("ci_visibility.session.register", _on_discover_session)
+    core.on("ci_visibility.session.discover", _on_discover_session)
     core.on("ci_visibility.session.start", _on_start_session)
     core.on("ci_visibility.session.finish", _on_finish_session)
+    core.on("ci_visibility.session.get_settings", _on_get_session_settings)
 
 
 @_requires_civisibility_enabled
@@ -952,7 +1011,7 @@ def _register_test_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_add_coverage_data(add_coverage_args: _CIVisibilityAPIBase.AddCoverageArgs):
+def _on_add_coverage_data(add_coverage_args: CIITRMixin.AddCoverageArgs):
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
     coverage_data = add_coverage_args.coverage_data
@@ -972,7 +1031,7 @@ def _register_coverage_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_set_tag(set_tag_args: _CIVisibilityAPIBase.SetTagArgs) -> None:
+def _on_set_tag(set_tag_args: CIBase.SetTagArgs) -> None:
     item_id = set_tag_args.item_id
     key = set_tag_args.name
     value = set_tag_args.value
@@ -981,7 +1040,7 @@ def _on_set_tag(set_tag_args: _CIVisibilityAPIBase.SetTagArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_set_tags(set_tags_args: _CIVisibilityAPIBase.SetTagsArgs) -> None:
+def _on_set_tags(set_tags_args: CIBase.SetTagsArgs) -> None:
     item_id = set_tags_args.item_id
     tags = set_tags_args.tags
     log.debug("Handling set tags for item id %s, tags %s", item_id, tags)
@@ -989,7 +1048,7 @@ def _on_set_tags(set_tags_args: _CIVisibilityAPIBase.SetTagsArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_delete_tag(delete_tag_args: _CIVisibilityAPIBase.DeleteTagArgs) -> None:
+def _on_delete_tag(delete_tag_args: CIBase.DeleteTagArgs) -> None:
     item_id = delete_tag_args.item_id
     key = delete_tag_args.name
     log.debug("Handling delete tag for item id %s, key %s", item_id, key)
@@ -997,7 +1056,7 @@ def _on_delete_tag(delete_tag_args: _CIVisibilityAPIBase.DeleteTagArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_delete_tags(delete_tags_args: _CIVisibilityAPIBase.DeleteTagsArgs) -> None:
+def _on_delete_tags(delete_tags_args: CIBase.DeleteTagsArgs) -> None:
     item_id = delete_tags_args.item_id
     keys = delete_tags_args.names
     log.debug("Handling delete tags for item id %s, keys %s", item_id, keys)
@@ -1013,24 +1072,45 @@ def _register_tag_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_itr_finish_item_skipped(finish_args: CIITRMixin.ITRFinishArgs) -> None:
-    item_id = finish_args.item_id
+def _on_itr_finish_item_skipped(item_id: Union[CISuiteId, CITestId]) -> None:
     log.debug("Handling finish ITR skipped for item id %s", item_id)
     CIVisibility.get_item_by_id(item_id).finish_itr_skipped()
 
 
 @_requires_civisibility_enabled
-def _on_itr_get_skippable_items() -> None:
+def _on_itr_mark_unskippable(item_id: Union[CISuiteId, CITestId]) -> None:
+    log.debug("Handling marking %s unskippable", item_id)
+    CIVisibility.get_item_by_id(item_id).mark_itr_unskippable()
+
+
+@_requires_civisibility_enabled
+def _on_itr_mark_forced_run(item_id: Union[CISuiteId, CITestId]) -> None:
+    log.debug("Handling marking %s as forced run", item_id)
+    CIVisibility.get_item_by_id(item_id).mark_itr_forced_run()
+
+
+@_requires_civisibility_enabled
+def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling get skippable items")
-    if CIVisibility.test_skipping_enabled():
-        pass
+
+    if not isinstance(item_id, (CISuiteId, CITestId)):
+        log.warning("Only suites or tests can be skippable, not %s", type(item_id))
+        return False
+
+    if not CIVisibility.test_skipping_enabled():
+        log.debug("Test skipping is not enabled")
+        return False
+
+    return CIVisibility.is_item_itr_skippable(item_id)
 
 
 def _register_itr_handlers():
     log.debug("Registering ITR-related handlers")
-    core.on("ci_visibility.item.finish_skipped_by_itr", _on_itr_finish_item_skipped)
-    core.on("ci_visibility.item.get_skippable_items", _on_itr_get_skippable_items)
+    core.on("ci_visibility.itr.finish_skipped_by_itr", _on_itr_finish_item_skipped)
+    core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable)
+    core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
+    core.on("ci_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
 
 
 _register_session_handlers()

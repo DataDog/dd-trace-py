@@ -7,6 +7,7 @@ import re
 import socket
 import textwrap
 import time
+from unittest.mock import Mock
 
 import mock
 import pytest
@@ -15,6 +16,7 @@ import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
+from ddtrace.ext.ci_visibility import api
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _GitSubprocessDetails
 from ddtrace.internal.ci_visibility import CIVisibility
@@ -1545,3 +1547,189 @@ def test_civisibility_enable_respects_passed_in_tracer():
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
         CIVisibility.disable()
+
+
+class TestIsITRSkippable:
+    """Tests whether the CIVisibilty.is_item_itr_skippable work properly (the _suite_ and _test_ level methods are
+    assumed to be working since they are called by is_item_itr_skippable in a wrapper-like way).
+
+    These tests mock CIVisibility._instance._test_suites_to_skip and _tests_to_skip , implying that
+    CIVisibility._fetch_tests_to_skip() ran successfully.
+
+    In test-level skipping mode, only the following tests should be skippable:
+        - module_1
+            - module_1_suite_1.py
+                - test_1
+                - test_2
+                - test_5[param2] with parameters
+        - module_2
+            - module_2_suite_1.py
+                - test_3
+            - module_2_suite_2.py
+                - test_2
+                - test_4[param1] with parameters
+                - test_6[param3] with parameters
+                - test_6[param3] without parameters
+        - no_module_suite_1.py
+            - test_5[param2] with parameters
+        - no_module_suite_2.py
+            - test_1
+            - tests_6[param3] with parameters
+            - tests_6[param3] without parameters
+
+    In suite-level skipping mode, only the following suites should skippable:
+        - module_1/suite_1.py
+        - module_2/suite_1.py
+        - module_2/suite_2.py
+        - no_module_suite_1.py
+
+    No tests should be skippable in suite-level skipping mode, and vice versa.
+    """
+
+    test_level_tests_to_skip = defaultdict()
+    test_level_tests_to_skip.update(
+        {
+            "module_1/module_1_suite_1.py": ["test_1", "test_2", "test_5[param2]"],
+            "module_2/module_2_suite_1.py": ["test_3"],
+            "module_2/module_2_suite_2.py": ["test_2", "test_4[param1]", "test_6[param3]"],
+            "no_module_suite_1.py": ["test_5[param2]"],
+            "no_module_suite_2.py": ["test_1", "test_6[param3]"],
+        }
+    )
+
+    suite_level_test_suites_to_skip = [
+        "module_1/module_1_suite_1.py",
+        "module_2/module_2_suite_1.py",
+        "module_2/module_2_suite_2.py",
+        "no_module_suite_1.py",
+    ]
+
+    # Consistent IDs for all tests
+    session_id = api.CISessionId()
+
+    # Module 1
+    m1 = api.CIModuleId(session_id, "module_1")
+    # Module 1 Suite 1
+    m1_s1 = api.CISuiteId(m1, "module_1_suite_1.py")
+    m1_s1_t1 = api.CITestId(m1_s1, "test_1")
+    m1_s1_t2 = api.CITestId(m1_s1, "test_2")
+    m1_s1_t3 = api.CITestId(m1_s1, "test_3")
+    m1_s1_t4 = api.CITestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = api.CITestId(m1_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t6 = api.CITestId(m1_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s1_t7 = api.CITestId(m1_s1, "test_6[param3]")
+
+    # Module 1 Suite 2
+    m1_s2 = api.CISuiteId(m1, "module_1_suite_2.py")
+    m1_s2_t1 = api.CITestId(m1_s2, "test_1")
+    m1_s2_t2 = api.CITestId(m1_s2, "test_2")
+    m1_s2_t3 = api.CITestId(m1_s2, "test_3")
+    m1_s2_t4 = api.CITestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = api.CITestId(m1_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t6 = api.CITestId(m1_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m1_s2_t7 = api.CITestId(m1_s2, "test_6[param3]")
+
+    # Module 2
+    m2 = api.CIModuleId(session_id, "module_2")
+
+    # Module 2 Suite 1
+    m2_s1 = api.CISuiteId(m2, "module_2_suite_1.py")
+    m2_s1_t1 = api.CITestId(m2_s1, "test_1")
+    m2_s1_t2 = api.CITestId(m2_s1, "test_2")
+    m2_s1_t3 = api.CITestId(m2_s1, "test_3")
+    m2_s1_t4 = api.CITestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = api.CITestId(m2_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t6 = api.CITestId(m2_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s1_t7 = api.CITestId(m2_s1, "test_6[param3]")
+
+    # Module 2 Suite 2
+    m2_s2 = api.CISuiteId(m2, "module_2_suite_2.py")
+    m2_s2_t1 = api.CITestId(m2_s2, "test_1")
+    m2_s2_t2 = api.CITestId(m2_s2, "test_2")
+    m2_s2_t3 = api.CITestId(m2_s2, "test_3")
+    m2_s2_t4 = api.CITestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = api.CITestId(m2_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t6 = api.CITestId(m2_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m2_s2_t7 = api.CITestId(m2_s2, "test_6[param3]")
+
+    # Module 3
+    m3 = api.CIModuleId(session_id, "")
+    m3_s1 = api.CISuiteId(m3, "no_module_suite_1.py")
+    m3_s1_t1 = api.CITestId(m3_s1, "test_1")
+    m3_s1_t2 = api.CITestId(m3_s1, "test_2")
+    m3_s1_t3 = api.CITestId(m3_s1, "test_3")
+    m3_s1_t4 = api.CITestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = api.CITestId(m3_s1, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t6 = api.CITestId(m3_s1, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s1_t7 = api.CITestId(m3_s1, "test_6[param3]")
+
+    m3_s2 = api.CISuiteId(m3, "no_module_suite_2.py")
+    m3_s2_t1 = api.CITestId(m3_s2, "test_1")
+    m3_s2_t2 = api.CITestId(m3_s2, "test_2")
+    m3_s2_t3 = api.CITestId(m3_s2, "test_3")
+    m3_s2_t4 = api.CITestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = api.CITestId(m3_s2, "test_5[param2]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t6 = api.CITestId(m3_s2, "test_6[param3]", parameters='{"arg1": "currently ignored"}')
+    m3_s2_t7 = api.CITestId(m3_s2, "test_6[param3]")
+
+    def _get_all_suite_ids(self):
+        return {getattr(self, suite_id) for suite_id in vars(self) if re.match(r"^m\d_s\d$", suite_id)}
+
+    def _get_all_test_ids(self):
+        return {getattr(self, test_id) for test_id in vars(self) if re.match(r"^m\d_s\d_t\d$", test_id)}
+
+    def test_is_item_itr_skippable_test_level(self):
+        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
+            CIVisibility, "_instance", Mock()
+        ) as mock_instance:
+            mock_instance._test_suites_to_skip = []
+            mock_instance._tests_to_skip = self.test_level_tests_to_skip
+            mock_instance._suite_skipping_mode = False
+
+            expected_skippable_test_ids = {
+                self.m1_s1_t1,
+                self.m1_s1_t2,
+                self.m1_s1_t5,
+                self.m2_s1_t3,
+                self.m2_s2_t2,
+                self.m2_s2_t4,
+                self.m2_s2_t6,
+                self.m2_s2_t7,
+                self.m3_s1_t5,
+                self.m3_s2_t1,
+                self.m3_s2_t6,
+                self.m3_s2_t7,
+            }
+            expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+
+            # Check skippable tests are correct
+            for test_id in expected_skippable_test_ids:
+                assert CIVisibility.is_item_itr_skippable(test_id) is True
+
+            # Check non-skippable tests are correct
+            for test_id in expected_non_skippable_test_ids:
+                assert CIVisibility.is_item_itr_skippable(test_id) is False
+
+            # Check all suites are not skippable
+            for suite_id in self._get_all_suite_ids():
+                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+
+    def test_is_item_itr_skippable_suite_level(self):
+        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
+            CIVisibility, "_instance", Mock()
+        ) as mock_instance:
+            mock_instance._test_suites_to_skip = self.suite_level_test_suites_to_skip
+            mock_instance._tests_to_skip = defaultdict(list)
+            mock_instance._suite_skipping_mode = True
+
+            # Check skippable suites are correct
+            for suite_id in [self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1]:
+                assert CIVisibility.is_item_itr_skippable(suite_id) is True
+
+            # Check non-skippable suites are correct
+            for suite_id in [self.m1_s2, self.m3_s2]:
+                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+
+            # Check all tests are not skippable
+            for test_id in self._get_all_test_ids():
+                assert CIVisibility.is_item_itr_skippable(test_id) is False
