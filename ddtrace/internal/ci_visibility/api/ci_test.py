@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIExcInfo
@@ -10,6 +12,7 @@ from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.logger import get_logger
 
@@ -37,6 +40,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._is_early_flake_retry = is_early_flake_retry  # NOTE: currently unused
         self._operation_name = session_settings.test_operation_name
         self._exc_info: Optional[CIExcInfo] = None
+        self._coverage_data: CICoverageData = CICoverageData()
 
         if item_id.parameters:
             self.set_tag(test.PARAMETERS, item_id.parameters)
@@ -88,3 +92,6 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             initial_tags=original_test._tags,
             is_early_flake_retry=True,
         )
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        self._coverage_data.add_coverage_segments(coverage_data)
