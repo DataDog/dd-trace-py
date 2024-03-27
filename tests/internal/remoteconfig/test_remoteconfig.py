@@ -426,5 +426,6 @@ def test_rc_default_products_registered():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     assert bool(remoteconfig_poller._client._products.get("APM_TRACING")) == rc_enabled
+    # Required for tracer flare
     assert bool(remoteconfig_poller._client._products.get("AGENT_CONFIG")) == rc_enabled
     assert bool(remoteconfig_poller._client._products.get("AGENT_TASK")) == rc_enabled

@@ -732,7 +732,7 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data):
+    def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
             log.warning("unexpected RC payload %r", data)
@@ -784,7 +784,8 @@ class Config(object):
         base_rc_config = {n: None for n in self._config}
 
         if config:
-            lib_config = config["lib_config"]
+            log.info("config contents: ", str(config))
+            lib_config = config.get("lib_config", {})
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
 
