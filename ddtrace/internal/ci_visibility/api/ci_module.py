@@ -1,6 +1,9 @@
 from enum import Enum
+from pathlib import Path
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -48,3 +51,6 @@ class CIVisibilityModule(
             MODULE_ID: str(self.get_span_id()),
             test.MODULE: self.name,
         }
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        raise NotImplementedError("Coverage data cannot be added to modules.")

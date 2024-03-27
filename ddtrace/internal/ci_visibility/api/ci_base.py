@@ -2,12 +2,14 @@ import abc
 from enum import Enum
 import functools
 import json
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
 from typing import NamedTuple
 from typing import Optional
+from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -23,6 +25,8 @@ from ddtrace.ext.ci_visibility.api import CISourceFileInfo
 from ddtrace.ext.ci_visibility.api import CISuiteId
 from ddtrace.ext.ci_visibility.api import CITestId
 from ddtrace.ext.ci_visibility.api import CITestStatus
+from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
+from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
@@ -42,6 +46,7 @@ class CIVisibilitySessionSettings(NamedTuple):
     module_operation_name: str
     suite_operation_name: str
     test_operation_name: str
+    root_dir: Path
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
 
@@ -50,10 +55,21 @@ class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
 
 
-CIDT = TypeVar("CIDT", CIModuleId, CISuiteId, CITestId)
-ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")
-PIDT = TypeVar("PIDT", CISessionId, CIModuleId, CISuiteId)
-ANYIDT = TypeVar("ANYIDT", CISessionId, CIModuleId, CISuiteId, CITestId)
+CIDT = TypeVar("CIDT", CIModuleId, CISuiteId, CITestId)  # Child item ID types
+ITEMT = TypeVar("ITEMT", bound="CIVisibilityItemBase")  # All item types
+PIDT = TypeVar("PIDT", CISessionId, CIModuleId, CISuiteId)  # Parent item ID types
+ANYIDT = TypeVar("ANYIDT", CISessionId, CIModuleId, CISuiteId, CITestId)  # Any item ID type
+
+
+def _require_not_finished(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if self.is_finished():
+            log.warning("Method %s called on item %s, but it is already finished", func, self.item_id)
+            return
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
@@ -87,29 +103,10 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         # General purpose-attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[CISourceFileInfo] = None
+        self._coverage_data: Optional[CICoverageData] = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.item_id})"
-
-    def _require_span(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if self._span is None:
-                log.debug("Method {func} called on item , but no span is set")
-                return
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    def _require_not_finished(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if self.is_finished():
-                log.warning("Method %s called on item %s, but it is already finished", func, self.item_id)
-                return
-            return func(*args, **kwargs)
-
-        return wrapper
 
     def _add_all_tags_to_span(self):
         for tag, tag_value in self._tags.items():
@@ -134,6 +131,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     def _finish_span(self):
         self._set_default_tags()
         self._set_test_hierarchy_tags()
+        self._add_coverage_data()
 
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
@@ -159,7 +157,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             }
         )
 
-        if self._codeowners is not None:
+        if self._codeowners:
             self.set_tag(test.CODEOWNERS, json.dumps(self._codeowners))
 
         if self._source_file_info is not None:
@@ -238,20 +236,20 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     def mark_itr_skipped(self):
         self._is_itr_skipped = True
 
-    # @_require_not_finished
+    @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:
         self._tags[tag_name] = tag_value
 
-    # @_require_not_finished
+    @_require_not_finished
     def set_tags(self, tags: Dict[str, Any]) -> None:
         for tag in tags:
             self._tags[tag] = tags[tag]
 
-    # @_require_not_finished
+    @_require_not_finished
     def get_tag(self, tag_name: str) -> Any:
         return self._tags[tag_name]
 
-    # @_require_not_finished
+    @_require_not_finished
     def get_tags(self, tag_names: List[str]) -> Dict[str, Any]:
         tags = {}
         for tag_name in tag_names:
@@ -259,7 +257,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         return tags
 
-    # @_require_not_finished
+    @_require_not_finished
     def delete_tag(self, tag_name: str) -> None:
         del self._tags[tag_name]
 
@@ -274,6 +272,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     def get_parent_span(self):
         if self.parent is not None:
             self.parent.get_span()
+
+    @abc.abstractmethod
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        pass
+
+    def _add_coverage_data(self):
+        if self._coverage_data:
+            self._span.set_tag_str(
+                COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.root_dir)
+            )
 
 
 class CIVisibilityChildItem(CIVisibilityItemBase, Generic[CIDT]):
