@@ -5,6 +5,8 @@ import pytest
 
 from ddtrace.contrib.dramatiq import patch
 from ddtrace.contrib.dramatiq import unpatch
+from ddtrace.pin import Pin
+from tests.utils import DummyTracer
 from tests.utils import snapshot
 
 
@@ -27,11 +29,13 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
         fn_task.send_with_options(options={"max_retries": 1})
 
-    @snapshot(wait_for_num_traces=0)
     def test_idempotent_unpatch(self):
         # calling unpatch() multiple times doesn't have side effects
         unpatch()
         unpatch()
+
+        tracer = DummyTracer()
+        Pin(tracer=tracer).onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():
@@ -40,15 +44,23 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
         fn_task.send_with_options(options={"max_retries": 1})
 
-    @snapshot(wait_for_num_traces=0)
+        spans = tracer.pop()
+        assert len(spans) == 0
+
     def test_fn_task_synchronous(self):
         # the body of the function is not instrumented so calling it
         # directly doesn't create a trace
+        tracer = DummyTracer()
+        Pin(tracer=tracer).onto(dramatiq)
+
         @dramatiq.actor
         def fn_task():
             return "synchronous task"
 
         fn_task()
+
+        spans = tracer.pop()
+        assert len(spans) == 0
 
     @snapshot(wait_for_num_traces=2)
     def test_fn_task_send(self):
