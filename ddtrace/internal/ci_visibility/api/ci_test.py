@@ -45,9 +45,6 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         if item_id.parameters:
             self.set_tag(test.PARAMETERS, item_id.parameters)
 
-        if item_id.parameters:
-            self.set_tag(test.PARAMETERS, item_id.parameters)
-
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
             test.NAME: self.name,
