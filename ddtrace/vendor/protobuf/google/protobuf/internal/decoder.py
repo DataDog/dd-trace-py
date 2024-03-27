@@ -386,12 +386,18 @@ def EnumDecoder(field_number, is_repeated, is_packed, key, new_default,
 
           message._unknown_fields.append(
               (tag_bytes, buffer[value_start_pos:pos].tobytes()))
+          if message._unknown_field_set is None:
+            message._unknown_field_set = containers.UnknownFieldSet()
+          message._unknown_field_set._add(
+              field_number, wire_format.WIRETYPE_VARINT, element)
           # pylint: enable=protected-access
       if pos > endpoint:
         if element in enum_type.values_by_number:
           del value[-1]   # Discard corrupt value.
         else:
           del message._unknown_fields[-1]
+          # pylint: disable=protected-access
+          del message._unknown_field_set._values[-1]
           # pylint: enable=protected-access
         raise _DecodeError('Packed element was truncated.')
       return pos
@@ -425,6 +431,10 @@ def EnumDecoder(field_number, is_repeated, is_packed, key, new_default,
             message._unknown_fields = []
           message._unknown_fields.append(
               (tag_bytes, buffer[pos:new_pos].tobytes()))
+          if message._unknown_field_set is None:
+            message._unknown_field_set = containers.UnknownFieldSet()
+          message._unknown_field_set._add(
+              field_number, wire_format.WIRETYPE_VARINT, element)
         # pylint: enable=protected-access
         # Predict that the next tag is another copy of the same repeated
         # field.
@@ -466,6 +476,10 @@ def EnumDecoder(field_number, is_repeated, is_packed, key, new_default,
                                      wire_format.WIRETYPE_VARINT)
         message._unknown_fields.append(
             (tag_bytes, buffer[value_start_pos:pos].tobytes()))
+        if message._unknown_field_set is None:
+          message._unknown_field_set = containers.UnknownFieldSet()
+        message._unknown_field_set._add(
+            field_number, wire_format.WIRETYPE_VARINT, enum_value)
         # pylint: enable=protected-access
       return pos
     return DecodeField
@@ -781,6 +795,12 @@ def MessageSetItemDecoder(descriptor):
         message._unknown_fields = []
       message._unknown_fields.append(
           (MESSAGE_SET_ITEM_TAG, buffer[message_set_item_start:pos].tobytes()))
+      if message._unknown_field_set is None:
+        message._unknown_field_set = containers.UnknownFieldSet()
+      message._unknown_field_set._add(
+          type_id,
+          wire_format.WIRETYPE_LENGTH_DELIMITED,
+          buffer[message_start:message_end].tobytes())
       # pylint: enable=protected-access
 
     return pos

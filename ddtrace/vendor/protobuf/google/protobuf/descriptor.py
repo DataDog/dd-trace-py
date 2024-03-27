@@ -745,11 +745,8 @@ class FieldDescriptor(DescriptorBase):
     """
     if self.label == FieldDescriptor.LABEL_REPEATED:
       return False
-    if (
-        self.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE
-        or self.is_extension
-        or self.containing_oneof
-    ):
+    if (self.cpp_type == FieldDescriptor.CPPTYPE_MESSAGE or
+        self.containing_oneof):
       return True
 
     return (
