@@ -1105,10 +1105,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         try:
-            patch_common_modules()
             with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
                 dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
             ):
+                patch_common_modules()
                 self.update_tracer(interface)
                 response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
                 assert self.status(response) == 200

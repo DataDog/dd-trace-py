@@ -15,8 +15,9 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 
 def patch_common_modules():
-    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    if asm_config._ep_enabled:
+        try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
+        try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
@@ -28,6 +29,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
+
     if asm_config._iast_enabled:
         # LFI sink to be added
         pass
