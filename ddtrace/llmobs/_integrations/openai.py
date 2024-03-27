@@ -178,7 +178,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         elif streamed_messages:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(streamed_messages))
+            span.set_tag_str(
+                OUTPUT_MESSAGES, json.dumps([{"content": m["content"], "role": m["role"]} for m in streamed_messages])
+            )
         else:
             output_messages = []
             for idx, choice in enumerate(resp.choices):
