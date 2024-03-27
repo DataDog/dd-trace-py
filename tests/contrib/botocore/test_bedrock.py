@@ -264,6 +264,14 @@ def test_anthropic_invoke(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+def test_anthropic_message_invoke(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
+    with request_vcr.use_cassette("anthropic_message_invoke.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
 def test_cohere_invoke_single_output(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["cohere"]), _MODELS["cohere"]
     with request_vcr.use_cassette("cohere_invoke_single_output.yaml"):
@@ -311,6 +319,15 @@ def test_amazon_invoke_stream(bedrock_client, request_vcr):
 def test_anthropic_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic"]), _MODELS["anthropic"]
     with request_vcr.use_cassette("anthropic_invoke_stream.yaml"):
+        response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
+        for _ in response.get("body"):
+            pass
+
+
+@pytest.mark.snapshot
+def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
+    body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
+    with request_vcr.use_cassette("anthropic_message_invoke_stream.yaml"):
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
         for _ in response.get("body"):
             pass
