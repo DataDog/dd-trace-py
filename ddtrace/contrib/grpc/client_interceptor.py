@@ -1,6 +1,7 @@
 import collections
 
 import grpc
+from google.protobuf.json_format import MessageToDict
 
 from ddtrace import config
 from ddtrace.ext import SpanKind
@@ -60,6 +61,9 @@ class _ClientCallDetails(
 def _future_done_callback(span):
     def func(response):
         try:
+            # JJJ also intercept here
+            log.warning("JJJ in _future_done_callback")
+            log.warning("JJJ dir(response): %s", dir(response))
             # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
             response_code = response.code()
@@ -75,12 +79,69 @@ def _future_done_callback(span):
     return func
 
 
+def _taint_response_message(response):
+    log.warning("JJJ response._response: %s", response)
+    log.warning("JJJ type(response._response): %s", type(response))
+    for f in response.ListFields():
+        # JJJ get the field.type and check that is a FieldDescriptor.TYPE_STRING or FieldDescriptor.TYPE_BYTES
+        # in this case, taint the field[1]
+        descriptor = f[0]
+        value = f[1]
+        FieldDescriptorClass = type(descriptor)
+        ValueClass = type(value)
+        ValueClassStr = str(ValueClass)
+        value_type = descriptor.type
+        # f[1].type in [FieldDescriptor.TYPE_STRING, FieldDescriptor.TYPE_BYTES]
+        log.warning("JJJ response.ListFields().Field[0]: %s", descriptor)
+        log.warning("JJJ response.ListFields().Field[0].type: %s", value_type)
+        log.warning("JJJ response.ListFields().Field[1]: %s", str(value).replace('\n', '; '))
+        log.warning("JJJ response.ListFields().Field[1].type: %s", type(value))
+
+        if value_type in [FieldDescriptorClass.TYPE_STRING, FieldDescriptorClass.TYPE_BYTES] and ValueClass in [str, bytes]:
+            log.warning("JJJ SHOULD BE TAINTED: %s", f[1])
+
+        # elif value_type in [FieldDescriptorClass.TYPE_MAP]:
+        #     log.warning("JJJ MAP! Doing recursive calls")
+        #     for _, v in f[1].items():
+        #         _taint_response_message(v)
+        #
+        # elif value_type in [FieldDescriptorClass.TYPE_ENUM, FieldDescriptorClass.TYPE_GROUP]:
+        #     log.warning("JJJ ENUM or GROUP! Doing recursive calls")
+        #     for e in f[1]:
+        #         _taint_response_message(e)
+
+        # JJJ: maybe check the class to see if it's a RepeatedCompositeContainer or other Container type?
+        elif value_type in [FieldDescriptorClass.TYPE_MESSAGE]:
+            log.warning("JJJ MESSAGE! Doing recursive calls")
+            for msg in f[1]:
+                _taint_response_message(msg)
+
+        # JJJ test with map<keytype, valuetype>!
+
+
+def _taint_response(response):
+
+
 def _handle_response(span, response):
     # use duck-typing to support future-like response as in the case of
     # google-api-core which has its own future base class
     # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23
+    log.warning("JJJ response: %s", str(response))
+    log.warning("JJJ type(response): %s", type(response))
+    log.warning("JJJ dir(response): %s", dir(response))
+
+
+    if hasattr(response, "_response"):
+        JJJdict = MessageToDict(response._response)
+        log.warning("JJJ asdict: %s" % JJJdict)
+        # _taint_response_message(response._response)
+
+    # JJJ: handle the streaming responses of type _MultiThreadedRendezvous
     if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
+    else:
+        log.warning("JJJ response.result.__call__: %s", response.result())
+    log.warning("JJJ -----------")
 
 
 def _handle_error(span, response_error, status_code):
@@ -126,9 +187,11 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         self._span = span
         # Registers callback on the _MultiThreadedRendezvous future to finish
         # span in case StopIteration is never raised but RPC is terminated
+        log.warning("JJJ in _WrappedResponseCallFuture, wrapped: %s", wrapped)
         _handle_response(self._span, self.__wrapped__)
 
     def __iter__(self):
+        log.warning("JJJ in _WrappedResponseCallFuture.__iter__")
         return self
 
     def _next(self):
@@ -139,6 +202,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         # https://github.com/grpc/grpc/blob/5195a06ddea8da6603c6672e0ed09fec9b5c16ac/src/python/grpcio/grpc/_channel.py#L418-L419
         # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
         # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
+        log.warning("JJJ in _WrappedResponseCallFuture._next")
         try:
             return next(self.__wrapped__)
         except StopIteration:
@@ -148,6 +212,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
             # handle as a response
+            log.warning("JJJ in _WrappedResponseCallFuture, grpc.RpcError: %s", rpc_error)
             _handle_response(self._span, rpc_error)
             raise
         except Exception:
@@ -158,7 +223,11 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             raise
 
     def __next__(self):
-        return self._next()
+        log.warning("JJJ in _WrappedResponseCallFuture.__next__")
+        n = self._next()
+        if n:
+            log.warning("JJJ _next, asdict: %s", MessageToDict(n))
+        return n
 
     next = __next__
 
@@ -175,6 +244,7 @@ class _ClientInterceptor(
         self._port = port
 
     def _intercept_client_call(self, method_kind, client_call_details):
+        log.warning("JJJ in intercept_client_call")
         tracer = self._pin.tracer
 
         span = tracer.trace(
@@ -229,17 +299,20 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request)
+            log.warning("JJJ in intercept_unary_unary")
             _handle_response(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
             # handle as a response
+            log.warning("JJJ in intercept_unary_unary, grpc.RpcError: %s", rpc_error)
             _handle_response(span, rpc_error)
             raise
 
         return response
 
     def intercept_unary_stream(self, continuation, client_call_details, request):
+        log.warning("JJJ in intercept_unary_stream")
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_SERVER_STREAMING,
             client_call_details,
@@ -255,17 +328,20 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request_iterator)
+            log.warning("JJJ in intercept_stream_unary")
             _handle_response(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
             # handle as a response
+            log.warning("JJJ in intercept_stream_unary, grpc.RpcError: %s", rpc_error)
             _handle_response(span, rpc_error)
             raise
 
         return response
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+        log.warning("JJJ in intercept_stream_stream")
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_BIDI_STREAMING,
             client_call_details,
