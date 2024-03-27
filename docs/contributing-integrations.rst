@@ -213,7 +213,7 @@ The following is the check list for ensuring you have all of the components to h
 
 - Patch code for your new integration under ``ddtrace/contrib/your_integration_name``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
-- The virtual environment configurations for your tests in the ``riotfile.py``.
+- The virtual environment configurations for your tests in ``riotfile.py``.
 - The Circle CI configurations for your tests in ``.circleci/config.templ.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to ``tests/.suitespec.json`` in two locations:
