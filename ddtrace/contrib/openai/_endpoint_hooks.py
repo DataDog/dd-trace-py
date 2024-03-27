@@ -121,12 +121,12 @@ class _BaseCompletionHook(_EndpointHook):
                     if integration.is_pc_sampled_span(span):
                         _tag_streamed_completion_response(integration, span, completions)
                     if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_resp=streamed_chunks)
+                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_completions=completions)
                 else:
                     if integration.is_pc_sampled_span(span):
                         _tag_streamed_chat_completion_response(integration, span, messages)
                     if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_resp=streamed_chunks)
+                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_completions=messages)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
