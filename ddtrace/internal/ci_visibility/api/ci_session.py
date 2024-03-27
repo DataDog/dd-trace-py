@@ -1,7 +1,10 @@
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
@@ -51,3 +54,6 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
 
     def get_session_settings(self):
         return self._session_settings
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        raise NotImplementedError("Coverage data cannot be added to sessions.")
