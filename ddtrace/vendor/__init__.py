@@ -109,7 +109,7 @@ protobuf
 --------
 
 Source: https://github.com/protocolbuffers/protobuf/tree/main
-Version: 5.27.0
+Version: 5.26.0
 License: Google custom lax-permissive
 """
 
