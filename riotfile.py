@@ -193,7 +193,6 @@ venv = Venv(
                 "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
-                "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
@@ -2650,11 +2649,6 @@ venv = Venv(
                     pys="3.7",
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==3.8.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2672,11 +2666,6 @@ venv = Venv(
                     pys=["3.8", "3.9"],
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==3.19.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2694,11 +2683,6 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==3.19.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2726,11 +2710,6 @@ venv = Venv(
                     pys="3.11",
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==4.22.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
