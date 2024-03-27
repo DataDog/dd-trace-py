@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.10-slim
 
 ENV PYTHONUNBUFFERED 1
 ENV DJANGO_SETTINGS_MODULE django_app
