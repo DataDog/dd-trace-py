@@ -76,7 +76,7 @@ jobs:
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker image save system_tests/agent:latest | gzip > ${{ matrix.weblog-variant}}_agent_${{ github.sha }}.tar.gz
-          docker image save system_tests/runner:latest | gzip > ${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
+          # docker image save system_tests/runner:latest | gzip > ${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
 
       - uses: actions/upload-artifact@master
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
@@ -85,7 +85,7 @@ jobs:
           path: |
             ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
             ${{ matrix.weblog-variant}}_agent_${{ github.sha }}.tar.gz
-            ${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
+            # ${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
             venv
           retention-days: 2
 
@@ -129,7 +129,7 @@ jobs:
         run: |
           docker load < ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker load < ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/${{ matrix.weblog-variant}}_agent_${{ github.sha }}.tar.gz
-          docker load < ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
+          # docker load < ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/${{ matrix.weblog-variant}}_runner_${{ github.sha }}.tar.gz
 
       - name: move venv
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
