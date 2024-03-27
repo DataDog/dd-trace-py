@@ -24,7 +24,7 @@ jobs:
           python -c "import os,sys,fnmatch;sys.exit(not bool([_ for pattern in {'ddtrace/*', 'setup*', 'pyproject.toml', '.github/workflows/system-tests.yml'} for _ in fnmatch.filter(os.environ['PATHS'].splitlines(), pattern)]))"
         continue-on-error: true
 
-  system-tests:
+  system-tests-build:
     runs-on: ubuntu-latest
     needs: needs-run
     strategy:
@@ -69,85 +69,53 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
 
-      - name: Run INTEGRATIONS
+      - name: Save
+        id: save
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh INTEGRATIONS
+        run: docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}.tar.gz
 
-      - name: Run CROSSED_TRACING_LIBRARIES
+      - uses: actions/upload-artifact@master
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh CROSSED_TRACING_LIBRARIES
+        with:
+          name: ${{ matrix.weblog-variant }}
+          path: ${{ matrix.weblog-variant}}.tar.gz
 
-      - name: Run
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh
+  system-tests-run:
+    runs-on: ubuntu-latest
+    needs: needs-run
+    strategy:
+      matrix:
+        weblog-variant: [flask-poc, uwsgi-poc, django-poc, fastapi, python3.12]
+        scenario: [INTEGRATIONS, CROSSED_TRACING_LIBRARIES, REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES]
 
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
+      fail-fast: false
+    env:
+      TEST_LIBRARY: python
+      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
+      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
+      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
+      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
+      DD_API_KEY: 1234567890abcdef1234567890abcdef
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
+    steps:
+      - name: Setup python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+      - uses: actions/download-artifact@master
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
+        with:
+          name: ${{ matrix.weblog-variant }}
+          path: ${{ matrix.weblog-variant}}.tar.gz
 
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+      - name: docker load
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
+        run: docker load < ${{ matrix.weblog-variant}}.tar.gz
 
-      - name: Run APPSEC_MISSING_RULES
+      - name: Run ${{ matrix.scenario }}
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_MISSING_RULES
-
-      - name: Run APPSEC_CUSTOM_RULES
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_CUSTOM_RULES
-
-      - name: Run APPSEC_CORRUPTED_RULES
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_CORRUPTED_RULES
-
-      - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
-
-      - name: Run APPSEC_BLOCKING
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_BLOCKING
-
-      - name: Run APPSEC_DISABLED
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_DISABLED
-
-      - name: Run APPSEC_LOW_WAF_TIMEOUT
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
-
-      - name: Run APPSEC_CUSTOM_OBFUSCATION
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
-
-      - name: Run APPSEC_RATE_LIMITER
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_RATE_LIMITER
-
-      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
-
-      - name: Run APPSEC_REQUEST_BLOCKING
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_REQUEST_BLOCKING
-
-      - name: Run APPSEC_RUNTIME_ACTIVATION
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_RUNTIME_ACTIVATION
-
-      - name: Run APPSEC_WAF_TELEMETRY
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh APPSEC_WAF_TELEMETRY
-
-      - name: Run SAMPLING
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh SAMPLING
+        run: ./run.sh ${{ matrix.scenario }}
 
       # even on failures, we want to have artifact to be able to investigate, so run if build was a success
       # The compress step speed up a lot the upload artifact process
