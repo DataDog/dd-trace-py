@@ -231,7 +231,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
         elif provider == _COHERE and streamed_body:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    n = int(span.get_tag("bedrock.request.n"))
+                    n = int(span.get_tag("bedrock.request.n") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(n)
