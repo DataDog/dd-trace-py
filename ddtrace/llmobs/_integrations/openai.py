@@ -164,12 +164,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         resp: Any, err: Any, kwargs: Dict[str, Any], streamed_messages: Optional[Any], span: Span
     ) -> None:
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-        span.set_tag_str(
-            INPUT_MESSAGES,
-            json.dumps(
-                [{"content": str(m.get("content", "")), "role": m.get("role", "")} for m in kwargs.get("messages", [])]
-            ),
-        )
+        input_messages = []
+        for m in kwargs.get("messages", []):
+            if isinstance(m, dict):
+                input_messages.append({"content": str(m.get("content", "")), "role": str(m.get("role", ""))})
+            else:
+                input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
