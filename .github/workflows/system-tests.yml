@@ -125,7 +125,9 @@ jobs:
 
       - name: move venv
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: mv ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/venv venv
+        run: |
+          mv ${{ matrix.weblog-variant}}_${{ github.sha }}.tar.gz/venv venv
+          chmod -R +x venv/bin/*
 
       - name: Run ${{ matrix.scenario }}
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
