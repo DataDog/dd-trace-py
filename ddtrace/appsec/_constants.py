@@ -129,6 +129,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
     LFI_ADDRESS = "server.io.fs.file"
+    SSRF_ADDRESS = "server.io.net.url"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
