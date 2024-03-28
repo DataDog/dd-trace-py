@@ -231,5 +231,16 @@ class ProfilingConfig(En):
             help="Enables collection and export using the experimental exporter",
         )
 
+    class Crashtracker(En):
+        __item__ = __prefix__ = "crashtracker"
+
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=False,
+            help_type="Boolean",
+            help="Enables the crashtracker",
+        )
+
 
 config = ProfilingConfig()

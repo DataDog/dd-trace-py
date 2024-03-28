@@ -1,6 +1,7 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import os
 import platform
 from typing import Dict
 from typing import Optional
@@ -48,7 +49,8 @@ cdef extern from "interface.hpp":
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
-    void ddup_init()
+    void ddup_start()
+    void ddup_start_crashtracker()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -72,6 +74,7 @@ cdef extern from "interface.hpp":
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
     bint ddup_upload() nogil
+    void ddup_crashtracker_set_receiver_binary_path(string_view path)
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
@@ -99,7 +102,7 @@ cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
 
-def init(
+def config(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
@@ -131,7 +134,18 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
-    ddup_init()
+
+
+def start() -> None:
+    ddup_start()
+
+
+def start_crashtracker() -> None:
+    # The file is "crashtracker_exe" in the same directory as this .so
+    exe_dir = os.path.dirname(__file__)
+    crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
+    ddup_crashtracker_set_receiver_binary_path(string_view(<const char*>crashtracker_path, len(crashtracker_path)))
+    ddup_start_crashtracker()
 
 
 def upload() -> None:

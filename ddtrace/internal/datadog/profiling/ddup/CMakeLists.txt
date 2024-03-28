@@ -89,3 +89,22 @@ if (LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}
     )
 endif()
+
+# Crashtracker
+add_executable(crashtracker_exe
+    src/crashtracker.c
+)
+target_include_directories(crashtracker_exe PRIVATE
+    ${Datadog_INCLUDE_DIRS}
+)
+set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+target_link_libraries(crashtracker_exe PRIVATE
+    dd_wrapper
+)
+if (LIB_INSTALL_DIR)
+    install(TARGETS crashtracker_exe
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+    )
+endif()

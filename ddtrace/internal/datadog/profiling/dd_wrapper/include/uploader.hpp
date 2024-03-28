@@ -13,11 +13,6 @@ extern "C"
 
 namespace Datadog {
 
-struct DdogProfExporterDeleter
-{
-    void operator()(ddog_prof_Exporter* ptr) const;
-};
-
 class Uploader
 {
   private:

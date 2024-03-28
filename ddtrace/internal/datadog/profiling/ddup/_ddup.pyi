@@ -6,7 +6,7 @@ from ddtrace._trace.span import Span
 
 StringType = Union[str, bytes, None]
 
-def init(
+def config(
     env: StringType,
     service: StringType,
     version: StringType,
@@ -14,6 +14,8 @@ def init(
     max_nframes: Optional[int],
     url: StringType,
 ) -> None: ...
+def start() -> None: ...
+def start_crashtracker() -> None: ...
 def upload() -> None: ...
 
 class SampleHandle:

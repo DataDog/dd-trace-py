@@ -128,6 +128,7 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _enable_crashtracking = attr.ib(typ=bool, default=config.crashtracking.enabled)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -202,15 +203,21 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
+        ddup.config(
+            env=self.env,
+            service=self.service,
+            version=self.version,
+            tags=self.tags,
+            max_nframes=config.max_frames,
+            url=endpoint,
+        )
+
+        # If crashtracker is enabled, let's start it
+        ddup.start_crashtracker()
+
+        # Choose one of the two collection/uploading methods
         if self._export_libdd_enabled:
-            ddup.init(
-                env=self.env,
-                service=self.service,
-                version=self.version,
-                tags=self.tags,
-                max_nframes=config.max_frames,
-                url=endpoint,
-            )
+            ddup.start()
         else:
             # DEV: Import this only if needed to avoid importing protobuf
             # unnecessarily

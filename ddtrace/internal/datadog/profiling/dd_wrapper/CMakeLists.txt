@@ -25,6 +25,7 @@ add_library(dd_wrapper SHARED
     src/uploader.cpp
     src/sample.cpp
     src/interface.cpp
+    src/crash_tracker.cpp
 )
 
 # Add common configuration flags
