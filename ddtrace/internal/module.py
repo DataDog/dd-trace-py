@@ -63,19 +63,6 @@ def _patch_run_code() -> None:
         runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
 
 
-def register_run_module_transformer(transformer: TransformerType) -> None:
-    """Register a run module transformer."""
-    _run_module_transformers.append(transformer)
-
-
-def unregister_run_module_transformer(transformer: TransformerType) -> None:
-    """Unregister a run module transformer.
-
-    If the transformer was not registered, a ``ValueError`` exception is raised.
-    """
-    _run_module_transformers.remove(transformer)
-
-
 def register_post_run_module_hook(hook: ModuleHookType) -> None:
     """Register a post run module hook.
 
