@@ -11,6 +11,7 @@ import six
 from ddtrace import ext
 from ddtrace.internal import packages
 from ddtrace.internal._encoding import ListStringTable as _StringTable
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
 from ddtrace.internal.logger import get_logger
@@ -101,17 +102,23 @@ def _protobuf_version():
 
 
 # Load the appropriate pprof_pb2 module
-_pb_version = _protobuf_version()
-for v in [(4, 21), (3, 19), (3, 12)]:
-    if _pb_version >= v:
-        import sys
-
-        pprof_module = "ddtrace.profiling.exporter.pprof_%s%s_pb2" % v
-        __import__(pprof_module)
-        pprof_pb2 = sys.modules[pprof_module]
-        break
+if PYTHON_VERSION_INFO >= (3, 11):
+    import sys
+    pprof_module = "ddtrace.profiling.exporter.pprof_526_pb2_vendor"
+    __import__(pprof_module)
+    pprof_pb2 = sys.modules[pprof_module]
 else:
-    from ddtrace.profiling.exporter import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
+    _pb_version = _protobuf_version()
+    for v in [(4, 21), (3, 19), (3, 12)]:
+        if _pb_version >= v:
+            import sys
+
+            pprof_module = "ddtrace.profiling.exporter.pprof_%s%s_pb2" % v
+            __import__(pprof_module)
+            pprof_pb2 = sys.modules[pprof_module]
+            break
+    else:
+        from ddtrace.profiling.exporter import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 _ITEMGETTER_ZERO = operator.itemgetter(0)

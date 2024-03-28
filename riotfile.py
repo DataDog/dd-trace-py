@@ -193,6 +193,7 @@ venv = Venv(
                 "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
                 "ddsketch": ">=2.0.1",
+                "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
                 "xmltodict": ">=0.12",
@@ -889,16 +890,6 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             pys=select_pys(min_version="3.8", max_version="3.11"),
-        ),
-        Venv(
-            name="dramatiq",
-            command="pytest {cmdargs} tests/contrib/dramatiq",
-            venvs=[
-                Venv(
-                    pys=select_pys(),
-                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
-                ),
-            ],
         ),
         Venv(
             name="elasticsearch",
@@ -2649,6 +2640,11 @@ venv = Venv(
                     pys="3.7",
                     pkgs={"uwsgi": latest},
                     venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.8.0", latest],
+                            },
+                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2666,6 +2662,11 @@ venv = Venv(
                     pys=["3.8", "3.9"],
                     pkgs={"uwsgi": latest},
                     venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2683,6 +2684,11 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"uwsgi": latest},
                     venvs=[
+                        Venv(
+                            pkgs={
+                                "protobuf": ["==3.19.0", latest],
+                            },
+                        ),
                         # Gevent
                         Venv(
                             env={
