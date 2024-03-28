@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: Changes botocore aws kinesis contrib to set DSM pathway using extracted DSM context, if found, instead of always using a new pathway with default context.

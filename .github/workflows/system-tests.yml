@@ -68,6 +68,14 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./build.sh
 
+      - name: Run INTEGRATIONS 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh INTEGRATIONS 
+
+      - name: Run CROSSED_TRACING_LIBRARIES 
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        run: ./run.sh CROSSED_TRACING_LIBRARIES 
+
       - name: Run
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh
@@ -140,10 +148,6 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         run: ./run.sh SAMPLING
 
-      - name: Run INTEGRATIONS 
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        run: ./run.sh INTEGRATIONS 
-
       # even on failures, we want to have artifact to be able to investigate
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -188,12 +192,12 @@ jobs:
         run: ./run.sh PARAMETRIC
 
       - name: Compress artifact
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() || github.event_name == 'schedule'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
+        if: always() || github.event_name == 'schedule'
         with:
           name: logs_parametric
           path: artifact.tar.gz
