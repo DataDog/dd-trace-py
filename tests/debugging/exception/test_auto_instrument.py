@@ -105,11 +105,11 @@ class ExceptionDebuggingTestCase(TracerTestCase):
                 b_chain(foo << sh)
 
         with exception_debugging() as d:
-            rateLimiter = RateLimiter(
+            rate_limiter = RateLimiter(
                 limit_rate=1,  # one trace per second
                 raise_on_exceed=False,
             )
-            with with_rate_limiter(rateLimiter):
+            with with_rate_limiter(rate_limiter):
                 with pytest.raises(KeyError):
                     c()
 
@@ -153,7 +153,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             assert len(exc_ids) == number_of_exc_ids
 
             # invoke again (should be in less then 1 sec)
-            with with_rate_limiter(rateLimiter):
+            with with_rate_limiter(rate_limiter):
                 with pytest.raises(KeyError):
                     c()
 

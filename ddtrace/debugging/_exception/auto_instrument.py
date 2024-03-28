@@ -2,6 +2,7 @@ from collections import deque
 from itertools import count
 import sys
 from threading import current_thread
+from types import FrameType
 from types import TracebackType
 import typing as t
 import uuid
@@ -23,6 +24,9 @@ GLOBAL_RATE_LIMITER = RateLimiter(
     limit_rate=1,  # one trace per second
     raise_on_exceed=False,
 )
+
+# used to store a snapshot on the frame locals
+SNAPSHOT_KEY = "_dd_exception_replay_snapshot_id"
 
 # used to mark that the span have debug info captured, visible to users
 DEBUG_INFO_TAG = "error.debug_info_captured"
@@ -75,11 +79,10 @@ def unwind_exception_chain(
 @attr.s
 class SpanExceptionProbe(LogLineProbe):
     @classmethod
-    def build(cls, exc_id: uuid.UUID, tb: TracebackType) -> "SpanExceptionProbe":
+    def build(cls, exc_id: uuid.UUID, frame: FrameType) -> "SpanExceptionProbe":
         _exc_id = str(exc_id)
-        frame = tb.tb_frame
         filename = frame.f_code.co_filename
-        line = tb.tb_lineno
+        line = frame.f_lineno
         name = frame.f_code.co_name
         message = f"exception info for {name}, in {filename}, line {line} (exception ID {_exc_id})"
 
@@ -176,12 +179,11 @@ class SpanExceptionProcessor(SpanProcessor):
                 # TODO: Check if it is user code; if not, skip. We still
                 #       generate a sequence number.
 
-                try:
-                    snapshot_id = frame.f_locals["_dd_debug_snapshot_id"]
-                except KeyError:
+                snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
+                if snapshot_id is None:
                     # We don't have a snapshot for the frame so we create one
                     snapshot = SpanExceptionSnapshot(
-                        probe=SpanExceptionProbe.build(exc_id, _tb),
+                        probe=SpanExceptionProbe.build(exc_id, frame),
                         frame=frame,
                         thread=current_thread(),
                         trace_context=span,
@@ -195,7 +197,7 @@ class SpanExceptionProcessor(SpanProcessor):
                     self.collector.push(snapshot)
 
                     # Memoize
-                    frame.f_locals["_dd_debug_snapshot_id"] = snapshot_id = snapshot.uuid
+                    frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
                 # Add correlation tags on the span
                 span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
