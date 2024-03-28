@@ -1,4 +1,5 @@
 import abc
+import dataclasses
 from enum import Enum
 import functools
 import json
@@ -7,7 +8,6 @@ from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
-from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 from typing import TypeVar
@@ -36,7 +36,8 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySessionSettings(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class CIVisibilitySessionSettings:
     tracer: Tracer
     test_service: str
     test_command: str
@@ -52,6 +53,14 @@ class CIVisibilitySessionSettings(NamedTuple):
     itr_enabled: bool = False
     itr_test_skipping_enabled: bool = False
     itr_test_skipping_level: str = ""
+
+    def __post_init__(self):
+        if not isinstance(self.tracer, Tracer):
+            raise TypeError("tracer must be a ddtrace.Tracer")
+        if not isinstance(self.root_dir, Path):
+            raise TypeError("root_dir must be a pathlib.Path")
+        if not self.root_dir.is_absolute():
+            raise ValueError("root_dir must be an absolute pathlib.Path")
 
 
 class SPECIAL_STATUS(Enum):
@@ -87,16 +96,16 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     ):
         self.item_id: ANYIDT = item_id
         self.parent: Optional["CIVisibilityItemBase"] = parent
-        self.name = self.item_id.name
+        self.name: str = self.item_id.name
         self._status: CITestStatus = CITestStatus.FAIL
-        self._session_settings = session_settings
-        self._tracer = session_settings.tracer
-        self._service = session_settings.test_service
-        self._operation_name = DEFAULT_OPERATION_NAMES.UNSET.value
+        self._session_settings: CIVisibilitySessionSettings = session_settings
+        self._tracer: Tracer = session_settings.tracer
+        self._service: str = session_settings.test_service
+        self._operation_name: str = DEFAULT_OPERATION_NAMES.UNSET.value
 
         self._span: Optional[Span] = None
-        self._tags = initial_tags if initial_tags else {}
-        self._children = None
+        self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
+        self._children: Optional[Dict[ANYIDT, "CIVisibilityChildItem"]] = None
 
         # ITR-related attributes
         self._is_itr_skipped: bool = False
@@ -105,9 +114,9 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._is_itr_forced_run: bool = False
 
         # Internal state keeping
-        self._status_set = False
+        self._status_set: bool = False
 
-        # General purpose-attributes not used by all item types
+        # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[CISourceFileInfo] = None
         self._coverage_data: Optional[CICoverageData] = None
@@ -173,7 +182,13 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         if self._source_file_info is not None:
             if self._source_file_info.path:
-                self.set_tag(test.SOURCE_FILE, self._source_file_info.path)
+                # Set source file path to be relative to the root directory
+                try:
+                    relative_path = self._source_file_info.path.relative_to(self._session_settings.root_dir)
+                except ValueError:
+                    log.debug("Source file path is not within the root directory, replacing with absolute path")
+                    relative_path = self._source_file_info.path
+                self.set_tag(test.SOURCE_FILE, str(relative_path))
             if self._source_file_info.start_line is not None:
                 self.set_tag(test.SOURCE_START, self._source_file_info.start_line)
             if self._source_file_info.end_line is not None:
@@ -199,6 +214,41 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         Classes that need to specifically modify the span directly should override this method.
         """
         pass
+
+    @property
+    def _source_file_info(self) -> Optional[CISourceFileInfo]:
+        return self.__source_file_info
+
+    @_source_file_info.setter
+    def _source_file_info(self, source_file_info_value: Optional[CISourceFileInfo] = None):
+        """This checks that filepaths are absolute when setting source file info"""
+        self.__source_file_info = None  # Default value until source_file_info is validated
+
+        if source_file_info_value is None:
+            return
+        if source_file_info_value.path is None:
+            # Source file info is invalid if path is None
+            return
+        if not isinstance(source_file_info_value, CISourceFileInfo):
+            log.warning("Source file info must be of type CISourceFileInfo")
+            return
+        if not source_file_info_value.path.is_absolute():
+            # Note: this should effectively be unreachable code because the CISourceFileInfoBase class enforces
+            # that paths be absolute at creation time
+            log.warning("Source file path must be absolute, removing source file info")
+            return
+
+        self.__source_file_info = source_file_info_value
+
+    @property
+    def _session_settings(self) -> CIVisibilitySessionSettings:
+        return self.__session_settings
+
+    @_session_settings.setter
+    def _session_settings(self, session_settings_value: CIVisibilitySessionSettings):
+        if not isinstance(session_settings_value, CIVisibilitySessionSettings):
+            raise TypeError("Session settings must be of type CIVisibilitySessionSettings")
+        self.__session_settings = session_settings_value
 
     @abc.abstractmethod
     def _get_hierarchy_tags(self):
