@@ -7,6 +7,7 @@ Comment lines in the test start/finish lines are there for visual distinction.
 """
 import json
 from multiprocessing import freeze_support
+from pathlib import Path
 
 from ddtrace.ext.ci_visibility import api
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
@@ -42,12 +43,12 @@ def main():
     suite_1_test_4_parametrized_2_id = api.CITestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value2"}))
     suite_1_test_4_parametrized_3_id = api.CITestId(suite_1_id, "test_4", parameters=json.dumps({"param1": "value3"}))
 
-    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_1_test_2_id, source_file_info=None)
     api.CITest.discover(
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
     api.CITest.discover_early_flake_retry(suite_1_test_3_retry_1_id)
@@ -66,12 +67,12 @@ def main():
     suite_2_test_2_parametrized_3_id = api.CITestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value3"}))
     suite_2_test_2_parametrized_4_id = api.CITestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value4"}))
     suite_2_test_2_parametrized_5_id = api.CITestId(suite_2_id, "test_2", parameters=json.dumps({"param1": "value5"}))
-    suite_2_test_2_source_file_info = api.CISourceFileInfo("my_file_2.py", 8, 9)
+    suite_2_test_2_source_file_info = api.CISourceFileInfo(Path("my_file_2.py"), 8, 9)
     suite_2_test_3_id = api.CITestId(suite_2_id, "test_3")
 
     api.CIModule.discover(module_2_id)
     api.CISuite.discover(suite_2_id)
-    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_2_test_2_parametrized_1_id, source_file_info=suite_2_test_2_source_file_info)
     api.CITest.discover(suite_2_test_2_parametrized_2_id, source_file_info=suite_2_test_2_source_file_info)
     api.CITest.discover(suite_2_test_2_parametrized_3_id, source_file_info=suite_2_test_2_source_file_info)
@@ -81,7 +82,7 @@ def main():
     api.CITest.discover(
         suite_2_test_3_id,
         codeowners=["@romain"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
 

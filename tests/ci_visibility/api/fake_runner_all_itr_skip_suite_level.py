@@ -1,6 +1,8 @@
 """Fake test runner where all tests are skipped by ITR at suite level"""
 
 from multiprocessing import freeze_support
+from pathlib import Path
+from unittest import mock
 
 from ddtrace.ext.ci_visibility import api
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
@@ -31,12 +33,12 @@ def main():
     suite_1_test_3_retry_2_id = api.CITestId(suite_1_id, "test_3", retry_number=2)
     suite_1_test_3_retry_3_id = api.CITestId(suite_1_id, "test_3", retry_number=3)
 
-    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_1_test_2_id, source_file_info=None)
     api.CITest.discover(
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
     api.CITest.discover_early_flake_retry(suite_1_test_3_retry_1_id)
@@ -55,12 +57,12 @@ def main():
 
     api.CIModule.discover(module_2_id)
     api.CISuite.discover(suite_2_id)
-    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_2_test_2_id, source_file_info=None)
     api.CITest.discover(
         suite_2_test_3_id,
         codeowners=["@romain"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
     api.CITest.discover_early_flake_retry(suite_2_test_3_retry_1_id)
@@ -118,4 +120,9 @@ def main():
 
 if __name__ == "__main__":
     freeze_support()
-    main()
+    # NOTE: this is only safe because these tests are run in a subprocess
+    import os
+
+    os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "1"
+    with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
+        main()

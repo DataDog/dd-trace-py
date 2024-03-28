@@ -1,14 +1,12 @@
 import abc
 import dataclasses
 from enum import Enum
-from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -76,10 +74,6 @@ class _CIVisibilityAPIBase(abc.ABC):
     class DeleteTagsArgs(NamedTuple):
         item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
         names: List[str]
-
-    class AddCoverageArgs(NamedTuple):
-        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
-        coverage_data: Dict[Path, List[Tuple[int, int]]]
 
     def __init__(self):
         raise NotImplementedError("This class is not meant to be instantiated")
