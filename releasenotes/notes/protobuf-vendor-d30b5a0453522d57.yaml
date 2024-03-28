@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves protobuf version incompatibilities that can arise when using ddtrace with
+    library-injection on Python versions 3.8 and newer by including a vendored copy of protobuf in ddtrace.
