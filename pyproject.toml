@@ -34,6 +34,7 @@ dependencies = [
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
+    "protobuf>=3; python_version<'3.8'",
     "setuptools; python_version>='3.12'",
     "six>=1.12.0",
     "typing_extensions",
@@ -97,7 +98,7 @@ exclude = '''
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof_.*_pb2.py$
+  | ddtrace/profiling/exporter/pprof_.*_pb2*.py$
   | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
@@ -144,6 +145,7 @@ exclude-modules = '''
   | ddtrace.profiling.exporter.pprof_312_pb2
   | ddtrace.profiling.exporter.pprof_319_pb2
   | ddtrace.profiling.exporter.pprof_421_pb2
+  | ddtrace.profiling.exporter.pprof_526_pb2_vendor
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
   | ddtrace,appsec,iast,_taint_tracking.vendor
@@ -205,7 +207,7 @@ exclude = [
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
-    "ddtrace/profiling/exporter/pprof_*pb2.py",
+    "ddtrace/profiling/exporter/pprof_*pb2*.py",
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
