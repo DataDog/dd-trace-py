@@ -5,6 +5,8 @@ from ddtrace import config
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...internal.utils import get_argument_value
+from ...internal.utils import set_argument_value
 from ..trace_utils import unwrap as _u
 from . import constants
 from . import utils
@@ -215,12 +217,18 @@ def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
 
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
-    interceptors = create_aio_client_interceptors(pin, host, port)
+    dd_interceptors = create_aio_client_interceptors(pin, host, port)
+    interceptor_index = 3
+    if wrapped.__name__ == "secure_channel":
+        interceptor_index = 4
+    interceptors = get_argument_value(args, kwargs, interceptor_index, "interceptors", True)
     # DEV: Inject our tracing interceptor first in the list of interceptors
-    if "interceptors" in kwargs:
-        kwargs["interceptors"] = interceptors + tuple(kwargs["interceptors"])
+    if interceptors:
+        args, kwargs = set_argument_value(
+            args, kwargs, interceptor_index, "interceptors", dd_interceptors + tuple(interceptors)
+        )
     else:
-        kwargs["interceptors"] = interceptors
+        args, kwargs = set_argument_value(args, kwargs, interceptor_index, "interceptors", dd_interceptors, True)
 
     return wrapped(*args, **kwargs)
 

@@ -51,6 +51,7 @@ def set_argument_value(
     pos,  # type: int
     kw,  # type: str
     value,  # type: Any
+    override_unset=False,  # type: bool
 ):
     # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
     """
@@ -64,7 +65,7 @@ def set_argument_value(
     """
     if len(args) > pos:
         args = args[:pos] + (value,) + args[pos + 1 :]
-    elif kw in kwargs:
+    elif kw in kwargs or override_unset:
         kwargs[kw] = value
     else:
         raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
