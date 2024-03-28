@@ -2662,11 +2662,6 @@ venv = Venv(
                     pys=["3.8", "3.9"],
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==3.19.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={
@@ -2684,11 +2679,6 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"uwsgi": latest},
                     venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==3.19.0", latest],
-                            },
-                        ),
                         # Gevent
                         Venv(
                             env={

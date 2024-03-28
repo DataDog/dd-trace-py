@@ -102,7 +102,7 @@ def _protobuf_version():
 
 
 # Load the appropriate pprof_pb2 module
-if PYTHON_VERSION_INFO >= (3, 11):
+if PYTHON_VERSION_INFO >= (3, 8):
     import sys
     pprof_module = "ddtrace.profiling.exporter.pprof_526_pb2_vendor"
     __import__(pprof_module)
