@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import METRICS
@@ -12,6 +13,9 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+
+
+log = get_logger(__name__)
 
 
 class BedrockIntegration(BaseLLMIntegration):
@@ -64,6 +68,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if isinstance(prompt, str):
             return [{"content": prompt}]
         if not isinstance(prompt, list):
+            log.warning("Bedrock input is not a list of messages or a string.")
             return [{"content": ""}]
         input_messages = []
         for p in prompt:
@@ -71,12 +76,12 @@ class BedrockIntegration(BaseLLMIntegration):
             if isinstance(content, list) and isinstance(content[0], dict):
                 for entry in content:
                     if entry.get("type") == "text":
-                        input_messages.append({"content": entry.get("text"), "role": str(p.get("role"))})
+                        input_messages.append({"content": entry.get("text", ""), "role": str(p.get("role", ""))})
                     elif entry.get("type") == "image":
                         # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append({"content": "{IMAGE DETECTED}", "role": str(p.get("role"))})
+                        input_messages.append({"content": "([IMAGE DETECTED])", "role": str(p.get("role", ""))})
             else:
-                input_messages.append({"content": content, "role": str(p.get("role"))})
+                input_messages.append({"content": content, "role": str(p.get("role", ""))})
         return input_messages
 
     @staticmethod
