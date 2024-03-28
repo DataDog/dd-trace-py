@@ -312,10 +312,15 @@ class DataStreamsProcessor(PeriodicService):
             return self.new_pathway()
 
     def decode_pathway_b64(self, data):
-        # type: (Optional[str]) -> DataStreamsCtx
+        # type: (Optional[Union[str, bytes]]) -> DataStreamsCtx
         if not data:
             return self.new_pathway()
-        binary_pathway = data.encode("utf-8")
+
+        if isinstance(data, str):
+            binary_pathway = data.encode("utf-8")
+        else:
+            binary_pathway = data
+
         encoded_pathway = base64.b64decode(binary_pathway)
         data_streams_context = self.decode_pathway(encoded_pathway)
         return data_streams_context
@@ -350,8 +355,7 @@ class DataStreamsProcessor(PeriodicService):
         if "direction:out" in tags:
             # Add the header for this now, as the callee doesn't have access
             # when producing
-            payload_size += len(ctx.encode())
-            payload_size += len(PROPAGATION_KEY)
+            payload_size += len(ctx.encode_b64()) + len(PROPAGATION_KEY_BASE_64)
         ctx.set_checkpoint(tags, now_sec=now_sec, payload_size=payload_size, span=span)
         return ctx
 
@@ -451,6 +455,45 @@ class DataStreamsCtx:
         self.processor.on_checkpoint_creation(
             hash_value, parent_hash, tags, now_sec, edge_latency_sec, pathway_latency_sec, payload_size=payload_size
         )
+
+
+class DsmPathwayCodec:
+    """
+    DsmPathwayCodec is responsible for:
+        - encoding and injecting DSM pathway context into produced message headers
+        - extracting and decoding DSM pathway context from consumed message headers
+    """
+
+    @staticmethod
+    def encode(ctx, carrier):
+        # type: (DataStreamsCtx, dict) -> None
+        if not isinstance(ctx, DataStreamsCtx) or not ctx or not ctx.hash:
+            return
+        carrier[PROPAGATION_KEY_BASE_64] = ctx.encode_b64()
+
+    @staticmethod
+    def decode(carrier, data_streams_processor):
+        # type: (dict, DataStreamsProcessor) -> DataStreamsCtx
+        if not carrier:
+            return data_streams_processor.new_pathway()
+
+        ctx = None
+        if PROPAGATION_KEY_BASE_64 in carrier:
+            # decode V2 base64 encoding
+            ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY_BASE_64])
+        elif PROPAGATION_KEY in carrier:
+            # decode V1 encoding
+            ctx = data_streams_processor.decode_pathway(carrier[PROPAGATION_KEY])
+
+            if ctx.hash == 0:
+                try:
+                    # cover case where base64 encoding was included under depcreated key
+                    ctx = data_streams_processor.decode_pathway_b64(carrier[PROPAGATION_KEY])
+                except Exception:
+                    ctx = None
+        if not ctx:
+            return data_streams_processor.new_pathway()
+        return ctx
 
 
 def _atexit(obj=None):

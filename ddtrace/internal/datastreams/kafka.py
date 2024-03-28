@@ -4,7 +4,7 @@ from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -30,11 +30,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    pathway = processor().set_checkpoint(
+    ctx = processor().set_checkpoint(
         ["direction:out", "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
     )
-    encoded_pathway = pathway.encode()
-    headers[PROPAGATION_KEY] = encoded_pathway
+
+    DsmPathwayCodec.encode(ctx, headers)
     kwargs["headers"] = headers
 
     on_delivery_kwarg = "on_delivery"
@@ -79,7 +79,7 @@ def dsm_kafka_message_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.key())
     payload_size += _calculate_byte_size(headers)
 
-    ctx = processor().decode_pathway(headers.get(PROPAGATION_KEY, None))
+    ctx = DsmPathwayCodec.decode(headers, processor())
     ctx.set_checkpoint(
         ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"], payload_size=payload_size, span=span
     )
