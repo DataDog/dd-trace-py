@@ -31,7 +31,6 @@ from ddtrace.internal.utils.formats import asbool  # noqa:F401
 if config.logs_injection:
     _configure_log_injection()
 
-
 log = get_logger(__name__)
 
 

@@ -17,6 +17,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
+from .._logger import _configure_ddtrace_file_logger
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -27,6 +28,7 @@ from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
+from ..internal.constants import TRACER_FLARE_DIRECTORY
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
@@ -730,7 +732,7 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data, test_tracer=None):
+    def _handle_remoteconfig(self, data):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
             log.warning("unexpected RC payload %r", data)
@@ -739,8 +741,46 @@ class Config(object):
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        product_type = data.get("metadata", [])[0].get("product_name")
+        configs = data["config"]
+
+        if product_type == "APM_TRACING":
+            self._handle_apm_tracing_product(configs[0])
+        elif product_type == "AGENT_CONFIG":
+            self._handle_agent_config_product(configs)
+        elif product_type == "AGENT_TASK":
+            self._handle_agent_task_product(configs)
+        else:
+            log.warning("unexpected RC product name: %s", product_type)
+
+    def _handle_agent_config_product(self, configs: List[dict]) -> None:
+        for config in configs:
+            if config and config.get("name", "").startswith("flare-log-level"):
+                flare_log_level = config.get("config", {}).get("log_level").upper()
+                os.makedirs(TRACER_FLARE_DIRECTORY)
+
+                _ = "tracerflare-python_%s".format()
+                flare_log_file_path = "%s/%s.log".format()
+                os.environ.update(
+                    {"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_log_file_path}
+                )
+                _configure_ddtrace_file_logger(log)
+                return
+
+    def _handle_agent_task_product(self, configs: List[dict]) -> None:
+        for config in configs:
+            if config and config.get("task_type") == "tracer_flare":
+                # Revert flare log configurations
+                os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
+                _ = os.environ.pop("DD_TRACE_LOG_FILE")
+                # _disable_ddtrace_file_logger(log)
+
+                # TODO: Send flare
+
+                return
+
+    def _handle_apm_tracing_product(self, config: dict) -> None:
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
         if config:
