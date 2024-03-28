@@ -743,28 +743,31 @@ class Config(object):
         config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
-        if config:
-            lib_config = config["lib_config"]
-            if "tracing_sampling_rate" in lib_config:
-                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
+        if not config or "lib_config" not in config:
+            log.warning("unexpected RC payload %r", data)
+            return
 
-            if "log_injection_enabled" in lib_config:
-                base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
+        lib_config = config["lib_config"]
+        if "tracing_sampling_rate" in lib_config:
+            base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
 
-            if "tracing_tags" in lib_config:
-                tags = lib_config["tracing_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_tags"])
-                base_rc_config["tags"] = tags
+        if "log_injection_enabled" in lib_config:
+            base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
 
-            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
+        if "tracing_tags" in lib_config:
+            tags = lib_config["tracing_tags"]
+            if tags:
+                tags = self._format_tags(lib_config["tracing_tags"])
+            base_rc_config["tags"] = tags
 
-            if "tracing_header_tags" in lib_config:
-                tags = lib_config["tracing_header_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_header_tags"])
-                base_rc_config["trace_http_header_tags"] = tags
+        if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
+            base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
+
+        if "tracing_header_tags" in lib_config:
+            tags = lib_config["tracing_header_tags"]
+            if tags:
+                tags = self._format_tags(lib_config["tracing_header_tags"])
+            base_rc_config["trace_http_header_tags"] = tags
 
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
         # called unconditionally to handle the case where header tags have been unset
