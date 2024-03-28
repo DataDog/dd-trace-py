@@ -170,6 +170,9 @@
         "coverage": [
             "ddtrace/contrib/coverage/*"
         ],
+        "dd_coverage": [
+            "ddtrace/internal/coverage/*"
+        ],
         "llmobs": [
             "ddtrace/llmobs/*"
         ],
@@ -609,6 +612,7 @@
             "@ci_visibility",
             "@ci",
             "@coverage",
+            "@dd_coverage",
             "@git",
             "@pytest",
             "@codeowners",

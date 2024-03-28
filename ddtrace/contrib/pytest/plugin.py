@@ -13,6 +13,7 @@ to be run at specific points during pytest execution. The most important hooks u
 """
 from doctest import DocTest
 import json
+import os
 import re
 from typing import Dict  # noqa:F401
 
@@ -49,6 +50,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
 from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
 from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
@@ -61,7 +63,9 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -69,6 +73,10 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 log = get_logger(__name__)
 
 _global_skipped_elements = 0
+
+# COVER_SESSION is an experimental feature flag that provides full coverage (similar to coverage run), and is an
+# experimental feature. It currently significantly increases test import time and should not be used.
+COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
 
 def _is_pytest_8_or_later():
@@ -821,6 +829,20 @@ def pytest_runtest_protocol(item, nextitem):
             _stop_coverage(pytest)
 
 
+def pytest_load_initial_conftests(early_config, parser, args):
+    # Enables experimental use of ModuleCodeCollector for coverage collection.
+    if USE_DD_COVERAGE:
+        if not ModuleCodeCollector.is_installed():
+            ModuleCodeCollector.install()
+        if COVER_SESSION:
+            ModuleCodeCollector.start_coverage()
+    else:
+        if COVER_SESSION:
+            log.warning(
+                "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
+            )
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""
@@ -936,3 +958,10 @@ def pytest_ddtrace_get_item_test_name(item):
         if item.config.getoption("ddtrace-include-class-name") or item.config.getini("ddtrace-include-class-name"):
             return "%s.%s" % (item.cls.__name__, item.name)
     return item.name
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    # Reports coverage if experimental session-level coverage is enabled.
+    if USE_DD_COVERAGE and COVER_SESSION:
+        ModuleCodeCollector.report()

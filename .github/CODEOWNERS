@@ -35,8 +35,9 @@ tests/contrib/pytest_bdd            @DataDog/apm-core-python @DataDog/ci-app-lib
 tests/contrib/unittest_plugin       @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/ext/ci.py                   @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
 ddtrace/internal/ci_visibility      @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries @Datadog/debugger-python
 tests/ci_visibility                 @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py             @DataDog/apm-core-python @DataDog/ci-app-libraries
 
