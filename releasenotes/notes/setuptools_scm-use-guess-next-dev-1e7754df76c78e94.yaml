@@ -1,0 +1,3 @@
+fixes:
+  - |
+    setuptools_scm version: Updates the setuptools_scm versioning method to "guess-next-dev" from "release-branch-semver", which was affecting the CI
