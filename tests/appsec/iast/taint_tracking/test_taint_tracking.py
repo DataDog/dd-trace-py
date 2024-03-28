@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pytest
 
 from ddtrace.appsec._iast import oce
 from tests.utils import override_env
@@ -30,6 +31,15 @@ def test_taint_ranges_as_evidence_info_all_tainted():
     value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
     assert value_parts == [{"value": tainted_text, "source": 0}]
     assert sources == [input_info]
+
+
+@pytest.mark.skip("Fatal Python error if context not created")
+@pytest.mark.no_iast_context
+def test_taint_ranges_as_evidence_info_all_tainted_no_context():
+    arg = "all tainted"
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    # Taint pyobject should return original pyobject
+    assert id(arg) == id(tainted_text)
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():

@@ -2,6 +2,8 @@
 # flake8: noqa
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.logger import get_logger
+
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
@@ -85,6 +87,8 @@ __all__ = [
     "debug_taint_map",
 ]
 
+log = get_logger(__name__)
+
 
 def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     # type: (Any, Any, Any, OriginType) -> Any
@@ -103,9 +107,13 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
-    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-    _set_metric_iast_executed_source(source_origin)
-    return pyobject_newid
+    try:
+        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+        return pyobject_newid
+    except ValueError:
+        log.debug("IAST: exception while tainting: ", exc_info=True)
+        return pyobject
 
 
 def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
