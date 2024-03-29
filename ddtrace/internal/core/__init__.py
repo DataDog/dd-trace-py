@@ -207,8 +207,7 @@ class ExecutionContext:
                     "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
                 )
         if id(self) in DEPRECATION_MEMO:
-            global DEPRECATION_MEMO
-            DEPRECATION_MEMO -= id(self)
+            DEPRECATION_MEMO.remove(id(self))
         return dispatch_result
 
     def addParent(self, context):
