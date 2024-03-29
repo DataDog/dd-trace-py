@@ -38,11 +38,11 @@ import collections
 import threading
 import warnings
 
-from . import descriptor
-from . import descriptor_database
-from . import text_encoding
-from ..internal import python_edition_defaults
-from ..internal import python_message
+from google.protobuf import descriptor
+from google.protobuf import descriptor_database
+from google.protobuf import text_encoding
+from google.protobuf.internal import python_edition_defaults
+from google.protobuf.internal import python_message
 
 _USE_C_DESCRIPTORS = descriptor._USE_C_DESCRIPTORS  # pylint: disable=protected-access
 
@@ -184,7 +184,7 @@ class DescriptorPool(object):
     """
 
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
     file_desc_proto = descriptor_pb2.FileDescriptorProto.FromString(
         serialized_file_desc_proto)
     file_desc = self._ConvertFileProtoToFileDescriptor(file_desc_proto)
@@ -663,7 +663,7 @@ class DescriptorPool(object):
       )
 
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
 
     if not isinstance(defaults, descriptor_pb2.FeatureSetDefaults):
       raise TypeError('SetFeatureSetDefaults called with invalid type')
@@ -704,7 +704,7 @@ class DescriptorPool(object):
       A FeatureSet message with defaults for a specific edition.
     """
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
 
     with _edition_defaults_lock:
       if not self._edition_defaults:
@@ -798,7 +798,7 @@ class DescriptorPool(object):
       public_deps = [direct_deps[i] for i in file_proto.public_dependency]
 
       # pylint: disable=g-import-not-at-top
-      from . import descriptor_pb2
+      from google.protobuf import descriptor_pb2
 
       file_descriptor = descriptor.FileDescriptor(
           pool=self,

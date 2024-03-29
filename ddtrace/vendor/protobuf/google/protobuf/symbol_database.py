@@ -36,9 +36,9 @@ Example usage::
 
 import warnings
 
-from ..internal import api_implementation
-from . import descriptor_pool
-from . import message_factory
+from google.protobuf.internal import api_implementation
+from google.protobuf import descriptor_pool
+from google.protobuf import message_factory
 
 
 class SymbolDatabase():

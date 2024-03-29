@@ -33,20 +33,20 @@ import sys
 import warnings
 import weakref
 
-from . import descriptor as descriptor_mod
-from . import message as message_mod
-from . import text_format
+from google.protobuf import descriptor as descriptor_mod
+from google.protobuf import message as message_mod
+from google.protobuf import text_format
 # We use "as" to avoid name collisions with variables.
-from ..internal import api_implementation
-from ..internal import containers
-from ..internal import decoder
-from ..internal import encoder
-from ..internal import enum_type_wrapper
-from ..internal import extension_dict
-from ..internal import message_listener as message_listener_mod
-from ..internal import type_checkers
-from ..internal import well_known_types
-from ..internal import wire_format
+from google.protobuf.internal import api_implementation
+from google.protobuf.internal import containers
+from google.protobuf.internal import decoder
+from google.protobuf.internal import encoder
+from google.protobuf.internal import enum_type_wrapper
+from google.protobuf.internal import extension_dict
+from google.protobuf.internal import message_listener as message_listener_mod
+from google.protobuf.internal import type_checkers
+from google.protobuf.internal import well_known_types
+from google.protobuf.internal import wire_format
 
 _FieldDescriptor = descriptor_mod.FieldDescriptor
 _AnyFullTypeName = 'google.protobuf.Any'
@@ -446,7 +446,7 @@ def _DefaultValueConstructorForField(field):
     def MakeSubMessageDefault(message):
       # _concrete_class may not yet be initialized.
       if not hasattr(message_type, '_concrete_class'):
-        from . import message_factory
+        from google.protobuf import message_factory
         message_factory.GetMessageClass(message_type)
       result = message_type._concrete_class()
       result._SetListener(
@@ -929,7 +929,7 @@ def _InternalUnpackAny(msg):
   # To make Any work with custom factories, use the message factory of the
   # parent message.
   # pylint: disable=g-import-not-at-top
-  from . import symbol_database
+  from google.protobuf import symbol_database
   factory = symbol_database.Default()
 
   type_url = msg.type_url

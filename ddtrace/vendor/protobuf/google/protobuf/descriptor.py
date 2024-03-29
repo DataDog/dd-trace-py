@@ -17,7 +17,7 @@ import os
 import threading
 import warnings
 
-from ..internal import api_implementation
+from google.protobuf.internal import api_implementation
 
 _USE_C_DESCRIPTORS = False
 if api_implementation.Type() != 'python':
@@ -25,7 +25,7 @@ if api_implementation.Type() != 'python':
   _message = api_implementation._c_module
   # TODO: Remove this import after fix api_implementation
   if _message is None:
-    from ..pyext import _message
+    from google.protobuf.pyext import _message
   _USE_C_DESCRIPTORS = True
 
 
@@ -169,7 +169,7 @@ class DescriptorBase(metaclass=DescriptorMetaclass):
       A fully resolved feature set for making runtime decisions.
     """
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
 
     if self._parent:
       features = descriptor_pb2.FeatureSet()
@@ -190,7 +190,7 @@ class DescriptorBase(metaclass=DescriptorMetaclass):
       return
 
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
 
     if not hasattr(descriptor_pb2, self._options_class_name):
       raise RuntimeError(
@@ -681,7 +681,7 @@ class FieldDescriptor(DescriptorBase):
 
   def _InferLegacyFeatures(self, edition, options, features):
     # pylint: disable=g-import-not-at-top
-    from . import descriptor_pb2
+    from google.protobuf import descriptor_pb2
 
     if edition >= descriptor_pb2.Edition.EDITION_2023:
       return
@@ -1160,7 +1160,7 @@ class MethodDescriptor(DescriptorBase):
         arguments.
     """
     if self.containing_service is not None:
-      from . import descriptor_pb2
+      from google.protobuf import descriptor_pb2
       service_proto = descriptor_pb2.ServiceDescriptorProto()
       self.containing_service.CopyToProto(service_proto)
       proto.CopyFrom(service_proto.method[self.index])
@@ -1253,7 +1253,7 @@ class FileDescriptor(DescriptorBase):
       self._edition = 'EDITION_PROTO2'
 
     if pool is None:
-      from . import descriptor_pool
+      from google.protobuf import descriptor_pool
       pool = descriptor_pool.Default()
     self.pool = pool
     self.message_types_by_name = {}
@@ -1364,7 +1364,7 @@ def MakeDescriptor(
     A Descriptor for protobuf messages.
   """
   # pylint: disable=g-import-not-at-top
-  from . import descriptor_pb2
+  from google.protobuf import descriptor_pb2
 
   # Generate a random name for this proto file to prevent conflicts with any
   # imported ones. We need to specify a file name so the descriptor pool

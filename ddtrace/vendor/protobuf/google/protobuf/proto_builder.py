@@ -11,10 +11,10 @@ from collections import OrderedDict
 import hashlib
 import os
 
-from . import descriptor_pb2
-from . import descriptor
-from . import descriptor_pool
-from . import message_factory
+from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor
+from google.protobuf import descriptor_pool
+from google.protobuf import message_factory
 
 
 def _GetMessageFromFactory(pool, full_name):

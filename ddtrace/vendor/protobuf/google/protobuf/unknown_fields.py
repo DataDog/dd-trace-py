@@ -16,13 +16,13 @@ Simple usage example:
 """
 
 
-from ..internal import api_implementation
+from google.protobuf.internal import api_implementation
 
 if api_implementation._c_module is not None:  # pylint: disable=protected-access
   UnknownFieldSet = api_implementation._c_module.UnknownFieldSet  # pylint: disable=protected-access
 else:
-  from ..internal import decoder  # pylint: disable=g-import-not-at-top
-  from ..internal import wire_format  # pylint: disable=g-import-not-at-top
+  from google.protobuf.internal import decoder  # pylint: disable=g-import-not-at-top
+  from google.protobuf.internal import wire_format  # pylint: disable=g-import-not-at-top
 
   class UnknownField:
     """A parsed unknown field."""
