@@ -76,7 +76,6 @@ def cleanup_loaded_modules():
             "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
-            "google",
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
