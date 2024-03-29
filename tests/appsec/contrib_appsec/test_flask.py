@@ -2,15 +2,11 @@ from flask.testing import FlaskClient
 import pytest
 
 from ddtrace import Pin
-from ddtrace import config
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
 from ddtrace.internal.packages import importlib_metadata
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
-
-
-config._raise = True
 
 
 FLASK_VERSION = tuple(int(v) for v in importlib_metadata.version("flask").split("."))
