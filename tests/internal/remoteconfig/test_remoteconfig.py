@@ -545,11 +545,37 @@ def test_rc_default_products_registered():
                 )
             ],
         ),
+        (
+            # Test with no sample rate
+            [
+                {
+                    "service": "my-service",
+                    "name": "web.request",
+                    "resource": "*",
+                    "provenance": "customer",
+                    "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
+                }
+            ],
+            None,
+            None,
+        ),
+        (
+            # Test with no service, name, resource, tags
+            [
+                {
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                }
+            ],
+            None,
+            None,
+        ),
     ],
 )
 def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
     trace_sampling_rules = config.convert_rc_trace_sampling_rules(rc_rules)
 
     assert trace_sampling_rules == expected_config_rules
-    parsed_rules = tracer.sampler._parse_rules_from_env_variable(trace_sampling_rules)
-    assert parsed_rules == expected_sampling_rules
+    if trace_sampling_rules is not None:
+        parsed_rules = tracer.sampler._parse_rules_from_env_variable(trace_sampling_rules)
+        assert parsed_rules == expected_sampling_rules
