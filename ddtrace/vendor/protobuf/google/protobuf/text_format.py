@@ -26,11 +26,11 @@ import io
 import math
 import re
 
-from google.protobuf.internal import decoder
-from google.protobuf.internal import type_checkers
-from google.protobuf import descriptor
-from google.protobuf import text_encoding
-from google.protobuf import unknown_fields
+from ..internal import decoder
+from ..internal import type_checkers
+from . import descriptor
+from . import text_encoding
+from . import unknown_fields
 
 # pylint: disable=g-import-not-at-top
 __all__ = ['MessageToString', 'Parse', 'PrintMessage', 'PrintField',
@@ -307,9 +307,9 @@ def _BuildMessageFromTypeName(type_name, descriptor_pool):
   """
   # pylint: disable=g-import-not-at-top
   if descriptor_pool is None:
-    from google.protobuf import descriptor_pool as pool_mod
+    from . import descriptor_pool as pool_mod
     descriptor_pool = pool_mod.Default()
-  from google.protobuf import message_factory
+  from . import message_factory
   try:
     message_descriptor = descriptor_pool.FindMessageTypeByName(type_name)
   except KeyError:

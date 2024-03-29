@@ -8,8 +8,8 @@
 """Contains _ExtensionDict class to represent extensions.
 """
 
-from google.protobuf.internal import type_checkers
-from google.protobuf.descriptor import FieldDescriptor
+from ..internal import type_checkers
+from ..descriptor import FieldDescriptor
 
 
 def _VerifyExtensionHandle(message, extension_handle):
@@ -67,10 +67,10 @@ class _ExtensionDict(object):
       message_type = extension_handle.message_type
       if not hasattr(message_type, '_concrete_class'):
         # pylint: disable=g-import-not-at-top
-        from google.protobuf import message_factory
+        from . import message_factory
         message_factory.GetMessageClass(message_type)
       if not hasattr(extension_handle.message_type, '_concrete_class'):
-        from google.protobuf import message_factory
+        from . import message_factory
         message_factory.GetMessageClass(extension_handle.message_type)
       result = extension_handle.message_type._concrete_class()
       try:

@@ -13,14 +13,14 @@ Descriptor objects at runtime backed by the protocol buffer C++ API.
 
 __author__ = 'tibell@google.com (Johan Tibell)'
 
-from google.protobuf.internal import api_implementation
+from ..internal import api_implementation
 
 
 # pylint: disable=protected-access
 _message = api_implementation._c_module
 # TODO: Remove this import after fix api_implementation
 if _message is None:
-  from google.protobuf.pyext import _message
+  from ..pyext import _message
 
 
 class GeneratedProtocolMessageType(_message.MessageMeta):

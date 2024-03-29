@@ -27,10 +27,10 @@ import math
 from operator import methodcaller
 import re
 
-from google.protobuf import descriptor
-from google.protobuf import message_factory
-from google.protobuf import symbol_database
-from google.protobuf.internal import type_checkers
+from . import descriptor
+from . import message_factory
+from . import symbol_database
+from ..internal import type_checkers
 
 
 _INT_TYPES = frozenset([

@@ -7,7 +7,7 @@
 
 """Contains FieldMask class."""
 
-from google.protobuf.descriptor import FieldDescriptor
+from ..descriptor import FieldDescriptor
 
 
 class FieldMask(object):

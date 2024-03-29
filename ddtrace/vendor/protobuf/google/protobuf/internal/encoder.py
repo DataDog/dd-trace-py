@@ -45,7 +45,7 @@ __author__ = 'kenton@google.com (Kenton Varda)'
 
 import struct
 
-from google.protobuf.internal import wire_format
+from ..internal import wire_format
 
 
 # This will overflow and thus become IEEE-754 "infinity".  We would use
