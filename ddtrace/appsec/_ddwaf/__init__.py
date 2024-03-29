@@ -41,7 +41,7 @@ class DDWaf_result(object):
 
     def __init__(
         self,
-        data: Optional[str],
+        data: List[Dict[str, Any]],
         actions: List[str],
         runtime: float,
         total_runtime: float,
@@ -56,6 +56,13 @@ class DDWaf_result(object):
         self.timeout = timeout
         self.truncation = truncation
         self.derivatives = derivatives
+
+    def __repr__(self):
+        return (
+            f"DDWaf_result(data: {self.data}, actions: {self.actions}, runtime: {self.runtime},"
+            f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
+            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+        )
 
 
 class DDWaf_info(object):
@@ -150,17 +157,19 @@ if _DDWAF_LOADED:
             self,
             ctx: ddwaf_context_capsule,
             data: DDWafRulesType,
+            ephemeral_data: DDWafRulesType = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             start = time.time()
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(None, [], 0, (time.time() - start) * 1e6, False, 0, {})
+                return DDWaf_result([], [], 0, (time.time() - start) * 1e6, False, 0, {})
 
             result = ddwaf_result()
             observator = _observator()
             wrapper = ddwaf_object(data, observator=observator)
-            error = ddwaf_run(ctx.ctx, wrapper, None, ctypes.byref(result), int(timeout_ms * 1000))
+            wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
+            error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
             if error < 0:
                 LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
             return DDWaf_result(
@@ -194,10 +203,11 @@ else:
             self,
             ctx: Any,
             data: Any,
+            ephemeral_data: Any = None,
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result(None, [], 0.0, 0.0, False, 0, {})
+            return DDWaf_result([], [], 0.0, 0.0, False, 0, {})
 
         def update_rules(self, _: Dict[str, Any]) -> bool:
             LOGGER.debug("DDWaf features disabled. dry update")
