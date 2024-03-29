@@ -22,7 +22,7 @@ import collections.abc
 import datetime
 import warnings
 
-from google.protobuf.internal import field_mask
+from .protobuf.internal import field_mask
 
 FieldMask = field_mask.FieldMask
 

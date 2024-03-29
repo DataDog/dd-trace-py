@@ -18,14 +18,14 @@ __author__ = 'matthewtoia@google.com (Matt Toia)'
 
 import warnings
 
-from google.protobuf.internal import api_implementation
-from google.protobuf import descriptor_pool
-from google.protobuf import message
+from .protobuf.internal import api_implementation
+from .protobuf import descriptor_pool
+from .protobuf import message
 
 if api_implementation.Type() == 'python':
-  from google.protobuf.internal import python_message as message_impl
+  from .protobuf.internal import python_message as message_impl
 else:
-  from google.protobuf.pyext import cpp_message as message_impl  # pylint: disable=g-import-not-at-top
+  from .protobuf.pyext import cpp_message as message_impl  # pylint: disable=g-import-not-at-top
 
 
 # The type of all Message classes.

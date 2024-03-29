@@ -33,20 +33,20 @@ import sys
 import warnings
 import weakref
 
-from google.protobuf import descriptor as descriptor_mod
-from google.protobuf import message as message_mod
-from google.protobuf import text_format
+from .protobuf import descriptor as descriptor_mod
+from .protobuf import message as message_mod
+from .protobuf import text_format
 # We use "as" to avoid name collisions with variables.
-from google.protobuf.internal import api_implementation
-from google.protobuf.internal import containers
-from google.protobuf.internal import decoder
-from google.protobuf.internal import encoder
-from google.protobuf.internal import enum_type_wrapper
-from google.protobuf.internal import extension_dict
-from google.protobuf.internal import message_listener as message_listener_mod
-from google.protobuf.internal import type_checkers
-from google.protobuf.internal import well_known_types
-from google.protobuf.internal import wire_format
+from .protobuf.internal import api_implementation
+from .protobuf.internal import containers
+from .protobuf.internal import decoder
+from .protobuf.internal import encoder
+from .protobuf.internal import enum_type_wrapper
+from .protobuf.internal import extension_dict
+from .protobuf.internal import message_listener as message_listener_mod
+from .protobuf.internal import type_checkers
+from .protobuf.internal import well_known_types
+from .protobuf.internal import wire_format
 
 _FieldDescriptor = descriptor_mod.FieldDescriptor
 _AnyFullTypeName = 'google.protobuf.Any'
@@ -446,7 +446,7 @@ def _DefaultValueConstructorForField(field):
     def MakeSubMessageDefault(message):
       # _concrete_class may not yet be initialized.
       if not hasattr(message_type, '_concrete_class'):
-        from google.protobuf import message_factory
+        from .protobuf import message_factory
         message_factory.GetMessageClass(message_type)
       result = message_type._concrete_class()
       result._SetListener(
@@ -929,7 +929,7 @@ def _InternalUnpackAny(msg):
   # To make Any work with custom factories, use the message factory of the
   # parent message.
   # pylint: disable=g-import-not-at-top
-  from google.protobuf import symbol_database
+  from .protobuf import symbol_database
   factory = symbol_database.Default()
 
   type_url = msg.type_url
