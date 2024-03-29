@@ -1,11 +1,14 @@
 import abc
 import dataclasses
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
+from typing import NamedTuple
 from typing import Optional
+from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
@@ -57,17 +60,38 @@ CIItemId = TypeVar("CIItemId", bound=Union[_CIVisibilityChildItemIdBase, _CIVisi
 
 
 class _CIVisibilityAPIBase(abc.ABC):
+    class SetTagArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        name: str
+        value: Any
+
+    class DeleteTagArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        name: str
+
+    class SetTagsArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        tags: Dict[str, Any]
+
+    class DeleteTagsArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        names: List[str]
+
+    class AddCoverageArgs(NamedTuple):
+        item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]
+        coverage_data: Dict[Path, List[Tuple[int, int]]]
+
     def __init__(self):
         raise NotImplementedError("This class is not meant to be instantiated")
 
     @staticmethod
     @abc.abstractmethod
-    def discover(item_id: _CIVisibilityRootItemIdBase, *args, **kwargs):
+    def discover(item_id: CIItemId, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def start(item_id: _CIVisibilityRootItemIdBase, *args, **kwargs):
+    def start(item_id: CIItemId, *args, **kwargs):
         pass
 
     @staticmethod
@@ -82,17 +106,21 @@ class _CIVisibilityAPIBase(abc.ABC):
         pass
 
     @staticmethod
-    def set_tag(item_id: _CIVisibilityRootItemIdBase, tag_name: str, tag_value: Any, recurse: bool = False):
-        log.debug("Setting tag for item %s: %s=%s", item_id, tag_name, tag_value)
+    @abc.abstractmethod
+    def set_tag(item_id: CIItemId, tag_name: str, tag_value: Any):
+        raise NotImplementedError("This method must be implemented by the subclass")
 
     @staticmethod
-    def set_tags(item_id: _CIVisibilityRootItemIdBase, tags: Dict[str, Any], recurse: bool = False):
-        log.debug("Setting tags for item %s: %s", item_id, tags)
+    @abc.abstractmethod
+    def set_tags(item_id: CIItemId, tags: Dict[str, Any]):
+        raise NotImplementedError("This method must be implemented by the subclass")
 
     @staticmethod
-    def delete_tag(item_id: _CIVisibilityRootItemIdBase, tag_name: str, recurse: bool = False):
-        log.debug("Deleting tag for item %s: %s", item_id, tag_name)
+    @abc.abstractmethod
+    def delete_tag(item_id: CIItemId, tag_name: str):
+        raise NotImplementedError("This method must be implemented by the subclass")
 
     @staticmethod
-    def delete_tags(item_id: _CIVisibilityRootItemIdBase, tag_names: List[str], recurse: bool = False):
-        log.debug("Deleting tags for item %s: %s", item_id, tag_names)
+    @abc.abstractmethod
+    def delete_tags(item_id: CIItemId, tag_names: List[str]):
+        raise NotImplementedError("This method must be implemented by the subclass")

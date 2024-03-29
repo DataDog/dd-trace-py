@@ -1,6 +1,9 @@
 from enum import Enum
+from pathlib import Path
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -36,11 +39,11 @@ class CIVisibilityModule(
         self._operation_name = session_settings.module_operation_name
 
     def start(self):
-        log.warning("Starting CI Visibility module %s", self.item_id)
+        log.debug("Starting CI Visibility module %s", self.item_id)
         super().start()
 
     def finish(self, force: bool = False, override_status: Optional[Enum] = None):
-        log.warning("Finishing CI Visibility module %s", self.item_id)
+        log.debug("Finishing CI Visibility module %s", self.item_id)
         super().finish()
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
@@ -48,3 +51,6 @@ class CIVisibilityModule(
             MODULE_ID: str(self.get_span_id()),
             test.MODULE: self.name,
         }
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        raise NotImplementedError("Coverage data cannot be added to modules.")

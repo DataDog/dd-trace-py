@@ -892,6 +892,16 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
         ),
         Venv(
+            name="dramatiq",
+            command="pytest {cmdargs} tests/contrib/dramatiq",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             pkgs={
@@ -2622,7 +2632,8 @@ venv = Venv(
         ),
         Venv(
             name="profile",
-            command="python -m tests.profiling.run pytest --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            # NB riot commands that use this Venv must include --pass-env to work properly
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             pkgs={
                 "gunicorn": latest,
                 #

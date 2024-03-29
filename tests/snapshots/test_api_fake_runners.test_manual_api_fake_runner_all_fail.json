@@ -12,16 +12,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -33,9 +34,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -43,12 +44,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 227459,
-    "start": 1710862316994274250
+    "duration": 167833,
+    "start": 1711388039395346125
   }],
 [
   {
@@ -64,16 +65,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -84,9 +86,9 @@
       "test.name": "test_2",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -94,10 +96,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 87417,
-    "start": 1710862316994916000
+    "duration": 67834,
+    "start": 1711388039395888666
   }],
 [
   {
@@ -113,16 +115,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -135,9 +138,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -145,12 +148,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 92833,
-    "start": 1710862316995069584
+    "duration": 72417,
+    "start": 1711388039395999458
   }],
 [
   {
@@ -166,16 +169,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -188,9 +192,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -198,12 +202,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 79584,
-    "start": 1710862316995217000
+    "duration": 58250,
+    "start": 1711388039396111708
   }],
 [
   {
@@ -219,16 +223,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -241,9 +246,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -251,12 +256,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 88917,
-    "start": 1710862316995349125
+    "duration": 56417,
+    "start": 1711388039396210083
   }],
 [
   {
@@ -272,16 +277,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -294,9 +300,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test"
     },
     "metrics": {
@@ -304,12 +310,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 88041,
-    "start": 1710862316995490459
+    "duration": 67167,
+    "start": 1711388039396304208
   }],
 [
   {
@@ -325,26 +331,26 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_fail",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_1",
       "test.status": "fail",
       "test.suite": "suite_1",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "8553427661654807479",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "16905059807326355725",
       "type": "test_suite_end"
     },
     "metrics": {
@@ -352,10 +358,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 1475417,
-    "start": 1710862316994209292
+    "duration": 1119250,
+    "start": 1711388039395306208
   }],
 [
   {
@@ -371,24 +377,24 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_fail",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_1",
       "test.status": "fail",
-      "test_module_id": "11165626330348132129",
-      "test_session_id": "4308653593717017392",
+      "test_module_id": "11972741260129767340",
+      "test_session_id": "13140522271640815185",
       "type": "test_module_end"
     },
     "metrics": {
@@ -396,10 +402,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 1648000,
-    "start": 1710862316994130709
+    "duration": 1194666,
+    "start": 1711388039395277000
   }],
 [
   {
@@ -415,16 +421,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -436,9 +443,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -446,12 +453,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 79959,
-    "start": 1710862316995897625
+    "duration": 69875,
+    "start": 1711388039396545041
   }],
 [
   {
@@ -467,16 +474,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -487,9 +495,9 @@
       "test.name": "test_2",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -497,10 +505,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 68083,
-    "start": 1710862316996029167
+    "duration": 50125,
+    "start": 1711388039396650458
   }],
 [
   {
@@ -516,16 +524,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -538,9 +547,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -548,12 +557,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 74708,
-    "start": 1710862316996153209
+    "duration": 52958,
+    "start": 1711388039396734500
   }],
 [
   {
@@ -569,16 +578,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -591,9 +601,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -601,12 +611,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 76625,
-    "start": 1710862316996278084
+    "duration": 54708,
+    "start": 1711388039396824000
   }],
 [
   {
@@ -622,16 +632,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -644,9 +655,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -654,12 +665,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 77125,
-    "start": 1710862316996415167
+    "duration": 53417,
+    "start": 1711388039396913083
   }],
 [
   {
@@ -675,16 +686,17 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "error.message": "This is a fake exception",
-      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-61/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0/fake_runner_all_fail.py\", line 12, in _make_excinfo\n    raise ValueError(\"This is a fake exception\")\nValueError: This is a fake exception\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -697,9 +709,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test"
     },
     "metrics": {
@@ -707,12 +719,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677,
+      "process_id": 13304,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 78083,
-    "start": 1710862316996547917
+    "duration": 55125,
+    "start": 1711388039397002958
   }],
 [
   {
@@ -728,26 +740,26 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_fail",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_2",
       "test.status": "fail",
       "test.suite": "suite_2",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
-      "test_suite_id": "3140126441183062177",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
+      "test_suite_id": "7576829174260644991",
       "type": "test_suite_end"
     },
     "metrics": {
@@ -755,10 +767,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 829167,
-    "start": 1710862316995863792
+    "duration": 579583,
+    "start": 1711388039396523833
   }],
 [
   {
@@ -774,24 +786,24 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_fail",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_2",
       "test.status": "fail",
-      "test_module_id": "14962077761711159572",
-      "test_session_id": "4308653593717017392",
+      "test_module_id": "11570425717817403601",
+      "test_session_id": "13140522271640815185",
       "type": "test_module_end"
     },
     "metrics": {
@@ -799,10 +811,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 926458,
-    "start": 1710862316995826792
+    "duration": 645792,
+    "start": 1711388039396502958
   }],
 [
   {
@@ -818,22 +830,22 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afec00000000",
+      "_dd.p.tid": "6601b58700000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-25/test_manual_api_fake_runner_all_fail0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev102+gc5ad28b69.d20240325",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "78e961253be045bf8e8d954aa1ba803c",
+      "runtime-id": "f6e387193d454519a8458aa5e36d3959",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_fail",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.status": "fail",
-      "test_session_id": "4308653593717017392",
+      "test_session_id": "13140522271640815185",
       "type": "test_session_end"
     },
     "metrics": {
@@ -841,8 +853,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25677
+      "process_id": 13304
     },
-    "duration": 2817042,
-    "start": 1710862316994043417
+    "duration": 1976792,
+    "start": 1711388039395223333
   }]]
