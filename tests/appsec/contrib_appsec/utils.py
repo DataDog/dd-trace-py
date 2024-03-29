@@ -1097,7 +1097,7 @@ class Contrib_TestClass_For_Threats:
             ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100"),
         ],
     )
-    def test_exploit_prevention_lfi(
+    def test_exploit_prevention(
         self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule
     ):
         from ddtrace.appsec._common_module_patches import patch_common_modules
@@ -1122,6 +1122,30 @@ class Contrib_TestClass_For_Threats:
                     assert self.check_for_stack_trace(root_span) == []
         finally:
             unpatch_common_modules()
+
+    @pytest.mark.skip(reason="iast integration not working yet")
+    def test_iast(self, iast, interface, root_span, get_tag):
+        from ddtrace.appsec._iast.taint_sinks.command_injection import patch
+        from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
+        from ddtrace.ext import http
+
+        url = "/rasp/shell/?cmd=ls"
+        try:
+            patch()
+            # patch_common_modules()
+            with override_global_config(dict(_iast_enabled=True)):
+                self.update_tracer(interface)
+                response = interface.client.get(url)
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert self.body(response).startswith("shell endpoint")
+                print(self.body(response))
+                print(core.get_item("_iast_data", root_span()))
+                assert get_tag("_dd.iast.json")
+        finally:
+            assert iast is None
+            unpatch()
+            # unpatch_common_modules()
 
 
 @contextmanager
