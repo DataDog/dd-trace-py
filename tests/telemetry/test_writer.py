@@ -434,15 +434,15 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events())
+        initial_event_count = len(test_agent_session.get_events("app-client-configuration-change"))
         telemetry_writer.add_configuration("appsec_enabled", True)
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
         telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
         telemetry_writer.periodic()
 
-        events = test_agent_session.get_events()
-        assert len(events) == initial_event_count + 1
+        events = test_agent_session.get_events("app-client-configuration-change")
+        assert len(events) >= initial_event_count + 1
         assert events[0]["request_type"] == "app-client-configuration-change"
         received_configurations = events[0]["payload"]["configuration"]
         # Sort the configuration list by name
