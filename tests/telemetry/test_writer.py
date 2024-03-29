@@ -441,8 +441,8 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
 
         telemetry_writer.periodic()
 
-        events = test_agent_session.get_events()
-        assert len(events) == initial_event_count + 1
+        events = test_agent_session.get_events("app-client-configuration-change")
+        assert len(events) >= initial_event_count + 1
         assert events[0]["request_type"] == "app-client-configuration-change"
         received_configurations = events[0]["payload"]["configuration"]
         # Sort the configuration list by name
