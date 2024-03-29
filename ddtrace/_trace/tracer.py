@@ -287,6 +287,7 @@ class Tracer(object):
 
         self._new_process = False
         config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
+        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
@@ -1122,17 +1123,26 @@ class Tracer(object):
 
     def _on_global_config_update(self, cfg, items):
         # type: (Config, List) -> None
-        if "_trace_sample_rate" in items:
-            # Reset the user sampler if one exists
-            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                self._sampler = self._user_sampler
-                return
+        if "_trace_sample_rate" in items or "_trace_sampling_rules" in items:
+            if "_trace_sample_rate" in items:
+                # Reset the user sampler if one exists
+                if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
+                    self._sampler = self._user_sampler
+                    return
 
-            if cfg._get_source("_trace_sample_rate") != "default":
-                sample_rate = cfg._trace_sample_rate
-            else:
-                sample_rate = None
+                if cfg._get_source("_trace_sample_rate") != "default":
+                    sample_rate = cfg._trace_sample_rate
+                else:
+                    sample_rate = None
 
+            if "_trace_sampling_rules" in items:
+                # Reset the user sampler if one exists
+                if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
+                    self._sampler = self._user_sampler
+                    return
+
+            # the DatadogSampler init defaults to checking cfg._trace_sampling_rules
+            # which is already updated by the time this method is called
             sampler = DatadogSampler(default_sample_rate=sample_rate)
             self._sampler = sampler
 

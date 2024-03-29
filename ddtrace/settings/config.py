@@ -282,6 +282,11 @@ def _default_config():
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
         ),
+        "_trace_sampling_rules": _ConfigItem(
+            name="trace_sampling_rules",
+            default=lambda: {},
+            envs=[("DD_TRACE_SAMPLING_RULES", str)],
+        ),
         "logs_injection": _ConfigItem(
             name="logs_injection",
             default=False,
