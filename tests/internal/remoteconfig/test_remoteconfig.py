@@ -10,6 +10,8 @@ import mock
 from mock.mock import ANY
 import pytest
 
+from ddtrace import config
+from ddtrace import tracer
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -20,6 +22,7 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.sampling_rule import SamplingRule
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
 
@@ -428,3 +431,125 @@ def test_rc_default_products_registered():
     assert bool(remoteconfig_poller._client._products.get("APM_TRACING")) == rc_enabled
     assert bool(remoteconfig_poller._client._products.get("AGENT_CONFIG")) == rc_enabled
     assert bool(remoteconfig_poller._client._products.get("AGENT_TASK")) == rc_enabled
+
+
+@pytest.mark.parametrize(
+    "rc_rules,expected_config_rules,expected_sampling_rules",
+    [
+        (
+            [  # Test with all fields
+                {
+                    "service": "my-service",
+                    "name": "web.request",
+                    "resource": "*",
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                    "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
+                }
+            ],
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            [
+                SamplingRule(
+                    sample_rate=1.0,
+                    service="my-service",
+                    name="web.request",
+                    resource="*",
+                    tags={"care_about": "yes", "region": "us-*"},
+                )
+            ],
+        ),
+        (  # Test with no service
+            [
+                {
+                    "name": "web.request",
+                    "resource": "*",
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                    "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
+                }
+            ],
+            '[{"sample_rate":1.0,"resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            [
+                SamplingRule(
+                    sample_rate=1.0,
+                    service=SamplingRule.NO_RULE,
+                    name="web.request",
+                    resource="*",
+                    tags={"care_about": "yes", "region": "us-*"},
+                )
+            ],
+        ),
+        (
+            # Test with no tags
+            [
+                {
+                    "service": "my-service",
+                    "name": "web.request",
+                    "resource": "*",
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                }
+            ],
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request"}]',
+            [
+                SamplingRule(
+                    sample_rate=1.0,
+                    service="my-service",
+                    name="web.request",
+                    resource="*",
+                    tags=SamplingRule.NO_RULE,
+                )
+            ],
+        ),
+        (
+            # Test with no resource
+            [
+                {
+                    "service": "my-service",
+                    "name": "web.request",
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                    "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
+                }
+            ],
+            '[{"sample_rate":1.0,"service":"my-service","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            [
+                SamplingRule(
+                    sample_rate=1.0,
+                    service="my-service",
+                    name="web.request",
+                    resource=SamplingRule.NO_RULE,
+                    tags={"care_about": "yes", "region": "us-*"},
+                )
+            ],
+        ),
+        (
+            # Test with no name
+            [
+                {
+                    "service": "my-service",
+                    "resource": "*",
+                    "provenance": "customer",
+                    "sample_rate": 1.0,
+                    "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
+                }
+            ],
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","tags":{"care_about":"yes","region":"us-*"}}]',
+            [
+                SamplingRule(
+                    sample_rate=1.0,
+                    service="my-service",
+                    name=SamplingRule.NO_RULE,
+                    resource="*",
+                    tags={"care_about": "yes", "region": "us-*"},
+                )
+            ],
+        ),
+    ],
+)
+def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
+    trace_sampling_rules = config.convert_rc_trace_sampling_rules(rc_rules)
+
+    assert trace_sampling_rules == expected_config_rules
+    parsed_rules = tracer.sampler._parse_rules_from_env_variable(trace_sampling_rules)
+    assert parsed_rules == expected_sampling_rules
