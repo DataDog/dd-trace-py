@@ -59,6 +59,10 @@ class Contrib_TestClass_For_Threats:
     def check_for_stack_trace(self, root_span):
         appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
         exploit = appsec_traces.get("exploit", [])
+        stack_ids = sorted(set(t["id"] for t in exploit))
+        triggers = get_triggers(root_span())
+        stack_id_in_triggers = sorted(set(t["stack_id"] for t in (triggers or []) if "stack_id" in t))
+        assert stack_ids == stack_id_in_triggers, f"stack_ids={stack_ids}, stack_id_in_triggers={stack_id_in_triggers}"
         return exploit
 
     def check_single_rule_triggered(self, rule_id: str, root_span):
@@ -69,6 +73,7 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
+        print(triggers)
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
@@ -1091,14 +1096,14 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
-        ["endpoint", "parameters", "rule"],
+        ["endpoint", "parameters", "rule", "top_function"],
         [
-            ("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100"),
-            ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100"),
+            ("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", "rasp"),
+            ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100", "urlopen"),
         ],
     )
     def test_exploit_prevention(
-        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule
+        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_function
     ):
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
@@ -1117,6 +1122,9 @@ class Contrib_TestClass_For_Threats:
                 if asm_enabled and ep_enabled:
                     self.check_rules_triggered([rule] * 2, root_span)
                     assert self.check_for_stack_trace(root_span)
+                    for trace in self.check_for_stack_trace(root_span):
+                        assert "frames" in trace
+                        assert trace["frames"][0]["function"].endswith(top_function)
                 else:
                     assert get_triggers(root_span()) is None
                     assert self.check_for_stack_trace(root_span) == []

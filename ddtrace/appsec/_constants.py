@@ -242,6 +242,7 @@ class DEFAULT(metaclass=Constant_Class):
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACES = "_dd.stack"
+    STACK_TRACE_ID = "stack_id"
     EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
