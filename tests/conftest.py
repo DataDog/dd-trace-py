@@ -486,11 +486,11 @@ class TelemetryTestSession(object):
             # filter heartbeat events to reduce noise
             if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
                 continue
-            if req in self.gotten_events:
+            if req["seq_id"] in self.gotten_events:
                 continue
             if event_type is None or req["request_type"] == event_type:
                 requests.append(req)
-                self.gotten_events.add(req)
+                self.gotten_events.add(req["seq_id"])
         return sorted(requests, key=lambda e: e["seq_id"], reverse=True)
 
 
