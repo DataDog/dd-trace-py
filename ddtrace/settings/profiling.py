@@ -5,6 +5,7 @@ from envier import En
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings.injection import config as injection_config
 
 
 logger = get_logger(__name__)
@@ -35,6 +36,31 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     max_samples = 2**16
 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
+
+
+def _check_for_ddup_available():
+    ddup_is_available = False
+    try:
+        from ddtrace.internal.datadog.profiling import ddup
+
+        ddup_is_available = ddup.is_available
+    except Exception:
+        pass
+    return ddup_is_available
+
+
+def _check_for_stack_v2_available():
+    stack_v2_is_available = False
+    if not _check_for_ddup_available():
+        return False
+
+    try:
+        from ddtrace.internal.datadog.profiling import stack_v2
+
+        stack_v2_is_available = stack_v2.is_available
+    except Exception:
+        pass
+    return stack_v2_is_available
 
 
 class ProfilingConfig(En):
@@ -162,13 +188,15 @@ class ProfilingConfig(En):
         class V2(En):
             __item__ = __prefix__ = "v2"
 
-            enabled = En.v(
+            _enabled = En.v(
                 bool,
                 "enabled",
                 default=False,
                 help_type="Boolean",
                 help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
             )
+
+            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c.v2._enabled)
 
     class Lock(En):
         __item__ = __prefix__ = "lock"
@@ -223,13 +251,35 @@ class ProfilingConfig(En):
     class Export(En):
         __item__ = __prefix__ = "export"
 
-        libdd_enabled = En.v(
+        _libdd_required = En.v(
+            bool,
+            "libdd_required",
+            default=False,
+            help_type="Boolean",
+            help="Requires the native exporter to be enabled",
+        )
+
+        libdd_required = En.d(
+            bool,
+            lambda c: (injection_config.enabled or c.stack.v2.enabled or c._libdd_required)
+            and _check_for_ddup_available(),
+        )
+
+        _libdd_enabled = En.v(
             bool,
             "libdd_enabled",
             default=False,
             help_type="Boolean",
-            help="Enables collection and export using the experimental exporter",
+            help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
         )
+
+        libdd_enabled = En.d(bool, lambda c: (c.libdd_required or c._libdd_enabled) and _check_for_ddup_available())
+
+    Export.include(Stack, namespace="stack")
 
 
 config = ProfilingConfig()
+
+if config.export.libdd_required:
+    logger.warning("The native exporter is required but not enabled. Disabling profiling.")
+    config.enabled = False

@@ -128,20 +128,23 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
+    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
-        _OUTPUT_PPROF = config.output_pprof
-        if _OUTPUT_PPROF:
-            # DEV: Import this only if needed to avoid importing protobuf
-            # unnecessarily
-            from ddtrace.profiling.exporter import file
+        if not self._export_libdd_enabled:
+            # If libdatadog support is enabled, we can skip this part
+            _OUTPUT_PPROF = config.output_pprof
+            if _OUTPUT_PPROF:
+                # DEV: Import this only if needed to avoid importing protobuf
+                # unnecessarily
+                from ddtrace.profiling.exporter import file
 
-            return [
-                file.PprofFileExporter(prefix=_OUTPUT_PPROF),
-            ]
+                return [
+                    file.PprofFileExporter(prefix=_OUTPUT_PPROF),
+                ]
 
         if self.url is not None:
             endpoint = self.url
@@ -168,12 +171,8 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-        # It's possible to fail to load the libdatadog collector, so we check.  Any other consumers
-        # of libdd can do their own check, so we just log.
-        if self._export_libdd_enabled and not ddup.is_available:
-            LOG.error("Failed to load the libdd collector, falling back to the legacy collector")
-            self._export_libdd_enabled = False
-        elif self._export_libdd_enabled:
+        # Did the user request the libdd collector?  Better log it.
+        if self._export_libdd_enabled:
             LOG.debug("Using the libdd collector")
 
         # Build the list of enabled Profiling features and send along as a tag
@@ -194,6 +193,8 @@ class _ProfilerInstance(service.Service):
             configured_features.append("exp_dd")
         else:
             configured_features.append("exp_py")
+        if self._export_libdd_required:
+            configured_features.append("req_dd")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
@@ -202,34 +203,65 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        if self._export_libdd_enabled:
-            ddup.init(
-                env=self.env,
-                service=self.service,
-                version=self.version,
-                tags=self.tags,
-                max_nframes=config.max_frames,
-                url=endpoint,
-            )
-        else:
-            # DEV: Import this only if needed to avoid importing protobuf
-            # unnecessarily
-            from ddtrace.profiling.exporter import http
+        # If libdd is required, but not enabled, then we can't fall back to the legacy exporter.
+        if self._export_libdd_required and not self._export_libdd_enabled:
+            LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
+            config.enabled = False
+            config.export.libdd_required = False
+            config.lock.enabled = False
+            config.memory.enabled = False
+            config.stack.enabled = False
+            return []
 
-            return [
-                http.PprofHTTPExporter(
-                    service=self.service,
+        # If libdd is enabled, then
+        # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
+        # * If initialization fails and libdd is required, disable everything and return (error)
+        if self._export_libdd_enabled:
+            try:
+                ddup.init(
                     env=self.env,
-                    tags=self.tags,
+                    service=self.service,
                     version=self.version,
-                    api_key=self.api_key,
-                    endpoint=endpoint,
-                    endpoint_path=endpoint_path,
-                    enable_code_provenance=self.enable_code_provenance,
-                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                    tags=self.tags,
+                    max_nframes=config.max_frames,
+                    url=endpoint,
                 )
-            ]
-        return []
+                return []
+            except Exception as e:
+                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                self._export_libdd_enabled = False
+                config.export.libdd_enabled = False
+
+                # Other components may be trying to use the libdatadog uploader.
+
+                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
+                # collector.
+                if self._export_libdd_required:
+                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
+                    config.enabled = False
+                    config.export.libdd_required = False
+                    config.lock.enabled = False
+                    config.memory.enabled = False
+                    config.stack.enabled = False
+                    return []
+
+        # DEV: Import this only if needed to avoid importing protobuf
+        # unnecessarily
+        from ddtrace.profiling.exporter import http
+
+        return [
+            http.PprofHTTPExporter(
+                service=self.service,
+                env=self.env,
+                tags=self.tags,
+                version=self.version,
+                api_key=self.api_key,
+                endpoint=endpoint,
+                endpoint_path=endpoint_path,
+                enable_code_provenance=self.enable_code_provenance,
+                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+            )
+        ]
 
     def __attrs_post_init__(self):
         # type: (...) -> None
