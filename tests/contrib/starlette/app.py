@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from tempfile import NamedTemporaryFile
 import time
 
@@ -118,6 +119,10 @@ def get_app(engine):
 
         tasks = BackgroundTasks()
         tasks.add_task(custom_task, task_arg="hi")
+
+        anonymous = functools.partial(custom_task, task_arg="hi")
+        tasks.add_task(anonymous)
+
         return JSONResponse(jsonmsg, background=tasks)
 
     routes = [
