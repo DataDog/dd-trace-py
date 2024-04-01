@@ -48,6 +48,7 @@ jobs:
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
       - name: Setup python 3.9
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
@@ -106,6 +107,7 @@ jobs:
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     steps:
       - name: Setup python 3.9
+        if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
