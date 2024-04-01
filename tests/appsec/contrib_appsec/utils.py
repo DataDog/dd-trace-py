@@ -59,6 +59,10 @@ class Contrib_TestClass_For_Threats:
     def check_for_stack_trace(self, root_span):
         appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
         exploit = appsec_traces.get("exploit", [])
+        stack_ids = sorted(set(t["id"] for t in exploit))
+        triggers = get_triggers(root_span())
+        stack_id_in_triggers = sorted(set(t["stack_id"] for t in (triggers or []) if "stack_id" in t))
+        assert stack_ids == stack_id_in_triggers, f"stack_ids={stack_ids}, stack_id_in_triggers={stack_id_in_triggers}"
         return exploit
 
     def check_single_rule_triggered(self, rule_id: str, root_span):
@@ -69,6 +73,7 @@ class Contrib_TestClass_For_Threats:
 
     def check_rules_triggered(self, rule_id: List[str], root_span):
         triggers = get_triggers(root_span())
+        print(triggers)
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
         assert result == rule_id, f"result={result}, expected={rule_id}"
@@ -1087,22 +1092,68 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
 
-    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
-    def test_exploit_prevention_lfi(self, interface, root_span, get_tag):
+    # @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("ep_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ["endpoint", "parameters", "rule", "top_function"],
+        [
+            ("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", "rasp"),
+            ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100", "urlopen"),
+        ],
+    )
+    def test_exploit_prevention(
+        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_function
+    ):
         from ddtrace.appsec._common_module_patches import patch_common_modules
+        from ddtrace.appsec._common_module_patches import unpatch_common_modules
         from ddtrace.ext import http
 
-        patch_common_modules()
-        with override_global_config(dict(_asm_enabled=True, _ep_enabled=True)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
-        ):
-            self.update_tracer(interface)
-            response = interface.client.get("/rasp/lfi/?filename1=/etc/passwd&filename2=/etc/master.passwd")
-            assert self.status(response) == 200
-            assert get_tag(http.STATUS_CODE) == "200"
-            assert self.body(response).startswith("File:") or self.body(response).startswith("Error:")
-            self.check_rules_triggered(["rasp-930-100"] * 2, root_span)
-            assert self.check_for_stack_trace(root_span)
+        try:
+            with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
+                dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
+            ):
+                patch_common_modules()
+                self.update_tracer(interface)
+                response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert self.body(response).startswith(f"{endpoint} endpoint")
+                if asm_enabled and ep_enabled:
+                    self.check_rules_triggered([rule] * 2, root_span)
+                    assert self.check_for_stack_trace(root_span)
+                    for trace in self.check_for_stack_trace(root_span):
+                        assert "frames" in trace
+                        assert trace["frames"][0]["function"].endswith(top_function)
+                else:
+                    assert get_triggers(root_span()) is None
+                    assert self.check_for_stack_trace(root_span) == []
+        finally:
+            unpatch_common_modules()
+
+    @pytest.mark.skip(reason="iast integration not working yet")
+    def test_iast(self, iast, interface, root_span, get_tag):
+        from ddtrace.appsec._iast.taint_sinks.command_injection import patch
+        from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
+        from ddtrace.ext import http
+
+        url = "/rasp/shell/?cmd=ls"
+        try:
+            patch()
+            # patch_common_modules()
+            with override_global_config(dict(_iast_enabled=True)):
+                self.update_tracer(interface)
+                response = interface.client.get(url)
+                assert self.status(response) == 200
+                assert get_tag(http.STATUS_CODE) == "200"
+                assert self.body(response).startswith("shell endpoint")
+                print(self.body(response))
+                print(core.get_item("_iast_data", root_span()))
+                assert get_tag("_dd.iast.json")
+        finally:
+            assert iast is None
+            unpatch()
+            # unpatch_common_modules()
 
 
 @contextmanager

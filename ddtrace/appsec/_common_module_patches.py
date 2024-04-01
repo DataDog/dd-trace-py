@@ -16,13 +16,19 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
+    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
     try_unwrap("builtins", "open")
+    try_unwrap("urllib.request", "OpenerDirector.open")
 
 
 def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
+    """
+    wrapper for open file function
+    """
+
     if asm_config._iast_enabled:
         # LFI sink to be added
         pass
@@ -36,8 +42,35 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             # and shouldn't be changed at that time
             return original_open_callable(*args, **kwargs)
 
-        if len(args) > 0 and in_context():
-            call_waf_callback({"LFI_ADDRESS": args[0]}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
+        filename = args[0] if args else kwargs.get("file", None)
+        if filename and in_context():
+            call_waf_callback({"LFI_ADDRESS": filename}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
+            # DEV: Next part of the exploit prevention feature: add block here
+    return original_open_callable(*args, **kwargs)
+
+
+def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs):
+    """
+    wrapper for open url function
+    """
+    if asm_config._iast_enabled:
+        # SSRF sink to be added
+        pass
+
+    if asm_config._asm_enabled and asm_config._ep_enabled:
+        try:
+            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import in_context
+        except ImportError:
+            # open is used during module initialization
+            # and shouldn't be changed at that time
+            return original_open_callable(*args, **kwargs)
+
+        url = args[0] if args else kwargs.get("fullurl", None)
+        if url and in_context():
+            if not (url.startswith("http://") or url.startswith("https://")):
+                url = "http://" + url  # + "/latest/user-data"
+            call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
 
