@@ -421,6 +421,7 @@ class TelemetryTestSession(object):
         self.token = token
         self.telemetry_writer = telemetry_writer
         self.filter_heartbeats = filter_heartbeats
+        self.gotten_events = set()
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
@@ -447,6 +448,7 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
+        self.gotten_events = set()
         return True
 
     def get_requests(self, request_type=None):
@@ -484,8 +486,11 @@ class TelemetryTestSession(object):
             # filter heartbeat events to reduce noise
             if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
                 continue
+            if req in self.gotten_events:
+                continue
             if event_type is None or req["request_type"] == event_type:
                 requests.append(req)
+                self.gotten_events.add(req)
         return sorted(requests, key=lambda e: e["seq_id"], reverse=True)
 
 
