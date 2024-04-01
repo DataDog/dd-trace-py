@@ -283,5 +283,5 @@ jobs:
         weblog-variant: [flask-poc, uwsgi-poc, django-poc, fastapi, python3.12]
     steps:
       - name: failure
-        if: needs.system-tests-run.outputs.outcome == 'failure'
+        if: needs.system-tests-run.result == 'failure'
         run: exit 1
