@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union  # noqa:F401
 
+import ddtrace
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -62,6 +63,13 @@ class _DBM_Propagator(object):
         self.peer_db_name_tag = peer_db_name_tag
 
     def inject(self, dbspan, args, kwargs):
+        # run sampling before injection to propagate correct sampling priority
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if dbspan.context.sampling_priority is None:
+                ddtrace.tracer.sample(dbspan._local_root)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
             # injection_mode is disabled

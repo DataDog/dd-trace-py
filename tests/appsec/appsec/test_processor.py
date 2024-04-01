@@ -518,7 +518,7 @@ def test_ddwaf_run():
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, DEFAULT.WAF_TIMEOUT)  # res is a serialized json
+        res = _ddwaf.run(ctx, data, timeout_ms=DEFAULT.WAF_TIMEOUT)  # res is a serialized json
         assert res.data
         assert res.data[0]["rule"]["id"] == "crs-942-100"
         assert res.runtime > 0
@@ -536,7 +536,7 @@ def test_ddwaf_run_timeout():
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
         }
         ctx = _ddwaf._at_request_start()
-        res = _ddwaf.run(ctx, data, 0.001)  # res is a serialized json
+        res = _ddwaf.run(ctx, data, timeout_ms=0.001)  # res is a serialized json
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
@@ -779,12 +779,11 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     ), _asm_request_context.asm_request_context_manager(), tracer.trace("test", span_type=SpanTypes.WEB) as span:
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
-        assert mock_run.call_args[0][1] == {
-            WAF_DATA_NAMES[persistent]: {"key_1": "value_1"},
-            WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"},
-        }
+        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
+        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
         # second call must only send ephemeral data to the waf, not persistent data again
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
-        assert mock_run.call_args[0][1] == {
+        assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }

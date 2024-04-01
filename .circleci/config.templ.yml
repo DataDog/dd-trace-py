@@ -543,11 +543,12 @@ jobs:
           trace_agent_url: ""
 
   ci_visibility:
-    <<: *contrib_job_small
+    <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "ci_visibility"
-          trace_agent_url: ""
+          snapshot: true
 
   llmobs:
     <<: *contrib_job
@@ -837,6 +838,15 @@ jobs:
           pattern: 'djangorestframework'
           snapshot: true
           docker_services: "memcached redis"
+
+  dramatiq:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "dramatiq"
+          snapshot: true
+          docker_services: "redis"
 
   fastapi:
     <<: *machine_executor

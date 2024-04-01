@@ -73,12 +73,14 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not meta["output"]:
             meta.pop("output")
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
+        session_id = self._get_session_id(span)
+        span._meta.pop(SESSION_ID, None)
 
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": str(self._get_llmobs_parent_id(span) or "undefined"),
-            "session_id": self._get_session_id(span),
+            "session_id": session_id,
             "name": span.name,
             "tags": tags,
             "start_ns": span.start_ns,
@@ -88,8 +90,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "metrics": metrics,
         }
 
-    @staticmethod
-    def _llmobs_tags(span: Span) -> List[str]:
+    def _llmobs_tags(self, span: Span) -> List[str]:
         ml_app = config._llmobs_ml_app or "unnamed-ml-app"
         if span.get_tag(ML_APP):
             ml_app = span._meta.pop(ML_APP)
@@ -99,6 +100,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "service:{}".format(span.service or ""),
             "source:integration",
             "ml_app:{}".format(ml_app),
+            "session_id:{}".format(self._get_session_id(span)),
             "ddtrace.version:{}".format(ddtrace.__version__),
             "error:%d" % span.error,
         ]
@@ -118,7 +120,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         2) Session ID from the span's nearest LLMObs span ancestor
         3) Span's trace ID if no session ID is found
         """
-        session_id = span._meta.pop(SESSION_ID, None)
+        session_id = span.get_tag(SESSION_ID)
         if not session_id:
             nearest_llmobs_ancestor = self._get_nearest_llmobs_ancestor(span)
             if nearest_llmobs_ancestor:

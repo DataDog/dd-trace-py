@@ -33,6 +33,7 @@ PATCH_MODULES = {
     "celery": True,
     "consul": True,
     "django": True,
+    "dramatiq": True,
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
@@ -228,6 +229,11 @@ def patch_all(**patch_modules):
         from ddtrace.appsec._iast._patch_modules import patch_iast
 
         patch_iast()
+
+    if asm_config._ep_enabled or asm_config._iast_enabled:
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+
+        patch_common_modules()
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
