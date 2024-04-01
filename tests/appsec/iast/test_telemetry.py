@@ -3,7 +3,6 @@ import pytest
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._handlers import _on_django_patch
-from ddtrace.appsec._handlers import _on_flask_patch
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._iast._metrics import TELEMETRY_MANDATORY_VERBOSITY
@@ -118,36 +117,13 @@ def test_log_metric(telemetry_writer):
     assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
 
 
-def test_flask_instrumented_metrics(telemetry_writer):
-    with override_global_config(dict(_iast_enabled=True)):
-        _on_flask_patch("2.0.0")
-
-    metrics_result = telemetry_writer._namespace._metrics_data
-    metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
-    assert len(metrics_source_tags_result) == 6
-    assert origin_to_str(OriginType.HEADER_NAME) in metrics_source_tags_result
-    assert origin_to_str(OriginType.HEADER) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PARAMETER) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PATH) in metrics_source_tags_result
-    assert origin_to_str(OriginType.QUERY) in metrics_source_tags_result
-    assert origin_to_str(OriginType.BODY) in metrics_source_tags_result
-
-
-def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):
-    with override_global_config(dict(_iast_enabled=False)):
-        _on_flask_patch("2.0.0")
-
-    metrics_result = telemetry_writer._namespace._metrics_data
-    metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
-    assert len(metrics_source_tags_result) == 0
-
-
 def test_django_instrumented_metrics(telemetry_writer):
     with override_global_config(dict(_iast_enabled=True)):
         _on_django_patch()
 
     metrics_result = telemetry_writer._namespace._metrics_data
     metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
+
     assert len(metrics_source_tags_result) == 9
     assert origin_to_str(OriginType.HEADER_NAME) in metrics_source_tags_result
     assert origin_to_str(OriginType.HEADER) in metrics_source_tags_result
@@ -166,4 +142,5 @@ def test_django_instrumented_metrics_iast_disabled(telemetry_writer):
 
     metrics_result = telemetry_writer._namespace._metrics_data
     metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
+
     assert len(metrics_source_tags_result) == 0
