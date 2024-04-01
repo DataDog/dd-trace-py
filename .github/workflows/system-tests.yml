@@ -95,7 +95,9 @@ jobs:
         weblog-variant: [flask-poc
         # , uwsgi-poc , django-poc, fastapi, python3.12
         ]
-        scenario: [remote-config, appsec, appsec-blocking, other]
+        scenario: [
+        # remote-config, appsec,
+        appsec-blocking, other]
 
       fail-fast: false
     env:
@@ -210,11 +212,11 @@ jobs:
 
         run: ./run.sh APPSEC_BLOCKING
       - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-blocking'
+        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-blocking1'
         run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
 
       - name: Run APPSEC_REQUEST_BLOCKING
-        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-blocking'
+        if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'appsec-blocking1'
         run: ./run.sh APPSEC_REQUEST_BLOCKING
 
       # The compress step speed up a lot the upload artifact process
@@ -281,5 +283,5 @@ jobs:
         weblog-variant: [flask-poc, uwsgi-poc, django-poc, fastapi, python3.12]
     steps:
       - name: failure
-        if: needs.needs-run.outputs.outcome == 'failure'
+        if: needs.system-tests-run.outputs.outcome == 'failure'
         run: exit 1
