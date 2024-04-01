@@ -207,7 +207,7 @@ class _ProfilerInstance(service.Service):
                 env=self.env,
                 service=self.service,
                 version=self.version,
-                tags=self.tags,
+                tags=self.tags,  # type: ignore
                 max_nframes=config.max_frames,
                 url=endpoint,
             )
