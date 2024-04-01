@@ -1,6 +1,4 @@
 from ddtrace.appsec._handlers import _on_flask_patch
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import flaky
 from tests.utils import override_global_config
@@ -19,6 +17,9 @@ def test_iast_span_metrics():
 
 
 def test_flask_instrumented_metrics(telemetry_writer):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import origin_to_str
+
     with override_global_config(dict(_iast_enabled=True)):
         _on_flask_patch("2.0.0")
 
