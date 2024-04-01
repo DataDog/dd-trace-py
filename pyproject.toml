@@ -173,6 +173,7 @@ exclude_dirs = [
   "ddtrace/commands/ddtrace_run.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
+  "ddtrace/internal/datadog/profiling/ddup/test/interface.py",
   "ddtrace/internal/module.py",
   "ddtrace/internal/processor/stats.py",
   "ddtrace/internal/rate_limiter.py",
