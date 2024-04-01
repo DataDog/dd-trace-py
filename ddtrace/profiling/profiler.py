@@ -220,7 +220,7 @@ class _ProfilerInstance(service.Service):
                     env=self.env,
                     service=self.service,
                     version=self.version,
-                    tags=self.tags,
+                    tags=self.tags,  # type: ignore
                     max_nframes=config.max_frames,
                     url=endpoint,
                 )
@@ -229,9 +229,7 @@ class _ProfilerInstance(service.Service):
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
-
-                # Other components may be trying to use the libdatadog uploader.
-
+                
                 # If we're here and libdd was required, then there's nothing else to do.  We don't have a
                 # collector.
                 if self._export_libdd_required:
