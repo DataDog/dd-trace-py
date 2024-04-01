@@ -273,10 +273,11 @@ jobs:
   system-tests:
     runs-on: ubuntu-latest
     needs: [needs-run, system-tests-run]
+    if: always()
     strategy:
       matrix:
         weblog-variant: [flask-poc, uwsgi-poc, django-poc, fastapi, python3.12]
     steps:
-      - name: success
-        if: needs.system-tests-run.outputs.outcome == 'success'
-        run: echo "success"
+      - name: failure
+        if: ${{ failure() }}
+        run: exit 1
