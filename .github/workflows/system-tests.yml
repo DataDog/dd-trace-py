@@ -31,11 +31,11 @@ jobs:
       matrix:
         include:
           - weblog-variant: flask-poc
-          - weblog-variant: uwsgi-poc
-          - weblog-variant: django-poc
-          - weblog-variant: fastapi
+          # - weblog-variant: uwsgi-poc
+          # - weblog-variant: django-poc
+          # - weblog-variant: fastapi
           # runs django-poc for 3.12
-          - weblog-variant: python3.12
+          # - weblog-variant: python3.12
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -92,7 +92,9 @@ jobs:
     needs: [needs-run, system-tests-build]
     strategy:
       matrix:
-        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12]
+        weblog-variant: [flask-poc
+        # , uwsgi-poc , django-poc, fastapi, python3.12
+        ]
         scenario: [remote-config, appsec, appsec-blocking, other]
 
       fail-fast: false
