@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -355,6 +356,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     assert len(events) == 1
 
 
+@flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     TelemetryWriterModuleWatchdog._initial = False
     TelemetryWriterModuleWatchdog._new_imported.clear()
