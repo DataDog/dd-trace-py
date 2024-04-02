@@ -242,7 +242,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if isinstance(final_output, list):
             log_outputs = {}
             for idx, output in enumerate(final_output):
-                log_outputs[idx] = str(output)
+                log_outputs[str(idx)] = str(output)
                 span.set_tag_str("langchain.response.outputs.%d" % idx, self.trunc(str(output)))
 
             return log_outputs
