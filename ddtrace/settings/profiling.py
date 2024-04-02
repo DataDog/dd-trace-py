@@ -5,7 +5,6 @@ from envier import En
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings.injection import config as injection_config
 
 
 logger = get_logger(__name__)
@@ -66,7 +65,7 @@ def _check_for_stack_v2_available():
 # We don't check for the availability of the ddup module when determining whether libdd is _required_,
 # since it's up to the application code to determine what happens in that failure case.
 def _is_libdd_required(config):
-    return injection_config.enabled or config.stack.v2.enabled or config._libdd_required
+    return config.stack.v2.enabled or config._libdd_required
 
 
 class ProfilingConfig(En):
