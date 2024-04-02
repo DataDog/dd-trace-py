@@ -177,10 +177,12 @@ def traced_handler(wrapped, instance, args, kwargs):
 def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
     task = get_argument_value(args, kwargs, 0, "func")
     current_span = pin.tracer.current_span()
+    module_name = getattr(module, "__name__", "<unknown>")
+    task_name = getattr(task, "__name__", "<unknown>")
 
     async def traced_task(*args, **kwargs):
         with pin.tracer.start_span(
-            f"{module.__name__}.background_task", resource=task.__name__, child_of=None, activate=True
+            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
         ) as span:
             if current_span:
                 span.link_span(current_span.context)
