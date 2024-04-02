@@ -192,7 +192,7 @@ venv = Venv(
                 "six": ">=1.12.0",
                 "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
-                "ddsketch": ">=2.0.1",
+                "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
@@ -890,6 +890,16 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             pys=select_pys(min_version="3.8", max_version="3.11"),
+        ),
+        Venv(
+            name="dramatiq",
+            command="pytest {cmdargs} tests/contrib/dramatiq",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
+                ),
+            ],
         ),
         Venv(
             name="elasticsearch",
