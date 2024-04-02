@@ -203,3 +203,50 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def tag_lcel_inputs(self, span: Span, inputs):
+        """
+        Tags the span with the inputs to the LCEL chain,
+        taking into account for the differences in structure (invocation, batching).
+        Also, puts these values into a dictionary for returning an object for logs.
+        """
+        if isinstance(inputs, list):
+            log_inputs: Dict[str, Any] = {str(idx): {} for idx in range(len(inputs))}
+            for idx, inp in enumerate(inputs):
+                if isinstance(inp, str):
+                    log_inputs[str(idx)] = str(inp)
+                    span.set_tag_str("langchain.request.inputs.%d" % idx, self.trunc(str(inp)))
+                else:
+                    for k, v in inp.items():
+                        log_inputs[str(idx)][k] = str(v)
+                        span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), self.trunc(str(v)))
+            return log_inputs
+
+        if isinstance(inputs, str):
+            span.set_tag_str("langchain.request.input", self.trunc(str(inputs)))
+            return str(inputs)
+
+        log_inputs = {}
+        for k, v in inputs.items():
+            log_inputs[k] = str(v)
+            span.set_tag_str("langchain.request.inputs.%s" % k, self.trunc(str(v)))
+
+        return log_inputs
+
+    def tag_lcel_outputs(self, span: Span, final_output):
+        """
+        Tags the span with the outputs for the LCEL chain,
+        taking into account for the differences in structure (invocation, batching).
+        Also, puts these values into a dictionary for returning an object for logs.
+        """
+        if isinstance(final_output, list):
+            log_outputs = {}
+            for idx, output in enumerate(final_output):
+                log_outputs[idx] = str(output)
+                span.set_tag_str("langchain.response.outputs.%d" % idx, self.trunc(str(output)))
+
+            return log_outputs
+
+        span.set_tag_str("langchain.response.output", self.trunc(str(final_output)))
+
+        return str(final_output)

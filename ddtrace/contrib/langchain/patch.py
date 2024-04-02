@@ -670,19 +670,18 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
+def traced_lcecl_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    log_inputs = {}
+    log_outputs = {}
     try:
         inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            pass
         if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
+            log_inputs = integration.tag_lcel_inputs(span, inputs)
         final_output = func(*args, **kwargs)
         if integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.response.output", integration.trunc(str(final_output)))
+            log_outputs = integration.tag_lcel_outputs(span, final_output)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -691,35 +690,31 @@ def traced_lcel_chain_invoke(langchain, pin, func, instance, args, kwargs):
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
                     "inputs": log_inputs,
-                    "outputs": str(final_output),
+                    "outputs": log_outputs,
                 },
             )
     return final_output
 
 
 @with_traced_module
-async def traced_lcel_chain_ainvoke(langchain, pin, func, instance, args, kwargs):
+async def traced_lcecl_runnable_sequence_async(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    log_inputs = {}
+    log_outputs = {}
     try:
         inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            pass
         if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
+            log_inputs = integration.tag_lcel_inputs(span, inputs)
         final_output = await func(*args, **kwargs)
         if integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.response.output", integration.trunc(str(final_output)))
+            log_outputs = integration.tag_lcel_outputs(span, final_output)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.metric(span, "incr", "request.error", 1)
@@ -728,16 +723,13 @@ async def traced_lcel_chain_ainvoke(langchain, pin, func, instance, args, kwargs
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
             integration.log(
                 span,
                 "info" if span.error == 0 else "error",
                 "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
                 attrs={
                     "inputs": log_inputs,
-                    "outputs": str(final_output),
+                    "outputs": log_outputs,
                 },
             )
     return final_output
@@ -848,8 +840,14 @@ def patch():
         )
         wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
-        wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_chain_invoke(langchain))
-        wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_chain_ainvoke(langchain))
+        wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcecl_runnable_sequence(langchain))
+        wrap(
+            "langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcecl_runnable_sequence_async(langchain)
+        )
+        wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcecl_runnable_sequence(langchain))
+        wrap(
+            "langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcecl_runnable_sequence_async(langchain)
+        )
         wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
     else:
@@ -936,6 +934,8 @@ def unpatch():
         unwrap(langchain.chains.base.Chain, "ainvoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
         unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
+        unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
         unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
 
