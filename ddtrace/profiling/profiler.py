@@ -171,7 +171,9 @@ class _ProfilerInstance(service.Service):
 
         # Did the user request the libdd collector?  Better log it.
         if self._export_libdd_enabled:
-            LOG.debug("Using the libdd collector")
+            LOG.debug("The libdd collector is enabled")
+        if self._export_libdd_required:
+            LOG.debug("The libdd collector is required")
 
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
@@ -200,15 +202,6 @@ class _ProfilerInstance(service.Service):
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
-
-        # If libdd is required, but not enabled, then we can't fall back to the legacy exporter.
-        if self._export_libdd_required and not self._export_libdd_enabled:
-            LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
-            config.enabled = False
-            config.lock.enabled = False
-            config.memory.enabled = False
-            config.stack.enabled = False
-            return []
 
         # If libdd is enabled, then
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
