@@ -44,7 +44,7 @@ def _check_for_ddup_available():
 
         ddup_is_available = ddup.is_available
     except Exception:
-        pass
+        pass  # nosec
     return ddup_is_available
 
 
@@ -58,7 +58,7 @@ def _check_for_stack_v2_available():
 
         stack_v2_is_available = stack_v2.is_available
     except Exception:
-        pass
+        pass  # nosec
     return stack_v2_is_available
 
 
