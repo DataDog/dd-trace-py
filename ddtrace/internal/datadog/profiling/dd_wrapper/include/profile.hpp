@@ -70,7 +70,7 @@ class Profile
     void profile_release();
 
     // String table manipulation
-    std::string_view insert_or_get(std::string_view sv);
+    std::string_view insert_or_get(std::string_view str);
 
     // constref getters
     const ValueIndex& val();
