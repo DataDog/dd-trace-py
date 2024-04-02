@@ -763,7 +763,9 @@ def patch():
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain_community import chat_models  # noqa:F401
         from langchain_community import embeddings  # noqa:F401
+        from langchain_community import llms  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
@@ -780,7 +782,6 @@ def patch():
         )
         wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
-
         if langchain_openai:
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
