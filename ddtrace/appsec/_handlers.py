@@ -182,13 +182,9 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
             from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
 
             if not AppSecIastSpanProcessor.is_span_analyzed():
                 return
@@ -239,6 +235,10 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.HEADER)
 
             _w("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
+
             _w(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
@@ -319,21 +319,9 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_utils import taint_structure
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
-        # we instrument those sources on _on_django_func_wrapped
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PATH)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.BODY)
 
         if not AppSecIastSpanProcessor.is_span_analyzed():
             return wrapped(*args, **kwargs)
@@ -344,18 +332,30 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def _on_django_patch():
-    try:
-        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+            from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        when_imported("django.http.request")(
-            lambda m: trace_utils.wrap(
-                m,
-                "QueryDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+            # we instrument those sources on _on_django_func_wrapped
+            _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+            when_imported("django.http.request")(
+                lambda m: trace_utils.wrap(
+                    m,
+                    "QueryDict.__getitem__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+                )
             )
-        )
-    except Exception:
-        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+        except Exception:
+            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
 def listen():
