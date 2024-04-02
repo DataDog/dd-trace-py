@@ -19,6 +19,7 @@ from ddtrace.internal import writer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.profiling import collector
+from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -132,6 +133,7 @@ class _ProfilerInstance(service.Service):
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
+        # type: (...) -> List[exporter.Exporter]
         if not self._export_libdd_enabled:
             # If libdatadog support is enabled, we can skip this part
             _OUTPUT_PPROF = config.output_pprof

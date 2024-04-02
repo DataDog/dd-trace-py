@@ -7,6 +7,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
+from ddtrace.profiling.exporter import exporter
 from ddtrace.settings.profiling import config
 
 
@@ -60,9 +61,9 @@ class Scheduler(periodic.PeriodicService):
         for exp in self.exporters:
             try:
                 exp.export(events, start, self._last_export)
-            except Exception as e:
-                if e.__class__.__name__ == "ExportError":
-                    LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+            except exporter.ExportError as e:
+                LOG.warning("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+            except Exception:
                 LOG.exception(
                     "Unexpected error while exporting events. "
                     "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
