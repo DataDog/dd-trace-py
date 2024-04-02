@@ -16,11 +16,10 @@ Usage:
         ./dl_wheels.py --help
 
 """
-from pathlib import Path
 import argparse
-import glob
 import itertools
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
