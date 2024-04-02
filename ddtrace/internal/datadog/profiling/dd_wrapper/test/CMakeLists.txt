@@ -19,7 +19,7 @@ function(dd_wrapper_add_test name)
     gtest_main
     dd_wrapper
   )
-  add_ddup_config(dd_wrapper)
+  add_ddup_config(${name})
 
   gtest_discover_tests(${name})
 endfunction()
