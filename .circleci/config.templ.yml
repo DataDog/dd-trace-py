@@ -1145,6 +1145,7 @@ jobs:
 
   aiopg:
     <<: *contrib_job_small
+    parallelism: 4
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
