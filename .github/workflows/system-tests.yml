@@ -149,7 +149,6 @@ jobs:
       - name: Run CROSSED_TRACING_LIBRARIES
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'other'
         run: ./run.sh CROSSED_TRACING_LIBRARIES
->>>>>>> ad2fe2554 (ci: parallel system tests (#8813))
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: (needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule') && matrix.scenario == 'remote-config'
