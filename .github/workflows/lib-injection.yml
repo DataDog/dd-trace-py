@@ -106,4 +106,4 @@ jobs:
       - name: Output app logs (LOOK HERE IF THE JOB FAILS)
         if: success() || failure()
         run: |
-          docker-compose logs
+          docker-compose logs || true
