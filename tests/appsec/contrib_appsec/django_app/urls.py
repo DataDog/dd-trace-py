@@ -58,6 +58,23 @@ def multi_view(request, param_int=0, param_str=""):
     return json_response
 
 
+def rasp(request, endpoint: str):
+    query_params = request.GET.dict()
+    if endpoint == "lfi":
+        res = []
+        for param in query_params:
+            if param.startswith("filename"):
+                filename = query_params[param]
+            try:
+                with open(filename, "rb") as f:
+                    res.append(f"File: {f.read()}")
+            except Exception as e:
+                res.append(f"Error: {e}")
+        return HttpResponse("<\br>\n".join(res))
+
+    return HttpResponse(f"Unknown endpoint: {endpoint}")
+
+
 @csrf_exempt
 def new_service(request, service_name: str):
     import ddtrace
@@ -102,6 +119,8 @@ if django.VERSION >= (2, 0, 0):
         path("asm/<int:param_int>/<str:param_str>", multi_view, name="multi_view"),
         path("new_service/<str:service_name>/", new_service, name="new_service"),
         path("new_service/<str:service_name>", new_service, name="new_service"),
+        path("rasp/<str:endpoint>/", rasp, name="rasp"),
+        path("rasp/<str:endpoint>", rasp, name="rasp"),
     ]
 else:
     urlpatterns += [
@@ -109,4 +128,6 @@ else:
         path(r"asm/(?P<param_int>[0-9]{4})/(?P<param_str>\w+)$", multi_view, name="multi_view"),
         path(r"new_service/(?P<service_name>\w+)/$", new_service, name="new_service"),
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
+        path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
+        path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
     ]

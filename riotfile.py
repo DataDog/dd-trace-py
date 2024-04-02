@@ -192,7 +192,7 @@ venv = Venv(
                 "six": ">=1.12.0",
                 "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
-                "ddsketch": ">=2.0.1",
+                "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
@@ -892,6 +892,16 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
         ),
         Venv(
+            name="dramatiq",
+            command="pytest {cmdargs} tests/contrib/dramatiq",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             pkgs={
@@ -1227,6 +1237,7 @@ venv = Venv(
             pkgs={
                 "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
+                "greenlet": "==3.0.3",
                 "requests": latest,
                 "aiofiles": latest,
                 "sqlalchemy": "<2.0",
@@ -1273,6 +1284,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             pkgs={
                 "pytest-randomly": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
@@ -1732,7 +1744,7 @@ venv = Venv(
             pkgs={
                 "graphene": ["~=3.0.0", latest],
                 "pytest-asyncio": "==0.21.1",
-                "graphql-relay": "~=3.1.5",
+                "graphql-relay": latest,
                 "pytest-randomly": latest,
             },
         ),
@@ -1742,7 +1754,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
+                "graphql-core": ["~=3.2.0", latest],
                 "pytest-randomly": latest,
             },
         ),
@@ -2620,7 +2632,8 @@ venv = Venv(
         ),
         Venv(
             name="profile",
-            command="python -m tests.profiling.run pytest --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            # NB riot commands that use this Venv must include --pass-env to work properly
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             pkgs={
                 "gunicorn": latest,
                 #

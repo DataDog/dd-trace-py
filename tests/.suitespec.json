@@ -164,6 +164,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/ci_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -367,6 +368,9 @@
         ],
         "celery": [
             "ddtrace/contrib/celery/*"
+        ],
+        "dramatiq": [
+            "ddtrace/contrib/dramatiq/*"
         ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
@@ -821,6 +825,15 @@
             "@tracing",
             "@dogpile_cache",
             "tests/contrib/dogpile_cache/*"
+        ],
+        "dramatiq": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@dramatiq",
+            "tests/contrib/dramatiq/*",
+            "tests/snapshots/tests.contrib.dramatiq.*"
         ],
         "elasticsearch": [
             "@bootstrap",

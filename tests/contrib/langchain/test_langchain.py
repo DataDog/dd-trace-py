@@ -8,7 +8,9 @@ import pytest
 from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 
 
@@ -1256,3 +1258,161 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
             "documents": [],
         }
     )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="langchain_test")]
+)
+class TestLLMObsLangchain:
+    @staticmethod
+    def _expected_llmobs_calls(provider, span, input_role=None, output_role=None):
+        input_meta = {"content": mock.ANY}
+        if input_role is not None:
+            input_meta["role"] = input_role
+
+        output_meta = {"content": mock.ANY}
+        if output_role is not None:
+            output_meta["role"] = output_role
+
+        expected_llmobs_writer_calls = [mock.call.start()]
+
+        temperature_key = "temperature"
+        if provider == "huggingface_hub":
+            max_tokens_key = "model_kwargs.max_tokens"
+            temperature_key = "model_kwargs.temperature"
+        elif provider == "ai21":
+            max_tokens_key = "maxTokens"
+        else:
+            max_tokens_key = "max_tokens"
+
+        expected_llmobs_writer_calls += [
+            mock.call.enqueue(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name=span.get_tag("langchain.request.model"),
+                    model_provider=span.get_tag("langchain.request.provider"),
+                    input_messages=[input_meta],
+                    output_messages=[output_meta],
+                    parameters={
+                        "temperature": float(
+                            span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}") or 0.0
+                        ),
+                        "max_tokens": int(
+                            span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}") or 0
+                        ),
+                    },
+                    token_metrics={},
+                    tags={
+                        "ml_app": "langchain_test",
+                    },
+                )
+            )
+        ]
+        return expected_llmobs_writer_calls
+
+    @classmethod
+    def _test_llmobs_invoke(
+        cls,
+        provider,
+        generate_trace,
+        request_vcr,
+        mock_llmobs_writer,
+        mock_tracer,
+        cassette_name,
+        input_role=None,
+        output_role=None,
+    ):
+        # disable the service before re-enabling it, as it was enabled in another test
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
+
+        if sys.version_info < (3, 10, 0) and (provider in ["openai", "ai21"]):
+            cassette_name = cassette_name.replace(".yaml", "_39.yaml")
+
+        with request_vcr.use_cassette(cassette_name):
+            generate_trace("Can you explain what an LLM chain is?")
+        span = mock_tracer.pop_traces()[0][0]
+
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(provider, span, input_role, output_role)
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+
+    def test_llmobs_openai_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain.llms.OpenAI()
+
+        self._test_llmobs_invoke(
+            provider="openai",
+            generate_trace=llm,
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_completion_sync.yaml",
+        )
+
+    def test_llmobs_cohere_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain.llms.Cohere(model="cohere.command-light-text-v14")
+
+        self._test_llmobs_invoke(
+            provider="cohere",
+            generate_trace=llm,
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="cohere_completion_sync.yaml",
+        )
+
+    def test_llmobs_ai21_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain.llms.AI21()
+
+        self._test_llmobs_invoke(
+            provider="ai21",
+            generate_trace=llm,
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="ai21_completion_sync.yaml",
+        )
+
+    def test_llmobs_huggingfacehub_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        llm = langchain.llms.HuggingFaceHub(
+            repo_id="google/flan-t5-xxl",
+            model_kwargs={"temperature": 0.0, "max_tokens": 256},
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+        )
+
+        self._test_llmobs_invoke(
+            provider="huggingface_hub",
+            generate_trace=llm,
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="huggingfacehub_completion_sync.yaml",
+        )
+
+    def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+
+        self._test_llmobs_invoke(
+            provider="openai",
+            generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chat_completion_sync_call.yaml",
+            input_role="user",
+            output_role="assistant",
+        )
+
+    def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+
+        self._test_llmobs_invoke(
+            provider="openai",
+            generate_trace=lambda prompt: chat([langchain.schema.ChatMessage(content=prompt, role="custom")]),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chat_completion_sync_call.yaml",
+            input_role="custom",
+            output_role="assistant",
+        )
