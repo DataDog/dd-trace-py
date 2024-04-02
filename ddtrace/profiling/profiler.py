@@ -229,7 +229,7 @@ class _ProfilerInstance(service.Service):
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
-                
+
                 # If we're here and libdd was required, then there's nothing else to do.  We don't have a
                 # collector.
                 if self._export_libdd_required:
