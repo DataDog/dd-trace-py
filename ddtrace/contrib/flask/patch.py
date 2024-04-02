@@ -9,7 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
-from ddtrace.internal.packages import importlib_metadata
+from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ...internal import core
@@ -72,10 +72,7 @@ config._add(
 
 def get_version():
     # type: () -> str
-    try:
-        return importlib_metadata.version("flask")
-    except Exception:
-        return ""
+    return get_version_for_package("flask")
 
 
 if _HAS_JSON_MIXIN:

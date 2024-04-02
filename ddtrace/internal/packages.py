@@ -10,12 +10,6 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
 
 
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:
-    import importlib_metadata  # type: ignore[no-redef]
-
-
 LOG = logging.getLogger(__name__)
 
 if t.TYPE_CHECKING:
@@ -51,9 +45,8 @@ except AttributeError:
         if isinstance(path_repr, (str, bytes)):
             return path_repr
         raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, not {}".format(
-                path_type.__name__, type(path_repr).__name__
-            )
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
         )
 
 
@@ -68,6 +61,11 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
     pkgs = set()
     for dist in importlib_metadata.distributions():
         # Get the root path of all files in a distribution
@@ -81,6 +79,21 @@ def get_distributions():
             pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
+
+
+@cached()
+def get_version_for_package(name):
+    # type: (str) -> str
+    """returns the version of a package"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return importlib_metadata.version(name)
+    except Exception:
+        return ""
 
 
 def _is_python_source_file(path):

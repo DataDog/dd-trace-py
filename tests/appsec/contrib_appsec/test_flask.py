@@ -4,12 +4,12 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch
 from ddtrace.contrib.flask import unpatch
-from ddtrace.internal.packages import importlib_metadata
+from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
 
 
-FLASK_VERSION = tuple(int(v) for v in importlib_metadata.version("flask").split("."))
+FLASK_VERSION = tuple(int(v) for v in get_version_for_package("flask").split("."))
 
 
 class DDFlaskTestClient(FlaskClient):
