@@ -1249,6 +1249,16 @@ class BotocoreTest(TracerTestCase):
             )
             assert (
                 first[
+                    (
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        3337976778666780987,
+                        0,
+                    )
+                ].payload_size.count
+                == 1
+            )
+            assert (
+                first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].full_pathway_latency._count
                 >= 1
@@ -1258,6 +1268,12 @@ class BotocoreTest(TracerTestCase):
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].edge_latency._count
                 >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                ].payload_size.count
+                == 1
             )
 
     @mock_sqs
@@ -1301,6 +1317,7 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
@@ -1312,6 +1329,12 @@ class BotocoreTest(TracerTestCase):
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
                 ].edge_latency._count
                 >= 1
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].payload_size.count
+                == 1
             )
 
     @mock_sqs
@@ -1360,6 +1383,7 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
@@ -1371,6 +1395,12 @@ class BotocoreTest(TracerTestCase):
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
                 ].edge_latency._count
                 >= 3
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].payload_size.count
+                == 3
             )
 
     @mock_sqs
@@ -1429,8 +1459,10 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
 
     @mock_lambda
     def test_lambda_client(self):
@@ -2958,6 +2990,16 @@ class BotocoreTest(TracerTestCase):
             assert (
                 first[
                     (
+                        in_tags,
+                        7250761453654470644,
+                        17012262583645342129,
+                    )
+                ].payload_size.count
+                == 2
+            )
+            assert (
+                first[
+                    (
                         out_tags,
                         17012262583645342129,
                         0,
@@ -2975,10 +3017,21 @@ class BotocoreTest(TracerTestCase):
                 ].edge_latency._count
                 >= 2
             )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].payload_size.count
+                == 2
+            )
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
         with mock.patch(
@@ -3030,6 +3083,16 @@ class BotocoreTest(TracerTestCase):
             assert (
                 first[
                     (
+                        in_tags,
+                        7186383338881463054,
+                        14715769790627487616,
+                    )
+                ].payload_size.count
+                == 1
+            )
+            assert (
+                first[
+                    (
                         out_tags,
                         14715769790627487616,
                         0,
@@ -3046,6 +3109,16 @@ class BotocoreTest(TracerTestCase):
                     )
                 ].edge_latency._count
                 >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].payload_size.count
+                == 1
             )
 
     @TracerTestCase.run_in_subprocess(

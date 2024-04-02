@@ -96,6 +96,7 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 class WAF_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the waf library for requesting data from requests"""
 
+    # PERSISTENT ADDRESSES
     REQUEST_BODY = "server.request.body"
     REQUEST_QUERY = "server.request.query"
     REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
@@ -108,7 +109,26 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     RESPONSE_BODY = "server.response.body"
+    PERSISTENT_ADDRESSES = frozenset(
+        (
+            REQUEST_BODY,
+            REQUEST_QUERY,
+            REQUEST_HEADERS_NO_COOKIES,
+            REQUEST_URI_RAW,
+            REQUEST_METHOD,
+            REQUEST_PATH_PARAMS,
+            REQUEST_COOKIES,
+            REQUEST_HTTP_IP,
+            REQUEST_USER_ID,
+            RESPONSE_STATUS,
+            RESPONSE_HEADERS_NO_COOKIES,
+            RESPONSE_BODY,
+        )
+    )
+
+    # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
+    LFI_ADDRESS = "server.io.fs.file"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -160,6 +180,7 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
+    STACK = "stack_trace"
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"
@@ -216,3 +237,11 @@ class DEFAULT(metaclass=Constant_Class):
         rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
         rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
     )
+
+
+class EXPLOIT_PREVENTION(metaclass=Constant_Class):
+    STACK_TRACES = "_dd.stack"
+    EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
+    STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
+    MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
+    MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"

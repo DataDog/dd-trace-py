@@ -1,32 +1,16 @@
 import base64
 import json
+from typing import Any  # noqa:F401
 
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.compat import parse
-from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
+from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def get_pathway(endpoint_service, dsm_identifier):
-    # type: (str, str) -> str
-    """
-    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
-    :dsm_identifier: the identifier for the topic/queue/stream/etc
-
-    Set the data streams monitoring checkpoint and return the encoded pathway
-    """
-    from . import data_streams_processor as processor
-
-    path_type = "type:{}".format(endpoint_service)
-    if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-
-    pathway = processor().set_checkpoint(["direction:out", "topic:{}".format(dsm_identifier), path_type])
-    return pathway.encode_b64()
 
 
 def get_queue_name(params):
@@ -63,25 +47,81 @@ def get_stream(params):
     return stream
 
 
-def inject_context(trace_data, endpoint_service, dsm_identifier):
-    pathway = get_pathway(endpoint_service, dsm_identifier)
+def inject_context(trace_data, endpoint_service, dsm_identifier, message):
+    # type: (dict, str, str, Any) -> None
+    """
+    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
+    :dsm_identifier: the identifier for the topic/queue/stream/etc
 
-    if trace_data is not None:
-        trace_data[PROPAGATION_KEY_BASE_64] = pathway
+    Set the data streams monitoring checkpoint and inject context to carrier
+    """
+    from . import data_streams_processor as processor
+
+    path_type = "type:{}".format(endpoint_service)
+
+    payload_size = None
+    if endpoint_service == "sqs":
+        payload_size = calculate_sqs_payload_size(message, trace_data)
+    elif endpoint_service == "sns":
+        payload_size = calculate_sns_payload_size(message, trace_data)
+    elif endpoint_service == "kinesis":
+        payload_size = calculate_kinesis_payload_size(message, trace_data)
+
+    if not dsm_identifier:
+        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
+    ctx = processor().set_checkpoint(
+        ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
+    )
+    DsmPathwayCodec.encode(ctx, trace_data)
 
 
-def handle_kinesis_produce(stream, dd_ctx_json):
+def calculate_sqs_payload_size(message, trace_data=None):
+    payload_size = _calculate_byte_size(message.get("MessageBody", ""))
+    payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
+    if trace_data:
+        # we should count datadog message attributes which aren't yet added to the message
+        payload_size += _calculate_byte_size({"_datadog": {"DataType": "String", "StringValue": trace_data}})
+    payload_size += _calculate_byte_size(message.get("MessageSystemAttributes", {}))
+    payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
+    return payload_size
+
+
+def calculate_sns_payload_size(message, trace_data):
+    payload_size = _calculate_byte_size(message.get("Message", ""))
+    payload_size += _calculate_byte_size(message.get("MessageAttributes", {}))
+    # we should count datadog message attributes which aren't yet added to the message
+    payload_size += _calculate_byte_size({"_datadog": {"DataType": "Binary", "BinaryValue": trace_data}})
+    payload_size += _calculate_byte_size(message.get("Subject", ""))
+    payload_size += _calculate_byte_size(message.get("MessageGroupId", ""))
+    return payload_size
+
+
+def calculate_kinesis_payload_size(message, trace_data=None):
+    payload_size = _calculate_byte_size(message.get("Data", ""))
+    payload_size += _calculate_byte_size(message.get("ExplicitHashKey", ""))
+    payload_size += _calculate_byte_size(message.get("PartitionKey", ""))
+    # if we don't have trace context data its because we are receiving and its within the message
+    if trace_data:
+        # we should count datadog message attributes which aren't yet added to the message
+        payload_size += _calculate_byte_size({"_datadog": trace_data})
+    return payload_size
+
+
+def handle_kinesis_produce(stream, dd_ctx_json, record):
     if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
-        inject_context(dd_ctx_json, "kinesis", stream)
+        inject_context(dd_ctx_json, "kinesis", stream, record)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params):
+def handle_sqs_sns_produce(endpoint_service, trace_data, params, message=None):
+    # if a message wasn't included, that means that the message is in the params object
+    if not message:
+        message = params
     dsm_identifier = None
     if endpoint_service == "sqs":
         dsm_identifier = get_queue_name(params)
     elif endpoint_service == "sns":
         dsm_identifier = get_topic_arn(params)
-    inject_context(trace_data, endpoint_service, dsm_identifier)
+    inject_context(trace_data, endpoint_service, dsm_identifier, message)
 
 
 def handle_sqs_prepare(params):
@@ -134,18 +174,17 @@ def handle_sqs_receive(params, result):
 
     queue_name = get_queue_name(params)
 
-    for message in result.get("Messages"):
+    for message in result.get("Messages", []):
         try:
             context_json = get_datastreams_context(message)
-            pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-            ctx = processor().decode_pathway_b64(pathway)
-            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"])
-
+            payload_size = calculate_sqs_payload_size(message)
+            ctx = DsmPathwayCodec.decode(context_json, processor())
+            ctx.set_checkpoint(["direction:in", "topic:" + queue_name, "type:sqs"], payload_size=payload_size)
         except Exception:
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
-def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json):
+def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record):
     from . import data_streams_processor as processor
 
     stream = get_stream(params)
@@ -154,22 +193,19 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
         return
 
-    if context_json:
-        pathway = context_json.get(PROPAGATION_KEY_BASE_64, None) if context_json else None
-        ctx = processor().decode_pathway_b64(pathway)
-    else:
-        ctx = processor().new_pathway()
-
+    payload_size = calculate_kinesis_payload_size(record)
+    ctx = DsmPathwayCodec.decode(context_json, processor())
     ctx.set_checkpoint(
         ["direction:in", "topic:" + stream, "type:kinesis"],
         edge_start_sec_override=time_estimate,
         pathway_start_sec_override=time_estimate,
+        payload_size=payload_size,
     )
 
 
-def handle_kinesis_receive(params, time_estimate, context_json):
+def handle_kinesis_receive(params, time_estimate, context_json, record):
     try:
-        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json)
+        record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:
         log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
