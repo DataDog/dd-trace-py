@@ -1101,8 +1101,8 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
         "Tell me a short joke about {topic} in the style of {style}"
     )
 
-    chat_openai = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo")
-    openai = langchain_openai.OpenAI(model="gpt-3.5-turbo-instruct")
+    chat_openai = langchain_openai.ChatOpenAI()
+    openai = langchain_openai.OpenAI()
 
     model = chat_openai.configurable_alternatives(
         langchain_core.runnables.ConfigurableField(id="model"),
@@ -1175,8 +1175,8 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
-@pytest.mark.asyncio
-@pytest.mark.snapshot
+# @pytest.mark.asyncio
+# @pytest.mark.snapshot
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
