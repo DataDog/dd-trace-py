@@ -63,6 +63,12 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
+# We don't check for the availability of the ddup module when determining whether libdd is _required_,
+# since it's up to the application code to determine what happens in that failure case.
+def _is_libdd_required(config):
+    return injection_config.enabled or config.stack.v2.enabled or config.export.libdd_required
+
+
 class ProfilingConfig(En):
     __prefix__ = "dd.profiling"
 
@@ -261,8 +267,7 @@ class ProfilingConfig(En):
 
         libdd_required = En.d(
             bool,
-            lambda c: (injection_config.enabled or c.stack.v2.enabled or c._libdd_required)
-            and _check_for_ddup_available(),
+            _is_libdd_required,
         )
 
         _libdd_enabled = En.v(
@@ -273,7 +278,9 @@ class ProfilingConfig(En):
             help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
         )
 
-        libdd_enabled = En.d(bool, lambda c: (c.libdd_required or c._libdd_enabled) and _check_for_ddup_available())
+        libdd_enabled = En.d(
+            bool, lambda c: (_is_libdd_required(c) or c._libdd_enabled) and _check_for_ddup_available()
+        )
 
     Export.include(Stack, namespace="stack")
 
@@ -281,5 +288,5 @@ class ProfilingConfig(En):
 config = ProfilingConfig()
 
 if config.export.libdd_required and not config.export.libdd_enabled:
-    logger.warning("The native exporter is required but not enabled. Disabling profiling.")
+    logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
     config.enabled = False

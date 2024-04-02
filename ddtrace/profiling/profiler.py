@@ -205,7 +205,6 @@ class _ProfilerInstance(service.Service):
         if self._export_libdd_required and not self._export_libdd_enabled:
             LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
             config.enabled = False
-            config.export.libdd_required = False
             config.lock.enabled = False
             config.memory.enabled = False
             config.stack.enabled = False

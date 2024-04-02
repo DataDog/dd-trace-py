@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    For reporting bug fixes.
+    Use past tense for the problem and present tense for the fix and solution in the following format:
+    Format: <scope>: This fix resolves an issue where <ABC_bug> caused <XYZ_situation>.
+    Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,
+               causing crashes in configurations which relied on older protobuf versions. The profiler will now detect
+               when injection is used and try loading with the native exporter. If that fails, it will self-disable
+               rather than loading protobuf.

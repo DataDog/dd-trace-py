@@ -14,8 +14,9 @@ class InjectionConfig(En):
         "enabled",
         default=False,
         help_type="Boolean",
-        help="Whether the library was injected into the application.  This configuration should be applied "
-        "automatically if it is needed.  Setting this will not enable any features, it is for internal use only.",
+        help="Whether the ddtrace library was injected into the application. This configuration will be applied "
+        "automatically if it is needed. Setting this manually not enable any features, it is for internal use "
+        "only.",
     )
 
 
