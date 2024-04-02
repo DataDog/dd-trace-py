@@ -81,6 +81,21 @@ def get_distributions():
     return pkgs
 
 
+@cached()
+def get_version_for_package(name):
+    # type: (str) -> str
+    """returns the version of a package"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return importlib_metadata.version(name)
+    except Exception:
+        return ""
+
+
 def _is_python_source_file(path):
     # type: (pathlib.PurePath) -> bool
     return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
