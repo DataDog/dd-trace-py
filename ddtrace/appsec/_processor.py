@@ -12,6 +12,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+import weakref
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
@@ -126,6 +127,7 @@ class AppSecSpanProcessor(SpanProcessor):
     )
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+    _span_to_waf_ctx: weakref.WeakKeyDictionary = dataclasses.field(default_factory=weakref.WeakKeyDictionary)
 
     @property
     def enabled(self):
@@ -220,7 +222,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.register(span, new_asm_context)
 
         ctx = self._ddwaf._at_request_start()
-
+        self._span_to_waf_ctx[span] = ctx
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -412,3 +414,19 @@ class AppSecSpanProcessor(SpanProcessor):
         finally:
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
+
+            if span.span_type != SpanTypes.WEB:
+                return
+
+            to_delete = []
+            for iterspan, ctx in self._span_to_waf_ctx.items():
+                # delete all the ddwaf ctxs associated with this span or finished or deleted ones
+                if iterspan == span or iterspan.finished:
+                    # so we don't change the dictionary size on iteration
+                    to_delete.append(iterspan)
+
+            for s in to_delete:
+                try:
+                    del self._span_to_waf_ctx[s]
+                except Exception:  # nosec B110
+                    pass
