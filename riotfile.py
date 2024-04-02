@@ -1876,23 +1876,9 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pys=select_pys(min_version="3.7", max_version="3.12"),
                     pkgs={
-                        "aiopg": ["~=1.2", "~=1.4.0", latest],
-                    },
-                ),
-                Venv(
-                    # aiopg added support for Python 3.10 in 1.3
-                    pys="3.10",
-                    pkgs={
-                        "aiopg": ["~=1.3.0", latest],
-                    },
-                ),
-                Venv(
-                    # aiopg added support for Python 3.11 in 1.4
-                    pys="3.11",
-                    pkgs={
-                        "aiopg": ["~=1.4.0", latest],
+                        "aiopg": ["~=1.0", "~=1.4.0"],
                     },
                 ),
             ],
