@@ -196,7 +196,7 @@ class ProfilingConfig(En):
                 help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
             )
 
-            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c.v2._enabled)
+            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
 
     class Lock(En):
         __item__ = __prefix__ = "lock"
@@ -280,6 +280,6 @@ class ProfilingConfig(En):
 
 config = ProfilingConfig()
 
-if config.export.libdd_required:
+if config.export.libdd_required and not config.export.libdd_enabled:
     logger.warning("The native exporter is required but not enabled. Disabling profiling.")
     config.enabled = False
