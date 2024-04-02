@@ -1,4 +1,5 @@
 import abc
+import dataclasses
 from enum import Enum
 import functools
 import json
@@ -7,7 +8,6 @@ from typing import Any
 from typing import Dict
 from typing import Generic
 from typing import List
-from typing import NamedTuple
 from typing import Optional
 from typing import Tuple
 from typing import TypeVar
@@ -36,7 +36,8 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-class CIVisibilitySessionSettings(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class CIVisibilitySessionSettings:
     tracer: Tracer
     test_service: str
     test_command: str
@@ -49,6 +50,17 @@ class CIVisibilitySessionSettings(NamedTuple):
     root_dir: Path
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
+    itr_enabled: bool = False
+    itr_test_skipping_enabled: bool = False
+    itr_test_skipping_level: str = ""
+
+    def __post_init__(self):
+        if not isinstance(self.tracer, Tracer):
+            raise TypeError("tracer must be a ddtrace.Tracer")
+        if not isinstance(self.root_dir, Path):
+            raise TypeError("root_dir must be a pathlib.Path")
+        if not self.root_dir.is_absolute():
+            raise ValueError("root_dir must be an absolute pathlib.Path")
 
 
 class SPECIAL_STATUS(Enum):
@@ -84,23 +96,27 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     ):
         self.item_id: ANYIDT = item_id
         self.parent: Optional["CIVisibilityItemBase"] = parent
-        self.name = self.item_id.name
+        self.name: str = self.item_id.name
         self._status: CITestStatus = CITestStatus.FAIL
-        self._session_settings = session_settings
-        self._tracer = session_settings.tracer
-        self._service = session_settings.test_service
-        self._operation_name = DEFAULT_OPERATION_NAMES.UNSET.value
+        self._session_settings: CIVisibilitySessionSettings = session_settings
+        self._tracer: Tracer = session_settings.tracer
+        self._service: str = session_settings.test_service
+        self._operation_name: str = DEFAULT_OPERATION_NAMES.UNSET.value
 
         self._span: Optional[Span] = None
-        self._tags = initial_tags if initial_tags else {}
-        self._children = None
+        self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
+        self._children: Optional[Dict[ANYIDT, "CIVisibilityChildItem"]] = None
 
+        # ITR-related attributes
         self._is_itr_skipped: bool = False
+        self._itr_skipped_count: int = 0
+        self._is_itr_unskippable: bool = False
+        self._is_itr_forced_run: bool = False
 
         # Internal state keeping
-        self._status_set = False
+        self._status_set: bool = False
 
-        # General purpose-attributes not used by all item types
+        # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[CISourceFileInfo] = None
         self._coverage_data: Optional[CICoverageData] = None
@@ -133,6 +149,10 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._set_test_hierarchy_tags()
         self._add_coverage_data()
 
+        # ITR-related tags should only be set if ITR is enabled in the first place
+        if self._session_settings.itr_enabled:
+            self._set_itr_tags()
+
         # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
         self._set_span_tags()
 
@@ -162,15 +182,28 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         if self._source_file_info is not None:
             if self._source_file_info.path:
-                self.set_tag(test.SOURCE_FILE, self._source_file_info.path)
+                # Set source file path to be relative to the root directory
+                try:
+                    relative_path = self._source_file_info.path.relative_to(self._session_settings.root_dir)
+                except ValueError:
+                    log.debug("Source file path is not within the root directory, replacing with absolute path")
+                    relative_path = self._source_file_info.path
+                self.set_tag(test.SOURCE_FILE, str(relative_path))
             if self._source_file_info.start_line is not None:
                 self.set_tag(test.SOURCE_START, self._source_file_info.start_line)
             if self._source_file_info.end_line is not None:
                 self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
 
+    def _set_itr_tags(self):
+        """Note: some tags are also added in the parent class as well as some individual item classes"""
         if self._is_itr_skipped:
             self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
             self.set_tag(test.ITR_SKIPPED, "true")
+
+        if self._is_itr_unskippable:
+            self.set_tag(test.ITR_UNSKIPPABLE, "true")
+        if self._is_itr_forced_run:
+            self.set_tag(test.ITR_FORCED_RUN, "true")
 
     def _set_span_tags(self):
         """This is effectively a callback method for exceptional cases where the item span
@@ -181,6 +214,41 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         Classes that need to specifically modify the span directly should override this method.
         """
         pass
+
+    @property
+    def _source_file_info(self) -> Optional[CISourceFileInfo]:
+        return self.__source_file_info
+
+    @_source_file_info.setter
+    def _source_file_info(self, source_file_info_value: Optional[CISourceFileInfo] = None):
+        """This checks that filepaths are absolute when setting source file info"""
+        self.__source_file_info = None  # Default value until source_file_info is validated
+
+        if source_file_info_value is None:
+            return
+        if source_file_info_value.path is None:
+            # Source file info is invalid if path is None
+            return
+        if not isinstance(source_file_info_value, CISourceFileInfo):
+            log.warning("Source file info must be of type CISourceFileInfo")
+            return
+        if not source_file_info_value.path.is_absolute():
+            # Note: this should effectively be unreachable code because the CISourceFileInfoBase class enforces
+            # that paths be absolute at creation time
+            log.warning("Source file path must be absolute, removing source file info")
+            return
+
+        self.__source_file_info = source_file_info_value
+
+    @property
+    def _session_settings(self) -> CIVisibilitySessionSettings:
+        return self.__session_settings
+
+    @_session_settings.setter
+    def _session_settings(self, session_settings_value: CIVisibilitySessionSettings):
+        if not isinstance(session_settings_value, CIVisibilitySessionSettings):
+            raise TypeError("Session settings must be of type CIVisibilitySessionSettings")
+        self.__session_settings = session_settings_value
 
     @abc.abstractmethod
     def _get_hierarchy_tags(self):
@@ -233,8 +301,23 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._status_set = True
         self._status = status
 
+    def count_itr_skipped(self):
+        self._itr_skipped_count += 1
+        if self.parent is not None:
+            self.parent.count_itr_skipped()
+
     def mark_itr_skipped(self):
         self._is_itr_skipped = True
+
+    def mark_itr_unskippable(self):
+        """Per RFC, unskippable only applies to a given item, not its ancestors"""
+        self._is_itr_unskippable = True
+
+    def mark_itr_forced_run(self):
+        """If any item is forced to run, all ancestors are forced to run and increment by one"""
+        self._is_itr_forced_run = True
+        if self.parent is not None:
+            self.parent.mark_itr_forced_run()
 
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:
@@ -393,3 +476,9 @@ class CIVisibilityParentItem(CIVisibilityItemBase, Generic[PIDT, CIDT, CITEMT]):
             return self.children[child_id]
         error_msg = f"{child_id} not found in {self.item_id}'s children"
         raise CIVisibilityDataError(error_msg)
+
+    def _set_itr_tags(self):
+        """Only parent items set skipped counts because tests would always be 1 or 0"""
+        super()._set_itr_tags()
+        if self.children:
+            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)

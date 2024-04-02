@@ -7,23 +7,21 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 
-from .utils import sanitize_string
 
 StringType = Union[str, bytes, None]
 
 
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        pass
-    return b""
-
+cdef extern from "stdint.h":
+    ctypedef unsigned long long uint64_t
+    ctypedef long long int64_t
+    cdef uint64_t UINT64_MAX
+    cdef int64_t INT64_MAX
 
 cdef extern from "<string_view>" namespace "std" nogil:
     cdef cppclass string_view:
@@ -34,8 +32,6 @@ cdef extern from "sample.hpp" namespace "Datadog":
         pass
 
 cdef extern from "interface.hpp":
-    ctypedef signed int int64_t
-    ctypedef unsigned int uint64_t
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
     void ddup_config_version(string_view version)
@@ -55,8 +51,8 @@ cdef extern from "interface.hpp":
     void ddup_push_cputime(Sample *sample, int64_t cputime, int64_t count)
     void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
-    void ddup_push_alloc(Sample *sample, uint64_t size, uint64_t count)
-    void ddup_push_heap(Sample *sample, uint64_t size)
+    void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_heap(Sample *sample, int64_t size)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -99,6 +95,35 @@ cdef call_ddup_config_user_tag(bytes key, bytes val):
     ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
 
 
+# Conversion functions
+def ensure_binary_or_empty(s: StringType) -> bytes:
+    try:
+        return ensure_binary(s)
+    except Exception:
+        pass
+    return b""
+
+
+cdef uint64_t clamp_to_uint64_unsigned(value):
+    # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
+    # The name is redundant, but consistent with the other clamping function.
+    if value < 0:
+        return 0
+    if value > UINT64_MAX:
+        return UINT64_MAX
+    return value
+
+
+cdef int64_t clamp_to_int64_unsigned(value):
+    # This clamps a Python int to the nonnegative range of a signed 64-bit integer.
+    if value < 0:
+        return 0
+    if value > INT64_MAX:
+        return INT64_MAX
+    return value
+
+
+# Public API
 def init(
         service: StringType = None,
         env: StringType = None,
@@ -126,7 +151,7 @@ def init(
     call_ddup_config_profiler_version(ensure_binary_or_empty(ddtrace.__version__))
 
     if max_nframes is not None:
-        ddup_config_max_nframes(max_nframes)  # call_* only needed for string-type args
+        ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
     if tags is not None:
         for key, val in tags.items():
             if key and val:
@@ -154,34 +179,34 @@ cdef class SampleHandle:
 
     def push_cputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_cputime(self.ptr, value, count)
+            ddup_push_cputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_walltime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_walltime(self.ptr, value, count)
+            ddup_push_walltime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_acquire(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_acquire(self.ptr, value, count)
+            ddup_push_acquire(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_release(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_release(self.ptr, value, count)
+            ddup_push_release(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_alloc(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_alloc(self.ptr, value, count)
+            ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_heap(self, value: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, value)
+            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
             lock_name_bytes = ensure_binary_or_empty(lock_name)
             ddup_push_lock_name(self.ptr, string_view(<const char*>lock_name_bytes, len(lock_name_bytes)))
 
-    def push_frame(self, name: StringType, filename: StringType, int address, int line) -> None:
+    def push_frame(self, name: StringType, filename: StringType, address: int, line: int) -> None:
         if self.ptr is not NULL:
             # Customers report `name` and `filename` may be unexpected objects, so sanitize.
             name_bytes = ensure_binary_or_empty(sanitize_string(name))
@@ -190,8 +215,8 @@ cdef class SampleHandle:
                     self.ptr,
                     string_view(<const char*>name_bytes, len(name_bytes)),
                     string_view(<const char*>filename_bytes, len(filename_bytes)),
-                    address,
-                    line
+                    clamp_to_uint64_unsigned(address),
+                    clamp_to_int64_unsigned(line),
             )
 
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
@@ -201,14 +226,14 @@ cdef class SampleHandle:
             thread_name_bytes = ensure_binary_or_empty(thread_name)
             ddup_push_threadinfo(
                     self.ptr,
-                    thread_id,
-                    thread_native_id,
+                    clamp_to_int64_unsigned(thread_id),
+                    clamp_to_int64_unsigned(thread_native_id),
                     string_view(<const char*>thread_name_bytes, len(thread_name_bytes))
             )
 
     def push_task_id(self, task_id: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_task_id(self.ptr, task_id)
+            ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -216,11 +241,18 @@ cdef class SampleHandle:
                 task_name_bytes = ensure_binary_or_empty(task_name)
                 ddup_push_task_name(self.ptr, string_view(<const char*>task_name_bytes, len(task_name_bytes)))
 
-    def push_exceptioninfo(self, exc_type: type, count: int) -> None:
+    def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None:
         if self.ptr is not NULL:
-            if exc_type is not None:
+            exc_name = None
+            if exc_type is type:
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
-                ddup_push_exceptioninfo(self.ptr, string_view(<const char*>exc_name, len(exc_name)), count)
+            else:
+                exc_name = ensure_binary_or_empty(exc_type)
+            ddup_push_exceptioninfo(
+                self.ptr,
+                string_view(<const char*>exc_name, len(exc_name)),
+                clamp_to_int64_unsigned(count)
+            )
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -233,11 +265,11 @@ cdef class SampleHandle:
         if not span:
             return
         if span.span_id:
-            ddup_push_span_id(self.ptr, span.span_id)
+            ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
         if not span._local_root:
             return
         if span._local_root.span_id:
-            ddup_push_local_root_span_id(self.ptr, span._local_root.span_id)
+            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
         if span._local_root.span_type:
             span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
             ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))

@@ -1,6 +1,7 @@
 """Fake test runner where all tests skip"""
 
 from multiprocessing import freeze_support
+from pathlib import Path
 
 from ddtrace.ext.ci_visibility import api
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
@@ -31,12 +32,12 @@ def main():
     suite_1_test_3_retry_2_id = api.CITestId(suite_1_id, "test_3", retry_number=2)
     suite_1_test_3_retry_3_id = api.CITestId(suite_1_id, "test_3", retry_number=3)
 
-    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_1_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_1_test_2_id, source_file_info=None)
     api.CITest.discover(
         suite_1_test_3_id,
         codeowners=["@romain", "@romain2"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
     api.CITest.discover_early_flake_retry(suite_1_test_3_retry_1_id)
@@ -55,12 +56,12 @@ def main():
 
     api.CIModule.discover(module_2_id)
     api.CISuite.discover(suite_2_id)
-    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo("my_file_1.py", 1, 2))
+    api.CITest.discover(suite_2_test_1_id, source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 1, 2))
     api.CITest.discover(suite_2_test_2_id, source_file_info=None)
     api.CITest.discover(
         suite_2_test_3_id,
         codeowners=["@romain"],
-        source_file_info=api.CISourceFileInfo("my_file_1.py", 4, 12),
+        source_file_info=api.CISourceFileInfo(Path("my_file_1.py"), 4, 12),
         is_early_flake_detection=True,
     )
     api.CITest.discover_early_flake_retry(suite_2_test_3_retry_1_id)
