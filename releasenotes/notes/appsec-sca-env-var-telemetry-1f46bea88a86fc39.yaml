@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces the capability to enable or disable SCA using the environment variable DD_APPSEC_SCA_ENABLED. By default this env var is unset and in that case it doesn't affect the product.
