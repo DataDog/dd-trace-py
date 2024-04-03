@@ -257,10 +257,10 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         span.set_tag_str(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
         span.set_tag_str(kafkax.GROUP_ID, instance._group_id)
-        if messages[0] is not None:
-            message_key = messages[0].key() or ""
-            message_offset = messages[0].offset() or -1
-            span.set_tag_str(kafkax.TOPIC, messages[0].topic())
+        if first_message is not None:
+            message_key = first_message.key() or ""
+            message_offset = first_message.offset() or -1
+            span.set_tag_str(kafkax.TOPIC, first_message.topic())
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -270,10 +270,10 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 or isinstance(message_key, bytes)
             ):
                 span.set_tag_str(kafkax.MESSAGE_KEY, message_key)
-            span.set_tag(kafkax.PARTITION, messages[0].partition())
+            span.set_tag(kafkax.PARTITION, first_message.partition())
             is_tombstone = False
             try:
-                is_tombstone = len(messages[0]) == 0
+                is_tombstone = len(first_message) == 0
             except TypeError:  # https://github.com/confluentinc/confluent-kafka-python/issues/1192
                 pass
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
