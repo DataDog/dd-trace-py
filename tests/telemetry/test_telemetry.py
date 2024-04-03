@@ -467,3 +467,98 @@ assert "ddtrace.internal.telemetry" not in sys.modules
 
     assert status == 0, stderr
     assert stderr == b""
+
+
+@pytest.mark.parametrize("env_var_value", ["True", "true", "1"])
+def test_app_started_sca_enabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
+    code = """
+import logging
+logging.basicConfig()
+
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+from ddtrace.settings import _config
+
+_config._telemetry_dependency_collection = False
+
+tracer.configure(
+    settings={
+        "FILTERS": [],
+    }
+)
+
+# generate and encode span
+tracer.trace("hello").finish()
+"""
+    run_python_code_in_subprocess(code, env={"DD_APPSEC_SCA_ENABLED": "True"})
+
+    events = test_agent_session.get_events("app-started")
+
+    assert len(events) == 1
+
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
+    assert app_started_events[0]["payload"]["configuration"]["DD_APPSEC_SCA_ENABLED"] == "true"
+
+
+@pytest.mark.parametrize("env_var_value", ["False", "false", "0"])
+def test_app_started_sca_disabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
+    code = """
+import logging
+logging.basicConfig()
+
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+from ddtrace.settings import _config
+
+_config._telemetry_dependency_collection = False
+
+tracer.configure(
+    settings={
+        "FILTERS": [],
+    }
+)
+
+# generate and encode span
+tracer.trace("hello").finish()
+"""
+    run_python_code_in_subprocess(code, env={"DD_APPSEC_SCA_ENABLED": env_var_value})
+
+    events = test_agent_session.get_events("app-started")
+
+    assert len(events) == 1
+
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
+    assert app_started_events[0]["payload"]["configuration"]["DD_APPSEC_SCA_ENABLED"] == "false"
+
+
+def test_app_started_sca_missing(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import logging
+logging.basicConfig()
+
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+from ddtrace.settings import _config
+
+_config._telemetry_dependency_collection = False
+
+tracer.configure(
+    settings={
+        "FILTERS": [],
+    }
+)
+
+# generate and encode span
+tracer.trace("hello").finish()
+"""
+    run_python_code_in_subprocess(code)
+
+    events = test_agent_session.get_events("app-started")
+
+    assert len(events) == 1
+
+    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    assert len(app_started_events) == 1
+    assert "DD_APPSEC_SCA_ENABLED" not in app_started_events[0]["payload"]["configuration"].keys()

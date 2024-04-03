@@ -455,6 +455,9 @@ class TelemetryWriter(PeriodicService):
             ]
         )
 
+        if config._config["_sca_enabled"] is not None:
+            self.add_configuration("DD_APPSEC_SCA_ENABLED", config._config["_sca_enabled"].value(), "env_var")
+
         payload = {
             "configuration": self._flush_configuration_queue(),
             "error": {
