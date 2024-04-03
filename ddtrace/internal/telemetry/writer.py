@@ -462,7 +462,7 @@ class TelemetryWriter(PeriodicService):
             ]
         )
 
-        if config._config["_sca_enabled"] is None:
+        if config._config["_sca_enabled"].value() is None:
             self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
         payload = {
