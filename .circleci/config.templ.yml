@@ -839,6 +839,15 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
+  dramatiq:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "dramatiq"
+          snapshot: true
+          docker_services: "redis"
+
   fastapi:
     <<: *machine_executor
     parallelism: 2
@@ -1136,6 +1145,7 @@ jobs:
 
   aiopg:
     <<: *contrib_job_small
+    parallelism: 4
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server

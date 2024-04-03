@@ -366,6 +366,9 @@
         "celery": [
             "ddtrace/contrib/celery/*"
         ],
+        "dramatiq": [
+            "ddtrace/contrib/dramatiq/*"
+        ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
             "ddtrace/ext/cassandra.py"
@@ -818,6 +821,15 @@
             "@tracing",
             "@dogpile_cache",
             "tests/contrib/dogpile_cache/*"
+        ],
+        "dramatiq": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@dramatiq",
+            "tests/contrib/dramatiq/*",
+            "tests/snapshots/tests.contrib.dramatiq.*"
         ],
         "elasticsearch": [
             "@bootstrap",
