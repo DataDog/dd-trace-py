@@ -27,6 +27,7 @@ class SampleManager
 
     // Sampling entrypoint (this could also be called `build_ptr()`)
     static Sample* start_sample();
+    static void drop_sample(Sample* sample);
 
     // Handles state management after forks
     static void postfork_child();
