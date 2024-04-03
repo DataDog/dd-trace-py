@@ -471,30 +471,7 @@ assert "ddtrace.internal.telemetry" not in sys.modules
 
 @pytest.mark.parametrize("env_var_value", ["True", "true", "1"])
 def test_app_started_sca_enabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
-    code = """
-import logging
-logging.basicConfig()
-
-from ddtrace import tracer
-from ddtrace.filters import TraceFilter
-from ddtrace.settings import _config
-
-_config._telemetry_dependency_collection = False
-
-class FailingFilture(TraceFilter):
-    def process_trace(self, trace):
-       raise Exception("Exception raised in trace filter")
-
-tracer.configure(
-    settings={
-        "FILTERS": [FailingFilture()],
-    }
-)
-
-# generate and encode span
-tracer.trace("hello").finish()
-"""
-    run_python_code_in_subprocess(code, env={"DD_APPSEC_SCA_ENABLED": "True"})
+    run_python_code_in_subprocess("import ddtrace", env={"DD_APPSEC_SCA_ENABLED": "True"})
 
     events = test_agent_session.get_events("app-started")
 
@@ -508,30 +485,7 @@ tracer.trace("hello").finish()
 
 @pytest.mark.parametrize("env_var_value", ["False", "false", "0"])
 def test_app_started_sca_disabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
-    code = """
-import logging
-logging.basicConfig()
-
-from ddtrace import tracer
-from ddtrace.filters import TraceFilter
-from ddtrace.settings import _config
-
-_config._telemetry_dependency_collection = False
-
-class FailingFilture(TraceFilter):
-    def process_trace(self, trace):
-       raise Exception("Exception raised in trace filter")
-
-tracer.configure(
-    settings={
-        "FILTERS": [FailingFilture()],
-    }
-)
-
-# generate and encode span
-tracer.trace("hello").finish()
-"""
-    run_python_code_in_subprocess(code, env={"DD_APPSEC_SCA_ENABLED": env_var_value})
+    run_python_code_in_subprocess("import ddtrace", env={"DD_APPSEC_SCA_ENABLED": env_var_value})
 
     events = test_agent_session.get_events("app-started")
 
@@ -544,31 +498,7 @@ tracer.trace("hello").finish()
 
 
 def test_app_started_sca_missing(test_agent_session, run_python_code_in_subprocess):
-    code = """
-import logging
-logging.basicConfig()
-
-from ddtrace import tracer
-from ddtrace.filters import TraceFilter
-from ddtrace.settings import _config
-
-_config._telemetry_dependency_collection = False
-
-class FailingFilture(TraceFilter):
-    def process_trace(self, trace):
-       raise Exception("Exception raised in trace filter")
-
-tracer.configure(
-    settings={
-        "FILTERS": [FailingFilture()],
-    }
-)
-
-# generate and encode span
-tracer.trace("hello").finish()
-"""
-    run_python_code_in_subprocess(code)
-
+    run_python_code_in_subprocess("import ddtrace")
     events = test_agent_session.get_events("app-started")
 
     assert len(events) == 1
