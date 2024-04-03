@@ -757,7 +757,9 @@ def patch():
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
         from langchain.chains.base import Chain  # noqa:F401
+        from langchain_community import chat_models  # noqa:F401
         from langchain_community import embeddings  # noqa:F401
+        from langchain_community import llms  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
@@ -774,8 +776,10 @@ def patch():
         )
         wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
         wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
-        wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
-        wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+        if langchain_openai:
+            wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+        if langchain_pinecone:
+            wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
     else:
         from langchain import embeddings  # noqa:F401
         from langchain import vectorstores  # noqa:F401
@@ -862,8 +866,10 @@ def unpatch():
         unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
         unwrap(langchain.chains.base.Chain, "invoke")
         unwrap(langchain.chains.base.Chain, "ainvoke")
-        unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
-        unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
+        if langchain_openai:
+            unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+        if langchain_pinecone:
+            unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
 
     else:
         unwrap(langchain.llms.base.BaseLLM, "generate")
