@@ -45,10 +45,10 @@ config._add(
 
 def get_version():
     # type: () -> str
-    return parse_version(getattr(starlette, "__version__", ""))
+    return getattr(starlette, "__version__", "")
 
 
-_STARLETTE_VERSION = get_version()
+_STARLETTE_VERSION = parse_version(get_version())
 
 
 def traced_init(wrapped, instance, args, kwargs):
