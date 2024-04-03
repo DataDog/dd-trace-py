@@ -418,6 +418,11 @@ The following environment variables for the tracer are supported:
      default: False
      description: Whether to enable AppSec monitoring.
 
+   DD_APPSEC_SCA_ENABLED:
+     type: Boolean
+     default: None
+     description: Wheter to enable/disable SCA (Software Composition Analysis).
+
    DD_APPSEC_RULES:
      type: String
      description: Path to a json file containing AppSec rules.
