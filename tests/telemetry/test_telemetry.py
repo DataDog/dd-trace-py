@@ -481,9 +481,13 @@ from ddtrace.settings import _config
 
 _config._telemetry_dependency_collection = False
 
+class FailingFilture(TraceFilter):
+    def process_trace(self, trace):
+       raise Exception("Exception raised in trace filter")
+
 tracer.configure(
     settings={
-        "FILTERS": [],
+        "FILTERS": [FailingFilture()],
     }
 )
 
@@ -498,7 +502,8 @@ tracer.trace("hello").finish()
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
-    assert app_started_events[0]["payload"]["configuration"]["DD_APPSEC_SCA_ENABLED"] == "true"
+    configuration = app_started_events[0]["payload"]["configuration"]
+    assert {"name": "DD_APPSEC_SCA_ENABLED", "origin": "env_var", "value": "true"} in configuration
 
 
 @pytest.mark.parametrize("env_var_value", ["False", "false", "0"])
@@ -513,9 +518,13 @@ from ddtrace.settings import _config
 
 _config._telemetry_dependency_collection = False
 
+class FailingFilture(TraceFilter):
+    def process_trace(self, trace):
+       raise Exception("Exception raised in trace filter")
+
 tracer.configure(
     settings={
-        "FILTERS": [],
+        "FILTERS": [FailingFilture()],
     }
 )
 
@@ -530,7 +539,8 @@ tracer.trace("hello").finish()
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
-    assert app_started_events[0]["payload"]["configuration"]["DD_APPSEC_SCA_ENABLED"] == "false"
+    configuration = app_started_events[0]["payload"]["configuration"]
+    assert {"name": "DD_APPSEC_SCA_ENABLED", "origin": "env_var", "value": "false"} in configuration
 
 
 def test_app_started_sca_missing(test_agent_session, run_python_code_in_subprocess):
@@ -544,9 +554,13 @@ from ddtrace.settings import _config
 
 _config._telemetry_dependency_collection = False
 
+class FailingFilture(TraceFilter):
+    def process_trace(self, trace):
+       raise Exception("Exception raised in trace filter")
+
 tracer.configure(
     settings={
-        "FILTERS": [],
+        "FILTERS": [FailingFilture()],
     }
 )
 
@@ -561,4 +575,7 @@ tracer.trace("hello").finish()
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
-    assert "DD_APPSEC_SCA_ENABLED" not in app_started_events[0]["payload"]["configuration"].keys()
+
+    configuration = app_started_events[0]["payload"]["configuration"]
+    for entry in configuration:
+        assert entry["name"] != "DD_APPSEC_SCA_ENABLED"
