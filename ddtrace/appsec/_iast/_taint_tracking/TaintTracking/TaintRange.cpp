@@ -149,7 +149,8 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return;
         }
     }
 
@@ -243,7 +244,8 @@ get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return nullptr;
         }
     }
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
@@ -291,7 +293,8 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
     if (not tx_taint_map) {
         tx_taint_map = initializer->get_tainting_map();
         if (not tx_taint_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return;
         }
     }
 
@@ -343,9 +346,6 @@ pyexport_taintrange(py::module& m)
           "candidate_text"_a,
           "parameter_list"_a,
           py::return_value_policy::move);
-
-    // TODO: check return value policy
-    m.def("get_tainted_object", &get_tainted_object, "str"_a, "tx_taint_map"_a);
 
     m.def(
       "shift_taint_range", &api_shift_taint_range, py::return_value_policy::move, "source_taint_range"_a, "offset"_a);
