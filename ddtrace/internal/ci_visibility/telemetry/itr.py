@@ -81,7 +81,9 @@ def record_itr_skippable_request(
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES, response_bytes)
 
     if error is not None:
-        telemetry_writer.add_count_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS, 1, (("error", error),))
+        telemetry_writer.add_count_metric(
+            _NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_ERRORS, 1, (("error_type", error),)
+        )
         # If there was an error, assume no skippable items can be counted
         return
 
