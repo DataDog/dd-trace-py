@@ -473,7 +473,11 @@ assert "ddtrace.internal.telemetry" not in sys.modules
 def test_app_started_sca_enabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
     run_python_code_in_subprocess("import ddtrace", env={"DD_APPSEC_SCA_ENABLED": "True"})
 
-    events = test_agent_session.get_events("app-started")
+    events = []
+    remaining_retries = 3
+    while len(events) == 0 and remaining_retries >= 0:
+        events = test_agent_session.get_events("app-started")
+        remaining_retries -= 1
 
     assert len(events) == 1
 
@@ -487,7 +491,11 @@ def test_app_started_sca_enabled(test_agent_session, run_python_code_in_subproce
 def test_app_started_sca_disabled(test_agent_session, run_python_code_in_subprocess, env_var_value):
     run_python_code_in_subprocess("import ddtrace", env={"DD_APPSEC_SCA_ENABLED": env_var_value})
 
-    events = test_agent_session.get_events("app-started")
+    events = []
+    remaining_retries = 3
+    while len(events) == 0 and remaining_retries >= 0:
+        events = test_agent_session.get_events("app-started")
+        remaining_retries -= 1
 
     assert len(events) == 1
 
@@ -499,7 +507,12 @@ def test_app_started_sca_disabled(test_agent_session, run_python_code_in_subproc
 
 def test_app_started_sca_missing(test_agent_session, run_python_code_in_subprocess):
     run_python_code_in_subprocess("import ddtrace")
-    events = test_agent_session.get_events("app-started")
+
+    events = []
+    remaining_retries = 3
+    while len(events) == 0 and remaining_retries >= 0:
+        events = test_agent_session.get_events("app-started")
+        remaining_retries -= 1
 
     assert len(events) == 1
 
