@@ -236,6 +236,7 @@ import ddtrace.auto
         [
             {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
             {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
+            {"name": "DD_APPSEC_SCA_ENABLED", "origin": "env_var", "value": None},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},

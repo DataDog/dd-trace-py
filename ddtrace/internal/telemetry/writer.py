@@ -367,6 +367,12 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "_tracing_enabled":
             name = "tracing_enabled"
             value = "true" if item.value() else "false"
+        elif cfg_name == "_sca_enabled":
+            name = "DD_APPSEC_SCA_ENABLED"
+            if item.value() is None:
+                value = ""
+            else:
+                value = "true" if item.value() else "false"
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
@@ -455,8 +461,8 @@ class TelemetryWriter(PeriodicService):
             ]
         )
 
-        if config._config["_sca_enabled"] is not None:
-            self.add_configuration("DD_APPSEC_SCA_ENABLED", config._config["_sca_enabled"].value(), "env_var")
+        if config._config["_sca_enabled"] is None:
+            self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
         payload = {
             "configuration": self._flush_configuration_queue(),
@@ -547,6 +553,10 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def remove_configuration(self, configuration_name):
+        with self._lock:
+            del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
