@@ -234,7 +234,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     ctx = None
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
-    first_message = messages[0]
+    first_message = messages[0] if len(messages) else None
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
         ctx = Propagator.extract(dict(first_message.headers()))
     with pin.tracer.start_span(
