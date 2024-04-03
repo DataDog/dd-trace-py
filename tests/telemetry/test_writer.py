@@ -156,7 +156,20 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
+@pytest.mark.parametrize(
+    "env_var,value,expected_value",
+    [
+        ("DD_APPSEC_SCA_ENABLED", "true", True),
+        ("DD_APPSEC_SCA_ENABLED", "True", True),
+        ("DD_APPSEC_SCA_ENABLED", "1", True),
+        ("DD_APPSEC_SCA_ENABLED", "false", False),
+        ("DD_APPSEC_SCA_ENABLED", "False", False),
+        ("DD_APPSEC_SCA_ENABLED", "0", False),
+    ],
+)
+def test_app_started_event_configuration_override(
+    test_agent_session, run_python_code_in_subprocess, tmpdir, env_var, value, expected_value
+):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -215,6 +228,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
+    env[env_var] = value
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -236,6 +250,7 @@ import ddtrace.auto
         [
             {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
             {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
+            {"name": env_var, "origin": "env_var", "value": expected_value},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
