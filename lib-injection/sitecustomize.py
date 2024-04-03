@@ -77,6 +77,9 @@ def _inject():
             _log("failed to load ddtrace module: %s" % e, level="error")
             return
         else:
+            # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
+            os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
+
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             import ddtrace.bootstrap.sitecustomize
 
