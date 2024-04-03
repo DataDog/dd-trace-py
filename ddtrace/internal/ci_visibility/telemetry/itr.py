@@ -20,16 +20,13 @@ class ITR_TELEMETRY(str, Enum):
     FORCED_RUN = "itr_forced_run"
 
 
-SKIPPABLE_TESTS_PREFIX = "itr_skippable_tests"
-
-
 class SKIPPABLE_TESTS_TELEMETRY(str, Enum):
-    REQUEST = f"{SKIPPABLE_TESTS_PREFIX}.request"
-    REQUEST_MS = f"{SKIPPABLE_TESTS_PREFIX}.request_ms"
-    REQUEST_ERRORS = f"{SKIPPABLE_TESTS_PREFIX}.request_errors"
-    RESPONSE_BYTES = f"{SKIPPABLE_TESTS_PREFIX}.response_bytes"
-    RESPONSE_TESTS = f"{SKIPPABLE_TESTS_PREFIX}.response_tests"
-    RESPONSE_SUITES = f"{SKIPPABLE_TESTS_PREFIX}.response_suites"
+    REQUEST = "itr_skippable_tests.request"
+    REQUEST_MS = "itr_skippable_tests.request_ms"
+    REQUEST_ERRORS = "itr_skippable_tests.request_errors"
+    RESPONSE_BYTES = "itr_skippable_tests.response_bytes"
+    RESPONSE_TESTS = "itr_skippable_tests.response_tests"
+    RESPONSE_SUITES = "itr_skippable_tests.response_suites"
 
 
 def _enforce_event_is_test_or_suite(func):
@@ -46,17 +43,20 @@ def _enforce_event_is_test_or_suite(func):
 @skip_if_agentless
 @_enforce_event_is_test_or_suite
 def record_itr_skipped(event_type: EVENT_TYPES):
+    log.debug("Recording itr skipped telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.SKIPPED, 1, (("event_type", event_type.value),))
 
 
 @skip_if_agentless
 @_enforce_event_is_test_or_suite
 def record_itr_unskippable(event_type: EVENT_TYPES):
+    log.debug("Recording itr unskippable telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.UNSKIPPABLE, 1, (("event_type", event_type.value),))
 
 
 @skip_if_agentless
 def record_itr_forced_run(event_type: EVENT_TYPES):
+    log.debug("Recording itr forced run telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),))
 
 
@@ -68,6 +68,14 @@ def record_itr_skippable_request(
     skipping_level: str,
     error: Optional[ERROR_TYPES] = None,
 ):
+    log.debug(
+        "Recording itr skippable request telemetry: %s, %s, %s, %s, %s",
+        duration,
+        response_bytes,
+        skippable_count,
+        skipping_level,
+        error,
+    )
     telemetry_writer.add_count_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST, 1)
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS, duration)
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES, response_bytes)
@@ -78,8 +86,8 @@ def record_itr_skippable_request(
         return
 
     skippable_count_metric = (
-        SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
+        SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
         if skipping_level == SUITE
-        else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
+        else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
     )
     telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)

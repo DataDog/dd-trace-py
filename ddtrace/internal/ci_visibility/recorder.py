@@ -1,4 +1,5 @@
 from collections import defaultdict
+from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
@@ -483,6 +484,7 @@ class CIVisibility(Service):
 
         error_type: Optional[ERROR_TYPES] = None
         response_bytes = 0
+        skippable_count = 0
         sw = StopWatch()
 
         try:
@@ -490,10 +492,10 @@ class CIVisibility(Service):
                 sw.start()
                 response = _do_request("POST", url, json.dumps(payload), _headers)
                 sw.stop()
-            except (TimeoutError, socket.timeout):
+            except (TimeoutError, socket.timeout, RemoteDisconnected) as e:
                 sw.stop()
-                log.warning("Request timeout while fetching skippable tests")
-                error_type = ERROR_TYPES.TIMEOUT
+                log.warning("Error while fetching skippable tests: ", exc_info=True)
+                error_type = ERROR_TYPES.NETWORK if isinstance(e, RemoteDisconnected) else ERROR_TYPES.TIMEOUT
                 self._test_suites_to_skip = []
                 return
 
@@ -533,6 +535,7 @@ class CIVisibility(Service):
                         path = (
                             "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
                         )
+                        skippable_count += 1
 
                         if skipping_mode == SUITE:
                             self._test_suites_to_skip.append(path)
@@ -545,8 +548,9 @@ class CIVisibility(Service):
                 self._tests_to_skip = defaultdict(list)
 
         finally:
-            if error_type is not None:
-                record_itr_skippable_request(sw.elapsed() * 1000, response_bytes, 0, skipping_mode, ERROR_TYPES.TIMEOUT)
+            record_itr_skippable_request(
+                int(sw.elapsed() * 1000), response_bytes, skippable_count, skipping_mode, error_type
+            )
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         if test_skipping_mode is None:

@@ -83,12 +83,12 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 def _switch_coverage_context(
     coverage_data: Coverage, unique_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
 ):
-    record_code_coverage_started(framework, COVERAGE_LIBRARY.COVERAGEPY)
+    record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
     try:
-        record_code_coverage_started(framework, COVERAGE_LIBRARY.COVERAGEPY)
+        coverage_data.switch_context(unique_test_name)
     except RuntimeError as err:
         record_code_coverage_error()
         log.warning(err)
@@ -101,7 +101,7 @@ def _report_coverage_to_span(
     if not _coverage_has_valid_data(coverage_data):
         record_code_coverage_error()
         return
-    record_code_coverage_finished(framework, COVERAGE_LIBRARY.COVERAGEPY)
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
     span.set_tag_str(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
@@ -174,11 +174,6 @@ def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = No
             )
         else:
             files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
-
-    # from random import randint
-    # myrandint = randint(0, 1)
-    # if myrandint == 0:
-    #     files_data = []
 
     if len(files_data) == 0:
         record_code_coverage_empty()

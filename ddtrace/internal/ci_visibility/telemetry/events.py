@@ -44,7 +44,7 @@ def _record_event(
         if has_codeowners is not None:
             _tags.append(("has_codeowners", "1"))
         if unsupported_ci is not None:
-            _tags.append(("unsupported_ci", "1"))
+            _tags.append(("is_unsupported_ci", "1"))
     if event_type == EVENT_TYPES.TEST and is_benchmark is not None:
         _tags.append(("is_benchmark", "1"))
 
