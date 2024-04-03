@@ -244,7 +244,7 @@ import ddtrace.auto
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
             {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},
             {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 512},
