@@ -56,7 +56,7 @@ class CIVisibilitySessionSettings:
     suite_operation_name: str
     test_operation_name: str
     root_dir: Path
-    is_unknown_ci: bool
+    is_unknown_ci: bool = False
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
     itr_enabled: bool = False
