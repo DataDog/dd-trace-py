@@ -394,6 +394,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
+                self._telemetry_entry("_sca_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
                 self._telemetry_entry("logs_injection"),

@@ -159,12 +159,12 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
 @pytest.mark.parametrize(
     "env_var,value,expected_value",
     [
-        ("DD_APPSEC_SCA_ENABLED", "true", True),
-        ("DD_APPSEC_SCA_ENABLED", "True", True),
-        ("DD_APPSEC_SCA_ENABLED", "1", True),
-        ("DD_APPSEC_SCA_ENABLED", "false", False),
-        ("DD_APPSEC_SCA_ENABLED", "False", False),
-        ("DD_APPSEC_SCA_ENABLED", "0", False),
+        ("DD_APPSEC_SCA_ENABLED", "true", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "True", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "1", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "false", "false"),
+        ("DD_APPSEC_SCA_ENABLED", "False", "false"),
+        ("DD_APPSEC_SCA_ENABLED", "0", "false"),
     ],
 )
 def test_app_started_event_configuration_override(
