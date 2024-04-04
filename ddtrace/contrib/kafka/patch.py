@@ -45,6 +45,7 @@ config._add(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
         trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        trace_empty_consume_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_CONSUME_ENABLED", default=True)),
     ),
 )
 
@@ -225,7 +226,10 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
             # consume returns a list of messages, possibly empty
-            _instrument_message(result or [None], pin, start_ns, instance, err)
+            if result:
+                _instrument_message(result, pin, start_ns, instance, err)
+            elif config.kafka.trace_empty_consume_enabled:
+                _instrument_message([None], pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
 

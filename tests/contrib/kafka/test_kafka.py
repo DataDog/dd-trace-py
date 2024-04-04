@@ -299,6 +299,14 @@ def test_consume_with_no_message(dummy_tracer, consumer):
     Pin.override(consumer, tracer=dummy_tracer)
     messages = consumer.consume(timeout=0)
     assert len(messages) == 0
+    traces = dummy_tracer.pop_traces()
+    assert len(traces) == 1
+    with override_config("kafka", dict(trace_empty_consume_enabled=False)):
+        messages = consumer.consume(timeout=0)
+        traces = dummy_tracer.pop_traces()
+        assert len(traces) == 0
+
+
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
