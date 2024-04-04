@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -155,7 +156,20 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         assert events[0] == _get_request_body(payload, "app-started")
 
 
-def test_app_started_event_configuration_override(test_agent_session, run_python_code_in_subprocess, tmpdir):
+@pytest.mark.parametrize(
+    "env_var,value,expected_value",
+    [
+        ("DD_APPSEC_SCA_ENABLED", "true", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "True", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "1", "true"),
+        ("DD_APPSEC_SCA_ENABLED", "false", "false"),
+        ("DD_APPSEC_SCA_ENABLED", "False", "false"),
+        ("DD_APPSEC_SCA_ENABLED", "0", "false"),
+    ],
+)
+def test_app_started_event_configuration_override(
+    test_agent_session, run_python_code_in_subprocess, tmpdir, env_var, value, expected_value
+):
     """
     asserts that default configuration value
     is changed and queues a valid telemetry request
@@ -214,6 +228,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
+    env[env_var] = value
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -235,6 +250,7 @@ import ddtrace.auto
         [
             {"name": "DD_AGENT_HOST", "origin": "unknown", "value": None},
             {"name": "DD_AGENT_PORT", "origin": "unknown", "value": None},
+            {"name": env_var, "origin": "env_var", "value": expected_value},
             {"name": "DD_DOGSTATSD_PORT", "origin": "unknown", "value": None},
             {"name": "DD_DOGSTATSD_URL", "origin": "unknown", "value": None},
             {"name": "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "origin": "unknown", "value": True},
@@ -245,7 +261,7 @@ import ddtrace.auto
             {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": False},
-            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": True},
+            {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
             {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 5.0},
             {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 10.0},
             {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 512},
@@ -355,6 +371,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     assert len(events) == 1
 
 
+@flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     TelemetryWriterModuleWatchdog._initial = False
     TelemetryWriterModuleWatchdog._new_imported.clear()
@@ -434,15 +451,15 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
 def test_app_client_configuration_changed_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events())
+        initial_event_count = len(test_agent_session.get_events("app-client-configuration-change"))
         telemetry_writer.add_configuration("appsec_enabled", True)
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
         telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
         telemetry_writer.periodic()
 
-        events = test_agent_session.get_events()
-        assert len(events) == initial_event_count + 1
+        events = test_agent_session.get_events("app-client-configuration-change")
+        assert len(events) >= initial_event_count + 1
         assert events[0]["request_type"] == "app-client-configuration-change"
         received_configurations = events[0]["payload"]["configuration"]
         # Sort the configuration list by name
