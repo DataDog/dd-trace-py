@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    This adds support for LangChain's LCEL (LangChain Expression Language) chaining syntax.
-    This change specifically adds support for the `invoke` and `batch` functions, as well as their `async` versions.
-    This change does not include support for the `stream` function.
+    This adds tracing support for LangChain's LCEL (LangChain Expression Language) chaining syntax.
+    This change specifically adds tracing support for the `invoke` and `batch` functions, as well as their `async` versions.
+    This change does not include tracing support for the `stream` function.
