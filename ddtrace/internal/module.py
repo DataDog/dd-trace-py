@@ -366,7 +366,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         self._hook_map: t.DefaultDict[str, t.List[ModuleHookType]] = defaultdict(list)
         self._om: t.Optional[t.Dict[str, ModuleType]] = None
-        self._pre_exec_module_hooks: t.List[t.Tuple[PreExecHookCond, PreExecHookType]] = []
+        self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
 
     @property
     def _origin_map(self) -> t.Dict[str, ModuleType]:
@@ -571,4 +571,4 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = t.cast(ModuleWatchdog, cls._instance)
-        instance._pre_exec_module_hooks.append((cond, hook))
+        instance._pre_exec_module_hooks.add((cond, hook))

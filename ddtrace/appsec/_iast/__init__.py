@@ -73,14 +73,9 @@ def ddtrace_iast_flask_patch():
     sys.modules[module_name] = compiled_code
 
 
-def _reload_ddtrace_iast():
-    global _IS_IAST_REGISTERED
-    _IS_IAST_REGISTERED = False
-
-
 def enable_iast_propagation():
     global _IS_IAST_REGISTERED
-    if asbool(os.getenv("DD_IAST_ENABLED", False)) and not _IS_IAST_REGISTERED:
+    if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
         if _is_python_version_supported():

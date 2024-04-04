@@ -3,16 +3,14 @@ import io
 import sys
 
 from ddtrace import ModuleWatchdog
-from ddtrace.appsec._iast import _reload_ddtrace_iast
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 def _uninstall_watchdog_and_reload():
     if len(ModuleWatchdog._instance._pre_exec_module_hooks) > 0:
-        ModuleWatchdog._instance._pre_exec_module_hooks.pop(0)
-    assert ModuleWatchdog._instance._pre_exec_module_hooks == []
-    _reload_ddtrace_iast()
+        ModuleWatchdog._instance._pre_exec_module_hooks.pop()
+    assert ModuleWatchdog._instance._pre_exec_module_hooks == set()
 
 
 def test_ddtrace_iast_flask_patch():
