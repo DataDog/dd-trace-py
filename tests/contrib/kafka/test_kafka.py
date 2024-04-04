@@ -295,6 +295,12 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
+def test_consume_with_no_message(dummy_tracer, consumer):
+    Pin.override(consumer, tracer=dummy_tracer)
+    messages = consumer.consume(timeout=0)
+    assert len(messages) == 0
+
+
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
