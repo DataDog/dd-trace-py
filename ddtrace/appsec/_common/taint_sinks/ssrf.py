@@ -38,8 +38,8 @@ def patch():
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
-    from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
     from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
+    from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 
     if not set_and_check_module_is_patched("urllib", default_attr="_datadog_ssrf_patch"):
         return
