@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    CI Visibility: reduced the chances of not skipping tests by increasing timeout for requests made to the ITR skippable tests endpoint to 20s
+    CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
