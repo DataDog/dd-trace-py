@@ -1,3 +1,4 @@
+import mock
 import pymysql
 
 from ddtrace import Pin
@@ -529,3 +530,51 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "mysql.query"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_pymysql_dbm_propagation_enabled(self):
+        conn, tracer = self._get_conn_tracer()
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "pymysql.query"
+
+        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    def test_pymysql_dbm_propagation_comment(self):
+        """tests if dbm comment is set in postgres"""
+        db_name = MYSQL_CONFIG["database"]
+
+        conn, tracer = self._get_conn_tracer()
+        cursor = conn.cursor()
+        cursor.__wrapped__ = mock.Mock()
+        # test string queries
+        cursor.execute("select 'blah'")
+        cursor.executemany("select %s", (("foo",), ("bar",)))
+        dbm_comment = (
+            f"/*dddb='{db_name}',dddbs='pymysql',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+            "ddpv='v7343437-d7ac743'*/ "
+        )
+        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        # test byte string queries
+        cursor.__wrapped__.reset_mock()
+        cursor.execute(b"select 'blah'")
+        cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
+        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
+        cursor.__wrapped__.executemany.assert_called_once_with(
+            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
+        )
+        # test composed queries
+        cursor.__wrapped__.reset_mock()
