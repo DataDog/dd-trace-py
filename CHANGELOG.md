@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.6
+
+
+### Bug Fixes
+
+- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,  
+  causing crashes in configurations which relied on older protobuf versions. The profiler will now detect when injection is used and try loading with the native exporter. If that fails, it will self-disable rather than loading protobuf.
+
+
+---
+
 ## 2.7.5
 
 
