@@ -312,6 +312,11 @@ def _default_config():
             default=False,
             envs=[("DD_APPSEC_ENABLED", asbool)],
         ),
+        "_sca_enabled": _ConfigItem(
+            name="sca_enabled",
+            default=None,
+            envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
+        ),
         "_dsm_enabled": _ConfigItem(
             name="dsm_enabled",
             default=False,
