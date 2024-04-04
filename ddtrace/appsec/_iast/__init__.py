@@ -29,9 +29,12 @@ def wrapped_function(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
 import inspect
+import os
 import sys
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.utils.formats import asbool
 
 from ._overhead_control_engine import OverheadControl
 from ._utils import _is_iast_enabled
@@ -40,6 +43,8 @@ from ._utils import _is_iast_enabled
 log = get_logger(__name__)
 
 oce = OverheadControl()
+
+_IS_IAST_REGISTERED = False
 
 
 def ddtrace_iast_flask_patch():
@@ -68,7 +73,27 @@ def ddtrace_iast_flask_patch():
     sys.modules[module_name] = compiled_code
 
 
+def _reload_ddtrace_iast():
+    global _IS_IAST_REGISTERED
+    _IS_IAST_REGISTERED = False
+
+
+def enable_iast_propagation():
+    global _IS_IAST_REGISTERED
+    if asbool(os.getenv("DD_IAST_ENABLED", False)) and not _IS_IAST_REGISTERED:
+        from ddtrace.appsec._iast._utils import _is_python_version_supported
+
+        if _is_python_version_supported():
+            from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+            from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+
+            log.debug("IAST enabled")
+            ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+            _IS_IAST_REGISTERED = True
+
+
 __all__ = [
     "oce",
     "ddtrace_iast_flask_patch",
+    "enable_iast_propagation",
 ]

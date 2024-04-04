@@ -62,15 +62,15 @@ if di_config.enabled or ed_config.enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
-if asbool(os.getenv("DD_IAST_ENABLED", False)):
-    from ddtrace.appsec._iast._utils import _is_python_version_supported
+if asm_config._iast_enabled:
+    """
+    This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
+    too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it
+    here and it's not a duplicate call due to `enable_iast_propagation` has a global variable to avoid multiple calls.
+    """
+    from ddtrace.appsec._iast import enable_iast_propagation
 
-    if _is_python_version_supported():
-        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-        log.debug("IAST enabled")
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    enable_iast_propagation()
 
 if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
