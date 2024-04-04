@@ -217,7 +217,7 @@ def test_empty_list_from_consume_does_not_raise():
     )
     assert isinstance(consumer, TracedConsumer)
     max_messages_per_batch = 1
-    timeout = 1
+    timeout = 0
     consumer.consume(max_messages_per_batch, timeout)
     consumer.close()
     unpatch()
