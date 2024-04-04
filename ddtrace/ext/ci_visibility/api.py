@@ -26,6 +26,7 @@ from typing import Type
 from typing import Union
 
 from ddtrace.ext.ci_visibility._ci_visibility_base import CIItemId
+from ddtrace.ext.ci_visibility._ci_visibility_base import CISourceFileInfoBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityAPIBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityChildItemIdBase
 from ddtrace.ext.ci_visibility._ci_visibility_base import _CIVisibilityRootItemIdBase
@@ -96,7 +97,7 @@ class CITestId(_CIVisibilityChildItemIdBase[CISuiteId]):
 
 
 @dataclasses.dataclass(frozen=True)
-class CISourceFileInfo:
+class CISourceFileInfo(CISourceFileInfoBase):
     path: Path
     start_line: Optional[int] = None
     end_line: Optional[int] = None
