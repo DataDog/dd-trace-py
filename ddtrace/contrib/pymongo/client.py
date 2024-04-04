@@ -239,9 +239,6 @@ class TracedSocket(ObjectProxy):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
         cmd.db = dbname
-        import pdb
-
-        pdb.set_trace()
         with self.__trace(cmd):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
