@@ -1,14 +1,19 @@
 from copy import deepcopy
+import json
+import logging
 import os
 import re
 import sys
+import tarfile
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Union
+
+import requests
 
 from ddtrace.internal.compat import get_mp_context
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
@@ -18,6 +23,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from .._logger import _configure_ddtrace_file_logger
+from .._logger import _disable_ddtrace_file_logger
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import DEFAULT_BUFFER_SIZE
@@ -29,6 +35,7 @@ from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.constants import TRACER_FLARE_DIRECTORY
+from ..internal.constants import TRACER_FLARE_ENDPOINT
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
@@ -43,7 +50,6 @@ if sys.version_info >= (3, 8):
     from typing import Literal  # noqa:F401
 else:
     from typing_extensions import Literal
-
 
 log = get_logger(__name__)
 
@@ -747,44 +753,115 @@ class Config(object):
         if product_type == "APM_TRACING":
             self._handle_apm_tracing_product(configs[0])
         elif product_type == "AGENT_CONFIG":
+            # Check for tracer flare prep
             self._handle_agent_config_product(configs)
         elif product_type == "AGENT_TASK":
+            # Check for tracer flare request
             self._handle_agent_task_product(configs)
         else:
             log.warning("unexpected RC product name: %s", product_type)
 
-    def _handle_agent_config_product(self, configs: List[dict]) -> None:
+    def _handle_agent_config_product(self, configs: List[dict]):
+        os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
         for config in configs:
+            # AGENT_CONFIG is currently being used for multiple purposes,
+            # therefore we only want to prepare for a tracer flare if
+            # the config name starts with 'flare-log-level', otherwise we
+            # should do nothing
             if config and config.get("name", "").startswith("flare-log-level"):
                 flare_log_level = config.get("config", {}).get("log_level").upper()
-                os.makedirs(TRACER_FLARE_DIRECTORY)
-
-                _ = "tracerflare-python_%s".format()
-                flare_log_file_path = "%s/%s.log".format()
-                os.environ.update(
-                    {"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_log_file_path}
+                pid = os.getpid()
+                flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+                os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
+                self.__original_log_level = log.level
+                os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
+                # Set the logger level to the more verbose between original and flare
+                flare_log_level_int = logging.getLevelName(flare_log_level)
+                logger_level = (
+                    self.__original_log_level
+                    if self.__original_log_level > flare_log_level_int
+                    else flare_log_level_int
                 )
+                log.setLevel(logger_level)
                 _configure_ddtrace_file_logger(log)
                 return
 
-    def _handle_agent_task_product(self, configs: List[dict]) -> None:
+    def _handle_agent_task_product(self, configs: List[Any]):
         for config in configs:
-            if config and config.get("task_type") == "tracer_flare":
-                # Revert flare log configurations
-                os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
-                _ = os.environ.pop("DD_TRACE_LOG_FILE")
-                # _disable_ddtrace_file_logger(log)
+            # AGENT_TASK is currently being used for multiple purposes,
+            # therefore we only want to generate the tracer flare if
+            # the task_type is explicitly set to 'tracer_flare',
+            # otherwise we should do nothing
+            if type(config) == dict and config.get("task_type") == "tracer_flare":
+                args = config.get("args", {})
 
-                # TODO: Send flare
+                # Revert configs
+                _disable_ddtrace_file_logger(log)
+                try:
+                    os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
+                except KeyError:
+                    log.debug("DD_TRACE_LOG_FILE_LEVEL already unset")
 
-                return
+                try:
+                    os.environ.pop("DD_TRACE_LOG_FILE")
+                except KeyError:
+                    log.debug("DD_TRACE_LOG_FILE already unset")
+                log.setLevel(self.__original_log_level)
+                del self.__original_log_level
 
-    def _handle_apm_tracing_product(self, config: dict) -> None:
+                # Create flare files
+                tracer_tar_file = "output.tar"
+                pid = os.getpid()
+                flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+                with tarfile.open(tracer_tar_file, "w") as tar:
+                    # Add log file
+                    tar.add(flare_file_path)
+
+                    # Create and add config file
+                    config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
+                    with open(config_file, "w") as f:
+                        tracer_configs = {
+                            "configs": self.__dict__,
+                        }
+                        json.dump(
+                            tracer_configs,
+                            f,
+                            default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+                            indent=4,
+                        )
+
+                        tar.add(config_file)
+
+                # Send the tracer flare to the agent
+                with open(tracer_tar_file, "rb") as file:
+                    flare_file = {"flare_file": file}
+                    data = {
+                        "case_id": args.get("case_id"),
+                        "source": "tracer_python",
+                        "hostname": args.get("hostname"),
+                        "email": args.get("user_handle"),
+                    }
+                    flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
+                    response = requests.post(flare_url, files=flare_file, data=data)
+
+                    if response.status_code == 200:
+                        log.debug("Tracer flare request successful")
+                    else:
+                        log.error("Tracer flare request failed with status code %s", response.status_code)
+
+                # Clean up files regardless of success/failure
+                # try:
+                #     shutil.rmtree(TRACER_FLARE_DIRECTORY)
+                #     os.remove(tracer_tar_file)
+                # except Exception as e:
+                #     log.warn(f"Failed to clean up tracer flare files: {e}")
+                # return
+
+    def _handle_apm_tracing_product(self, config: dict):
         # If no data is submitted then the RC config has been deleted. Revert the settings.
         base_rc_config = {n: None for n in self._config}
 
         if config:
-            log.info("config contents: ", str(config))
             lib_config = config.get("lib_config", {})
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]

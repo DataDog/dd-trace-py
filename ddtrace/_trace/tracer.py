@@ -581,7 +581,7 @@ class Tracer(object):
             log.error("sample_rate is negative, cannot update the rate samplers")
 
     def _generate_diagnostic_logs(self):
-        if config._debug_mode or config._startup_logs_enabled or config._tracer_flare_enabled:
+        if config._debug_mode or config._startup_logs_enabled:
             try:
                 info = debug.collect(self)
             except Exception as e:

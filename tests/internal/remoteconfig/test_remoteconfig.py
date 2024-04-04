@@ -3,6 +3,8 @@ import base64
 import datetime
 import hashlib
 import json
+import multiprocessing
+import os
 import sys
 from time import sleep
 
@@ -10,6 +12,10 @@ import mock
 from mock.mock import ANY
 import pytest
 
+from ddtrace import config
+from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
+from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -429,3 +435,213 @@ def test_rc_default_products_registered():
     # Required for tracer flare
     assert bool(remoteconfig_poller._client._products.get("AGENT_CONFIG")) == rc_enabled
     assert bool(remoteconfig_poller._client._products.get("AGENT_TASK")) == rc_enabled
+
+
+def test_tracer_flare_single_process_success():
+    """
+    AGENT_CONFIG expected behavior:
+    - file handler added to logger
+    - correct log level set for handler and logger
+    - logs added to file
+
+    AGENT_TASK expected behavior:
+    - file handler removed from logger
+    - log level reverted for logger
+    - new logs are not being added to file
+    - generated files are cleaned up
+    """
+    configs = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    logger = get_logger("ddtrace.settings.config")
+    assert type(logger) == DDLogger
+    assert logger.level == 0  # set to WARN initially
+
+    config._handle_agent_config_product(configs)
+
+    file_handler = None
+    for handler in logger.handlers:
+        if handler.name == "ddtrace_file_handler":
+            file_handler = handler
+            break
+    assert file_handler is not None
+    assert file_handler.level == 10
+    assert logger.level == 10
+
+    pid = os.getpid()
+    flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+
+    assert os.path.exists(flare_file_path)
+
+    # Generate a few dummy tracer logs
+    for n in range(10):
+        if n % 2 == 0:
+            logger.debug(n)
+        else:
+            logger.info(n)
+
+    task_configs = [
+        False,
+        {
+            "args": {
+                "case_id": "1581988",  # TODO: redact
+                "hostname": "myhostname",
+                "user_handle": "erika.yasuda@datadoghq.com",  # TODO: redact
+            },
+            "task_type": "tracer_flare",
+            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        },
+    ]
+
+    with mock.patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        config._handle_agent_task_product(task_configs)
+
+
+def test_tracer_flare_single_process_partial_failure():
+    """
+    Validate that even if one of the files fails to be generated,
+    we still attempt to send the flare with partial info
+
+    If both fail, should we not?
+    """
+    configs = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    logger = get_logger("ddtrace.settings.config")
+    assert logger.level == 0  # set to WARN initially
+
+    config._handle_agent_config_product(configs)
+
+    file_handler = None
+    for handler in logger.handlers:
+        if handler.name == "ddtrace_file_handler":
+            file_handler = handler
+            break
+    assert file_handler is not None
+    assert file_handler.level == 10
+    assert logger.level == 10
+
+    pid = os.getpid()
+    flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+
+    assert os.path.exists(flare_file_path)
+
+    # Generate a few dummy logs
+    for n in range(10):
+        if n % 2 == 0:
+            logger.debug(n)
+        else:
+            logger.info(n)
+
+    task_configs = [
+        False,
+        {
+            "args": {
+                "case_id": "1581988",  # TODO: redact
+                "hostname": "myhostname",
+                "user_handle": "erika.yasuda@datadoghq.com",  # TODO: redact
+            },
+            "task_type": "tracer_flare",
+            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        },
+    ]
+
+    with mock.patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        config._handle_agent_task_product(task_configs)
+
+
+def test_tracer_flare_multiple_process():
+    # Create a temporary directory
+    processes = []
+    num_processes = 5
+    agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_task = [
+        False,
+        {
+            "args": {
+                "case_id": "1581988",  # TODO: redact
+                "hostname": "myhostname",
+                "user_handle": "erika.yasuda@datadoghq.com",  # TODO: redact
+            },
+            "task_type": "tracer_flare",
+            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        },
+    ]
+
+    def do_tracer_flare(agent_config, agent_task):
+        config._handle_agent_config_product(agent_config)
+        sleep(2)
+        with mock.patch("requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            config._handle_agent_task_product(agent_task)
+
+    # Create multiple processes
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=do_tracer_flare, args=(agent_config, agent_task))
+        processes.append(p)
+        p.start()
+
+        # Wait for all processes to complete
+        for p in processes:
+            p.join()
+
+        # Assert that each process wrote its file successfully
+        # We double the process number because each will generate a log file and a config file
+        assert len(processes) * 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
+
+
+def test_tracer_flare_multiple_process_partial_failure():
+    processes = []
+    agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_task = [
+        False,
+        {
+            "args": {
+                "case_id": "1581988",  # TODO: redact
+                "hostname": "myhostname",
+                "user_handle": "erika.yasuda@datadoghq.com",  # TODO: redact
+            },
+            "task_type": "tracer_flare",
+            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        },
+    ]
+
+    def do_tracer_flare(agent_config, agent_task):
+        config._handle_agent_config_product(agent_config)
+        sleep(2)
+        with mock.patch("requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+            config._handle_agent_task_product(agent_task)
+
+    # Create successful process
+    p = multiprocessing.Process(target=do_tracer_flare, args=(agent_config, agent_task))
+    processes.append(p)
+    p.start()
+
+    # Create failing process
+    p = multiprocessing.Process(target=do_tracer_flare, args=(None, agent_task))
+    processes.append(p)
+    p.start()
+
+    # Wait for all processes to complete
+    for p in processes:
+        p.join()
+
+    # Assert that only one process wrote its file successfully
+    # We check for 2 files because it will generate a log file and a config file
+    assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
+
+
+def test_tracer_flare_no_app_logs():
+    # TODO: Check that app logs are not being added to the
+    # file, just the tracer logs
+    pass
+
+
+def test_tracer_flare_fallback_send_and_clean():
+    # TODO: Check if we can piggyback on pubsub periodic polling
+    # to check time since AGENT_CONFIG was received
+    pass
+
+
+def test_tracer_flare_no_overlapping_requests():
+    # TODO: Handle multiple request scenario
+    pass

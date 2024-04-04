@@ -51,7 +51,7 @@ def _configure_ddtrace_debug_logger(logger):
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
-def _configure_ddtrace_file_logger(logger):
+def _configure_ddtrace_file_logger(logger: logging.Logger):
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
@@ -78,14 +78,15 @@ def _configure_ddtrace_file_logger(logger):
         logger.debug("ddtrace logs will be routed to %s", log_path)
 
 
-# def _disable_ddtrace_file_logger(logger: DDLogger) -> None:
-#     handler_to_remove = None
-#     for handler in logger.handlers():
-#         if handler.name == DDTRACE_FILE_HANDLER_NAME:
-#             handler_to_remove = handler
-#             break
-#     logger.removeHandler(handler_to_remove)
-#     logger.debug("ddtrace logs will not be routed to the file handler anymore")
+def _disable_ddtrace_file_logger(logger: logging.Logger):
+    handler_to_remove = None
+    for handler in logger.handlers:
+        if handler.name == DDTRACE_FILE_HANDLER_NAME:
+            handler_to_remove = handler
+            break
+    if handler_to_remove:
+        logger.removeHandler(handler_to_remove)
+        logger.debug("ddtrace logs will not be routed to the file handler anymore")
 
 
 def _configure_log_injection():
