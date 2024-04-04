@@ -2,6 +2,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
@@ -9,7 +10,6 @@ from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
-from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
@@ -54,7 +54,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             span.span_type = "web"
             weak_hash_patch()
             weak_cipher_patch()
-            path_traversal_patch()
+            patch_common_modules()
             sqli_sqlite_patch()
             json_patch()
             psycopg_patch()

@@ -65,7 +65,7 @@ def _aux_appsec_get_root_span(
 def test_django_weak_hash(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True, _iast_enabled=True)), override_env({"DD_IAST_ENABLED": "True"}):
         oce.reconfigure()
-        patch_iast({"weak_hash": True})
+        patch_iast({"hashlib": ("weak_hash",)})
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
         str_json = root_span.get_tag(IAST.JSON)
         assert str_json is not None, "no JSON tag in root span"
