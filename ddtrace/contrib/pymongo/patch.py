@@ -76,7 +76,7 @@ def traced_get_socket(wrapped, instance, args, kwargs):
         with wrapped(*args, **kwargs) as sock_info:
             yield sock_info
             return
-
+    import pdb; pdb.set_trace()
     with pin.tracer.trace(
         "pymongo.%s" % _CHECKOUT_FN_NAME,
         service=trace_utils.int_service(pin, config.pymongo),
