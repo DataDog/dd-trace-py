@@ -6,6 +6,10 @@ Starts session before discovery (simulating pytest behavior)
 Module 1 should fail, suite 1 should fail
 Module 2 should pass, suite 2 should pass
 Module 3 should fail, suite 3 should fail but suite 4 should pass
+Module 4 should pass, but be marked forced run, and suite 6 should be marked
+as forced run and unskippable
+
+Entire session should be marked as forced run
 
 ITR coverage data is added at the suite level. suite 1 adds coverage after individual tests.
 Suite 2 adds coverage at the end of the suite. Suite 3 mixes the two. Suite 4 has no coverage.
@@ -16,6 +20,7 @@ import json
 from multiprocessing import freeze_support
 from pathlib import Path
 import sys
+from unittest import mock
 
 from ddtrace.ext.ci_visibility import api
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
@@ -125,6 +130,32 @@ def main():
     api.CITest.discover(suite_4_test_1_id, source_file_info=api.CISourceFileInfo(Path("module_3/suite_4.py"), 4, 6))
     api.CITest.discover(suite_4_test_2_id, source_file_info=api.CISourceFileInfo(Path("module_3/suite_4.py"), 9, 12))
     api.CITest.discover(suite_4_test_3_id, source_file_info=api.CISourceFileInfo(Path("module_3/suite_4.py"), 16, 48))
+
+    module_4_id = api.CIModuleId(session_id, "module_4")
+    suite_5_id = api.CISuiteId(module_4_id, "suite_5")
+    suite_6_id = api.CISuiteId(module_4_id, "suite_6")
+
+    suite_5_test_1_id = api.CITestId(suite_5_id, "test_1")
+    suite_5_test_2_id = api.CITestId(suite_5_id, "test_2")
+    suite_5_test_3_id = api.CITestId(suite_5_id, "test_3")
+
+    suite_6_test_1_id = api.CITestId(suite_6_id, "test_1")
+    suite_6_test_2_id = api.CITestId(suite_6_id, "test_2")
+    suite_6_test_3_id = api.CITestId(suite_6_id, "test_3")
+
+    api.CIModule.discover(module_4_id)
+
+    api.CISuite.discover(suite_5_id)
+
+    api.CITest.discover(suite_5_test_1_id, source_file_info=api.CISourceFileInfo(Path("module_5/suite_5.py"), 4, 6))
+    api.CITest.discover(suite_5_test_2_id, source_file_info=api.CISourceFileInfo(Path("module_5/suite_5.py"), 9, 12))
+    api.CITest.discover(suite_5_test_3_id, source_file_info=api.CISourceFileInfo(Path("module_5/suite_5.py"), 16, 48))
+
+    api.CISuite.discover(suite_6_id)
+    api.CISuite.mark_itr_unskippable(suite_6_id)
+    api.CITest.discover(suite_6_test_1_id)
+    api.CITest.discover(suite_6_test_2_id)
+    api.CITest.discover(suite_6_test_3_id)
 
     # END DISCOVERY
 
@@ -335,6 +366,45 @@ def main():
 
     api.CIModule.finish(module_3_id)
 
+    api.CIModule.start(module_4_id)
+
+    api.CISuite.start(suite_5_id)
+
+    #
+    # suite_5_test_1 test
+    api.CITest.start(suite_5_test_1_id)
+    api.CITest.mark_itr_skipped(suite_5_test_1_id)
+    #
+    # suite_5_test_2 test
+    api.CITest.start(suite_5_test_2_id)
+    api.CITest.mark_itr_skipped(suite_5_test_2_id)
+    #
+    # suite_5_test_3 test
+    api.CITest.start(suite_5_test_3_id)
+    api.CITest.mark_itr_skipped(suite_5_test_3_id)
+
+    api.CISuite.mark_itr_skipped(suite_5_id)
+
+    api.CISuite.start(suite_6_id)
+
+    #
+    # suite_6_test_1 test
+    api.CITest.start(suite_6_test_1_id)
+    api.CITest.mark_itr_skipped(suite_6_test_1_id)
+    #
+    # suite_6_test_2 test
+    api.CITest.start(suite_6_test_2_id)
+    api.CITest.mark_pass(suite_6_test_2_id)
+    #
+    # suite_6_test_3 test
+    api.CITest.start(suite_6_test_3_id)
+    api.CITest.mark_itr_skipped(suite_6_test_3_id)
+
+    api.CITest.mark_itr_forced_run(suite_6_id)
+    api.CISuite.finish(suite_6_id)
+
+    api.CIModule.finish(module_4_id)
+
     api.CISession.finish(session_id)
 
     # FINISH TESTS
@@ -342,4 +412,9 @@ def main():
 
 if __name__ == "__main__":
     freeze_support()
-    main()
+    # NOTE: this is only safe because these tests are run in a subprocess
+    import os
+
+    os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "1"
+    with mock.patch("ddtrace.internal.ci_visibility.CIVisibility.is_itr_enabled", return_value=True):
+        main()

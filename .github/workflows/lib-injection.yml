@@ -88,20 +88,20 @@ jobs:
           chmod 777 $TEMP_DIR
           # Start the lib_inject to get the files copied. This avoids a race condition with the startup of the
           # application.
-          docker-compose up --build lib_inject
-          docker-compose up --build -d
+          docker compose up --build lib_inject
+          docker compose up --build -d
           # Wait for the app to start
           sleep 60
-          docker-compose logs
+          docker compose logs
       - name: Check Permissions on ddtrace pkgs
         run: |
            cd lib-injection
            # Ensure /datadog-lib/ddtrace_pkgs is a valid directory that is not empty
-           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs -maxdepth 0 -empty | wc -l && if [ $? -ne 0 ]; then exit 1; fi
            # Ensure files are not world writeable
-           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm /o+w | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm /o+w | wc -l && if [ $? -ne 0 ]; then exit 1; fi
            # Ensure all users have read and execute permissions to files stored in /datadog-lib/ddtrace_pkgs
-           docker-compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm u=rwx,o=rx | wc -l && if [ $? -ne 0 ]; then exit 1; fi
+           docker compose run lib_inject find /datadog-init/ddtrace_pkgs ! -perm u=rwx,o=rx | wc -l && if [ $? -ne 0 ]; then exit 1; fi
       - name: Test the app
         run: |
           curl http://localhost:18080
@@ -115,4 +115,4 @@ jobs:
       - name: Output app logs (LOOK HERE IF THE JOB FAILS)
         if: success() || failure()
         run: |
-          docker-compose logs
+          docker compose logs
