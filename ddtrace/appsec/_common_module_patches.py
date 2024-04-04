@@ -21,7 +21,7 @@ COMMON_PATCH_MODULES = {
 
 def patch_common_modules(patch_modules=COMMON_PATCH_MODULES):
     from ddtrace._monkey import _on_import_factory
-    from ddtrace.appsec._common.taint_sinks.lfi import wrapped_open_CFDDB7ABBA9081B6
+    from ddtrace.appsec._common.taint_sinks.lfi_path_traversal import wrapped_open_CFDDB7ABBA9081B6
 
     for python_module, vuln_modules in patch_modules.items():
         for vuln_module in vuln_modules:
