@@ -4,7 +4,6 @@ from ddtrace.vendor.wrapt.importer import when_imported
 IAST_PATCH_MODULES = {
     "os": ("command_injection",),
     "subprocess": ("command_injection",),
-    "builtins": ("path_traversal",),
     "hashlib": ("weak_cipher", "weak_hash"),
 }
 

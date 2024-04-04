@@ -5,74 +5,41 @@ from typing import Callable
 from typing import Dict
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
+from ddtrace.vendor.wrapt.importer import when_imported
 
 
 log = get_logger(__name__)
 _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
+COMMON_PATCH_MODULES = {
+    "urllib": ("ssrf",),
+    "builtins": ("lfi_path_traversal",),
+}
 
-def patch_common_modules():
+
+def patch_common_modules(patch_modules=COMMON_PATCH_MODULES):
+    from ddtrace._monkey import _on_import_factory
+    from ddtrace.appsec._common.taint_sinks.lfi import wrapped_open_CFDDB7ABBA9081B6
+
+    for python_module, vuln_modules in patch_modules.items():
+        for vuln_module in vuln_modules:
+            # Skip builtins as it has to be patched regardless of imports
+            if python_module == "builtins":
+                continue
+
+            when_imported(python_module)(
+                _on_import_factory(vuln_module, prefix="ddtrace.appsec._common.taint_sinks", raise_errors=False)
+            )
+
+    # Patch builtins module
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
-    try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
-
-
-def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
-    """
-    wrapper for open file function
-    """
-
-    if asm_config._iast_enabled:
-        # LFI sink to be added
-        pass
-
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            return original_open_callable(*args, **kwargs)
-
-        filename = args[0] if args else kwargs.get("file", None)
-        if filename and in_context():
-            call_waf_callback({"LFI_ADDRESS": filename}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
-            # DEV: Next part of the exploit prevention feature: add block here
-    return original_open_callable(*args, **kwargs)
-
-
-def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs):
-    """
-    wrapper for open url function
-    """
-    if asm_config._iast_enabled:
-        # SSRF sink to be added
-        pass
-
-    if asm_config._asm_enabled and asm_config._ep_enabled:
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_context
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            return original_open_callable(*args, **kwargs)
-
-        url = args[0] if args else kwargs.get("fullurl", None)
-        if url and in_context():
-            if not (url.startswith("http://") or url.startswith("https://")):
-                url = "http://" + url  # + "/latest/user-data"
-            call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
-            # DEV: Next part of the exploit prevention feature: add block here
-    return original_open_callable(*args, **kwargs)
+    try_unwrap("builtins", "open")
 
 
 def try_unwrap(module, name):

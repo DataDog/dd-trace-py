@@ -128,9 +128,7 @@ class AstVisitor(ast.NodeTransformer):
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
-            "functions": {
-                "open": "ddtrace_taint_sinks.open_path_traversal",
-            },
+            "functions": {},
         }
         self._sinkpoints_functions = self._sinkpoints_spec["functions"]
         self.ast_modified = False
@@ -473,11 +471,6 @@ class AstVisitor(ast.NodeTransformer):
                 # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
-            else:
-                sink_point = self._sinkpoints_functions.get(func_name_node)
-                if sink_point:
-                    call_node.func = self._attr_node(call_node, sink_point)
-                    self.ast_modified = call_modified = True
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
         # replaced_method(a.b.c)
