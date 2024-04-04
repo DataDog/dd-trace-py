@@ -62,7 +62,7 @@ def record_itr_forced_run(event_type: EVENT_TYPES):
 
 @skip_if_agentless
 def record_itr_skippable_request(
-    duration: int,
+    duration: float,
     response_bytes: int,
     skippable_count: int,
     skipping_level: str,

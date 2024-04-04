@@ -549,7 +549,7 @@ class CIVisibility(Service):
 
         finally:
             record_itr_skippable_request(
-                int(sw.elapsed() * 1000), response_bytes, skippable_count, skipping_mode, error_type
+                sw.elapsed() * 1000, response_bytes, skippable_count, skipping_mode, error_type
             )
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
