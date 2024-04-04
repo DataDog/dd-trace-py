@@ -224,8 +224,8 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             # poll returns a single message
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
-            # consume returns a list of messages,
-            _instrument_message(result, pin, start_ns, instance, err)
+            # consume returns a list of messages, possibly empty
+            _instrument_message(result if result else [None], pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
 
