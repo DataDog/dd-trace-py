@@ -1159,7 +1159,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
-    with a root RunnableSequence span, then tree LangChain ChatOpenAI spans underneath
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
@@ -1193,12 +1193,12 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
-# @pytest.mark.asyncio
-# @pytest.mark.snapshot
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
-    with a root RunnableSequence span, then tree LangChain ChatOpenAI spans underneath
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()

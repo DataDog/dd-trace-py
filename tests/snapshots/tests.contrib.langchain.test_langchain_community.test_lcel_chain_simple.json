@@ -10,12 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "660c573300000000",
-      "langchain.request.inputs.input": "how can langsmith help with testing?",
+      "_dd.p.tid": "6610032d00000000",
+      "langchain.request.inputs.0.input": "how can langsmith help with testing?",
       "langchain.request.type": "chain",
-      "langchain.response.output": "\\nSystem: Langsmith can help with testing in several ways. First, it can generate automated tests based on your technical docume...",
+      "langchain.response.outputs.0": "\\nSystem: Langsmith can help with testing in several ways. First, it can generate automated tests based on your technical docume...",
       "language": "python",
-      "runtime-id": "2b997715bde447e5ad13a8524c654c96"
+      "runtime-id": "2c6643959b9b44d4aaff377a46e8f6cc"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -26,10 +26,10 @@
       "langchain.tokens.prompt_tokens": 20,
       "langchain.tokens.total_cost": 0.000232,
       "langchain.tokens.total_tokens": 121,
-      "process_id": 78484
+      "process_id": 82647
     },
-    "duration": 31499000,
-    "start": 1712084787135891000
+    "duration": 7629000,
+    "start": 1712325421263628000
   },
      {
        "name": "langchain.request",
@@ -64,6 +64,6 @@
          "langchain.tokens.total_cost": 0.000232,
          "langchain.tokens.total_tokens": 121
        },
-       "duration": 22153000,
-       "start": 1712084787145132000
+       "duration": 3923000,
+       "start": 1712325421267281000
      }]]

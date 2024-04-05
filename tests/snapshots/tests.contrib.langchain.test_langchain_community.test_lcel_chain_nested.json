@@ -10,13 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "660c0be400000000",
-      "langchain.request.inputs.language": "Spanish",
-      "langchain.request.inputs.person": "Spongebob Squarepants",
+      "_dd.p.tid": "6610032d00000000",
+      "langchain.request.inputs.0.language": "Spanish",
+      "langchain.request.inputs.0.person": "Spongebob Squarepants",
       "langchain.request.type": "chain",
-      "langchain.response.output": "SpongeBob SquarePants es de la ciudad submarina ficticia de Fondo de Bikini.",
+      "langchain.response.outputs.0": "SpongeBob SquarePants es de la ciudad submarina ficticia de Fondo de Bikini.",
       "language": "python",
-      "runtime-id": "3db6a9595fd046c48c9eba4d97688990"
+      "runtime-id": "2c6643959b9b44d4aaff377a46e8f6cc"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 51,
       "langchain.tokens.total_cost": 0.00015250000000000002,
       "langchain.tokens.total_tokens": 89,
-      "process_id": 87284
+      "process_id": 82647
     },
-    "duration": 46416000,
-    "start": 1712065508225914000
+    "duration": 13368000,
+    "start": 1712325421178443000
   },
      {
        "name": "langchain.request",
@@ -42,10 +42,10 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.inputs.language": "Spanish",
-         "langchain.request.inputs.person": "Spongebob Squarepants",
+         "langchain.request.inputs.0.language": "Spanish",
+         "langchain.request.inputs.0.person": "Spongebob Squarepants",
          "langchain.request.type": "chain",
-         "langchain.response.output": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom."
+         "langchain.response.outputs.0": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom."
        },
        "metrics": {
          "_dd.measured": 1,
@@ -54,8 +54,8 @@
          "langchain.tokens.total_cost": 6.1000000000000005e-05,
          "langchain.tokens.total_tokens": 35
        },
-       "duration": 28183000,
-       "start": 1712065508239314000
+       "duration": 4940000,
+       "start": 1712325421182607000
      },
         {
           "name": "langchain.request",
@@ -88,8 +88,8 @@
             "langchain.tokens.total_cost": 6.1000000000000005e-05,
             "langchain.tokens.total_tokens": 35
           },
-          "duration": 25985000,
-          "start": 1712065508240962000
+          "duration": 3390000,
+          "start": 1712325421183880000
         },
      {
        "name": "langchain.request",
@@ -122,6 +122,6 @@
          "langchain.tokens.total_cost": 9.15e-05,
          "langchain.tokens.total_tokens": 54
        },
-       "duration": 3616000,
-       "start": 1712065508268426000
+       "duration": 3219000,
+       "start": 1712325421188328000
      }]]
