@@ -4,6 +4,47 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.6
+
+
+### Bug Fixes
+
+- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,  
+  causing crashes in configurations which relied on older protobuf versions. The profiler will now detect when injection is used and try loading with the native exporter. If that fails, it will self-disable rather than loading protobuf.
+
+
+---
+
+## 2.7.5
+
+
+### New Features
+
+- kafka: Adds tracing and DSM support for `confluent_kafka.Consumer.consume()`. Previously only <span class="title-ref">confluent_kafka.Consumer.poll</span> was instrumented.
+
+### Bug Fixes
+
+- ASM: always clear the DDWaf context at the end of the span to avoid gc-induced latency spikes at the end of some requests.
+- internal: This fix resolves an issue where importing the `ddtrace.contrib.botocore.services` module would fail raising an ImportError
+- setuptools_scm version: Updates the setuptools_scm versioning method to "guess-next-dev" from "release-branch-semver", which was affecting the CI
+- structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection when resetting to defaults.
+
+
+---
+
+## 2.6.9
+
+
+### Bug Fixes
+
+- propagation: This fix resolves an issue where the sampling decision-maker tag in tracestate propagation headers was clobbered by a default value.
+- langchain: Ensures langchain vision APIs are correctly instrumented
+- ASM: This fix resolves an issue where the asgi middleware could crash with a RuntimeError "Unexpected message received".
+- kafka: This fix resolves an issue where `None` messages from confluent-kafka could cause crashes in the Kafka integration.
+
+
+---
+
 ## v2.6.0
 
 ### Upgrade Notes

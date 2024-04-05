@@ -30,8 +30,9 @@ if TYPE_CHECKING:  # pragma: no cover
         Optional[int],  # span_id
         _MetaDictType,  # _meta
         _MetricDictType,  # _metrics
-        list[SpanLink],
-        dict[str, Any],
+        list[SpanLink],  #  span_links
+        dict[str, Any],  # baggage
+        bool,  # is_remote
     ]
 
 
@@ -45,7 +46,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage"]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote"]
 
     def __init__(
         self,
@@ -58,6 +59,7 @@ class Context(object):
         lock=None,  # type: Optional[threading.RLock]
         span_links=None,  # type: Optional[list[SpanLink]]
         baggage=None,  # type: Optional[dict[str, Any]]
+        is_remote=True,  # type: bool
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -65,6 +67,7 @@ class Context(object):
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
+        self._is_remote = is_remote  # type: bool
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
@@ -91,13 +94,14 @@ class Context(object):
             self._meta,
             self._metrics,
             self._span_links,
-            self._baggage
+            self._baggage,
+            self._is_remote,
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state):
         # type: (_ContextState) -> None
-        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage = state
+        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage, self._is_remote = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
@@ -111,6 +115,7 @@ class Context(object):
             metrics=self._metrics,
             lock=self._lock,
             baggage=self._baggage,
+            is_remote=False,
         )
 
     def _update_tags(self, span):
@@ -251,18 +256,20 @@ class Context(object):
                     and self._metrics == other._metrics
                     and self._span_links == other._span_links
                     and self._baggage == other._baggage
+                    and self._is_remote == other._is_remote
                 )
         return False
 
     def __repr__(self):
         # type: () -> str
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s)" % (
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s, _is_remote=%s)" % (
             self.trace_id,
             self.span_id,
             self._meta,
             self._metrics,
             self._span_links,
             self._baggage,
+            self._is_remote,
         )
 
     __str__ = __repr__

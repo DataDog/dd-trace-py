@@ -21,6 +21,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -47,7 +48,7 @@ def get_version():
     return getattr(starlette, "__version__", "")
 
 
-_STARLETTE_VERSION = tuple(map(int, get_version().split(".")))
+_STARLETTE_VERSION = parse_version(get_version())
 
 
 def traced_init(wrapped, instance, args, kwargs):
@@ -167,7 +168,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         raise trace_utils.InterruptException("starlette")
 
     # https://github.com/encode/starlette/issues/1336
-    if _STARLETTE_VERSION <= (0, 33, 0) and len(request_spans) > 1:
+    if _STARLETTE_VERSION <= parse_version("0.33.0") and len(request_spans) > 1:
         request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)
@@ -177,10 +178,12 @@ def traced_handler(wrapped, instance, args, kwargs):
 def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
     task = get_argument_value(args, kwargs, 0, "func")
     current_span = pin.tracer.current_span()
+    module_name = getattr(module, "__name__", "<unknown>")
+    task_name = getattr(task, "__name__", "<unknown>")
 
     async def traced_task(*args, **kwargs):
         with pin.tracer.start_span(
-            f"{module.__name__}.background_task", resource=task.__name__, child_of=None, activate=True
+            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
         ) as span:
             if current_span:
                 span.link_span(current_span.context)

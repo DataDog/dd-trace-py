@@ -312,6 +312,11 @@ def _default_config():
             default=False,
             envs=[("DD_APPSEC_ENABLED", asbool)],
         ),
+        "_sca_enabled": _ConfigItem(
+            name="sca_enabled",
+            default=None,
+            envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
+        ),
         "_dsm_enabled": _ConfigItem(
             name="dsm_enabled",
             default=False,
@@ -552,6 +557,7 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

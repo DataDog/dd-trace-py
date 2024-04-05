@@ -9,18 +9,15 @@ from typing import Union
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
-from ddtrace._trace.processor import TraceProcessor
-from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.llmobs._constants import DEFAULT_ML_APP_NAME
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -28,6 +25,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._writer import LLMObsWriter
 
 
@@ -69,7 +67,16 @@ class LLMObs(Service):
 
         if not config._dd_api_key:
             cls.enabled = False
-            raise ValueError("DD_API_KEY is required for sending LLMObs data")
+            raise ValueError(
+                "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+        if not config._llmobs_ml_app:
+            cls.enabled = False
+            raise ValueError(
+                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
@@ -97,6 +104,7 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
+        ml_app: Optional[str] = None,
     ) -> Span:
         if name is None:
             name = operation_kind
@@ -108,6 +116,8 @@ class LLMObs(Service):
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
+        if ml_app is not None:
+            span.set_tag_str(ML_APP, ml_app)
         return span
 
     @classmethod
@@ -117,6 +127,7 @@ class LLMObs(Service):
         name: Optional[str] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
     ) -> Optional[Span]:
         """
         Trace an interaction with a large language model (LLM).
@@ -126,6 +137,8 @@ class LLMObs(Service):
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
 
         :returns: The Span object representing the traced operation.
         """
@@ -138,68 +151,84 @@ class LLMObs(Service):
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
-            "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id
+            "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
 
     @classmethod
-    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+    def tool(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
         """
         Trace an operation of an interface/software used for interacting with or supporting an LLM.
 
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
 
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.tool() cannot be used while LLMObs is disabled.")
             return None
-        return cls._instance._start_span("tool", name=name, session_id=session_id)
+        return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+    def task(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
         """
         Trace an operation of a function/task that is part of a larger workflow involving an LLM.
 
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
 
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.task() cannot be used while LLMObs is disabled.")
             return None
-        return cls._instance._start_span("task", name=name, session_id=session_id)
+        return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+    def agent(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
         """
         Trace a workflow orchestrated by an LLM agent.
 
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
 
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.agent() cannot be used while LLMObs is disabled.")
             return None
-        return cls._instance._start_span("agent", name=name, session_id=session_id)
+        return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def workflow(cls, name: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Span]:
+    def workflow(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
         """
         Trace a sequence of operations that are part of a larger workflow involving an LLM.
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
 
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
             return None
-        return cls._instance._start_span("workflow", name=name, session_id=session_id)
+        return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
     def annotate(
@@ -318,131 +347,3 @@ class LLMObs(Service):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
         span.set_tag_str(METRICS, json.dumps(metrics))
-
-
-class LLMObsTraceProcessor(TraceProcessor):
-    """
-    Processor that extracts LLM-type spans in a trace to submit as separate LLMObs span events to LLM Observability.
-    """
-
-    def __init__(self, llmobs_writer):
-        self._writer = llmobs_writer
-
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
-        if not trace:
-            return None
-        for span in trace:
-            if span.span_type == SpanTypes.LLM:
-                self.submit_llmobs_span(span)
-        return trace
-
-    def submit_llmobs_span(self, span: Span) -> None:
-        """Generate and submit an LLMObs span event to be sent to LLMObs."""
-        span_event = self._llmobs_span_event(span)
-        self._writer.enqueue(span_event)
-
-    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
-        """Span event object structure."""
-        tags = self._llmobs_tags(span)
-        meta: Dict[str, Any] = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
-        if span.get_tag(MODEL_NAME):
-            meta["model_name"] = span._meta.pop(MODEL_NAME)
-            meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
-        if span.get_tag(INPUT_PARAMETERS):
-            meta["input"]["parameters"] = json.loads(span._meta.pop(INPUT_PARAMETERS))
-        if span.get_tag(INPUT_MESSAGES):
-            meta["input"]["messages"] = json.loads(span._meta.pop(INPUT_MESSAGES))
-        if span.get_tag(INPUT_VALUE):
-            meta["input"]["value"] = span._meta.pop(INPUT_VALUE)
-        if span.get_tag(OUTPUT_MESSAGES):
-            meta["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
-        if span.get_tag(OUTPUT_VALUE):
-            meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
-        if span.error:
-            meta["error.message"] = span.get_tag(ERROR_MSG)
-        if not meta["input"]:
-            meta.pop("input")
-        if not meta["output"]:
-            meta.pop("output")
-        metrics = json.loads(span._meta.pop(METRICS, "{}"))
-
-        return {
-            "trace_id": "{:x}".format(span.trace_id),
-            "span_id": str(span.span_id),
-            "parent_id": str(self._get_llmobs_parent_id(span) or "undefined"),
-            "session_id": self._get_session_id(span),
-            "name": span.name,
-            "tags": tags,
-            "start_ns": span.start_ns,
-            "duration": span.duration_ns,
-            "error": span.error,
-            "meta": meta,
-            "metrics": metrics,
-        }
-
-    def _llmobs_tags(self, span: Span) -> List[str]:
-        tags = [
-            "version:{}".format(config.version or ""),
-            "env:{}".format(config.env or ""),
-            "service:{}".format(span.service or ""),
-            "source:integration",
-            "ml_app:{}".format(self._get_ml_app_name(span)),
-            "ddtrace.version:{}".format(ddtrace.__version__),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        existing_tags = span.get_tag(TAGS)
-        if existing_tags is not None:
-            span_tags = json.loads(existing_tags)
-            tags.extend(["{}:{}".format(k, v) for k, v in span_tags.items()])
-        return tags
-
-    @staticmethod
-    def _get_ml_app_name(span: Span) -> str:
-        """
-        Return the ML app name in the following priority order:
-        1) DD_LLMOBS_APP_NAME env var
-        2) DD_SERVICE or manual service name set on the span
-        3) Default unnamed-ml-app.
-        """
-        ml_app_name = os.getenv("DD_LLMOBS_APP_NAME")
-        if ml_app_name is not None:
-            return ml_app_name
-        if span.service is not None:
-            return span.service
-        return DEFAULT_ML_APP_NAME
-
-    def _get_session_id(self, span: Span) -> str:
-        """
-        Return the session ID for a given span, in priority order:
-        1) Span's session ID tag (if set manually)
-        2) Session ID from the span's nearest LLMObs span ancestor
-        3) Span's trace ID if no session ID is found
-        """
-        session_id = span._meta.pop(SESSION_ID, None)
-        if not session_id:
-            nearest_llmobs_ancestor = self._get_nearest_llmobs_ancestor(span)
-            if nearest_llmobs_ancestor:
-                session_id = nearest_llmobs_ancestor.get_tag(SESSION_ID)
-        return session_id or "{:x}".format(span.trace_id)
-
-    def _get_llmobs_parent_id(self, span: Span) -> Optional[int]:
-        """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree."""
-        nearest_llmobs_ancestor = self._get_nearest_llmobs_ancestor(span)
-        if nearest_llmobs_ancestor:
-            return nearest_llmobs_ancestor.span_id
-        return None
-
-    @staticmethod
-    def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
-        """Return the nearest LLMObs-type ancestor span of a given span."""
-        if span.span_type != SpanTypes.LLM:
-            return None
-        parent = span._parent
-        while parent:
-            if parent.span_type == SpanTypes.LLM:
-                return parent
-            parent = parent._parent
-        return None

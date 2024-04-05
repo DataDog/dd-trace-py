@@ -1,0 +1,124 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Can you explain what Descartes
+      meant by ''I think, therefore I am''?"], "frequency_penalty": 0, "logit_bias":
+      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
+      1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '241'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      traceparent:
+      - 00-65e8d6800000000063d58894e9a99fd0-8f8262358508fd13-01
+      tracestate:
+      - dd=p:8f8262358508fd13;s:1;t.dm:-0;t.tid:65e8d68000000000
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-datadog-parent-id:
+      - '10340935676400827667'
+      x-datadog-sampling-priority:
+      - '1'
+      x-datadog-tags:
+      - _dd.p.dm=-0,_dd.p.tid=65e8d68000000000
+      x-datadog-trace-id:
+      - '7193806152950980560'
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5RUTW/jRgy9+1cQuuxFDrJdpElzC9KvXFqgDQoUdRGMRrTEekSqQyqOs9j/vuDI
+        sbzdUy8CPCQfH9+j+XEFUFFb3UIVhzGtb1718e7+9e46Xf3EdP8b/0m/3P2+2/0w/RF+rWrPluYf
+        jOYVhi/2FGUYExoJz+GYMRg64vvry++ur24uby5LYJAWk5d1o60/XFytbcqNrInV8hTtWN0LRdTq
+        Fv5aAQB8LF+Ye3nxhjf8PWoM2VBrCPD+2vp1RLYpH+DHjBx7GHtKojL2mGsghR3LnmErGXpS2IZB
+        JgW1YDggG2yqe+nIpAbMnYBOw6aCfU+x92LZGjJYDqzJJ4OgsKkewHriXQ3WY8atZIQHCMOmuoBH
+        b7Kgk3oObGXiNrhOINvC48TyAIFbzwtJ5Ug2zFWb6r5MSoEhYrZAbIdNdfGFDNBgInzGFohLFQ2j
+        ZAsc0XvpDkejSDqUPq1MjY+Bz5gPPkQHPcKOcV8DcUxTW5588j0DvpAacsQL+Fn2XlN7esaQ6BVb
+        sD6YQ/Fb7xDNm5YuxF3JHia1GQlMoBVQOcqUsIWeBn/24ihOQF2kAuxvTvMNtWju9E6D+I8xyzNq
+        oXxG94FB3BzYS261nk1wnILsKimEJuHcm3hXQP+dUItJX6CB9rLXU+XZPMSgMri9eSiuPL7tQw0h
+        RslFTRM4W1pnIpwOMKtfUGNgaPBo/p6sh9CopMlw8b1sI+O7/zhT+7Lgy5hRddmB8/X+H8s6jIlQ
+        F/UXCWQLYTGgQf8ed7sMs9B0HRWze3JcY7WQZ6uE2Mo/MaRUpk3YdlhKJm4xqwV2yYqWDwyhbcn9
+        qBcBIeRuels9Rx+I24LQSHuAkBEUx5CDISAbGbnoRdNT9ky/UJMpz9NFYY0kkzKqFjyPF8w5PcDY
+        H5RiSDAfwa/kK3/grzQsHY9SuUdsFBKMIdss6ohZhd/p3MbtLMew3D3iFl+qW7g8vSTpxiyN30ie
+        Ujq9b4lJ+6eMQYX9VCbkzvqqxD+tAP4uF3bS0GF1e7ys1ZhlGO3JZIes5WjPgNVy15fgN1ffHqMm
+        FtJZ4PrDypt8Wn0GAAD//wMAI+t2QFEGAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 860534418ace179d-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 20:48:02 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=7KLuTNm1QghUYFo3ybI9wHTrJ7B1tDPYAaf4A_15hWA-1709758082-1.0.1.1-e4T69yW7yR9LwR1AJbkBXQ8oqHm8hxki.YHf0S7BRZCBjrKT2A1yOC_aZHcBmegOaYQ4t7kSNYDkhxItrUWHLQ;
+        path=/; expires=Wed, 06-Mar-24 21:18:02 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=RKlfnJR4hEerxJSlhfZVXvy7Oh9IhnX8jCOhnRX03Ek-1709758082775-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2393'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249727'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 65ms
+      x-request-id:
+      - req_3dcf41b395618fed435addea9552a689
+    status:
+      code: 200
+      message: OK
+version: 1

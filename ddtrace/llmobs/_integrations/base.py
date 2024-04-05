@@ -11,6 +11,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
@@ -73,13 +74,17 @@ class BaseLLMIntegration:
         return config._llmobs_enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
-            return False
+        if span.context.sampling_priority is not None:
+            if span.context.sampling_priority <= 0:
+                return False
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        sampled = span.context.sampling_priority is not None or span.context.sampling_priority <= 0  # type: ignore
-        if not self.logs_enabled or not sampled:
+        if span.context.sampling_priority is not None:
+            if span.context.sampling_priority <= 0:
+                return False
+
+        if not self.logs_enabled:
             return False
         return self._log_pc_sampler.sample(span)
 
@@ -99,7 +104,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -113,6 +118,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
+        if submit_to_llmobs:
+            span.span_type = SpanTypes.LLM
         return span
 
     @classmethod

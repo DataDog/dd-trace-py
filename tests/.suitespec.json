@@ -165,6 +165,7 @@
         ],
         "ci_visibility": [
             "ddtrace/internal/ci_visibility/*",
+            "ddtrace/ext/ci_visibility/*",
             "ddtrace/ext/test.py"
         ],
         "coverage": [
@@ -172,6 +173,9 @@
         ],
         "llmobs": [
             "ddtrace/llmobs/*"
+        ],
+        "settings": [
+            "ddtrace/settings/*"
         ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
@@ -366,6 +370,9 @@
         "celery": [
             "ddtrace/contrib/celery/*"
         ],
+        "dramatiq": [
+            "ddtrace/contrib/dramatiq/*"
+        ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
             "ddtrace/ext/cassandra.py"
@@ -439,6 +446,7 @@
             "@tracing",
             "@contrib",
             "@kafka",
+            "@datastreams",
             "tests/contrib/kafka/*",
             "tests/snapshots/tests.contrib.kafka.*"
         ],
@@ -628,6 +636,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@settings",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -675,6 +684,7 @@
             "@llmobs",
             "@botocore",
             "@llmobs",
+            "@datastreams",
             "tests/contrib/botocore/*",
             "tests/contrib/boto/*",
             "tests/snapshots/tests.contrib.botocore*"
@@ -816,6 +826,15 @@
             "@tracing",
             "@dogpile_cache",
             "tests/contrib/dogpile_cache/*"
+        ],
+        "dramatiq": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@dramatiq",
+            "tests/contrib/dramatiq/*",
+            "tests/snapshots/tests.contrib.dramatiq.*"
         ],
         "elasticsearch": [
             "@bootstrap",
@@ -1285,6 +1304,7 @@
             "@contrib",
             "@tracing",
             "@kombu",
+            "@datastreams",
             "tests/contrib/kombu/*"
         ],
         "jinja2": [

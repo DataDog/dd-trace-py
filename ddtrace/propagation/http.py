@@ -1,5 +1,6 @@
 import re
 import sys
+from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
@@ -7,6 +8,9 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
+
+import ddtrace
+from ddtrace._trace.span import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):
@@ -35,6 +39,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
@@ -45,6 +50,7 @@ from ..internal.logger import get_logger
 from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
+from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
 
 
@@ -320,11 +326,11 @@ class _DatadogMultiHeader:
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
-        if sampling_priority == USER_KEEP:
-            if not meta:
-                meta = {}
-            if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-                meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
+        if not meta:
+            meta = {}
+
+        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
@@ -815,7 +821,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
                     if lpid:
-                        meta["_dd.parent_id"] = lpid
+                        meta[LAST_DD_PARENT_ID_KEY] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
@@ -835,15 +841,17 @@ class _TraceContext:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
-            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
-            ts = span_context._tracestate
-            # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
-            if "dd=" in ts:
-                ts = ts.replace("dd=", "dd=p:{:016x};".format(span_context.span_id or 0))
+            if span_context._is_remote is False:
+                # Datadog Span is active, so the current span_id is the last datadog span_id
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
+                    span_context._tracestate, span_context.span_id or 0
+                )
+            elif LAST_DD_PARENT_ID_KEY in span_context._meta:
+                # Datadog Span is not active, propagate the last datadog span_id
+                span_id = int(span_context._meta[LAST_DD_PARENT_ID_KEY], 16)
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
             else:
-                ts = "dd=p:{:016x}".format(span_context.span_id or 0)
-
-            headers[_HTTP_HEADER_TRACESTATE] = ts
+                headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
 class _NOP_Propagator:
@@ -917,8 +925,8 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def inject(span_context, headers, non_active_span=None):
+        # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -936,7 +944,29 @@ class HTTPPropagator(object):
 
         :param Context span_context: Span context to propagate.
         :param dict headers: HTTP headers to extend with tracing attributes.
+        :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if non_active_span is not None and non_active_span.context is not span_context:
+            log.error(
+                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
+                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
+                span_context,
+                non_active_span.context,
+            )
+
+            span_context = non_active_span.context
+
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if non_active_span is not None:
+                root_span = non_active_span._local_root
+            else:
+                root_span = ddtrace.tracer.current_root_span()
+
+            if root_span is not None and root_span.context.sampling_priority is None:
+                ddtrace.tracer.sample(root_span)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)

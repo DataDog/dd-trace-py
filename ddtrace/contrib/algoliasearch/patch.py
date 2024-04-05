@@ -6,6 +6,7 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_KIND
@@ -17,18 +18,22 @@ DD_PATCH_ATTR = "_datadog_patch"
 
 SERVICE_NAME = schematize_service_name("algoliasearch")
 APP_NAME = "algoliasearch"
+V0 = parse_version("0.0")
+V1 = parse_version("1.0")
+V2 = parse_version("2.0")
+V3 = parse_version("3.0")
 
 try:
     VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
-    algoliasearch_version = tuple([int(i) for i in VERSION.split(".")])
+    algoliasearch_version = parse_version(VERSION)
 
     # Default configuration
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
-    algoliasearch_version = (0, 0)
+    algoliasearch_version = V0
 
 
 def get_version():
@@ -37,7 +42,7 @@ def get_version():
 
 
 def patch():
-    if algoliasearch_version == (0, 0):
+    if algoliasearch_version == V0:
         return
 
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
@@ -47,10 +52,10 @@ def patch():
 
     pin = Pin()
 
-    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+    if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
         pin.onto(algoliasearch.index.Index)
-    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
         from algoliasearch import search_index
 
         _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
@@ -60,15 +65,15 @@ def patch():
 
 
 def unpatch():
-    if algoliasearch_version == (0, 0):
+    if algoliasearch_version == V0:
         return
 
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         setattr(algoliasearch, DD_PATCH_ATTR, False)
 
-        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+        if algoliasearch_version < V2 and algoliasearch_version >= V1:
             _u(algoliasearch.index.Index, "search")
-        elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
             from algoliasearch import search_index
 
             _u(search_index.SearchIndex, "search")
@@ -103,9 +108,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     argument to the algoliasearch.index.Index.search() method.
     """
 
-    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+    if algoliasearch_version < V2 and algoliasearch_version >= V1:
         function_query_arg_name = "args"
-    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
         function_query_arg_name = "request_options"
     else:
         return func(*wrapt_args, **wrapt_kwargs)
@@ -125,7 +130,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
-        if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:

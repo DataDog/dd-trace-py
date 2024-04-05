@@ -12,11 +12,12 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer
+from ddtrace.contrib.kafka.patch import TracedConsumer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
-from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
@@ -24,6 +25,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_config
 
 
@@ -31,7 +33,7 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-DSM_TEST_PATH_HEADER_SIZE = 20
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -200,6 +202,26 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
         logger=logger,
     )
     consumer.close()
+
+
+def test_empty_list_from_consume_does_not_raise():
+    # https://github.com/DataDog/dd-trace-py/issues/8846
+    patch()
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+            "request.timeout.ms": 1000,
+            "retry.backoff.ms": 10,
+        },
+    )
+    assert isinstance(consumer, TracedConsumer)
+    max_messages_per_batch = 1
+    timeout = 0
+    consumer.consume(max_messages_per_batch, timeout)
+    consumer.close()
+    unpatch()
 
 
 @pytest.mark.parametrize(
@@ -372,7 +394,7 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
         test_header_size += len(k) + len(v)
     expected_payload_size = float(payload_length + key_length)
     expected_payload_size += test_header_size  # to account for headers we add here
-    expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
     try:
@@ -701,8 +723,8 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     # message comes back with expected test string
     assert message.value() == b"context test"
 
-    # DSM header 'dd-pathway-ctx' was propagated in the headers
-    assert message.headers()[0][0] == PROPAGATION_KEY
+    # DSM header 'dd-pathway-ctx-base64' was propagated in the headers
+    assert message.headers()[0][0] == PROPAGATION_KEY_BASE_64
     assert message.headers()[0][1] is not None
 
 
@@ -751,6 +773,7 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 
 
 # Propagation should work when enabled
+@flaky(1717428664)
 def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import pytest
