@@ -99,6 +99,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\s|%20|%09)+[a-z0-9._-]+)?"
     r")"
 )
+TRACER_FLARE_TAR = f"{TRACER_FLARE_DIRECTORY}.tar"
 
 
 def _parse_propagation_styles(name, default):
@@ -781,7 +782,7 @@ class Config(object):
     def _handle_tracerflare(self, data: dict, cleanup: bool = False):
         if cleanup:
             self._revert_tracer_flare_configs()
-            self._clean_up_files("output.tar")
+            self._clean_up_tracer_flare_files()
             return
 
         if "config" not in data:
@@ -810,12 +811,14 @@ class Config(object):
             # should do nothing
             if not config.get("name", "").startswith("flare-log-level"):
                 return
+
             flare_log_level = config.get("config", {}).get("log_level").upper()
             pid = os.getpid()
             flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
             os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
             self.__original_log_level = log.level
             os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
+
             # Set the logger level to the more verbose between original and flare
             flare_log_level_int = logging.getLevelName(flare_log_level)
             logger_level = (
@@ -823,6 +826,19 @@ class Config(object):
             )
             log.setLevel(logger_level)
             _configure_ddtrace_file_logger(log)
+
+            # Create and add config file
+            config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
+            with open(config_file, "w") as f:
+                tracer_configs = {
+                    "configs": self.__dict__,
+                }
+                json.dump(
+                    tracer_configs,
+                    f,
+                    default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+                    indent=4,
+                )
 
     def _handle_agent_task_product(self, configs: List[Any]):
         for config in configs:
@@ -838,30 +854,18 @@ class Config(object):
             self._revert_tracer_flare_configs()
 
             # Create flare files
-            tracer_tar_file = "output.tar"
             pid = os.getpid()
             flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-            with tarfile.open(tracer_tar_file, "w") as tar:
+            with tarfile.open(TRACER_FLARE_TAR, "w") as tar:
                 # Add log file
                 tar.add(flare_file_path)
 
                 # Create and add config file
                 config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
-                with open(config_file, "w") as f:
-                    tracer_configs = {
-                        "configs": self.__dict__,
-                    }
-                    json.dump(
-                        tracer_configs,
-                        f,
-                        default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
-                        indent=4,
-                    )
-
-                    tar.add(config_file)
+                tar.add(config_file)
 
             # Send the tracer flare to the agent
-            with open(tracer_tar_file, "rb") as file:
+            with open(TRACER_FLARE_TAR, "rb") as file:
                 flare_file = {"flare_file": file}
                 data = {
                     "case_id": args.get("case_id"),
@@ -878,7 +882,7 @@ class Config(object):
                     log.error("Tracer flare request failed with status code %s", response.status_code)
 
             # Clean up files regardless of success/failure
-            self._clean_up_files(tracer_tar_file)
+            self._clean_up_tracer_flare_files()
 
     def _revert_tracer_flare_configs(self):
         _disable_ddtrace_file_logger(log)
@@ -894,10 +898,10 @@ class Config(object):
         log.setLevel(self.__original_log_level)
         del self.__original_log_level
 
-    def _clean_up_files(self, tracer_tar_file):
+    def _clean_up_tracer_flare_files(self):
         try:
             shutil.rmtree(TRACER_FLARE_DIRECTORY)
-            os.remove(tracer_tar_file)
+            os.remove(TRACER_FLARE_TAR)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)
 

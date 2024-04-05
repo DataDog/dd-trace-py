@@ -413,11 +413,11 @@ def test_tracer_flare_remote_config(testcase, config):
 
     assert type(logger) == DDLogger
     assert logger.level == logging.getLevelName(log_level)
-    assert logger.getHandler("ddtrace_file_handler") is not None
+    assert logger._getHandler("ddtrace_file_handler") is not None
 
     config._handle_remoteconfig(_generate_agent_task())
 
     assert os.environ.get("DD_TRACE_LOG_FILE") is None
     assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is None
-    assert logger.getHandler("ddtrace_file_handler") is None
+    assert logger._getHandler("ddtrace_file_handler") is None
     assert logger.level == original_log_level

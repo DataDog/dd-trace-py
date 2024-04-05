@@ -458,7 +458,7 @@ def test_tracer_flare_single_process_success():
 
     config._handle_agent_config_product(configs)
 
-    file_handler = logger.getHandler("ddtrace_file_handler")
+    file_handler = logger._getHandler("ddtrace_file_handler")
     assert file_handler is not None
     assert file_handler.level == 10
     assert logger.level == 10

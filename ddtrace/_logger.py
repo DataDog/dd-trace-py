@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -51,7 +52,7 @@ def _configure_ddtrace_debug_logger(logger):
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
-def _configure_ddtrace_file_logger(logger: logging.Logger):
+def _configure_ddtrace_file_logger(logger):
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
@@ -78,15 +79,14 @@ def _configure_ddtrace_file_logger(logger: logging.Logger):
         logger.debug("ddtrace logs will be routed to %s", log_path)
 
 
-def _disable_ddtrace_file_logger(logger: logging.Logger):
-    handler_to_remove = None
-    for handler in logger.handlers:
-        if handler.name == DDTRACE_FILE_HANDLER_NAME:
-            handler_to_remove = handler
-            break
+def _disable_ddtrace_file_logger(logger: DDLogger):
+    handler_to_remove = logger._getHandler(DDTRACE_FILE_HANDLER_NAME)
+
     if handler_to_remove:
         logger.removeHandler(handler_to_remove)
         logger.debug("ddtrace logs will not be routed to the file handler anymore")
+    else:
+        logger.debug("Could not find %s to remove", DDTRACE_FILE_HANDLER_NAME)
 
 
 def _configure_log_injection():
