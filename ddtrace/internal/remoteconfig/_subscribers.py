@@ -1,24 +1,19 @@
 from datetime import datetime
 import os
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Optional  # noqa:F401
 
+from ddtrace import Tracer  # noqa:F401
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
+from ddtrace.internal.remoteconfig._connectors import SharedDataType  # noqa:F401
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Optional  # noqa:F401
-
-    from ddtrace import Tracer  # noqa:F401
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
-    from ddtrace.internal.remoteconfig._connectors import SharedDataType  # noqa:F401
 
 
 log = get_logger(__name__)
 
-STALE_TRACER_FLARE_NUM_MINS = 20
+STALE_TRACER_FLARE_NUM_MINS: int = 20
 
 
 class RemoteConfigSubscriber(PeriodicService):
@@ -63,28 +58,44 @@ class RemoteConfigSubscriber(PeriodicService):
 
 
 class TracerFlareSubscriber(RemoteConfigSubscriber):
-    def __init__(self, data_connector: PublisherSubscriberConnector, callback: Callable):
+    def __init__(
+        self,
+        data_connector: PublisherSubscriberConnector,
+        callback: Callable,
+        stale_flare_age: int = STALE_TRACER_FLARE_NUM_MINS,
+    ):
         super().__init__(data_connector, callback, "TracerFlareConfig")
         self._current_request_start: Optional[datetime] = None
+        self._stale_tracer_flare_num_mins = stale_flare_age
+
+    def _get_current_request_start(self) -> Optional[datetime]:
+        return self._current_request_start
+
+    def _set_stale_tracer_flare_num_mins(self, mins: int):
+        self._stale_tracer_flare_num_mins = mins
+
+    def _has_stale_flare(self) -> bool:
+        if self._current_request_start:
+            curr = datetime.now()
+            flare_age = (curr - self._current_request_start).total_seconds()
+            stale_age = self._stale_tracer_flare_num_mins * 60
+            return flare_age >= stale_age
+        return False
 
     def _get_data_from_connector_and_exec(self):
-        curr = datetime.now()
-
         # Check for stale tracer flare job
-        if self._current_request_start is not None:
-            delta = curr - self._current_request_start
-            if delta.total_seconds >= STALE_TRACER_FLARE_NUM_MINS * 60:
-                log.debug(
-                    "Tracer flare request started at %s is stale, reverting "
-                    "logger configurations and cleaning up resources now",
-                    self._current_request_start,
-                )
-                self._current_request_start = None
-                self._callback({}, True)
-                return
+        if self._current_request_start is not None and self._has_stale_flare():
+            log.debug(
+                "Tracer flare request started at %s is stale, reverting "
+                "logger configurations and cleaning up resources now",
+                self._current_request_start,
+            )
+            self._current_request_start = None
+            self._callback({}, True)
+            return
 
         data = self._data_connector.read()
-        product_type = data.get("metadata", [])[0].get("product_name")
+        product_type = data.get("metadata", [{}])[0].get("product_name")
         if product_type == "AGENT_CONFIG":
             # We will only process one tracer flare request at a time
             if self._current_request_start is not None:
@@ -93,7 +104,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     str(self._current_request_start),
                 )
                 return
-            self._current_request_start = curr
+            self._current_request_start = datetime.now()
         elif product_type == "AGENT_TASK":
             # Possible edge case where we missed the AGENT_CONFIG product
             # In this case we won't have anything to send, so we log and do nothing
@@ -101,5 +112,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 log.warning("There is no tracer flare job to complete. Skipping new request.")
                 return
             self._current_request_start = None
+        else:
+            log.warning("Unexpected tracer flare product type %r", product_type)
         log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
         self._callback(data)

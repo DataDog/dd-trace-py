@@ -5,6 +5,7 @@ import os
 import mock
 import pytest
 
+from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import Config
@@ -360,16 +361,20 @@ def _generate_agent_config(log_level: str) -> dict:
     return {
         "metadata": [
             {
-                "id": "flare-log-level.%s".format(),
+                "id": f"flare-log-level.{log_level}",
                 "product_name": "AGENT_CONFIG",
             }
         ],
-        "config": [{"config": {"log_level": log_level}, "name": "flare-log-level.%s".format()}],
+        "config": [{"config": {"log_level": log_level}, "name": f"flare-log-level.{log_level}"}],
     }
 
 
-def _generate_agent_task() -> dict:
-    return {
+@pytest.mark.parametrize("log_level", ["DEBUG", "INFO"])
+def test_tracer_flare_remote_config_valid_log_level(log_level: str):
+    from ddtrace import config
+
+    agent_config = _generate_agent_config(log_level)
+    agent_task = {
         "metadata": [
             {
                 "id": "id1",
@@ -390,34 +395,33 @@ def _generate_agent_task() -> dict:
         ],
     }
 
-
-@pytest.mark.parametrize(
-    "testcase",
-    [
-        ("DEBUG"),
-        ("INFO"),
-        ("invalidloglevel"),
-    ],
-)
-def test_tracer_flare_remote_config(testcase, config):
-    log_level = testcase
     logger = get_logger("ddtrace.settings.config")
     original_log_level = logger.level
-    # Pop these just in case
-    os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
-    os.environ.pop("DD_TRACE_LOG_FILE")
-    config._handle_remoteconfig(_generate_agent_config(log_level))
 
-    assert os.environ.get("DD_TRACE_LOG_FILE").startswith("tracerflare-python_")
+    config._handle_tracerflare(agent_config)
+    assert os.environ.get("DD_TRACE_LOG_FILE").startswith(f"{TRACER_FLARE_DIRECTORY}/tracer_python_")
     assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") == log_level
 
     assert type(logger) == DDLogger
-    assert logger.level == logging.getLevelName(log_level)
+    log_level_int = logging.getLevelName(log_level)
+    permissive_level = min(original_log_level, log_level_int)
+    assert logger.level == permissive_level
     assert logger._getHandler("ddtrace_file_handler") is not None
 
-    config._handle_remoteconfig(_generate_agent_task())
+    with mock.patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        config._handle_tracerflare(agent_task)
 
     assert os.environ.get("DD_TRACE_LOG_FILE") is None
     assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is None
     assert logger._getHandler("ddtrace_file_handler") is None
     assert logger.level == original_log_level
+
+
+def test_tracer_flare_remote_config_invalid_log_level():
+    from ddtrace import config
+
+    agent_config = _generate_agent_config("invalidloglevel")
+
+    with pytest.raises(TypeError):
+        config._handle_tracerflare(agent_config)

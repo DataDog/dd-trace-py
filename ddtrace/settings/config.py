@@ -812,33 +812,37 @@ class Config(object):
             if not config.get("name", "").startswith("flare-log-level"):
                 return
 
+            # Validate the flare log level
             flare_log_level = config.get("config", {}).get("log_level").upper()
+            flare_log_level_int = logging.getLevelName(flare_log_level)
+            if type(flare_log_level_int) != int:
+                raise TypeError("Invalid log level provided: %s", flare_log_level_int)
+
             pid = os.getpid()
             flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-            os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
             self.__original_log_level = log.level
             os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
 
             # Set the logger level to the more verbose between original and flare
-            flare_log_level_int = logging.getLevelName(flare_log_level)
-            logger_level = (
-                self.__original_log_level if self.__original_log_level > flare_log_level_int else flare_log_level_int
-            )
+            logger_level = min(self.__original_log_level, flare_log_level_int)
             log.setLevel(logger_level)
             _configure_ddtrace_file_logger(log)
 
             # Create and add config file
-            config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
-            with open(config_file, "w") as f:
-                tracer_configs = {
-                    "configs": self.__dict__,
-                }
-                json.dump(
-                    tracer_configs,
-                    f,
-                    default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
-                    indent=4,
-                )
+            self._generate_config_file(pid)
+
+    def _generate_config_file(self, pid: int):
+        config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
+        with open(config_file, "w") as f:
+            tracer_configs = {
+                "configs": self.__dict__,
+            }
+            json.dump(
+                tracer_configs,
+                f,
+                default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+                indent=4,
+            )
 
     def _handle_agent_task_product(self, configs: List[Any]):
         for config in configs:
@@ -847,7 +851,7 @@ class Config(object):
             # the task_type is explicitly set to 'tracer_flare',
             # otherwise we should do nothing
             if type(config) != dict or config.get("task_type") != "tracer_flare":
-                return
+                continue
             args = config.get("args", {})
 
             # Revert configs
@@ -880,7 +884,6 @@ class Config(object):
                     log.debug("Tracer flare request successful")
                 else:
                     log.error("Tracer flare request failed with status code %s", response.status_code)
-
             # Clean up files regardless of success/failure
             self._clean_up_tracer_flare_files()
 

@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+from ddtrace.internal.constants import DDTRACE_FILE_HANDLER_NAME
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.utils.formats import asbool
 
@@ -12,7 +13,6 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
-DDTRACE_FILE_HANDLER_NAME = "ddtrace_file_handler"
 
 
 def configure_ddtrace_logger():
