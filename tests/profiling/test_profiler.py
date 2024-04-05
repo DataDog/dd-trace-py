@@ -414,7 +414,7 @@ def test_profiler_serverless(monkeypatch):
 
 
 @pytest.mark.subprocess()
-def test_profiler_ddtrace_deprecation(run_python_code_in_subprocess):
+def test_profiler_ddtrace_deprecation():
     """
     ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
     them wen this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
