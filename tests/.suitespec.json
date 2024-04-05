@@ -176,6 +176,9 @@
         "llmobs": [
             "ddtrace/llmobs/*"
         ],
+        "settings": [
+            "ddtrace/settings/*"
+        ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
         ],
@@ -636,6 +639,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@settings",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],

@@ -346,9 +346,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if info.errors:
                 errors = json.dumps(info.errors)
                 span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
-                _set_waf_error_metric("WAF run. Error", errors, info)
-            if waf_results.timeout:
-                _set_waf_error_metric("WAF run. Timeout errors", "", info)
+                log.debug("Error in ASM In-App WAF: %s", errors)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
             from ddtrace.appsec._ddwaf import version
 
