@@ -420,6 +420,6 @@ def test_profiler_ddtrace_deprecation(run_python_code_in_subprocess):
     them wen this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
     """
     import warnings
+
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        from ddtrace.profiling import profiler
