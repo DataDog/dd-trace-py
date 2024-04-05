@@ -1173,9 +1173,11 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
 @pytest.mark.snapshot
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
-    Test that invoking a nested chain will result in a 4-span trace with a root
-    RunnableSequence span, then another RunnubaleSequence and LangChain ChatOpenAI call,
-    and finally a second LangChain ChatOpenAI call.
+    Test that invoking a nested chain will result in a 6-span trace with a root
+    RunnableSequence span, then another RunnubaleSequence + LangChain ChatOpenAI call + OpenAI chat call,
+    and finally a second LangChain ChatOpenAI call + OpenAI chat call.
+
+    Although, only 4 spans will show in the snapshot (only the langchain-related oned)
     """
     prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
     prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
