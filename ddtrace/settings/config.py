@@ -749,7 +749,7 @@ class Config(object):
         from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
         from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
         from ddtrace.internal.remoteconfig._pubsub import PubSub
-        from ddtrace.internal.remoteconfig._pubsub import TracerFlareSubscriber
+        from ddtrace.internal.remoteconfig._subscribers import TracerFlareSubscriber
 
         class _TracerFlarePubSub(PubSub):
             __publisher_class__ = RemoteConfigPublisher
