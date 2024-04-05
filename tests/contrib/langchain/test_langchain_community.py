@@ -1174,7 +1174,8 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
-    RunnableSequence span (complete_chain), then another RunnableSequence (chain1) + LangChain ChatOpenAI span (chain1's llm call) and finally a second LangChain ChatOpenAI span (chain2's llm call)
+    RunnableSequence span (complete_chain), then another RunnableSequence (chain1) +
+    LangChain ChatOpenAI span (chain1's llm call) and finally a second LangChain ChatOpenAI span (chain2's llm call)
     """
     prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
     prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
