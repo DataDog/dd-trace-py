@@ -487,7 +487,7 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
 def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
-    prompt = langchain.prompts.PromptTemplate(input_variables=["adjective"], template=prompt_template)
+    prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
     chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
     with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
         chain.invoke(input={"base": "two"})
@@ -496,7 +496,7 @@ def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
 def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
-    prompt = langchain.prompts.PromptTemplate(input_variables=["adjective"], template=prompt_template)
+    prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
     chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
     with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
         chain.invoke("two")
