@@ -1170,6 +1170,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
         chain.batch(["chickens", "cows", "pigs"])
 
+
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
