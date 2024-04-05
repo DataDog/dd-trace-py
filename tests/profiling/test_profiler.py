@@ -423,18 +423,17 @@ def test_profiler_ddtrace_deprecation():
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        from ddtrace.profiler.collector import _lock
-        from ddtrace.profiler.collector import memalloc
-        from ddtrace.profiler.collector import stack_event
-        from ddtrace.profiler.collector import stack
-        from ddtrace.profiler.collector import _task
-        from ddtrace.profiler.collector import _traceback
-        from ddtrace.profiler.exporter import file
-        from ddtrace.profiler.exporter import http
-        from ddtrace.profiler.exporter import pprof
-        from ddtrace.profiler.exporter import pprof
-        from ddtrace.profiler import event
-        from ddtrace.profiler import profiler
-        from ddtrace.profiler import recorder
-        from ddtrace.profiler import scheduler
-        from ddtrace.profiler import _threading
+        from ddtrace.profiler import _threading  # noqa:F401
+        from ddtrace.profiler import event  # noqa:F401
+        from ddtrace.profiler import profiler  # noqa:F401
+        from ddtrace.profiler import recorder  # noqa:F401
+        from ddtrace.profiler import scheduler  # noqa:F401
+        from ddtrace.profiler.collector import _lock  # noqa:F401
+        from ddtrace.profiler.collector import _task  # noqa:F401
+        from ddtrace.profiler.collector import _traceback  # noqa:F401
+        from ddtrace.profiler.collector import memalloc  # noqa:F401
+        from ddtrace.profiler.collector import stack  # noqa:F401
+        from ddtrace.profiler.collector import stack_event  # noqa:F401
+        from ddtrace.profiler.exporter import file  # noqa:F401
+        from ddtrace.profiler.exporter import http  # noqa:F401
+        from ddtrace.profiler.exporter import pprof  # noqa:F401
