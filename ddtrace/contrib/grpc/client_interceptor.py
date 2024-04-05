@@ -78,7 +78,6 @@ def _future_done_callback(span):
 
 def _handle_response(span, response):
     log.warning("JJJ: _handle_response")
-    dfdsfdsfsf:wrapt
     # use duck-typing to support future-like response as in the case of
     # google-api-core which has its own future base class
     # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23

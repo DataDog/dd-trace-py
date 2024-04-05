@@ -18,7 +18,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TracerTestCase
+from tests.utils import TracerTestCase, override_env
 from tests.utils import snapshot
 
 from .hello_pb2 import HelloReply
@@ -271,6 +271,7 @@ class GrpcTestCase(TracerTestCase):
         assert spans[1].service == "server1"
         assert spans[1].get_tag("tag1") == "server"
         assert spans[0].get_tag("tag2") == "client"
+
 
     def test_pin_can_be_defined_per_channel(self):
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
@@ -624,6 +625,19 @@ class GrpcTestCase(TracerTestCase):
 
         self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
+    def test_jjj_iast(self):
+        # DEV: stop and restart server to catch overridden pin
+        with override_env({"DD_IAST_ENABLED": "True"}):
+            with self.override_config("grpc", dict(service_name="myclientsvc")):
+                with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                    stub1 = HelloStub(channel1)
+                    stub1.SayHello(HelloRequest(name="test"))
+                    channel1.close()
+
+                spans = self.get_spans_with_sync_and_assert(size=2)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):
