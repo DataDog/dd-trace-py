@@ -129,18 +129,26 @@ benchmark-serverless:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh
 
+benchmark-serverless-setup:
+  stage: benchmarks
+  tags: ["arch:amd64"]
+  artifacts:
+    reports:
+      dotenv: .env
+  script:
+    - echo "UPSTREAM_FALLBACK_EMAIL=$(git show -s --format="%ae" HEAD)" >> .env
+
 benchmark-serverless-trigger:
   stage: benchmarks
+  needs: 
+    - benchmark-serverless-setup
+  dependencies:
+    - benchmark-serverless-setup
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
     branch: jordan.gonzalez/update-email-variables
   allow_failure: true
-  artifacts:
-    reports:
-      dotenv: .env
-  before_script:
-    - echo "UPSTREAM_FALLBACK_EMAIL=$(git show -s --format="%ae" HEAD)" >> .env
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
