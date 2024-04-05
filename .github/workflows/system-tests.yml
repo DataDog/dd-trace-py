@@ -60,10 +60,13 @@ jobs:
 
       - name: Checkout dd-trace-py
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
+          # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
+          # proper version guessing
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Build
         id: build
@@ -242,10 +245,11 @@ jobs:
           repository: 'DataDog/system-tests'
       - name: Checkout dd-trace-py
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
