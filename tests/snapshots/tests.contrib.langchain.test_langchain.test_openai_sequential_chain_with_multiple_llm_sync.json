@@ -65,7 +65,7 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
+          "type": "llm",
           "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",
@@ -130,7 +130,7 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "",
+          "type": "llm",
           "error": 0,
           "meta": {
             "_dd.p.tid": "654a694400000000",

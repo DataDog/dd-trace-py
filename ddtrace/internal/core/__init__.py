@@ -144,17 +144,23 @@ SPAN_DEPRECATION_MESSAGE = (
 SPAN_DEPRECATION_SUGGESTION = (
     "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
 )
+DEPRECATION_MEMO = set()
 
 
 def _deprecate_span_kwarg(span):
-    if span is not None:
+    if (
+        id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
+        and span is not None
         # https://github.com/tiangolo/fastapi/pull/10876
-        if "fastapi" not in sys.modules and "fastapi.applications" not in sys.modules:
-            deprecate(
-                SPAN_DEPRECATION_MESSAGE,
-                message=SPAN_DEPRECATION_SUGGESTION,
-                category=DDTraceDeprecationWarning,
-            )
+        and "fastapi" not in sys.modules
+        and "fastapi.applications" not in sys.modules
+    ):
+        DEPRECATION_MEMO.add(id(_CURRENT_CONTEXT))
+        deprecate(
+            SPAN_DEPRECATION_MESSAGE,
+            message=SPAN_DEPRECATION_SUGGESTION,
+            category=DDTraceDeprecationWarning,
+        )
 
 
 class ExecutionContext:
@@ -200,6 +206,8 @@ class ExecutionContext:
                 log.debug(
                     "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
                 )
+        if id(self) in DEPRECATION_MEMO:
+            DEPRECATION_MEMO.remove(id(self))
         return dispatch_result
 
     def addParent(self, context):

@@ -121,12 +121,12 @@ class _BaseCompletionHook(_EndpointHook):
                     if integration.is_pc_sampled_span(span):
                         _tag_streamed_completion_response(integration, span, completions)
                     if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_resp=streamed_chunks)
+                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_completions=completions)
                 else:
                     if integration.is_pc_sampled_span(span):
                         _tag_streamed_chat_completion_response(integration, span, messages)
                     if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_resp=streamed_chunks)
+                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_completions=messages)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
@@ -264,12 +264,17 @@ class _ChatCompletionHook(_BaseCompletionHook):
         super()._record_request(pin, integration, span, args, kwargs)
         span.span_type = SpanTypes.LLM
         for idx, m in enumerate(kwargs.get("messages", [])):
+            role = getattr(m, "role", "")
+            name = getattr(m, "name", "")
+            content = getattr(m, "content", "")
+            if isinstance(m, dict):
+                content = m.get("content", "")
+                role = m.get("role", "")
+                name = m.get("name", "")
             if integration.is_pc_sampled_span(span):
-                span.set_tag_str(
-                    "openai.request.messages.%d.content" % idx, integration.trunc(str(m.get("content", "")))
-                )
-            span.set_tag_str("openai.request.messages.%d.role" % idx, m.get("role", ""))
-            span.set_tag_str("openai.request.messages.%d.name" % idx, m.get("name", ""))
+                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(str(content)))
+            span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
+            span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)

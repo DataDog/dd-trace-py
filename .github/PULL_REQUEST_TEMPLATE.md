@@ -8,7 +8,6 @@
 - [ ] Documentation is included (in-code, generated user docs, [public corp docs](https://github.com/DataDog/documentation/))
 - [ ] Backport labels are set (if [applicable](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting))
 - [ ] If this PR changes the public interface, I've notified `@DataDog/apm-tees`.
-- [ ] If change touches code that signs or publishes builds or packages, or handles credentials of any kind, I've requested a review from `@DataDog/security-design-and-guidance`.
 
 ## Reviewer Checklist
 
