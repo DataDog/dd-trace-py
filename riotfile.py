@@ -192,7 +192,7 @@ venv = Venv(
                 "six": ">=1.12.0",
                 "envier": "==0.5.1",
                 "cattrs": "<23.1.1",
-                "ddsketch": ">=2.0.1",
+                "ddsketch": ">=3.0.0",
                 "protobuf": ">=3",
                 "attrs": ">=20",
                 "typing_extensions": latest,
@@ -1758,7 +1758,7 @@ venv = Venv(
             pkgs={
                 "graphene": ["~=3.0.0", latest],
                 "pytest-asyncio": "==0.21.1",
-                "graphql-relay": "~=3.1.5",
+                "graphql-relay": latest,
                 "pytest-randomly": latest,
             },
         ),
@@ -1768,7 +1768,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
-                "graphql-core": ["~=3.1.0", "~=3.2.0", latest],
+                "graphql-core": ["~=3.2.0", latest],
                 "pytest-randomly": latest,
             },
         ),
