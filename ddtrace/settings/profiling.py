@@ -37,6 +37,15 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
+def _derive_stacktrace_resolver(config):
+    # type: ProfilingConfig.Crashtracker -> t.Optional[str]
+    resolver = config._stacktrace_resolver or ""
+    resolver = resolver.lower()
+    if resolver in ("safe", "full"):
+        return resolver
+    return None
+
+
 class ProfilingConfig(En):
     __prefix__ = "dd.profiling"
 
@@ -241,6 +250,40 @@ class ProfilingConfig(En):
             help_type="Boolean",
             help="Enables the crashtracker",
         )
+
+        stdout_filename = En.v(
+            t.Optional[str],
+            "stdout_filename",
+            default=None,
+            help_type="String",
+            help="The destination filename for crashtracker stdout",
+        )
+
+        stderr_filename = En.v(
+            t.Optional[str],
+            "stderr_filename",
+            default=None,
+            help_type="String",
+            help="The destination filename for crashtracker stderr",
+        )
+
+        alt_stack = En.v(
+            bool,
+            "alt_stack",
+            default=False,
+            help_type="Boolean",
+            help="Whether to use an alternate stack for the crashtracker.  This is used for internal development.",
+        )
+
+        _stacktrace_resolver = En.v(
+            t.Optional[str],
+            "stacktrace_resolver",
+            default=None,
+            help_type="String",
+            help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'safe',"
+            " and 'full'.  The default value is 'none' (no stack traces).",
+        )
+        stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
 
 
 config = ProfilingConfig()

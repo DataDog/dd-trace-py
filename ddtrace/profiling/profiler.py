@@ -128,7 +128,11 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _enable_crashtracking = attr.ib(typ=bool, default=config.crashtracking.enabled)
+    _enable_crashtracker = attr.ib(type=bool, default=config.crashtracker.enabled)
+    _crashtracker_stdout_filename = attr.ib(type=Optional[str], default=config.crashtracker.stdout_filename)
+    _crashtracker_stderr_filename = attr.ib(type=Optional[str], default=config.crashtracker.stderr_filename)
+    _crashtracker_alt_stack = attr.ib(type=bool, default=config.crashtracker.alt_stack)
+    _crashtracker_stacktrace_resolver = attr.ib(type=Optional[str], default=config.crashtracker.stacktrace_resolver)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -203,17 +207,38 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        ddup.config(
-            env=self.env,
-            service=self.service,
-            version=self.version,
-            tags=self.tags,
-            max_nframes=config.max_frames,
-            url=endpoint,
-        )
+        # If crashtracker is enabled, propagate the configuration
+        if self._enable_crashtracker:
+
+            # We don't check whether these files exist or are writeable or whatever, we leave that to the crashtracker
+            if self._crashtracker_stdout_filename:
+                ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
+            if self._crashtracker_stderr_filename:
+                ddup.set_crashtracker_stderr_filename(self._crashtracker_stderr_filename)
+
+            # Different interfaces are called to set the resolver.  If we don't get a valid value, we don't set it.
+            ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
+            if self._crashtracker_stacktrace_resolver:
+                if self._crashtracker_stacktrace_resolver == "safe":
+                    ddup.set_crashtracker_resolve_frames_receiver()
+                elif self._crashtracker_stacktrace_resolver == "full":
+                    ddup.set_crashtracker_resolve_frames_self()
+
+        # Crashtracker and libdd both use parts of the same configuration, so either one can prompt this
+        if self._export_libdd_enabled or self._enable_crashtracker:
+            ddup.config(
+                env=self.env,
+                service=self.service,
+                version=self.version,
+                tags=self.tags,
+                max_nframes=config.max_frames,
+                url=endpoint,
+            )
 
         # If crashtracker is enabled, let's start it
-        ddup.start_crashtracker()
+        if self._enable_crashtracker:
+            LOG.error("Starting the crashtracker")
+            ddup.start_crashtracker()
 
         # Choose one of the two collection/uploading methods
         if self._export_libdd_enabled:

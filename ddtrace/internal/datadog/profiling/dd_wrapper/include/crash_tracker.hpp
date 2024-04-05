@@ -9,8 +9,8 @@
 namespace Datadog {
 class Crashtracker {
   private:
-    bool collect_stacktrace;
-    bool create_alt_stack;
+    bool collect_stacktrace = false;
+    bool create_alt_stack = false;
     std::optional<std::string> stderr_filename{std::nullopt};
     std::optional<std::string> stdout_filename{std::nullopt};
     std::string path_to_receiver_binary;
@@ -22,7 +22,7 @@ class Crashtracker {
     std::string runtime;
     std::string runtime_version;
     const std::string library_name{"dd-trace-py"};
-    const std::string family{"cpython"};
+    const std::string family{"CPython"}; // This duplicates "language" from ddup?
     std::string library_version;
     std::string url;
     std::string runtime_id;

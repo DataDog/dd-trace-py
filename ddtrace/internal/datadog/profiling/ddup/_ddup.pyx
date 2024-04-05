@@ -50,7 +50,6 @@ cdef extern from "interface.hpp":
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
-    void ddup_start_crashtracker()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -74,7 +73,15 @@ cdef extern from "interface.hpp":
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
     bint ddup_upload() nogil
-    void ddup_crashtracker_set_receiver_binary_path(string_view path)
+    void ddup_config_crashtracker_stdout_filename(string_view filename)
+    void ddup_config_crashtracker_stderr_filename(string_view filename)
+    void ddup_config_crashtracker_alt_stack(bint alt_stack)
+    void ddup_config_crashtracker_collect_stacktrace(bint collect_stacktrace)
+    void ddup_config_crashtracker_resolve_frames_never()
+    void ddup_config_crashtracker_resolve_frames_self()
+    void ddup_config_crashtracker_resolve_frames_receiver()
+    bint ddup_config_crashtracker_receiver_binary_path(string_view path)
+    void ddup_crashtracker_start()
 
 # Create wrappers for cython
 cdef call_ddup_config_service(bytes service):
@@ -140,12 +147,48 @@ def start() -> None:
     ddup_start()
 
 
+def set_crashtracker_stdout_filename(filename: StringType) -> None:
+    filename_bytes = ensure_binary_or_empty(filename)
+    ddup_config_crashtracker_stdout_filename(string_view(<const char*>filename_bytes, len(filename_bytes)))
+
+
+def set_crashtracker_stderr_filename(filename: StringType) -> None:
+    filename_bytes = ensure_binary_or_empty(filename)
+    ddup_config_crashtracker_stderr_filename(string_view(<const char*>filename_bytes, len(filename_bytes)))
+
+
+def set_crashtracker_alt_stack(alt_stack: bool) -> None:
+    ddup_config_crashtracker_alt_stack(alt_stack)
+
+
+def set_crashtracker_collect_stacktrace(collect_stacktrace: bool) -> None:
+    ddup_config_crashtracker_collect_stacktrace(collect_stacktrace)
+
+
+def set_crashtracker_resolve_frames_never() -> None:
+    ddup_config_crashtracker_resolve_frames_never()
+
+
+def set_crashtracker_resolve_frames_self() -> None:
+    ddup_config_crashtracker_resolve_frames_self()
+
+
+def set_crashtracker_resolve_frames_receiver() -> None:
+    ddup_config_crashtracker_resolve_frames_receiver()
+
+
 def start_crashtracker() -> None:
     # The file is "crashtracker_exe" in the same directory as this .so
     exe_dir = os.path.dirname(__file__)
     crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
-    ddup_crashtracker_set_receiver_binary_path(string_view(<const char*>crashtracker_path, len(crashtracker_path)))
-    ddup_start_crashtracker()
+    crashtracker_path_bytes = ensure_binary_or_empty(crashtracker_path)
+    bin_exists = ddup_config_crashtracker_receiver_binary_path(
+        string_view(<const char*>crashtracker_path_bytes, len(crashtracker_path_bytes))
+    )
+
+    # We don't have a good place to report on the failure for now.
+    if bin_exists:
+        ddup_crashtracker_start()
 
 
 def upload() -> None:

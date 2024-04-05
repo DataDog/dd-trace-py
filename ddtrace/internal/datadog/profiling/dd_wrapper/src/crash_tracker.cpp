@@ -108,7 +108,7 @@ Datadog::Crashtracker::set_receiver_binary_path(std::string_view _path)
 ddog_prof_CrashtrackerConfiguration
 Datadog::Crashtracker::get_config()
 {
-    ddog_prof_CrashtrackerConfiguration config;
+    ddog_prof_CrashtrackerConfiguration config{};
     config.collect_stacktrace = collect_stacktrace;
     config.create_alt_stack = create_alt_stack;
     config.endpoint = ddog_prof_Endpoint_agent(to_slice(url)),

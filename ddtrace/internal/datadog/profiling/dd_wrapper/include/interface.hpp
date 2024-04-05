@@ -27,7 +27,6 @@ extern "C"
 
     bool ddup_is_initialized();
     void ddup_start();
-    void ddup_start_crashtracker();
     void ddup_set_runtime_id(std::string_view id);
     bool ddup_upload();
 
@@ -59,9 +58,15 @@ extern "C"
                          int64_t line);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+    void ddup_config_crashtracker_stdout_filename(std::string_view filename);
+    void ddup_config_crashtracker_stderr_filename(std::string_view filename);
+    void ddup_config_crashtracker_alt_stack(bool alt_stack);
     void ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace);
-    void ddup_config_crashtracker_create_alt_stack(bool create_alt_stack);
-    bool ddup_crashtracker_set_receiver_binary_path(std::string_view path);
+    void ddup_config_crashtracker_resolve_frames_never();
+    void ddup_config_crashtracker_resolve_frames_self();
+    void ddup_config_crashtracker_resolve_frames_receiver();
+    bool ddup_config_crashtracker_receiver_binary_path(std::string_view path);
+    void ddup_crashtracker_start();
 
 #ifdef __cplusplus
 } // extern "C"

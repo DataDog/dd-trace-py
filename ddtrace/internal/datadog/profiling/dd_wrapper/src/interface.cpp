@@ -305,6 +305,54 @@ ddup_upload()
 
 // Crashtracker
 void
+ddup_config_crashtracker_stdout_filename(std::string_view filename)
+{
+    crashtracker.set_stdout_filename(filename);
+}
+
+void
+ddup_config_crashtracker_stderr_filename(std::string_view filename)
+{
+    crashtracker.set_stderr_filename(filename);
+}
+
+void
+ddup_config_crashtracker_alt_stack(bool alt_stack)
+{
+    crashtracker.set_create_alt_stack(alt_stack);
+}
+
+void
+ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace)
+{
+    crashtracker.set_collect_stacktrace(collect_stacktrace);
+}
+
+void
+ddup_config_crashtracker_resolve_frames_never()
+{
+    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_NEVER);
+}
+
+void
+ddup_config_crashtracker_resolve_frames_self()
+{
+    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_EXPERIMENTAL_IN_PROCESS);
+}
+
+void
+ddup_config_crashtracker_resolve_frames_receiver()
+{
+    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_IN_RECEIVER);
+}
+
+bool
+ddup_config_crashtracker_receiver_binary_path(std::string_view path)
+{
+    return crashtracker.set_receiver_binary_path(path);
+}
+
+void
 ddup_crashtracker_start()
 {
     const static bool initialized = []() {
@@ -313,10 +361,4 @@ ddup_crashtracker_start()
     }();
 
     (void)initialized;
-}
-
-bool
-ddup_crashtracker_set_receiver_binary_path(std::string_view path)
-{
-    return crashtracker.set_receiver_binary_path(path);
 }
