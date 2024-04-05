@@ -358,13 +358,12 @@ def _on_django_patch():
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-# Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
-# of the original __getattribute__ method
 def _custom_protobuf_getattribute(self, name):
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_utils import taint_structure
     from collections.abc import MutableMapping
+    from google._upb._message import MessageMapContainer
 
     ret = type(self).__saved_getattr(self, name)
     log.warning("JJJ type returned by __saved_getattr: %s", type(ret))
@@ -377,23 +376,37 @@ def _custom_protobuf_getattribute(self, name):
             source_origin=OriginType.GRPC_BODY,
         )
     elif isinstance(ret, MutableMapping):
-        ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
+        if isinstance(ret, MessageMapContainer) and len(ret):
+            # Patch the message-values class
+            first_key = next(iter(ret))
+            value_type = type(ret[first_key])
+            _patch_protobuf_class(value_type)
+        else:
+            ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
 
     return ret
 
 
 _custom_protobuf_getattribute.__datadog_custom = True
 
+# Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
+# of the original __getattribute__ method
+def _patch_protobuf_class(cls):
+    getattr_method = getattr(cls, "__getattribute__")
+    if not getattr_method:
+        return
+
+    if not hasattr(getattr_method, "__datadog_custom"):
+        # Replace the class __getattribute__ method with our custom one
+        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
+        cls.__saved_getattr = getattr_method
+        cls.__getattribute__ = _custom_protobuf_getattribute
+
 
 def _on_grpc_response(response, message):
     log.warning("JJJ type(response): %s", type(response))  # hello.Hello
     msg_cls = type(response)
-    getattr_method = getattr(msg_cls, "__getattribute__")
-    if not hasattr(getattr_method, "__datadog_custom"):
-        # Replace the class __getattribute__ method with our custom one
-        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
-        msg_cls.__saved_getattr = getattr_method
-        msg_cls.__getattribute__ = _custom_protobuf_getattribute
+    _patch_protobuf_class(msg_cls)
 
     try:
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
@@ -405,14 +418,29 @@ def _on_grpc_response(response, message):
             msg = response.name
             log.warning("JJJ items response type: %s", type(msg))
 
+        elif 'MsgMap' in str_type:
+            msg = response.msgMapTest
+            log.warning("JJJ map response: %s", msg)
+            log.warning("JJJ map response type: %s", type(msg))
+            log.warning("JJJ map[1]: %s", msg[1])
+            log.warning("JJJ map[1].type: %s", type(msg[1]))
+            log.warning("JJJ map[1].name: %s", msg[1].name)
+            log.warning("JJJ ranges map[1].name: %s", get_tainted_ranges(msg[1].name))
+
+            from ddtrace.appsec._iast._taint_utils import taint_structure
+            from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+            tainted = taint_structure(msg[1], OriginType.GRPC_BODY, OriginType.GRPC_BODY)
+            log.warning("JJJ tainted.name: %s", tainted.name)
+            log.warning("JJJ ranges tainted.name: %s", get_tainted_ranges(tainted.name))
+
         elif 'Map' in str_type:
             msg = response.mapTest
             log.warning("JJJ map response: %s", msg)
             log.warning("JJJ map response type: %s", type(msg))
-            from collections.abc import MutableMapping
-            log.warning("JJJ map isinstance MutableMapping: %s", isinstance(msg, MutableMapping))
+            log.warning("JJJ map value type: %s", type(msg[1]))
             log.warning("JJJ map[1]: %s", msg[1])
             log.warning("JJJ ranges map[1]: %s", get_tainted_ranges(msg[1]))
+
         else:
             return response
 
@@ -423,96 +451,6 @@ def _on_grpc_response(response, message):
         log.warning("JJJ boom", exc_info=True)
 
     return response
-
-
-def _on_grpc_response3(response, message):  # JJJ remove message if not needed
-    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject, get_tainted_ranges
-
-    log.warning("JJJ response: %s", response)
-    log.warning("JJJ type(response): %s", type(response))  # hello.Hello
-    jjjlen_fields = len(response.ListFields())
-
-    # Loop over the response fields, searching for strings or bytes to taint
-    for idx, f in enumerate(response.ListFields()):
-        log.warning("JJJ iterating field %d/%d ---------------------------------------", idx, jjjlen_fields)
-        # JJJ get the field.type and check that is a FieldDescriptor.TYPE_STRING or FieldDescriptor.TYPE_BYTES
-        # in this case, taint the field[1]
-        log.warning("JJJ current field: %s", f)
-        log.warning("JJJ current field len: %d", len(f))
-        descriptor = f[0]
-        field_name = f[0].name
-        value = f[1]
-        FieldDescriptorClass = type(descriptor)
-        ValueClass = type(value)
-        ValueClassStr = str(ValueClass)
-        value_type = descriptor.type
-        # f[1].type in [FieldDescriptor.TYPE_STRING, FieldDescriptor.TYPE_BYTES]
-        log.warning("JJJ response.ListFields().Field[0]: %s", descriptor)
-        log.warning("JJJ response.ListFields().Field[0].name: %s", field_name)
-        log.warning("JJJ response.ListFields().Field[0].type: %s", value_type)
-        log.warning("JJJ response.ListFields().Field[1]: %s", str(value).replace('\n', '; '))
-        log.warning("JJJ response.ListFields().Field[1].type: %s", type(value))
-
-        if value_type in [FieldDescriptorClass.TYPE_STRING, FieldDescriptorClass.TYPE_BYTES] and ValueClass in [str, bytes]:
-            log.warning("JJJ SHOULD BE TAINTED: '%s' of type: '%s'", value, type(value))
-            tainted = taint_pyobject(
-                pyobject=getattr(response, field_name),
-                source_name=OriginType.GRPC_BODY,
-                source_value=value,
-                source_origin=OriginType.GRPC_BODY
-            )
-            setattr(response, field_name, tainted)  # jjj simplify
-            ranges = get_tainted_ranges(getattr(response, field_name))
-            log.warning("JJJ ranges after tainting: %s", ranges)
-            log.warning("JJJ id tainted field name: %s", id(tainted))
-            log.warning("JJJ id field name: %s", id(getattr(response, field_name)))
-
-        # elif value_type in [FieldDescriptorClass.TYPE_MAP]:
-        #     log.warning("JJJ MAP! Doing recursive calls")
-        #     for _, v in f[1].items():
-        #         _taint_response_message(v)
-        #
-        # elif value_type in [FieldDescriptorClass.TYPE_ENUM, FieldDescriptorClass.TYPE_GROUP]:
-        #     log.warning("JJJ ENUM or GROUP! Doing recursive calls")
-        #     for e in f[1]:
-        #         _taint_response_message(e)
-
-        # JJJ: maybe check the class to see if it's a RepeatedCompositeContainer or other Container type?
-        elif value_type in [FieldDescriptorClass.TYPE_MESSAGE]:
-            log.warning("JJJ MESSAGE! Doing recursive calls")
-            for msg in f[1]:
-                _on_grpc_response(msg, message)
-
-        # JJJ test with map<keytype, valuetype>!
-    return response
-
-
-def _on_grpc_response2(response, message):
-    # JJJ if not AppSecIastSpanProcessor.is_span_analyzed()?
-    log.warning("JJJ: _taint_response")
-    if not _is_iast_enabled():
-        return response
-
-    try:
-        from google.protobuf.json_format import MessageToDict, ParseDict
-        from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import taint_structure
-
-        as_dict = taint_structure(MessageToDict(response), OriginType.GRPC_BODY, OriginType.GRPC_BODY)
-        log.warning("JJJ as_dict: %s", as_dict)
-        # JJJ: check that we don't lose propagation here:
-        log.warning("JJJ message type: %s", type(message))
-        log.warning("JJJ descriptor in message: %s", hasattr(message, "DESCRIPTOR"))
-        response = ParseDict(as_dict, message)
-        jjj_as_dict = MessageToDict(response)
-        log.warning("JJJ jjj_as_dict: %s", jjj_as_dict)
-        # jjjdict = MessageToDict(response)
-        # log.warning(f"JJJ: response: {jjjdict}")
-    except Exception:
-        log.debug("JJJ IAST: exception tainting grpc response", exc_info=True)
-    finally:
-        return response
 
 
 def listen():

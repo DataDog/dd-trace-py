@@ -306,9 +306,3 @@ def test_simplejson_encode_list():
     )
 
     assert json.dumps(tainted_list) == '["tr_val_001", "tr_val_002", "tr_val_003", {"tr_key_005": "tr_val_004"}]'
-
-
-def test_taint_structure():
-    from ddtrace.appsec._iast._taint_utils import taint_structure
-    d = {1: "foo"}
-    tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)

@@ -93,51 +93,36 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     if not main_obj:
         return main_obj
 
-    log.warning("JJJ taint_structure start")
     main_res = []
-    log.warning("JJJ parameter source_key: %s, source_value: %s", source_key, source_value)
     try:
         # fifo contains tuple (pre/post:bool, source key, object to taint,
         # key to use, struct to store result, struct to )
-        log.warning("JJJ taint_structure 1")
         stack = [_DeepTaintCommand(True, source_key, main_obj, main_res)]
         while stack:
-            log.warning("JJJ taint_structure while 2")
             command = stack.pop()
             if command.pre:  # first processing of the object
                 if not command.obj:
                     command.store(command.obj)
                 elif isinstance(command.obj, (str, bytes, bytearray)):
                     if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
-                        log.warning("JJJ taint_structure while 3, pyobject: %s, type(pybobject): %s , source_name: %s, type source_name: %s, source_value: %s, source_origin: %s",
-                                    command.obj, type(command.obj), command.source_key, type(command.source_key), command.obj, source_key if command.is_key else source_value)
-                        log.warning("JJJ command.source_key: %s", command.source_key)
-                        log.warning("JJJ type command.source_key: %s", type(command.source_key))
-                        from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # JJJ
                         new_obj = taint_pyobject(
                             pyobject=command.obj,
                             source_name=command.source_key,
-                            # source_name=OriginType.GRPC_BODY,
                             source_value=command.obj,
                             source_origin=source_key if command.is_key else source_value,
                         )
-                        log.warning("JJJ before command.store(new_obj)")
                         command.store(new_obj)
-                        log.warning("JJJ after command.store(new_obj)")
                     else:
                         command.store(command.obj)
                 elif isinstance(command.obj, abc.Mapping):
-                    log.warning("JJJ taint_structure while 4")
                     res = {}
                     stack.append(command.post(res))
-                    # use dict fondamental enumeration if possible to bypass any override of custom classes
+                    # use dict fundamental enumeration if possible to bypass any override of custom classes
                     iterable = dict.items(command.obj) if isinstance(command.obj, dict) else command.obj.items()
                     todo = []
                     for k, v in list(iterable):
                         key_store = []
-                        log.warning("JJJ taint_structure while 5")
                         todo.append(_DeepTaintCommand(True, command.source_key, k, key_store, is_key=True))
-                        log.warning("JJJ taint_structure while 6")
                         todo.append(_DeepTaintCommand(True, command.source_key, v, res, key_store))
                     stack.extend(reversed(todo))
                 elif isinstance(command.obj, abc.Sequence):
@@ -357,7 +342,6 @@ class LazyTaintDict:
         self._override_pyobject_tainted = override_pyobject_tainted
 
     def _taint(self, value, key, origin=None):
-        log.debug("JJJ LazyTaintDict.taint start")
         if origin is None:
             origin = self._origin_value
         if value:
@@ -391,7 +375,6 @@ class LazyTaintDict:
                     override_pyobject_tainted=self._override_pyobject_tainted,
                     source_name=key,
                 )
-        log.debug("JJJ LazyTaintDict.taint end")
         return value
 
     @property  # type: ignore
