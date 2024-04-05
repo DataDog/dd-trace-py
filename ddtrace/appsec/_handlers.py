@@ -369,7 +369,7 @@ def _custom_protobuf_getattribute(self, name):
     ret = type(self).__saved_getattr(self, name)
     log.warning("JJJ type returned by __saved_getattr: %s", type(ret))
     # Also for iterables, maps, etc
-    if isinstance(ret, (str, bytes)):
+    if isinstance(ret, (str, bytes, bytearray)):
         ret = taint_pyobject(
             pyobject=ret,
             source_name=OriginType.GRPC_BODY,
