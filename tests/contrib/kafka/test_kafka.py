@@ -12,6 +12,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer
+from ddtrace.contrib.kafka.patch import TracedConsumer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
@@ -201,6 +202,26 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
         logger=logger,
     )
     consumer.close()
+
+
+def test_empty_list_from_consume_does_not_raise():
+    # https://github.com/DataDog/dd-trace-py/issues/8846
+    patch()
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+            "request.timeout.ms": 1000,
+            "retry.backoff.ms": 10,
+        },
+    )
+    assert isinstance(consumer, TracedConsumer)
+    max_messages_per_batch = 1
+    timeout = 0
+    consumer.consume(max_messages_per_batch, timeout)
+    consumer.close()
+    unpatch()
 
 
 @pytest.mark.parametrize(
