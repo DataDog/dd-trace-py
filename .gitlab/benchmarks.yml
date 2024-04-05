@@ -136,6 +136,11 @@ benchmark-serverless-trigger:
     strategy: depend
     branch: jordan.gonzalez/update-email-variables
   allow_failure: true
+  artifacts:
+    reports:
+      dotenv: .env
+  before_script:
+    - echo "UPSTREAM_FALLBACK_EMAIL=$(git show -s --format="%ae" HEAD)" >> .env
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -145,4 +150,3 @@ benchmark-serverless-trigger:
     UPSTREAM_MERGE_REQUEST_SOURCE_BRANCH_NAME: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
-    UPSTREAM_FALLBACK_EMAIL: $(git show -s --format="%ae" HEAD)
