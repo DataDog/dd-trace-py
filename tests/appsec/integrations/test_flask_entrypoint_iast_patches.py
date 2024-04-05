@@ -74,7 +74,7 @@ def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
         str_output = dis_output.getvalue()
         # Should have replaced the binary op with the aspect in add_test:
         assert "(add_aspect)" not in str_output
-        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output
+        assert "BINARY_ADD" in str_output or "BINARY_OP" in str_output
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_create_app_patch_all"]
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
@@ -90,7 +90,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all():
         str_output = dis_output.getvalue()
         # Should have replaced the binary op with the aspect in add_test:
         assert "(add_aspect)" not in str_output
-        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output
+        assert "BINARY_ADD" in str_output or "BINARY_OP" in str_output
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_create_app_patch_all"]
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
@@ -123,5 +123,5 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_dis
         str_output = dis_output.getvalue()
         # Should have replaced the binary op with the aspect in add_test:
         assert "(add_aspect)" not in str_output
-        assert "BINARY_ADD" in str_output or "BINARY_OP" not in str_output
+        assert "BINARY_ADD" in str_output or "BINARY_OP" in str_output
         assert flask_entrypoint_views.add_test() == []

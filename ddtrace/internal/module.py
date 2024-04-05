@@ -366,6 +366,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         self._hook_map: t.DefaultDict[str, t.List[ModuleHookType]] = defaultdict(list)
         self._om: t.Optional[t.Dict[str, ModuleType]] = None
+        # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
+        # of a list to ensure that no hook is duplicated
         self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
 
     @property
