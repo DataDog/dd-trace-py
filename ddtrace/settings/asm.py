@@ -93,7 +93,8 @@ class ASMConfig(Env):
 
     # default will be set to True once the feature is GA. For now it's always False
     # _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
-    _ep_enabled = False
+    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
+    # _ep_enabled = False
     _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = Env.var(

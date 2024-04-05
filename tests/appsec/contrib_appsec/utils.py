@@ -1131,14 +1131,15 @@ class Contrib_TestClass_For_Threats:
         finally:
             unpatch_common_modules()
 
-    @pytest.mark.skip(reason="iast integration not working yet")
     def test_iast(self, iast, interface, root_span, get_tag):
+        from ddtrace.appsec._iast import oce
         from ddtrace.appsec._iast.taint_sinks.command_injection import patch
         from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
         from ddtrace.ext import http
 
         url = "/rasp/shell/?cmd=ls"
         try:
+            oce._enabled = True
             patch()
             # patch_common_modules()
             with override_global_config(dict(_iast_enabled=True)):
