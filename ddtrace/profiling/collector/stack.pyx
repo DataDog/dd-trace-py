@@ -10,7 +10,7 @@ import six
 
 from ddtrace import _threading as ddtrace_threading
 from ddtrace import context
-from ddtrace import span as ddspan
+from ddtrace._tracer import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
