@@ -1166,7 +1166,12 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     model = langchain_openai.ChatOpenAI()
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
+    if sys.version_info >= (3, 11, 0):
+        cassette_name = "lcel_openai_chain_batch_311.yaml"
+    else:
+        cassette_name = "lcel_openai_chain_batch.yaml"
+
+    with request_vcr.use_cassette(cassette_name):
         chain.batch(["chickens", "cows", "pigs"])
 
 
