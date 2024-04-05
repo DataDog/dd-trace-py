@@ -181,6 +181,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_disabled():
     import dis
     import io
+
     import pytest
 
     from ddtrace import ModuleWatchdog
