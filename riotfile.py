@@ -178,7 +178,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.9", max_version="3.9"),
+            pys=select_pys(min_version="3.7", max_version="3.8"),
             command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "coverage": latest,
