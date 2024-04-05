@@ -417,9 +417,24 @@ def test_profiler_serverless(monkeypatch):
 def test_profiler_ddtrace_deprecation():
     """
     ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
-    them wen this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
+    them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
     """
     import warnings
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
+        from ddtrace.profiler.collector import _lock
+        from ddtrace.profiler.collector import memalloc
+        from ddtrace.profiler.collector import stack_event
+        from ddtrace.profiler.collector import stack
+        from ddtrace.profiler.collector import _task
+        from ddtrace.profiler.collector import _traceback
+        from ddtrace.profiler.exporter import file
+        from ddtrace.profiler.exporter import http
+        from ddtrace.profiler.exporter import pprof
+        from ddtrace.profiler.exporter import pprof
+        from ddtrace.profiler import event
+        from ddtrace.profiler import profiler
+        from ddtrace.profiler import recorder
+        from ddtrace.profiler import scheduler
+        from ddtrace.profiler import _threading
