@@ -1156,6 +1156,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
 
 
 @pytest.mark.snapshot
+@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
@@ -1166,12 +1167,22 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     model = langchain_openai.ChatOpenAI()
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    if sys.version_info >= (3, 11, 0):
-        cassette_name = "lcel_openai_chain_batch_311.yaml"
-    else:
-        cassette_name = "lcel_openai_chain_batch.yaml"
+    with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
+        chain.batch(["chickens", "cows", "pigs"])
 
-    with request_vcr.use_cassette(cassette_name):
+@pytest.mark.snapshot
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
+def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a chain with a batch of inputs will result in a 4-span trace,
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
+    """
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
+    output_parser = langchain_core.output_parsers.StrOutputParser()
+    model = langchain_openai.ChatOpenAI()
+    chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
+
+    with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
         chain.batch(["chickens", "cows", "pigs"])
 
 
