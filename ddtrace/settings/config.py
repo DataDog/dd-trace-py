@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 import tarfile
+import threading
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -53,6 +54,8 @@ else:
     from typing_extensions import Literal
 
 log = get_logger(__name__)
+
+lock = threading.Lock()
 
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
@@ -569,6 +572,8 @@ class Config(object):
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
+        self.__original_log_level = log.level
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
@@ -804,27 +809,32 @@ class Config(object):
 
     def _handle_agent_config_product(self, configs: List[dict]):
         os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
-        for config in configs:
+        for c in configs:
             # AGENT_CONFIG is currently being used for multiple purposes,
             # therefore we only want to prepare for a tracer flare if
             # the config name starts with 'flare-log-level', otherwise we
             # should do nothing
-            if not config.get("name", "").startswith("flare-log-level"):
+            if not c.get("name", "").startswith("flare-log-level"):
                 return
 
             # Validate the flare log level
-            flare_log_level = config.get("config", {}).get("log_level").upper()
+            flare_log_level = c.get("config", {}).get("log_level").upper()
             flare_log_level_int = logging.getLevelName(flare_log_level)
             if type(flare_log_level_int) != int:
                 raise TypeError("Invalid log level provided: %s", flare_log_level_int)
 
             pid = os.getpid()
             flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-            self.__original_log_level = log.level
+            self.__setattr__("__original_log_level", log.level)
             os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
 
             # Set the logger level to the more verbose between original and flare
-            logger_level = min(self.__original_log_level, flare_log_level_int)
+            # We do this valid_original_level check because if the log level is NOTSET, the value is 0
+            # which is the minimum value. In this case, we just want to use the flare level, but still
+            # retain the original state as NOTSET/0
+            self.__original_log_level = log.level
+            valid_original_level = 100 if self.__original_log_level == 0 else self.__original_log_level
+            logger_level = min(valid_original_level, flare_log_level_int)
             log.setLevel(logger_level)
             _configure_ddtrace_file_logger(log)
 
@@ -845,47 +855,48 @@ class Config(object):
             )
 
     def _handle_agent_task_product(self, configs: List[Any]):
-        for config in configs:
+        for c in configs:
             # AGENT_TASK is currently being used for multiple purposes,
             # therefore we only want to generate the tracer flare if
             # the task_type is explicitly set to 'tracer_flare',
             # otherwise we should do nothing
-            if type(config) != dict or config.get("task_type") != "tracer_flare":
+            if type(c) != dict or c.get("task_type") != "tracer_flare":
                 continue
-            args = config.get("args", {})
+            args = c.get("args", {})
 
             # Revert configs
             self._revert_tracer_flare_configs()
 
-            # Create flare files
-            pid = os.getpid()
-            flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-            with tarfile.open(TRACER_FLARE_TAR, "w") as tar:
-                # Add log file
-                tar.add(flare_file_path)
+            # Create flare tarfile
+            global lock
+            if lock.acquire(blocking=False):
+                try:
+                    with tarfile.open(TRACER_FLARE_TAR, "w") as tar:
+                        for file_name in os.listdir(TRACER_FLARE_DIRECTORY):
+                            # Add file
+                            flare_file_name = f"{TRACER_FLARE_DIRECTORY}/{file_name}"
+                            tar.add(flare_file_name)
 
-                # Create and add config file
-                config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
-                tar.add(config_file)
+                    # Send the tracer flare to the agent
+                    with open(TRACER_FLARE_TAR, "rb") as file:
+                        flare_file = {"flare_file": file}
+                        data = {
+                            "case_id": args.get("case_id"),
+                            "source": "tracer_python",
+                            "hostname": args.get("hostname"),
+                            "email": args.get("user_handle"),
+                        }
+                        flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
+                        response = requests.post(flare_url, files=flare_file, data=data)
 
-            # Send the tracer flare to the agent
-            with open(TRACER_FLARE_TAR, "rb") as file:
-                flare_file = {"flare_file": file}
-                data = {
-                    "case_id": args.get("case_id"),
-                    "source": "tracer_python",
-                    "hostname": args.get("hostname"),
-                    "email": args.get("user_handle"),
-                }
-                flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
-                response = requests.post(flare_url, files=flare_file, data=data)
-
-                if response.status_code == 200:
-                    log.debug("Tracer flare request successful")
-                else:
-                    log.error("Tracer flare request failed with status code %s", response.status_code)
-            # Clean up files regardless of success/failure
-            self._clean_up_tracer_flare_files()
+                        if response.status_code == 200:
+                            log.debug("Tracer flare request successful")
+                        else:
+                            log.error("Tracer flare request failed with status code %s", response.status_code)
+                    # Clean up files regardless of success/failure
+                    self._clean_up_tracer_flare_files()
+                finally:
+                    lock.release()
 
     def _revert_tracer_flare_configs(self):
         _disable_ddtrace_file_logger(log)
@@ -898,8 +909,8 @@ class Config(object):
             os.environ.pop("DD_TRACE_LOG_FILE")
         except KeyError:
             log.debug("DD_TRACE_LOG_FILE already unset")
+
         log.setLevel(self.__original_log_level)
-        del self.__original_log_level
 
     def _clean_up_tracer_flare_files(self):
         try:
