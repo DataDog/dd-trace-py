@@ -9,6 +9,7 @@ from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import Config
+from tests.internal.remoteconfig.test_remoteconfig import confirm_cleanup
 
 
 @pytest.fixture
@@ -404,8 +405,7 @@ def test_tracer_flare_remote_config_valid_log_level(log_level: str):
 
     assert type(logger) == DDLogger
     log_level_int = logging.getLevelName(log_level)
-    permissive_level = min(original_log_level, log_level_int)
-    assert logger.level == permissive_level
+    assert logger.level == log_level_int
     assert logger._getHandler("ddtrace_file_handler") is not None
 
     with mock.patch("requests.post") as mock_post:
@@ -425,3 +425,7 @@ def test_tracer_flare_remote_config_invalid_log_level():
 
     with pytest.raises(TypeError):
         config._handle_tracerflare(agent_config)
+
+    config._clean_up_tracer_flare_files()
+    config._revert_tracer_flare_configs()
+    confirm_cleanup(get_logger("ddtrace.settings.config"))

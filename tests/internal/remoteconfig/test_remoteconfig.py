@@ -451,24 +451,6 @@ def test_rc_default_products_registered():
 
 
 agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
-# agent_task = [
-#     False,
-#     {
-#         "args": {
-#             "case_id": "1111111",
-#             "hostname": "myhostname",
-#             "user_handle": "user.name@datadoghq.com",
-#         },
-#         "task_type": "tracer_flare",
-#         "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
-#     },
-# ]
-
-# def tearDown():
-#     # Ensure files are cleaned up
-#     # config._clean_up_tracer_flare_files()
-#     # config._revert_tracer_flare_configs()
-#     pass
 
 
 def confirm_cleanup(logger: DDLogger):
@@ -620,7 +602,7 @@ def test_tracer_flare_multiple_process_success():
 
     # Assert that each process wrote its file successfully
     # We double the process number because each will generate a log file and a config file
-    # assert len(processes) * 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
+    assert len(processes) * 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
 
     for _ in range(num_processes):
         p = multiprocessing.Process(target=handle_agent_task, args=[agent_task])
@@ -700,6 +682,10 @@ def test_tracer_flare_no_app_logs():
         for line in file:
             assert app_log_line not in line, f"File {flare_file_path} contains excluded line: {app_log_line}"
 
+    config._clean_up_tracer_flare_files()
+    config._revert_tracer_flare_configs()
+    confirm_cleanup(get_logger("ddtrace.settings.config"))
+
 
 def test_tracer_flare_fallback_send_and_clean():
     """
@@ -768,3 +754,7 @@ def test_tracer_flare_no_overlapping_requests():
     # only the original request
     assert tracer_flare_sub._get_current_request_start() == original_request_start
     assert len(os.listdir(TRACER_FLARE_DIRECTORY)) == 2
+
+    config._clean_up_tracer_flare_files()
+    config._revert_tracer_flare_configs()
+    confirm_cleanup(get_logger("ddtrace.settings.config"))
