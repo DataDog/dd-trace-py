@@ -1,0 +1,50 @@
+// api.proto
+syntax = "proto3";
+package api;
+ 
+service Api {
+  rpc sayHello (HelloRequest) returns (Hello) {}
+  rpc getAll (ApiRequest) returns (api.Items) {}
+  rpc getStream (ApiRequest) returns (stream api.Item) {}
+  rpc getMap (MapRequest) returns (MapTest) {}
+  rpc getMsgMap (MsgMapRequest) returns (MsgMapTest) {}
+}
+ 
+message ApiRequest {
+  int32 length = 1;
+}
+ 
+message Items {
+  repeated api.Item items = 1;
+}
+
+message MapRequest {
+  int32 key = 1;
+  string value = 2;
+}
+
+message MapTest {
+  map<int32, string> mapTest = 1;
+}
+
+message MsgMapRequest {
+  int32 key = 1;
+  api.Item value = 2;
+}
+
+message MsgMapTest {
+  map<int32, Item> msgMapTest = 1;
+}
+ 
+message Item {
+  int32 id = 1;
+  string name = 2;
+}
+ 
+message HelloRequest {
+  string name = 1;
+}
+ 
+message Hello {
+  string message = 1;
+}
