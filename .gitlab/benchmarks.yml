@@ -140,10 +140,6 @@ benchmark-serverless-setup:
 
 benchmark-serverless-trigger:
   stage: benchmarks
-  needs: 
-    - benchmark-serverless-setup
-  dependencies:
-    - benchmark-serverless-setup
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
@@ -152,6 +148,8 @@ benchmark-serverless-trigger:
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_PROJECT_PATH: $CI_PROJECT_PATH
+    UPSTREAM_REF_NAME: $CI_COMMIT_REF_NAME
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
