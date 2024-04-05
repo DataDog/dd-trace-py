@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIExcInfo
@@ -10,6 +12,7 @@ from ddtrace.ext.ci_visibility.api import CITestStatus
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityChildItem
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
+from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.logger import get_logger
 
@@ -37,6 +40,7 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         self._is_early_flake_retry = is_early_flake_retry  # NOTE: currently unused
         self._operation_name = session_settings.test_operation_name
         self._exc_info: Optional[CIExcInfo] = None
+        self._coverage_data: CICoverageData = CICoverageData()
 
         if item_id.parameters:
             self.set_tag(test.PARAMETERS, item_id.parameters)
@@ -63,17 +67,28 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
         status: CITestStatus,
         reason: Optional[str] = None,
         exc_info: Optional[CIExcInfo] = None,
-        is_itr_skipped: bool = False,
     ):
         log.debug("Finishing CI Visibility test %s, with status: %s, reason: %s", self.item_id, status, reason)
         self.set_status(status)
         if reason is not None:
             self.set_tag(test.SKIP_REASON, reason)
-        elif is_itr_skipped:
-            self.mark_itr_skipped()
         if exc_info is not None:
             self._exc_info = exc_info
         super().finish()
+
+    def count_itr_skipped(self):
+        """Tests do not count skipping on themselves, so only count on the parent.
+
+        When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
+        """
+        if self._session_settings.itr_test_skipping_level is TEST:
+            self.parent.count_itr_skipped()
+
+    def finish_itr_skipped(self):
+        log.debug("Finishing CI Visibility test %s with ITR skipped", self.item_id)
+        self.count_itr_skipped()
+        self.mark_itr_skipped()
+        self.finish_test(CITestStatus.SKIP)
 
     @classmethod
     def make_early_flake_retry_from_test(cls, original_test, retry_number: int):
@@ -88,3 +103,6 @@ class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
             initial_tags=original_test._tags,
             is_early_flake_retry=True,
         )
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        self._coverage_data.add_coverage_segments(coverage_data)
