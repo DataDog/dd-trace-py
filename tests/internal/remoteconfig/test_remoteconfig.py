@@ -3,6 +3,7 @@ import base64
 import datetime
 import hashlib
 import json
+from logging import Logger
 import multiprocessing
 import os
 import sys
@@ -457,11 +458,7 @@ def test_tracer_flare_single_process_success():
 
     config._handle_agent_config_product(configs)
 
-    file_handler = None
-    for handler in logger.handlers:
-        if handler.name == "ddtrace_file_handler":
-            file_handler = handler
-            break
+    file_handler = logger.getHandler("ddtrace_file_handler")
     assert file_handler is not None
     assert file_handler.level == 10
     assert logger.level == 10
@@ -631,9 +628,22 @@ def test_tracer_flare_multiple_process_partial_failure():
 
 
 def test_tracer_flare_no_app_logs():
-    # TODO: Check that app logs are not being added to the
+    # Check that app logs are not being added to the
     # file, just the tracer logs
-    pass
+    configs = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    app_logger = Logger(name="my-app", level=10)  # DEBUG level
+    config._handle_agent_config_product(configs)
+
+    app_log_line = "this is an app log"
+    app_logger.debug(app_log_line)
+
+    pid = os.getpid()
+    flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+    assert os.path.exists(flare_file_path)
+
+    with open(flare_file_path, "r") as file:
+        for line in file:
+            assert app_log_line not in line, f"File {flare_file_path} contains excluded line: {app_log_line}"
 
 
 def test_tracer_flare_fallback_send_and_clean():

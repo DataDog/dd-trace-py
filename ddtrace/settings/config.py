@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import tarfile
 from typing import Any  # noqa:F401
@@ -743,6 +744,23 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
+    def _tracerFlarePubSub(self):
+        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
+        from ddtrace.internal.remoteconfig._pubsub import PubSub
+        from ddtrace.internal.remoteconfig._pubsub import TracerFlareSubscriber
+
+        class _TracerFlarePubSub(PubSub):
+            __publisher_class__ = RemoteConfigPublisher
+            __subscriber_class__ = TracerFlareSubscriber
+            __shared_data__ = PublisherSubscriberConnector()
+
+            def __init__(self, callback):
+                self._publisher = self.__publisher_class__(self.__shared_data__, None)
+                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback)
+
+        return _TracerFlarePubSub
+
     def _handle_remoteconfig(self, data, test_tracer=None):
         # type: (Any, Any) -> None
         if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
@@ -757,14 +775,31 @@ class Config(object):
 
         if product_type == "APM_TRACING":
             self._handle_apm_tracing_product(configs[0])
-        elif product_type == "AGENT_CONFIG":
-            # Check for tracer flare prep
-            self._handle_agent_config_product(configs)
-        elif product_type == "AGENT_TASK":
-            # Check for tracer flare request
-            self._handle_agent_task_product(configs)
         else:
             log.warning("unexpected RC product name: %s", product_type)
+
+    def _handle_tracerflare(self, data: dict, cleanup: bool = False):
+        if cleanup:
+            self._revert_tracer_flare_configs()
+            self._clean_up_files("output.tar")
+            return
+
+        if "config" not in data:
+            log.warning("unexpected tracer flare RC payload %r", data)
+            return
+        if len(data["config"]) == 0:
+            log.warning("unexpected number of tracer flare RC payloads %r", data)
+            return
+
+        product_type = data.get("metadata", [])[0].get("product_name")
+        configs = data["config"]
+
+        if product_type == "AGENT_CONFIG":
+            # For tracer flare prep
+            self._handle_agent_config_product(configs)
+        else:
+            # Guaranteed to be AGENT_TASK for tracer flare request
+            self._handle_agent_task_product(configs)
 
     def _handle_agent_config_product(self, configs: List[dict]):
         os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
@@ -773,23 +808,21 @@ class Config(object):
             # therefore we only want to prepare for a tracer flare if
             # the config name starts with 'flare-log-level', otherwise we
             # should do nothing
-            if config and config.get("name", "").startswith("flare-log-level"):
-                flare_log_level = config.get("config", {}).get("log_level").upper()
-                pid = os.getpid()
-                flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-                os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
-                self.__original_log_level = log.level
-                os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
-                # Set the logger level to the more verbose between original and flare
-                flare_log_level_int = logging.getLevelName(flare_log_level)
-                logger_level = (
-                    self.__original_log_level
-                    if self.__original_log_level > flare_log_level_int
-                    else flare_log_level_int
-                )
-                log.setLevel(logger_level)
-                _configure_ddtrace_file_logger(log)
+            if not config.get("name", "").startswith("flare-log-level"):
                 return
+            flare_log_level = config.get("config", {}).get("log_level").upper()
+            pid = os.getpid()
+            flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+            os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
+            self.__original_log_level = log.level
+            os.environ.update({"DD_TRACE_LOG_FILE_LEVEL": flare_log_level, "DD_TRACE_LOG_FILE": flare_file_path})
+            # Set the logger level to the more verbose between original and flare
+            flare_log_level_int = logging.getLevelName(flare_log_level)
+            logger_level = (
+                self.__original_log_level if self.__original_log_level > flare_log_level_int else flare_log_level_int
+            )
+            log.setLevel(logger_level)
+            _configure_ddtrace_file_logger(log)
 
     def _handle_agent_task_product(self, configs: List[Any]):
         for config in configs:
@@ -797,70 +830,76 @@ class Config(object):
             # therefore we only want to generate the tracer flare if
             # the task_type is explicitly set to 'tracer_flare',
             # otherwise we should do nothing
-            if type(config) == dict and config.get("task_type") == "tracer_flare":
-                args = config.get("args", {})
+            if type(config) != dict or config.get("task_type") != "tracer_flare":
+                return
+            args = config.get("args", {})
 
-                # Revert configs
-                _disable_ddtrace_file_logger(log)
-                try:
-                    os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
-                except KeyError:
-                    log.debug("DD_TRACE_LOG_FILE_LEVEL already unset")
+            # Revert configs
+            self._revert_tracer_flare_configs()
 
-                try:
-                    os.environ.pop("DD_TRACE_LOG_FILE")
-                except KeyError:
-                    log.debug("DD_TRACE_LOG_FILE already unset")
-                log.setLevel(self.__original_log_level)
-                del self.__original_log_level
+            # Create flare files
+            tracer_tar_file = "output.tar"
+            pid = os.getpid()
+            flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
+            with tarfile.open(tracer_tar_file, "w") as tar:
+                # Add log file
+                tar.add(flare_file_path)
 
-                # Create flare files
-                tracer_tar_file = "output.tar"
-                pid = os.getpid()
-                flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
-                with tarfile.open(tracer_tar_file, "w") as tar:
-                    # Add log file
-                    tar.add(flare_file_path)
-
-                    # Create and add config file
-                    config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
-                    with open(config_file, "w") as f:
-                        tracer_configs = {
-                            "configs": self.__dict__,
-                        }
-                        json.dump(
-                            tracer_configs,
-                            f,
-                            default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
-                            indent=4,
-                        )
-
-                        tar.add(config_file)
-
-                # Send the tracer flare to the agent
-                with open(tracer_tar_file, "rb") as file:
-                    flare_file = {"flare_file": file}
-                    data = {
-                        "case_id": args.get("case_id"),
-                        "source": "tracer_python",
-                        "hostname": args.get("hostname"),
-                        "email": args.get("user_handle"),
+                # Create and add config file
+                config_file = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{pid}.json"
+                with open(config_file, "w") as f:
+                    tracer_configs = {
+                        "configs": self.__dict__,
                     }
-                    flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
-                    response = requests.post(flare_url, files=flare_file, data=data)
+                    json.dump(
+                        tracer_configs,
+                        f,
+                        default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+                        indent=4,
+                    )
 
-                    if response.status_code == 200:
-                        log.debug("Tracer flare request successful")
-                    else:
-                        log.error("Tracer flare request failed with status code %s", response.status_code)
+                    tar.add(config_file)
 
-                # Clean up files regardless of success/failure
-                # try:
-                #     shutil.rmtree(TRACER_FLARE_DIRECTORY)
-                #     os.remove(tracer_tar_file)
-                # except Exception as e:
-                #     log.warn(f"Failed to clean up tracer flare files: {e}")
-                # return
+            # Send the tracer flare to the agent
+            with open(tracer_tar_file, "rb") as file:
+                flare_file = {"flare_file": file}
+                data = {
+                    "case_id": args.get("case_id"),
+                    "source": "tracer_python",
+                    "hostname": args.get("hostname"),
+                    "email": args.get("user_handle"),
+                }
+                flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
+                response = requests.post(flare_url, files=flare_file, data=data)
+
+                if response.status_code == 200:
+                    log.debug("Tracer flare request successful")
+                else:
+                    log.error("Tracer flare request failed with status code %s", response.status_code)
+
+            # Clean up files regardless of success/failure
+            self._clean_up_files(tracer_tar_file)
+
+    def _revert_tracer_flare_configs(self):
+        _disable_ddtrace_file_logger(log)
+        try:
+            os.environ.pop("DD_TRACE_LOG_FILE_LEVEL")
+        except KeyError:
+            log.debug("DD_TRACE_LOG_FILE_LEVEL already unset")
+
+        try:
+            os.environ.pop("DD_TRACE_LOG_FILE")
+        except KeyError:
+            log.debug("DD_TRACE_LOG_FILE already unset")
+        log.setLevel(self.__original_log_level)
+        del self.__original_log_level
+
+    def _clean_up_files(self, tracer_tar_file):
+        try:
+            shutil.rmtree(TRACER_FLARE_DIRECTORY)
+            os.remove(tracer_tar_file)
+        except Exception as e:
+            log.warning("Failed to clean up tracer flare files: %s", e)
 
     def _handle_apm_tracing_product(self, config: dict):
         # If no data is submitted then the RC config has been deleted. Revert the settings.
@@ -917,6 +956,7 @@ class Config(object):
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        tracerflare_pubsub = self._tracerFlarePubSub()(self._handle_tracerflare)
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
-        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
-        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)

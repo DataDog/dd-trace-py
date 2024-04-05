@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
+from ddtrace.internal.remoteconfig._subscribers import TracerFlareSubscriber  # noqa: F401
 
 
 if TYPE_CHECKING:  # pragma: no cover

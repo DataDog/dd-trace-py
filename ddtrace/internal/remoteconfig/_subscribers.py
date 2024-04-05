@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 
@@ -57,3 +58,43 @@ class RemoteConfigSubscriber(PeriodicService):
 
     def __str__(self):
         return f"Subscriber {self._name}"
+
+
+class TracerFlareSubscriber(RemoteConfigSubscriber):
+    def __init__(self, data_connector: PublisherSubscriberConnector, callback: Callable):
+        super().__init__(data_connector, callback, "TracerFlareConfig")
+        self._current_request_start: Optional[datetime] = None
+
+    def _get_data_from_connector_and_exec(self):
+        data = self._data_connector.read()
+        curr = datetime.now()
+        if self._current_request_start is not None:
+            delta = curr - self._current_request_start
+            if delta.total_seconds >= 20 * 60:
+                self._current_request_start = None
+                self._callback({}, True)
+                return
+        product_type = data.get("metadata", [])[0].get("product_name")
+        if product_type == "AGENT_CONFIG":
+            if self._current_request_start is not None:
+                log.warning(
+                    "There is already a tracer flare job started at %s. Skipping new request.",
+                    str(self._current_request_start),
+                )
+                return
+            self._current_request_start = curr
+        elif product_type == "AGENT_TASK":
+            if self._current_request_start is None:
+                log.warning("There is no tracer flare job to complete. Skipping new request.")
+                return
+            self._current_request_start = None
+        log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
+        self._callback(data)
+
+    def periodic(self):
+        try:
+            log.debug("[PID %d | PPID %d] %s is getting data", os.getpid(), os.getppid(), self)
+            self._get_data_from_connector_and_exec()
+            log.debug("[PID %d | PPID %d] %s got data", os.getpid(), os.getppid(), self)
+        except Exception:
+            log.error("[PID %d | PPID %d] %s while getting data", os.getpid(), os.getppid(), self, exc_info=True)
