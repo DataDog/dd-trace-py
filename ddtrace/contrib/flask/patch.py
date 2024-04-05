@@ -442,6 +442,8 @@ def patched_endpoint(wrapped, instance, args, kwargs):
     endpoint = kwargs.get("endpoint", args[0])
 
     def _wrapper(func):
+        core.dispatch("service_entrypoint.patch", (func,))
+
         return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
 
     return _wrapper
