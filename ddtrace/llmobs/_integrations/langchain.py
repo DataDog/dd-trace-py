@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -6,6 +7,13 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
 
@@ -16,9 +24,117 @@ PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
 
+ROLE_MAPPING = {
+    "human": "user",
+    "ai": "assistant",
+    "system": "system",
+}
+
 
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
+
+    def llmobs_set_tags(
+        self,
+        operation: str,  # oneof "llm","chat","chain"
+        span: Span,
+        inputs: Any,
+        response: Any,
+        error: bool = False,
+    ) -> None:
+        """Sets meta tags and metrics for span events to be sent to LLMObs."""
+        if not self.llmobs_enabled:
+            return
+        model_provider = span.get_tag(PROVIDER)
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, model_provider or "")
+
+        self._llmobs_set_input_parameters(span, model_provider)
+
+        if operation == "llm":
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
+        elif operation == "chat":
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
+        elif operation == "chain":
+            pass
+
+        span.set_tag_str(METRICS, json.dumps({}))
+
+    def _llmobs_set_input_parameters(
+        self,
+        span: Span,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        if not model_provider:
+            return
+
+        input_parameters = {}
+        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
+            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
+        )  # huggingface
+        max_tokens = (
+            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
+            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
+            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
+        )
+
+        if temperature:
+            input_parameters["temperature"] = float(temperature)
+        if max_tokens:
+            input_parameters["max_tokens"] = int(max_tokens)
+        if input_parameters:
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+
+    def _llmobs_set_meta_tags_from_llm(
+        self,
+        span: Span,
+        prompts: List[Any],
+        completions: Any,
+        err: bool = False,
+    ) -> None:
+        if isinstance(prompts, str):
+            prompts = [prompts]
+        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
+
+        message_content = [{"content": ""}]
+        if not err:
+            message_content = [{"content": completion[0].text} for completion in completions.generations]
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
+
+    def _llmobs_set_meta_tags_from_chat_model(
+        self,
+        span: Span,
+        chat_messages: List[List[Any]],
+        chat_completions: Any,
+        err: bool = False,
+    ) -> None:
+        input_messages = []
+        for message_set in chat_messages:
+            for message in message_set:
+                content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
+                input_messages.append(
+                    {
+                        "content": str(content),
+                        "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
+                    }
+                )
+        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
+
+        output_messages = [{"content": ""}]
+        if not err:
+            output_messages = []
+            for message_set in chat_completions.generations:
+                for chat_completion in message_set:
+                    chat_completion_msg = chat_completion.message
+                    role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
+                    output_messages.append(
+                        {
+                            "content": str(chat_completion.text),
+                            "role": role,
+                        }
+                    )
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

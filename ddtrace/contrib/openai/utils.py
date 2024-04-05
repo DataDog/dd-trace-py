@@ -117,16 +117,18 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
     The resulting message dictionary is of form {"content": "...", "role": "...", "finish_reason": "..."}
     """
     message = {}
-    content = "".join(c.delta.content for c in streamed_chunks if getattr(c.delta, "content", None))
-    if getattr(streamed_chunks[0].delta, "tool_calls", None):
-        content = "".join(
-            c.delta.tool_calls.function.arguments for c in streamed_chunks if getattr(c.delta, "tool_calls", None)
-        )
-    elif getattr(streamed_chunks[0].delta, "function_call", None):
-        content = "".join(
-            c.delta.function_call.arguments for c in streamed_chunks if getattr(c.delta, "function_call", None)
-        )
-    message["role"] = streamed_chunks[0].delta.role
+    content = ""
+    for chunk in streamed_chunks:
+        chunk_content = getattr(chunk.delta, "content", "")
+        if chunk_content:
+            content += chunk_content
+        elif getattr(chunk.delta, "function_call", None):
+            content += chunk.delta.function_call.arguments
+        elif getattr(chunk.delta, "tool_calls", None):
+            for tool_call in chunk.delta.tool_calls:
+                content += tool_call.function.arguments
+
+    message["role"] = streamed_chunks[0].delta.role or "assistant"
     if streamed_chunks[-1].finish_reason is not None:
         message["finish_reason"] = streamed_chunks[-1].finish_reason
     message["content"] = content
@@ -135,6 +137,8 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
 
 def _tag_streamed_completion_response(integration, span, completions):
     """Tagging logic for streamed completions."""
+    if completions is None:
+        return
     for idx, choice in enumerate(completions):
         span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(choice["text"]))
         if choice.get("finish_reason") is not None:
@@ -143,6 +147,8 @@ def _tag_streamed_completion_response(integration, span, completions):
 
 def _tag_streamed_chat_completion_response(integration, span, messages):
     """Tagging logic for streamed chat completions."""
+    if messages is None:
+        return
     for idx, message in enumerate(messages):
         span.set_tag_str("openai.response.choices.%d.message.content" % idx, integration.trunc(message["content"]))
         span.set_tag_str("openai.response.choices.%d.message.role" % idx, message["role"])

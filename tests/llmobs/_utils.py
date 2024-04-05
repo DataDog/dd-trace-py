@@ -15,7 +15,7 @@ logs_vcr = vcr.VCR(
 )
 
 
-def _expected_llmobs_tags(error=None, tags=None):
+def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
     expected_tags = [
@@ -24,6 +24,7 @@ def _expected_llmobs_tags(error=None, tags=None):
         "service:{}".format(tags.get("service", "")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
+        "session_id:{}".format(session_id or "{:x}".format(span.trace_id)),
         "ddtrace.version:{}".format(ddtrace.__version__),
     ]
     if error:
@@ -149,7 +150,7 @@ def _llmobs_base_span_event(
         "parent_id": "undefined",
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
-        "tags": _expected_llmobs_tags(tags=tags, error=error),
+        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "error": 1 if error else 0,
@@ -157,6 +158,7 @@ def _llmobs_base_span_event(
         "metrics": {},
     }
     if error:
+        span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
