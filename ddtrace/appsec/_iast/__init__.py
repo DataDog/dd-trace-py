@@ -44,8 +44,6 @@ log = get_logger(__name__)
 
 oce = OverheadControl()
 
-_IS_IAST_REGISTERED = False
-
 
 def ddtrace_iast_flask_patch():
     """
@@ -74,7 +72,6 @@ def ddtrace_iast_flask_patch():
 
 
 def enable_iast_propagation():
-    global _IS_IAST_REGISTERED
     if asbool(os.getenv("DD_IAST_ENABLED", False)):
         from ddtrace.appsec._iast._utils import _is_python_version_supported
 
@@ -84,7 +81,6 @@ def enable_iast_propagation():
 
             log.debug("IAST enabled")
             ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
-            _IS_IAST_REGISTERED = True
 
 
 __all__ = [
