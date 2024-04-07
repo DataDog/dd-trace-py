@@ -2,8 +2,6 @@
 
 set -eo pipefail
 
-apt-get update && apt-get install -y --no-install-recommends gdb
-
 for core in core.*
 do
     echo "========  Core dump: ${core}  ========"
