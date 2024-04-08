@@ -5,6 +5,7 @@ from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -26,6 +27,7 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.vendor import wrapt
 
 
@@ -541,6 +543,38 @@ def _on_django_after_request_headers_post(
     )
 
 
+def _on_botocore_patched_api_call(ctx, span, instance, args, params, endpoint_name, operation, aws):
+    span.set_tag_str(COMPONENT, config.botocore.integration_name)
+    # set span.kind to the type of request being performed
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span.set_tag(SPAN_MEASURED_KEY)
+
+    if args:
+        # DEV: join is the fastest way of concatenating strings that is compatible
+        # across Python versions (see
+        # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
+        span.resource = ".".join((endpoint_name, operation.lower()))
+        span.set_tag("aws_service", endpoint_name)
+
+        if params and not config.botocore["tag_no_params"]:
+            aws._add_api_param_span_tags(span, endpoint_name, params)
+
+    else:
+        span.resource = endpoint_name
+
+    region_name = deep_getattr(instance, "meta.region_name")
+
+    span.set_tag_str("aws.agent", "botocore")
+    if operation is not None:
+        span.set_tag_str("aws.operation", operation)
+    if region_name is not None:
+        span.set_tag_str("aws.region", region_name)
+        span.set_tag_str("region", region_name)
+
+    # set analytics sample rate
+    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -566,6 +600,7 @@ def listen():
     core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
+    core.on("botocore.patched_api_call", _on_botocore_patched_api_call)
 
     for context_name in (
         "flask.call",
@@ -577,6 +612,7 @@ def listen():
         "django.template.render",
         "django.process_exception",
         "django.func.wrapped",
+        "botocore.instrumented_api_call",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

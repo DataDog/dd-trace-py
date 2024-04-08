@@ -23,6 +23,7 @@ from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import http
+from ...internal import core
 from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cloud_api_operation
@@ -198,11 +199,14 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
+    with core.context_with_data(
+        "botocore.instrumented_api_call",
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        pin=pin,
+        span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
-    ) as span:
+        call_key="instrumented_api_call",
+    ) as ctx, ctx.get_item("instrumented_api_call") as span:
         set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
 
         if args:
