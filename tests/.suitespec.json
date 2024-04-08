@@ -173,6 +173,9 @@
         "llmobs": [
             "ddtrace/llmobs/*"
         ],
+        "settings": [
+            "ddtrace/settings/*"
+        ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
         ],
@@ -366,6 +369,9 @@
         "celery": [
             "ddtrace/contrib/celery/*"
         ],
+        "dramatiq": [
+            "ddtrace/contrib/dramatiq/*"
+        ],
         "cassandra": [
             "ddtrace/contrib/cassandra/*",
             "ddtrace/ext/cassandra.py"
@@ -504,15 +510,6 @@
             "@remoteconfig",
             "tests/appsec/iast/*"
         ],
-        "appsec_iast_tdd_propagation": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
-            "@appsec",
-            "@appsec_iast",
-            "@remoteconfig",
-            "tests/appsec/iast_tdd_propagation/*"
-        ],
         "appsec_iast_memcheck": [
             "@bootstrap",
             "@core",
@@ -629,6 +626,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@settings",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
@@ -818,6 +816,15 @@
             "@tracing",
             "@dogpile_cache",
             "tests/contrib/dogpile_cache/*"
+        ],
+        "dramatiq": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@dramatiq",
+            "tests/contrib/dramatiq/*",
+            "tests/snapshots/tests.contrib.dramatiq.*"
         ],
         "elasticsearch": [
             "@bootstrap",

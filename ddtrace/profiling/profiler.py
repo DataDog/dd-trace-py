@@ -128,25 +128,28 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _enable_crashtracker = attr.ib(type=bool, default=config.crashtracker.enabled)
+    _crashtracker_enabled = attr.ib(type=bool, default=config.crashtracker.enabled)
     _crashtracker_stdout_filename = attr.ib(type=Optional[str], default=config.crashtracker.stdout_filename)
     _crashtracker_stderr_filename = attr.ib(type=Optional[str], default=config.crashtracker.stderr_filename)
     _crashtracker_alt_stack = attr.ib(type=bool, default=config.crashtracker.alt_stack)
     _crashtracker_stacktrace_resolver = attr.ib(type=Optional[str], default=config.crashtracker.stacktrace_resolver)
+    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
-        _OUTPUT_PPROF = config.output_pprof
-        if _OUTPUT_PPROF:
-            # DEV: Import this only if needed to avoid importing protobuf
-            # unnecessarily
-            from ddtrace.profiling.exporter import file
+        if not self._export_libdd_enabled:
+            # If libdatadog support is enabled, we can skip this part
+            _OUTPUT_PPROF = config.output_pprof
+            if _OUTPUT_PPROF:
+                # DEV: Import this only if needed to avoid importing protobuf
+                # unnecessarily
+                from ddtrace.profiling.exporter import file
 
-            return [
-                file.PprofFileExporter(prefix=_OUTPUT_PPROF),
-            ]
+                return [
+                    file.PprofFileExporter(prefix=_OUTPUT_PPROF),
+                ]
 
         if self.url is not None:
             endpoint = self.url
@@ -173,13 +176,11 @@ class _ProfilerInstance(service.Service):
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
-        # It's possible to fail to load the libdatadog collector, so we check.  Any other consumers
-        # of libdd can do their own check, so we just log.
-        if self._export_libdd_enabled and not ddup.is_available:
-            LOG.error("Failed to load the libdd collector, falling back to the legacy collector")
-            self._export_libdd_enabled = False
-        elif self._export_libdd_enabled:
-            LOG.debug("Using the libdd collector")
+        # Did the user request the libdd collector?  Better log it.
+        if self._export_libdd_enabled:
+            LOG.debug("The libdd collector is enabled")
+        if self._export_libdd_required:
+            LOG.debug("The libdd collector is required")
 
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
@@ -199,6 +200,8 @@ class _ProfilerInstance(service.Service):
             configured_features.append("exp_dd")
         else:
             configured_features.append("exp_py")
+        if self._export_libdd_required:
+            configured_features.append("req_dd")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
@@ -207,61 +210,77 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        # If crashtracker is enabled, propagate the configuration
-        if self._enable_crashtracker:
-
-            # We don't check whether these files exist or are writeable or whatever, we leave that to the crashtracker
-            if self._crashtracker_stdout_filename:
-                ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
-            if self._crashtracker_stderr_filename:
-                ddup.set_crashtracker_stderr_filename(self._crashtracker_stderr_filename)
-
-            # Different interfaces are called to set the resolver.  If we don't get a valid value, we don't set it.
-            ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
-            if self._crashtracker_stacktrace_resolver:
-                if self._crashtracker_stacktrace_resolver == "safe":
-                    ddup.set_crashtracker_resolve_frames_receiver()
-                elif self._crashtracker_stacktrace_resolver == "full":
-                    ddup.set_crashtracker_resolve_frames_self()
-
-        # Crashtracker and libdd both use parts of the same configuration, so either one can prompt this
-        if self._export_libdd_enabled or self._enable_crashtracker:
-            ddup.config(
-                env=self.env,
-                service=self.service,
-                version=self.version,
-                tags=self.tags,
-                max_nframes=config.max_frames,
-                url=endpoint,
-            )
-
-        # If crashtracker is enabled, let's start it
-        if self._enable_crashtracker:
-            LOG.error("Starting the crashtracker")
-            ddup.start_crashtracker()
-
-        # Choose one of the two collection/uploading methods
+        # If libdd is enabled, then
+        # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
+        # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
-            ddup.start()
-        else:
-            # DEV: Import this only if needed to avoid importing protobuf
-            # unnecessarily
-            from ddtrace.profiling.exporter import http
+            try:
+                # If crashtracker is enabled, propagate the configuration
+                if self._enable_crashtracker:
 
-            return [
-                http.PprofHTTPExporter(
-                    service=self.service,
+                    # We don't check whether these files exist or are writeable or whatever, we leave that to the crashtracker
+                    if self._crashtracker_stdout_filename:
+                        ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
+                    if self._crashtracker_stderr_filename:
+                        ddup.set_crashtracker_stderr_filename(self._crashtracker_stderr_filename)
+
+                    # Different interfaces are called to set the resolver.  If we don't get a valid value, we don't set it.
+                    ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
+                    if self._crashtracker_stacktrace_resolver == "safe":
+                        ddup.set_crashtracker_resolve_frames_receiver()
+                    elif self._crashtracker_stacktrace_resolver == "full":
+                        ddup.set_crashtracker_resolve_frames_self()
+
+                # Canonize the configuration.  This sets both the crashtracker and ddup configs.
+                ddup.config(
                     env=self.env,
-                    tags=self.tags,
+                    service=self.service,
                     version=self.version,
-                    api_key=self.api_key,
-                    endpoint=endpoint,
-                    endpoint_path=endpoint_path,
-                    enable_code_provenance=self.enable_code_provenance,
-                    endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+                    tags=self.tags,  # type: ignore
+                    max_nframes=config.max_frames,
+                    url=endpoint,
                 )
-            ]
-        return []
+                ddup.start()
+
+                # Start the crashtracker only after libddup has been configured and started.  In theory, the crashtracker can work
+                # without ddup.start() succeeding, but in practice we don't want to optimize for that case, so just do it here.
+                if self._enable_crashtracker:
+                    LOG.debug("Starting the crashtracker")
+                    ddup.start_crashtracker()
+                return []
+            except Exception as e:
+                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                self._export_libdd_enabled = False
+                config.export.libdd_enabled = False
+
+                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
+                # collector.
+                if self._export_libdd_required:
+                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
+                    config.enabled = False
+                    config.export.libdd_required = False
+                    config.lock.enabled = False
+                    config.memory.enabled = False
+                    config.stack.enabled = False
+                    return []
+
+        # DEV: Import this only if needed to avoid importing protobuf
+        # unnecessarily
+        from ddtrace.profiling.exporter import http
+
+        return [
+            http.PprofHTTPExporter(
+                service=self.service,
+                env=self.env,
+                tags=self.tags,
+                version=self.version,
+                api_key=self.api_key,
+                endpoint=endpoint,
+                endpoint_path=endpoint_path,
+                enable_code_provenance=self.enable_code_provenance,
+                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
+            )
+        ]
 
     def __attrs_post_init__(self):
         # type: (...) -> None

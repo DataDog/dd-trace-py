@@ -15,7 +15,9 @@ include(FetchContent)
 include(ExternalProject)
 include(FindLibdatadog)
 include(AnalysisFunc)
+include(FindClangtidy)
 include(FindCppcheck)
+include(FindInfer)
 
 # Library sources
 add_library(dd_wrapper SHARED
@@ -59,6 +61,9 @@ add_cppcheck_target(dd_wrapper
             ${Datadog_INCLUDE_DIRS}
     SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+add_infer_target(dd_wrapper)
+add_clangtidy_target(dd_wrapper)
 
 # Add the tests
 if (BUILD_TESTING)

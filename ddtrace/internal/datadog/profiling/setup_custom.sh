@@ -14,28 +14,23 @@ highest_clang=""
 highest_clangxx=""
 
 # Function to find the highest version of compilers
+# Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {
   local base_name=$1
   local highest_var_name=$2
-  local highest_version=0
 
   # Try to find the latest versions of both GCC and Clang
   # The range 5-20 is arbitrary (GCC 5 was released in 2015, and 20 is just a
   # a high number since Clang is on version 17)
-  # TODO provide a passthrough in CI where we want to use a pinned or specified
-  # version. Not a big deal since this script is currently only used for local
-  # development.
   for version in {20..5}; do
     if command -v "${base_name}-${version}" &> /dev/null; then
-      if [ $version -gt $highest_version ]; then
-        highest_version=$version
-        eval "$highest_var_name=${base_name}-${version}"
-      fi
+      eval "$highest_var_name=${base_name}-${version}"
+      return
     fi
   done
 
   # Check for the base version if no numbered version was found
-  if [ $highest_version -eq 0 ] && command -v "$base_name" &> /dev/null; then
+  if command -v "$base_name" &> /dev/null; then
     eval "$highest_var_name=$base_name"
   fi
 }
@@ -45,6 +40,9 @@ find_highest_compiler_version gcc highest_gcc
 find_highest_compiler_version g++ highest_gxx
 find_highest_compiler_version clang highest_clang
 find_highest_compiler_version clang++ highest_clangxx
+
+# Get the highest clang_tidy from the $highest_clangxx variable
+CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 
 ### Build setup
 # Targets to target dirs
@@ -56,6 +54,9 @@ target_dirs["crashtracker"]="crashtracker"
 
 # Compiler options
 declare -A compiler_args
+compiler_args["address"]="-DSANITIZE_OPTIONS=address"
+compiler_args["leak"]="-DSANITIZE_OPTIONS=leak"
+compiler_args["undefined"]="-DSANITIZE_OPTIONS=undefined"
 compiler_args["safety"]="-DSANITIZE_OPTIONS=address,leak,undefined"
 compiler_args["thread"]="-DSANITIZE_OPTIONS=thread"
 compiler_args["numerical"]="-DSANITIZE_OPTIONS=integer,nullability,signed-integer-overflow,bounds,float-divide-by-zero"
@@ -63,6 +64,9 @@ compiler_args["dataflow"]="-DSANITIZE_OPTIONS=dataflow"
 compiler_args["memory"]="-DSANITIZE_OPTIONS=memory"
 compiler_args["fanalyzer"]="-DDO_FANALYZE=ON"
 compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
+compiler_args["infer"]="-DDO_INFER=ON"
+compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
+compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
 
 # Initial cmake args
 cmake_args=(
@@ -79,8 +83,12 @@ targets=("dd_wrapper")
 
 # Helper functions for finding the compiler(s)
 set_clang() {
-  export CC=$highest_clang
-  export CXX=$highest_clangxx
+  if [ -z "${CC:-}" ]; then
+    export CC=$highest_clang
+  fi
+  if [ -z "${CXX:-}" ]; then
+    export CXX=$highest_clangxx
+  fi
   cmake_args+=(
     -DCMAKE_C_COMPILER=$CC
     -DCMAKE_CXX_COMPILER=$CXX
@@ -88,8 +96,13 @@ set_clang() {
 }
 
 set_gcc() {
-  export CC=$highest_gcc
-  export CXX=$highest_gxx
+  # Only set CC or CXX if they're not set
+  if [ -z "${CC:-}" ]; then
+    export CC=$highest_gcc
+  fi
+  if [ -z "${CXX:-}" ]; then
+    export CXX=$highest_gxx
+  fi
   cmake_args+=(
     -DCMAKE_C_COMPILER=$CC
     -DCMAKE_CXX_COMPILER=$CXX
@@ -100,17 +113,17 @@ set_gcc() {
 run_cmake() {
   target=$1
   dir=${target_dirs[$target]}
+  build=${BUILD_DIR}/${dir}
   if [ -z "$dir" ]; then
     echo "No directory specified for cmake"
     exit 1
   fi
 
-  # Enter the directory and create the build directory
-  pushd $dir || { echo "Failed to change to $dir"; exit 1; }
-  mkdir -p $BUILD_DIR && cd $BUILD_DIR || { echo "Failed to create build directory for $dir"; exit 1; }
+  # Make sure we have the build directory
+  mkdir -p ${build} && pushd ${build} || { echo "Failed to create build directory for $dir"; exit 1; }
 
   # Run cmake
-  cmake "${cmake_args[@]}" .. || { echo "cmake failed"; exit 1; }
+  cmake "${cmake_args[@]}" -S=$MY_DIR/$dir || { echo "cmake failed"; exit 1; }
   cmake --build . || { echo "build failed"; exit 1; }
   if [[ " ${cmake_args[*]} " =~ " -DDO_CPPCHECK=ON " ]]; then
     echo "--------------------------------------------------------------------- Running CPPCHECK"
@@ -118,7 +131,6 @@ run_cmake() {
   fi
   if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
     echo "--------------------------------------------------------------------- Running Tests"
-#    make test || { echo "tests failed"; exit 1; }
     ctest --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
@@ -131,12 +143,17 @@ print_help() {
   echo "Usage: ${MY_NAME} [options] [build_mode] [target]"
   echo "Options (one of)"
   echo "  -h, --help        Show this help message and exit"
+  echo "  -a, --address     Clang + " ${compile_args["address"]}
+  echo "  -l, --leak        Clang + " ${compile_args["leak"]}
+  echo "  -u, --undefined   Clang + " ${compile_args["undefined"]}
   echo "  -s, --safety      Clang + " ${compile_args["safety"]}
   echo "  -t, --thread      Clang + " ${compile_args["thread"]}
   echo "  -n, --numerical   Clang + " ${compile_args["numerical"]}
-  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}
+  echo "  -d, --dataflow    Clang + " ${compile_args["dataflow"]}  # Requires custom libstdc++ to work
   echo "  -m  --memory      Clang + " ${compile_args["memory"]}
   echo "  -C  --cppcheck    Clang + " ${compile_args["cppcheck"]}
+  echo "  -I  --infer       Clang + " ${compile_args["infer"]}
+  echo "  -T  --clangtidy   Clang + " ${compile_args["clangtidy"]}
   echo "  -f, --fanalyze    GCC + " ${compile_args["fanalyzer"]}
   echo "  -c, --clang       Clang (alone)"
   echo "  -g, --gcc         GCC (alone)"
@@ -175,9 +192,21 @@ add_compiler_args() {
       print_help
       exit 0
       ;;
+    -a|--address)
+      cmake_args+=(${compiler_args["address"]})
+      set_clang
+      ;;
+    -l|--leak)
+      cmake_args+=(${compiler_args["leak"]})
+      set_clang
+      ;;
+    -u|--undefined)
+      cmake_args+=(${compiler_args["undefined"]})
+      set_clang
+      ;;
     -s|--safety)
       cmake_args+=(${compiler_args["safety"]})
-      set_clang
+      set_gcc
       ;;
     -t|--thread)
       cmake_args+=(${compiler_args["thread"]})
@@ -197,6 +226,21 @@ add_compiler_args() {
       ;;
     -C|--cppcheck)
       cmake_args+=(${compiler_args["cppcheck"]})
+      set_clang
+      if command -v cppcheck &> /dev/null; then
+        cmake_args+=(-DCPPCHECK_EXECUTABLE=$(which cppcheck))
+      fi
+      ;;
+    -I|--infer)
+      cmake_args+=(${compiler_args["infer"]})
+      set_clang
+      if command -v infer &> /dev/null; then
+        cmake_args+=(-DInfer_EXECUTABLE=$(which infer))
+      fi
+      ;;
+    -T|--clangtidy)
+      cmake_args+=(${compiler_args["clangtidy"]})
+      cmake_args+=(${compiler_args["clangtidy_cmd"]})
       set_clang
       ;;
     -f|--fanalyze)

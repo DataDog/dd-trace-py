@@ -1,3 +1,4 @@
+from operator import itemgetter
 import os
 import re
 import sys
@@ -482,6 +483,24 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     chain = langchain.chains.LLMMathChain.from_llm(langchain_openai.OpenAI(temperature=0))
     with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
         chain.invoke("what is two raised to the fifty-fourth power?")
+
+
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
+def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
+    prompt_template = "what is {base} raised to the fifty-fourth power?"
+    prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
+    chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
+    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+        chain.invoke(input={"base": "two"})
+
+
+@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
+def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
+    prompt_template = "what is {base} raised to the fifty-fourth power?"
+    prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
+    chain = langchain.chains.LLMChain(llm=langchain_openai.OpenAI(temperature=0), prompt=prompt)
+    with request_vcr.use_cassette("openai_math_chain_sync.yaml"):
+        chain.invoke("two")
 
 
 @pytest.mark.asyncio
@@ -1080,6 +1099,131 @@ def test_embedding_logs_when_response_not_completed(
             ),
         ]
     )
+
+
+@pytest.mark.snapshot
+def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.OpenAI()
+
+    chain = prompt | llm
+    with request_vcr.use_cassette("lcel_openai_chain_call.yaml"):
+        chain.invoke({"input": "how can langsmith help with testing?"})
+
+
+@pytest.mark.snapshot
+def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
+        "Tell me a short joke about {topic} in the style of {style}"
+    )
+
+    chat_openai = langchain_openai.ChatOpenAI()
+    openai = langchain_openai.OpenAI()
+
+    model = chat_openai.configurable_alternatives(
+        langchain_core.runnables.ConfigurableField(id="model"),
+        default_key="chat_openai",
+        openai=openai,
+    )
+
+    chain = (
+        {
+            "topic": langchain_core.runnables.RunnablePassthrough(),
+            "style": langchain_core.runnables.RunnablePassthrough(),
+        }
+        | prompt
+        | model
+        | langchain_core.output_parsers.StrOutputParser()
+    )
+
+    with request_vcr.use_cassette("lcel_openai_chain_call_complicated.yaml"):
+        chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+        [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+    )
+    llm = langchain_openai.OpenAI()
+
+    chain = prompt | llm
+    with request_vcr.use_cassette("lcel_openai_chain_acall.yaml"):
+        await chain.ainvoke({"input": "how can langsmith help with testing?"})
+
+
+@pytest.mark.snapshot
+@pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
+def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a chain with a batch of inputs will result in a 4-span trace,
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
+    """
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
+    output_parser = langchain_core.output_parsers.StrOutputParser()
+    model = langchain_openai.ChatOpenAI()
+    chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
+
+    with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
+        chain.batch(["chickens", "cows", "pigs"])
+
+
+@pytest.mark.snapshot
+@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
+def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a chain with a batch of inputs will result in a 4-span trace,
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
+    """
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
+    output_parser = langchain_core.output_parsers.StrOutputParser()
+    model = langchain_openai.ChatOpenAI()
+    chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
+
+    with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
+        chain.batch(["chickens", "cows", "pigs"])
+
+
+@pytest.mark.snapshot
+def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a nested chain will result in a 4-span trace with a root
+    RunnableSequence span (complete_chain), then another RunnableSequence (chain1) +
+    LangChain ChatOpenAI span (chain1's llm call) and finally a second LangChain ChatOpenAI span (chain2's llm call)
+    """
+    prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
+    prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
+        "what country is the city {city} in? respond in {language}"
+    )
+
+    model = langchain_openai.ChatOpenAI()
+
+    chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
+    chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
+
+    complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
+
+    with request_vcr.use_cassette("lcel_openai_chain_nested.yaml"):
+        complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a chain with a batch of inputs will result in a 4-span trace,
+    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
+    """
+    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
+    output_parser = langchain_core.output_parsers.StrOutputParser()
+    model = langchain_openai.ChatOpenAI()
+    chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
+
+    with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
+        await chain.abatch(["chickens", "cows", "pigs"])
 
 
 @pytest.mark.parametrize(
