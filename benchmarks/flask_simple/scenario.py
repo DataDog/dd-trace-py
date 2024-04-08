@@ -1,14 +1,13 @@
 import hashlib
-import random
 import os
+import random
 
+import bm
+import bm.utils as utils
 from flask import Flask
 from flask import render_template_string
 from flask import request
 
-
-import bm
-import bm.utils as utils
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
@@ -140,6 +139,7 @@ class FlaskSimple(bm.Scenario):
             def make_request(app):
                 client = app.test_client()
                 return client.post("/post-view", headers=HEADERS, data=utils.EXAMPLE_POST_DATA)
+
         else:
 
             def make_request(app):
