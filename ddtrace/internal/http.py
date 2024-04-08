@@ -1,5 +1,12 @@
+# Prevent other patching of http.client from breaking our usage of HTTP
+# eg: vcr's patching of HTTPSConnection causes the pytest use case to drop traces
+import sys
+
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+
+
+del sys.modules["http.client"]
 
 
 class BasePathMixin(httplib.HTTPConnection, object):
