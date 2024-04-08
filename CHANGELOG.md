@@ -4,12 +4,29 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.7
+
+### Bug Fixes
+
+- ASM: This fix resolves an issue where django login failure events may send wrong information of user existence.
+- datastreams: Changed DSM processor error logs to debug logs for a statement which is retried.  If all retries fail, the stack trace is included
+- internal: This fix resolves an issue where importing the ``ddtrace.internal.peer_service`` module would fail raising an ImportError
+- starlette: Fix a bug that crashed background tasks started from functions without a `__name__` attribute
+- Vulnerability Management for Code-level (IAST): This fix addresses an issue where tainting objects may fail due to context not being created in the current span.
+- Vulnerability Management for Code-level (IAST): Some native exceptions were not being caught correctly by the python tracer.
+  This fix remove those exceptions to avoid fatal error executions.
+- kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration.
+  Empty lists from consume can occur when the call times out.
+
+
+---
+
 ## 2.7.6
 
 
 ### Bug Fixes
 
-- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,  
+- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,
   causing crashes in configurations which relied on older protobuf versions. The profiler will now detect when injection is used and try loading with the native exporter. If that fails, it will self-disable rather than loading protobuf.
 
 
