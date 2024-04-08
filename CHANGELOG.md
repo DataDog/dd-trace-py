@@ -9,6 +9,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Prelude
 
 tracing: This release adds support for lazy sampling, essentially moving when we make a sampling decision for a trace to the latest possible moment. These include the following: 1. Before encoding a trace chunk to be sent to the agent 2. Before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented integration 3. Before running `os.fork()` For most users this change shouldn't have any impact on their traces, but it does allow for more flexibility in sampling (see `features` release note). It should be noted that if a user has application egress points that are not automatically instrumented, to other Datadog components (downstream instrumented services, databases, or execution context changes), and rely on the Python tracer to make the sampling decision (don't have an upstream service doing this), they will need to manually run the sampler for those traces, or use `HttpPropagator.inject()`. For more information please see the following: <https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#distributed-tracing> <https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-context-management>
+
 ### New Features
 
 - DSM: Adds base64 format for encoding and decoding DSM context hash.
@@ -21,11 +22,13 @@ tracing: This release adds support for lazy sampling, essentially moving when we
 - profiling: implement an experimental stack sampling feature, which can be enabled by setting `DD_PROFILING_STACK_V2_ENABLED=true`. This new sampler should resolve segfault issues on Python 3.11 and later, while also decreasing the latency contribution of the profiler in many situations, and also improving the accuracy of stack-sampling data. This feature is currently only available on Linux using CPython 3.8 or greater. Requires `DD_PROFILING_EXPORT_LIBDD_ENABLED=true` to be set.
 - botocore: Changes botocore aws kinesis contrib to set DSM pathway using extracted DSM context, if found, instead of always using a new pathway with default context.
 - kafka: Adds tracing and DSM support for `confluent_kafka.Consumer.consume()`. Previously only <span class="title-ref">confluent_kafka.Consumer.poll</span> was instrumented.
+
 ### Deprecation Notes
 
 - tracing: Deprecates support for `ddtrace.contrib.asyncio.AsyncioContextProvider`. ddtrace fully support tracing across asyncio tasks. Asyncio no longer requires additional configurations.
 - tracing: `tracer.sampler` is deprecated and will be removed in the next major version release. To manually sample please call `tracer.sample` instead.
 - gevent: Deprecates `ddtrace.contrib.gevent.provider.GeventContextProvider`. Drops support for <span class="title-ref">gevent\<20.12.0</span> and <span class="title-ref">greenlet\<1.0</span>.
+
 ### Bug Fixes
 
 - Vulnerability Management for Code-level (IAST): Some native exceptions were not being caught correctly by the python tracer. This fix remove those exceptions to avoid fatal error executions.
@@ -64,12 +67,29 @@ tracing: This release adds support for lazy sampling, essentially moving when we
 
 ---
 
+## 2.7.7
+
+### Bug Fixes
+
+- ASM: This fix resolves an issue where django login failure events may send wrong information of user existence.
+- datastreams: Changed DSM processor error logs to debug logs for a statement which is retried.  If all retries fail, the stack trace is included
+- internal: This fix resolves an issue where importing the ``ddtrace.internal.peer_service`` module would fail raising an ImportError
+- starlette: Fix a bug that crashed background tasks started from functions without a `__name__` attribute
+- Vulnerability Management for Code-level (IAST): This fix addresses an issue where tainting objects may fail due to context not being created in the current span.
+- Vulnerability Management for Code-level (IAST): Some native exceptions were not being caught correctly by the python tracer.
+  This fix remove those exceptions to avoid fatal error executions.
+- kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration.
+  Empty lists from consume can occur when the call times out.
+
+
+---
+
 ## 2.7.6
 
 
 ### Bug Fixes
 
-- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,  
+- Profiling: This fix resolves an issue where the profiler was forcing protobuf to load in injected environments,
   causing crashes in configurations which relied on older protobuf versions. The profiler will now detect when injection is used and try loading with the native exporter. If that fails, it will self-disable rather than loading protobuf.
 
 
