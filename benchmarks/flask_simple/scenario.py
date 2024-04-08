@@ -151,5 +151,7 @@ class FlaskSimple(bm.Scenario):
             for _ in range(loops):
                 res = make_request(app)
                 assert res.status_code == 200
+                # We have to close the request (or read `res.data`) to get the `flask.request` span to finalize
+                res.close()
 
         yield _
