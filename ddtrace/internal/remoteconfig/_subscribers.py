@@ -114,5 +114,6 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             self._current_request_start = None
         else:
             log.warning("Unexpected tracer flare product type %r", product_type)
+            return
         log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
         self._callback(data)
