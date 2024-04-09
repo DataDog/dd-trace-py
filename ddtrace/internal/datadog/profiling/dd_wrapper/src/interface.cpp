@@ -305,6 +305,12 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
 // Crashtracker
 void
+ddup_config_crashtracker_url(std::string_view url)
+{
+    crashtracker.set_url(url);
+}
+
+void
 ddup_config_crashtracker_stdout_filename(std::string_view filename)
 {
     crashtracker.set_stdout_filename(filename);

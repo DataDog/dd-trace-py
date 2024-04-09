@@ -69,6 +69,7 @@ cdef extern from "interface.hpp":
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
     bint ddup_upload() nogil
+    void ddup_config_crashtracker_url(string_view url)
     void ddup_config_crashtracker_stdout_filename(string_view filename)
     void ddup_config_crashtracker_stderr_filename(string_view filename)
     void ddup_config_crashtracker_alt_stack(bint alt_stack)
@@ -170,6 +171,11 @@ def config(
 
 def start() -> None:
     ddup_start()
+
+
+def set_crashtracker_url(url: StringType) -> None:
+    url_bytes = ensure_binary_or_empty(url)
+    ddup_config_crashtracker_url(string_view(<const char*>url_bytes, len(url_bytes)))
 
 
 def set_crashtracker_stdout_filename(filename: StringType) -> None:

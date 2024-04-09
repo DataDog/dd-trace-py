@@ -133,6 +133,7 @@ class _ProfilerInstance(service.Service):
     _crashtracker_stderr_filename = attr.ib(type=Optional[str], default=config.crashtracker.stderr_filename)
     _crashtracker_alt_stack = attr.ib(type=bool, default=config.crashtracker.alt_stack)
     _crashtracker_stacktrace_resolver = attr.ib(type=Optional[str], default=config.crashtracker.stacktrace_resolver)
+    _crashtracker_debug_url = attr.ib(type=Optional[str], default=config.crashtracker.debug_url)
     _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
@@ -217,14 +218,13 @@ class _ProfilerInstance(service.Service):
             try:
                 # If crashtracker is enabled, propagate the configuration
                 if self._enable_crashtracker:
-
-                    # We don't check whether these files exist or are writeable or whatever, we leave that to the crashtracker
+                    # We don't check file writability, we leave that to the crashtracker
                     if self._crashtracker_stdout_filename:
                         ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
                     if self._crashtracker_stderr_filename:
                         ddup.set_crashtracker_stderr_filename(self._crashtracker_stderr_filename)
 
-                    # Different interfaces are called to set the resolver.  If we don't get a valid value, we don't set it.
+                    # Set the resolver if a valid configuration is sent
                     ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
                     if self._crashtracker_stacktrace_resolver == "safe":
                         ddup.set_crashtracker_resolve_frames_receiver()
@@ -242,10 +242,13 @@ class _ProfilerInstance(service.Service):
                 )
                 ddup.start()
 
-                # Start the crashtracker only after libddup has been configured and started.  In theory, the crashtracker can work
-                # without ddup.start() succeeding, but in practice we don't want to optimize for that case, so just do it here.
+                # Start the crashtracker only after libddup has been configured and started.
+                # Conceptually, the crashtracker can work without ddup.start() succeeding, but in practice we don't
+                # want to optimize for that case, so just do it here.
                 if self._enable_crashtracker:
                     LOG.debug("Starting the crashtracker")
+                    if self._crashtracker_debug_url:
+                        ddup.set_crashtracker_url(self._crashtracker_debug_url)
                     ddup.start_crashtracker()
                 return []
             except Exception as e:

@@ -287,7 +287,9 @@ class ProfilingConfig(En):
         )
 
         libdd_enabled = En.d(
-            bool, lambda c: (_is_libdd_required(c) or c.crashtracker.enabled or c._libdd_enabled) and _check_for_ddup_available()
+            bool,
+            lambda c: (_is_libdd_required(c) or c.crashtracker.enabled or c._libdd_enabled)
+            and _check_for_ddup_available(),
         )
 
     class Crashtracker(En):
@@ -299,6 +301,15 @@ class ProfilingConfig(En):
             default=False,
             help_type="Boolean",
             help="Enables the crashtracker",
+        )
+
+        debug_url = En.v(
+            t.Optional[str],
+            "debug_url",
+            default=None,
+            help_type="String",
+            help="Overrides the URL parameter set by the ddtrace library.  This is for testing and debugging purposes"
+            " and is not generally useful for end-users.",
         )
 
         stdout_filename = En.v(

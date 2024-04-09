@@ -58,6 +58,7 @@ extern "C"
                          int64_t line);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+    void ddup_config_crashtracker_url(std::string_view url);
     void ddup_config_crashtracker_stdout_filename(std::string_view filename);
     void ddup_config_crashtracker_stderr_filename(std::string_view filename);
     void ddup_config_crashtracker_alt_stack(bool alt_stack);

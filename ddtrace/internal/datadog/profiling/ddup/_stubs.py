@@ -24,6 +24,11 @@ def config(
 
 
 @not_implemented
+def set_crashtracker_url(url: Optional[str]) -> None:
+    pass
+
+
+@not_implemented
 def set_crashtracker_stdout_filename(filename: Optional[str]) -> None:
     pass
 
