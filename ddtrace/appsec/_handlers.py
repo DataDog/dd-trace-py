@@ -387,7 +387,7 @@ def _custom_protobuf_getattribute(self, name):
     return ret
 
 
-_custom_protobuf_getattribute.__datadog_custom = True
+_custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defined]
 
 
 # Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
