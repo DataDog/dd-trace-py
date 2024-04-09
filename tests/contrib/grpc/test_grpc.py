@@ -17,6 +17,7 @@ from ddtrace.contrib.grpc import constants
 from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase, override_env
 from tests.utils import snapshot
@@ -31,6 +32,17 @@ from .hello_pb2_grpc import add_HelloServicer_to_server
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
+log = get_logger(__name__)
+
+
+def _check_test_range(value):
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    ranges = get_tainted_ranges(value)
+    assert len(ranges) == 1
+    source = ranges[0].source
+    assert source.name == "http.request.grpc_body"
+    assert hasattr(source, "value")
+
 
 class GrpcTestCase(TracerTestCase):
     def setUp(self):
@@ -39,6 +51,65 @@ class GrpcTestCase(TracerTestCase):
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
         self._start_server()
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
+    def test_taint_iast_single(self):
+        with override_env({"DD_IAST_ENABLED": "True"}):
+            with self.override_config("grpc", dict(service_name="myclientsvc")):
+                with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                    stub1 = HelloStub(channel1)
+                    res = stub1.SayHello(HelloRequest(name="test"))
+                    assert "response" in res
+                    assert hasattr(res["response"], "value")
+                    assert hasattr(res["response"].value, "message")
+                    _check_test_range(res['response'].value.message)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
+    def test_taint_iast_twice(self):
+        with override_env({"DD_IAST_ENABLED": "True"}):
+            with self.override_config("grpc", dict(service_name="myclientsvc")):
+                with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                    stub1 = HelloStub(channel1)
+                    responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
+                    for res in responses_iterator:
+                        assert "response" in res
+                        assert hasattr(res["response"], "value")
+                        assert hasattr(res["response"].value, "message")
+                        _check_test_range(res['response'].value.message)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
+    def test_taint_iast_repeatedly(self):
+        with override_env({"DD_IAST_ENABLED": "True"}):
+            with self.override_config("grpc", dict(service_name="myclientsvc")):
+                with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                    stub1 = HelloStub(channel1)
+                    requests_iterator = iter(
+                        HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
+                    responses_iterator = stub1.SayHelloRepeatedly(requests_iterator)
+                    for res in responses_iterator:
+                        assert "response" in res
+                        assert hasattr(res["response"], "value")
+                        assert hasattr(res["response"].value, "message")
+                        _check_test_range(res['response'].value.message)
+
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
+    def test_taint_iast_last(self):
+        with override_env({"DD_IAST_ENABLED": "True"}):
+            with self.override_config("grpc", dict(service_name="myclientsvc")):
+                with self.override_config("grpc_server", dict(service_name="myserversvc")):
+                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
+                    stub1 = HelloStub(channel1)
+                    requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
+                    res = stub1.SayHelloLast(requests_iterator)
+                    assert "response" in res
+                    assert hasattr(res["response"], "value")
+                    assert hasattr(res["response"].value, "message")
+                    _check_test_range(res['response'].value.message)
+
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
@@ -625,19 +696,6 @@ class GrpcTestCase(TracerTestCase):
 
         self._check_server_span(spans[1], "mysvc", "SayHello", "unary")
         self._check_client_span(spans[0], "grpc-client", "SayHello", "unary")
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
-    def test_jjj_iast(self):
-        # DEV: stop and restart server to catch overridden pin
-        with override_env({"DD_IAST_ENABLED": "True"}):
-            with self.override_config("grpc", dict(service_name="myclientsvc")):
-                with self.override_config("grpc_server", dict(service_name="myserversvc")):
-                    channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
-                    stub1 = HelloStub(channel1)
-                    stub1.SayHello(HelloRequest(name="test"))
-                    channel1.close()
-
-                spans = self.get_spans_with_sync_and_assert(size=2)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_config_override(self):

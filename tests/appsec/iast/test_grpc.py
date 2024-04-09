@@ -28,7 +28,6 @@ from tests.appsec.iast.fixtures.grpc.api import ApiServer, ApiClient
 
 _GRPC_PORT = 50531
 
-
 class GrpcTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
@@ -55,7 +54,6 @@ class GrpcTestCase(TracerTestCase):
     def _stop_server(self):
         self._server.stop(None)
         self._server_pool.shutdown(wait=True)
-
 
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):

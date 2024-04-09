@@ -366,8 +366,6 @@ def _custom_protobuf_getattribute(self, name):
     from google._upb._message import MessageMapContainer
 
     ret = type(self).__saved_getattr(self, name)
-    log.warning("JJJ type returned by __saved_getattr: %s", type(ret))
-    # Also for iterables, maps, etc
     if isinstance(ret, (str, bytes, bytearray)):
         ret = taint_pyobject(
             pyobject=ret,
@@ -404,7 +402,6 @@ def _patch_protobuf_class(cls):
 
 
 def _on_grpc_response(response, message):
-    log.warning("JJJ type(response): %s", type(response))  # hello.Hello
     msg_cls = type(response)
     _patch_protobuf_class(msg_cls)
 
@@ -416,22 +413,13 @@ def _on_grpc_response(response, message):
 
         elif 'Item' in str_type and 'Items' not in str_type:
             msg = response.name
-            log.warning("JJJ items response type: %s", type(msg))
 
         elif 'MsgMap' in str_type:
             msg = response.msgMapTest
-            log.warning("JJJ map response: %s", msg)
-            log.warning("JJJ map response type: %s", type(msg))
-            log.warning("JJJ map[1]: %s", msg[1])
-            log.warning("JJJ map[1].type: %s", type(msg[1]))
-            log.warning("JJJ map[1].name: %s", msg[1].name)
-            log.warning("JJJ ranges map[1].name: %s", get_tainted_ranges(msg[1].name))
 
             from ddtrace.appsec._iast._taint_utils import taint_structure
             from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
             tainted = taint_structure(msg[1], OriginType.GRPC_BODY, OriginType.GRPC_BODY)
-            log.warning("JJJ tainted.name: %s", tainted.name)
-            log.warning("JJJ ranges tainted.name: %s", get_tainted_ranges(tainted.name))
 
         elif 'Map' in str_type:
             msg = response.mapTest

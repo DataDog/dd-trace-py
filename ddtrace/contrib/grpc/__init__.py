@@ -72,8 +72,6 @@ To configure the gRPC integration on the server use the ``Pin`` API::
     server.add_insecure_port('localhost:50051')
     add_MyServicer_to_server(MyServicer(), server)
     server.start()
-
-JJJ add some info about how to avoid patching grpc "pb2" modules.
 """
 
 
