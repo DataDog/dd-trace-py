@@ -116,7 +116,7 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             key, value = k
         else:
             key, value = k, headers[k]
-        if key.lower() in _COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS:
+        if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name(kind, key), value)
 
