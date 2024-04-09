@@ -16,7 +16,7 @@ then
 fi
 
 # Create and activate the virtualenv
-python -m venv ${PREFIX}
+python3 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
 pip install pip --upgrade
 

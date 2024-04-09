@@ -887,7 +887,7 @@ class Config(object):
                             "email": args.get("user_handle"),
                         }
                         flare_url = f"{self._trace_agent_url}/{TRACER_FLARE_ENDPOINT}"
-                        response = requests.post(flare_url, files=flare_file, data=data)
+                        response = requests.post(flare_url, files=flare_file, data=data, timeout=30)
 
                         if response.status_code == 200:
                             log.debug("Tracer flare request successful")
