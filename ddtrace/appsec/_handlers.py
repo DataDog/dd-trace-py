@@ -387,6 +387,7 @@ def _custom_protobuf_getattribute(self, name):
 
 _custom_protobuf_getattribute.__datadog_custom = True
 
+
 # Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
 # of the original __getattribute__ method
 def _patch_protobuf_class(cls):
@@ -401,43 +402,9 @@ def _patch_protobuf_class(cls):
         cls.__getattribute__ = _custom_protobuf_getattribute
 
 
-def _on_grpc_response(response, message):
+def _on_grpc_response(response, _):
     msg_cls = type(response)
     _patch_protobuf_class(msg_cls)
-
-    try:
-        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-        str_type = str(type(response))
-        if 'Hello' in str_type:
-            msg = response.message
-
-        elif 'Item' in str_type and 'Items' not in str_type:
-            msg = response.name
-
-        elif 'MsgMap' in str_type:
-            msg = response.msgMapTest
-
-            from ddtrace.appsec._iast._taint_utils import taint_structure
-            from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
-            tainted = taint_structure(msg[1], OriginType.GRPC_BODY, OriginType.GRPC_BODY)
-
-        elif 'Map' in str_type:
-            msg = response.mapTest
-            log.warning("JJJ map response: %s", msg)
-            log.warning("JJJ map response type: %s", type(msg))
-            log.warning("JJJ map value type: %s", type(msg[1]))
-            log.warning("JJJ map[1]: %s", msg[1])
-            log.warning("JJJ ranges map[1]: %s", get_tainted_ranges(msg[1]))
-
-        else:
-            return response
-
-        log.warning("JJJ msg with new method: %s", msg)
-        ranges = get_tainted_ranges(msg)
-        log.warning("JJJ msg ranges: %s", ranges)
-    except:
-        log.warning("JJJ boom", exc_info=True)
-
     return response
 
 
