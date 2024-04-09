@@ -171,7 +171,7 @@ Datadog::Crashtracker::start()
 
   auto result = ddog_prof_Crashtracker_init(config, metadata);
   ddog_Vec_Tag_drop(tags);
-  if (result.tag != DDOG_PROF_PROFILE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+  if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
     auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
     std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
     std::cerr << errmsg << std::endl;
@@ -194,7 +194,7 @@ Datadog::Crashtracker::atfork_child()
 
   auto result = ddog_prof_Crashtracker_update_on_fork(config, metadata);
   ddog_Vec_Tag_drop(tags);
-  if (result.tag != DDOG_PROF_PROFILE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+  if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
     auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
     std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
     std::cerr << errmsg << std::endl;

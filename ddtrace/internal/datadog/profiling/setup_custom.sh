@@ -50,7 +50,6 @@ declare -A target_dirs
 target_dirs["ddup"]="ddup"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
-target_dirs["crashtracker"]="crashtracker"
 
 # Compiler options
 declare -A compiler_args
@@ -176,7 +175,6 @@ print_help() {
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
-  echo "  crashtracker"
 }
 
 print_cmake_args() {
@@ -291,7 +289,6 @@ add_target() {
     all|--)
       targets+=("stack_v2")
       targets+=("ddup")
-      targets+=("crashtracker")
       ;;
     dd_wrapper)
       # We always build dd_wrapper, so no need to add it to the list
@@ -301,9 +298,6 @@ add_target() {
       ;;
     ddup)
       targets+=("ddup")
-      ;;
-    crashtracker)
-      targets+=("crashtracker")
       ;;
     *)
       echo "Unknown target: $1"

@@ -4,14 +4,6 @@
 using namespace Datadog;
 
 void
-DdogProfExporterDeleter::operator()(ddog_prof_Exporter* ptr) const
-{
-    // According to the rust docs, the `cancel()` call is synchronous
-    // https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html#method.cancel
-    ddog_prof_Exporter_drop(ptr);
-}
-
-void
 DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
 {
     if (ptr != nullptr) {
