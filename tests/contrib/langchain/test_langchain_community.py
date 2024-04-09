@@ -1238,14 +1238,12 @@ class TestLLMObsLangchain:
         for idx, span in enumerate(trace):
             kind, kwargs = expected_spans_data[idx]
             expected_span_event = None
-            if kind == 'chain':
+            if kind == "chain":
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
             else:
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_calls(span, **kwargs)
-            
-            expected_llmobs_writer_calls += [
-                mock.call.enqueue(expected_span_event)
-            ]
+
+            expected_llmobs_writer_calls += [mock.call.enqueue(expected_span_event)]
 
         return expected_llmobs_writer_calls
 
@@ -1288,17 +1286,17 @@ class TestLLMObsLangchain:
             parameters["max_tokens"] = int(max_tokens)
 
         return _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=span.get_tag("langchain.request.model"),
-                    model_provider=span.get_tag("langchain.request.provider"),
-                    input_messages=[input_meta],
-                    output_messages=[output_meta],
-                    parameters=parameters,
-                    token_metrics={},
-                    tags={
-                        "ml_app": "langchain_community_test",
-                    },
-                )
+            span,
+            model_name=span.get_tag("langchain.request.model"),
+            model_provider=span.get_tag("langchain.request.provider"),
+            input_messages=[input_meta],
+            output_messages=[output_meta],
+            parameters=parameters,
+            token_metrics={},
+            tags={
+                "ml_app": "langchain_community_test",
+            },
+        )
 
     @classmethod
     def _test_llmobs_invoke(
@@ -1318,13 +1316,9 @@ class TestLLMObsLangchain:
             generate_trace("Can you explain what an LLM chain is?")
         trace = mock_tracer.pop_traces()[0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(
-            trace=trace,
-            expected_spans_data=expected_spans_data
-        )
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(trace=trace, expected_spans_data=expected_spans_data)
         assert mock_llmobs_writer.enqueue.call_count == len(expected_spans_data)
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
-            
 
     def test_llmobs_openai_llm(self, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain_openai.OpenAI()
@@ -1346,7 +1340,7 @@ class TestLLMObsLangchain:
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="cohere_completion_sync.yaml",
-            expected_spans_data=[("llm", {"provider": "cohere", "input_role": None, "output_role": None})]
+            expected_spans_data=[("llm", {"provider": "cohere", "input_role": None, "output_role": None})],
         )
 
     def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1358,7 +1352,7 @@ class TestLLMObsLangchain:
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="ai21_completion_sync.yaml",
-            expected_spans_data=[("llm", {"provider": "ai21", "input_role": None, "output_role": None})]
+            expected_spans_data=[("llm", {"provider": "ai21", "input_role": None, "output_role": None})],
         )
 
     def test_llmobs_openai_chat_model(self, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1370,9 +1364,7 @@ class TestLLMObsLangchain:
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            expected_spans_data=[
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})
-            ]
+            expected_spans_data=[("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})],
         )
 
     def test_llmobs_openai_chat_model_custom_role(self, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1384,9 +1376,7 @@ class TestLLMObsLangchain:
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            expected_spans_data=[
-                ("llm", {"provider": "openai", "input_role": "custom", "output_role": "assistant"})
-            ]
+            expected_spans_data=[("llm", {"provider": "openai", "input_role": "custom", "output_role": "assistant"})],
         )
 
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1405,7 +1395,7 @@ class TestLLMObsLangchain:
             cassette_name="lcel_openai_chain_call.yaml",
             expected_spans_data=[
                 ("chain", {"input_parameters": {"input": "Can you explain what an LLM chain is?"}}),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None})
+                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
             ],
         )
 
@@ -1423,7 +1413,9 @@ class TestLLMObsLangchain:
         complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
 
         self._test_llmobs_invoke(
-            generate_trace=lambda inputs: complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"}),
+            generate_trace=lambda inputs: complete_chain.invoke(
+                {"person": "Spongebob Squarepants", "language": "Spanish"}
+            ),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
@@ -1432,7 +1424,7 @@ class TestLLMObsLangchain:
                 ("chain", {"input_parameters": {"person": "Spongebob Squarepants", "language": "Spanish"}}),
                 ("chain", {"input_parameters": {"person": "Spongebob Squarepants", "language": "Spanish"}}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})
+                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
         )
 
@@ -1453,6 +1445,6 @@ class TestLLMObsLangchain:
                 ("chain", {"input_parameters": {"input.0": "chickens", "input.1": "cows", "input.2": "pigs"}}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})
+                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
         )

@@ -579,10 +579,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain"
+        pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True, interface_type="chain"
     )
     inputs = None
     final_outputs = {}
@@ -642,10 +639,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain"
+        pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True, interface_type="chain"
     )
     inputs = None
     final_outputs = {}
@@ -715,10 +709,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     """
     integration = langchain._datadog_integration
     span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain"
+        pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True, interface_type="chain"
     )
     raw_inputs, inputs = None, None
     try:
@@ -762,10 +753,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     """
     integration = langchain._datadog_integration
     span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain"
+        pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), submit_to_llmobs=True, interface_type="chain"
     )
     raw_inputs, inputs = None, None
     try:

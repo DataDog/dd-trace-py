@@ -94,7 +94,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         prompts: List[Any],
         completions: Any,
-        err: bool = False,
+        err: Optional[bool] = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
 
@@ -112,10 +112,10 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         chat_messages: List[List[Any]],
         chat_completions: Any,
-        err: bool = False,
+        err: Optional[bool] = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
-        
+
         input_messages = []
         for message_set in chat_messages:
             for message in message_set:
@@ -144,17 +144,14 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     def _llmobs_set_meta_tags_from_chain(
-        self,
-        span: Span,
-        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
-        input_parameters: dict
+        self, span: Span, inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]], input_parameters: dict
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
             if isinstance(inputs, dict):
                 input_parameters.update(inputs)
-            elif isinstance(inputs, list): # batched chain call
+            elif isinstance(inputs, list):  # batched chain call
                 input_parameters = {}
                 for idx, inp in enumerate(inputs):
                     if isinstance(inp, dict):
@@ -165,7 +162,7 @@ class LangChainIntegration(BaseLLMIntegration):
             elif isinstance(inputs, str):
                 span.set_tag_str(INPUT_VALUE, inputs)
                 return
-            
+
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
     def _set_base_span_tags(  # type: ignore[override]

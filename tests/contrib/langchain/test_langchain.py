@@ -1271,14 +1271,12 @@ class TestLLMObsLangchain:
         for idx, span in enumerate(trace):
             kind, kwargs = expected_spans_data[idx]
             expected_span_event = None
-            if kind == 'chain':
+            if kind == "chain":
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
             else:
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_calls(span, **kwargs)
-            
-            expected_llmobs_writer_calls += [
-                mock.call.enqueue(expected_span_event)
-            ]
+
+            expected_llmobs_writer_calls += [mock.call.enqueue(expected_span_event)]
 
         return expected_llmobs_writer_calls
 
@@ -1321,17 +1319,17 @@ class TestLLMObsLangchain:
             parameters["max_tokens"] = int(max_tokens)
 
         return _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=span.get_tag("langchain.request.model"),
-                    model_provider=span.get_tag("langchain.request.provider"),
-                    input_messages=[input_meta],
-                    output_messages=[output_meta],
-                    parameters=parameters,
-                    token_metrics={},
-                    tags={
-                        "ml_app": "langchain_test",
-                    },
-                )
+            span,
+            model_name=span.get_tag("langchain.request.model"),
+            model_provider=span.get_tag("langchain.request.provider"),
+            input_messages=[input_meta],
+            output_messages=[output_meta],
+            parameters=parameters,
+            token_metrics={},
+            tags={
+                "ml_app": "langchain_test",
+            },
+        )
 
     @classmethod
     def _test_llmobs_invoke(
@@ -1351,10 +1349,7 @@ class TestLLMObsLangchain:
             generate_trace("Can you explain what an LLM chain is?")
         trace = mock_tracer.pop_traces()[0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(
-            trace=trace,
-            expected_spans_data=expected_spans_data
-        )
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(trace=trace, expected_spans_data=expected_spans_data)
         assert mock_llmobs_writer.enqueue.call_count == len(expected_spans_data)
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
@@ -1434,10 +1429,7 @@ class TestLLMObsLangchain:
         )
 
     def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
-        prompt = langchain.PromptTemplate(
-            input_variables=["input"],
-            template="Can you explain what {input} is?"
-        )
+        prompt = langchain.PromptTemplate(input_variables=["input"], template="Can you explain what {input} is?")
         chat = langchain.chat_models.ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=256)
         chain = langchain.chains.LLMChain(llm=chat, prompt=prompt)
 
@@ -1452,7 +1444,6 @@ class TestLLMObsLangchain:
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
         )
-
 
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         template1 = "what is the city {person} is from?"
@@ -1482,7 +1473,9 @@ class TestLLMObsLangchain:
         )
 
         self._test_llmobs_invoke(
-            generate_trace=lambda prompt: sequential_chain.run({"person": "Sponegog Squarepants", "language": "Spanish"}),
+            generate_trace=lambda prompt: sequential_chain.run(
+                {"person": "Sponegog Squarepants", "language": "Spanish"}
+            ),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
@@ -1491,11 +1484,16 @@ class TestLLMObsLangchain:
                 ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
                 ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("chain", {"input_parameters": {
-                    "person": "Sponegog Squarepants",
-                    "language": "Spanish",
-                    "city": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom."
-                }}),
+                (
+                    "chain",
+                    {
+                        "input_parameters": {
+                            "person": "Sponegog Squarepants",
+                            "language": "Spanish",
+                            "city": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom.",
+                        }
+                    },
+                ),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
         )
