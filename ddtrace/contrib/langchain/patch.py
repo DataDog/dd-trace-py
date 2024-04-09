@@ -578,7 +578,13 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain"
+    )
+    inputs = None
     final_outputs = {}
     try:
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
@@ -604,6 +610,12 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chain",
+                span,
+                inputs,
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -629,7 +641,13 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain"
+    )
+    inputs = None
     final_outputs = {}
     try:
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
@@ -653,6 +671,12 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chain",
+                span,
+                inputs,
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -690,11 +714,17 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain"
+    )
+    raw_inputs, inputs = None, None
     try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
+        raw_inputs = inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
-            if not isinstance(inputs, list):
+            if not isinstance(raw_inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
                 if isinstance(inp, str):
@@ -714,6 +744,12 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chain",
+                span,
+                raw_inputs,
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -725,11 +761,17 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain"
+    )
+    raw_inputs, inputs = None, None
     try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
+        raw_inputs = inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
-            if not isinstance(inputs, list):
+            if not isinstance(raw_inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
                 if isinstance(inp, str):
@@ -749,6 +791,12 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "chain",
+                span,
+                raw_inputs,
+            )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output

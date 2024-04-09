@@ -1265,7 +1265,36 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
 )
 class TestLLMObsLangchain:
     @staticmethod
-    def _expected_llmobs_calls(provider, span, input_role=None, output_role=None):
+    def _expected_llmobs_calls(trace, expected_spans_data: list):
+        expected_llmobs_writer_calls = [mock.call.start()]
+
+        for idx, span in enumerate(trace):
+            kind, kwargs = expected_spans_data[idx]
+            expected_span_event = None
+            if kind == 'chain':
+                expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
+            else:
+                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_calls(span, **kwargs)
+            
+            expected_llmobs_writer_calls += [
+                mock.call.enqueue(expected_span_event)
+            ]
+
+        return expected_llmobs_writer_calls
+
+    @staticmethod
+    def _expected_llmobs_chain_call(span, input_parameters=None):
+        return _expected_llmobs_llm_span_event(
+            span,
+            span_kind="workflow",
+            parameters=input_parameters or {},
+            tags={
+                "ml_app": "langchain_test",
+            },
+        )
+
+    @staticmethod
+    def _expected_llmobs_llm_calls(span, provider="openai", input_role=None, output_role=None):
         input_meta = {"content": mock.ANY}
         if input_role is not None:
             input_meta["role"] = input_role
@@ -1273,8 +1302,6 @@ class TestLLMObsLangchain:
         output_meta = {"content": mock.ANY}
         if output_role is not None:
             output_meta["role"] = output_role
-
-        expected_llmobs_writer_calls = [mock.call.start()]
 
         temperature_key = "temperature"
         if provider == "huggingface_hub":
@@ -1285,63 +1312,56 @@ class TestLLMObsLangchain:
         else:
             max_tokens_key = "max_tokens"
 
-        expected_llmobs_writer_calls += [
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
+        parameters = {}
+        temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
+        max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
+        if temperature is not None:
+            parameters["temperature"] = float(temperature)
+        if max_tokens is not None:
+            parameters["max_tokens"] = int(max_tokens)
+
+        return _expected_llmobs_llm_span_event(
                     span,
                     model_name=span.get_tag("langchain.request.model"),
                     model_provider=span.get_tag("langchain.request.provider"),
                     input_messages=[input_meta],
                     output_messages=[output_meta],
-                    parameters={
-                        "temperature": float(
-                            span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}") or 0.0
-                        ),
-                        "max_tokens": int(
-                            span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}") or 0
-                        ),
-                    },
+                    parameters=parameters,
                     token_metrics={},
                     tags={
                         "ml_app": "langchain_test",
                     },
                 )
-            )
-        ]
-        return expected_llmobs_writer_calls
 
     @classmethod
     def _test_llmobs_invoke(
         cls,
-        provider,
         generate_trace,
         request_vcr,
         mock_llmobs_writer,
         mock_tracer,
         cassette_name,
-        input_role=None,
-        output_role=None,
+        expected_spans_data=[("llm", {"provider": "openai", "input_role": None, "output_role": None})],
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
         LLMObs.enable(tracer=mock_tracer)
 
-        if sys.version_info < (3, 10, 0) and (provider in ["openai", "ai21"]):
-            cassette_name = cassette_name.replace(".yaml", "_39.yaml")
-
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
-        span = mock_tracer.pop_traces()[0][0]
+        trace = mock_tracer.pop_traces()[0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(provider, span, input_role, output_role)
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        expected_llmobs_writer_calls = cls._expected_llmobs_calls(
+            trace=trace,
+            expected_spans_data=expected_spans_data
+        )
+        assert mock_llmobs_writer.enqueue.call_count == len(expected_spans_data)
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
     def test_llmobs_openai_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.OpenAI()
 
         self._test_llmobs_invoke(
-            provider="openai",
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
@@ -1353,24 +1373,24 @@ class TestLLMObsLangchain:
         llm = langchain.llms.Cohere(model="cohere.command-light-text-v14")
 
         self._test_llmobs_invoke(
-            provider="cohere",
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="cohere_completion_sync.yaml",
+            expected_spans_data=[("llm", {"provider": "cohere", "input_role": None, "output_role": None})],
         )
 
     def test_llmobs_ai21_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.AI21()
 
         self._test_llmobs_invoke(
-            provider="ai21",
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="ai21_completion_sync.yaml",
+            expected_spans_data=[("llm", {"provider": "ai21", "input_role": None, "output_role": None})],
         )
 
     def test_llmobs_huggingfacehub_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1381,38 +1401,101 @@ class TestLLMObsLangchain:
         )
 
         self._test_llmobs_invoke(
-            provider="huggingface_hub",
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="huggingfacehub_completion_sync.yaml",
+            expected_spans_data=[("llm", {"provider": "huggingface_hub", "input_role": None, "output_role": None})],
         )
 
     def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_invoke(
-            provider="openai",
             generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            input_role="user",
-            output_role="assistant",
+            expected_spans_data=[("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})],
         )
 
     def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_invoke(
-            provider="openai",
             generate_trace=lambda prompt: chat([langchain.schema.ChatMessage(content=prompt, role="custom")]),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            input_role="custom",
-            output_role="assistant",
+            expected_spans_data=[("llm", {"provider": "openai", "input_role": "custom", "output_role": "assistant"})],
+        )
+
+    def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        prompt = langchain.PromptTemplate(
+            input_variables=["input"],
+            template="Can you explain what {input} is?"
+        )
+        chat = langchain.chat_models.ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=256)
+        chain = langchain.chains.LLMChain(llm=chat, prompt=prompt)
+
+        self._test_llmobs_invoke(
+            generate_trace=lambda prompt: chain.invoke({"input": "an LLM chain"}),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="chain_openai_completion_sync.yaml",
+            expected_spans_data=[
+                ("chain", {"input_parameters": {"input": "an LLM chain"}}),
+                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+            ],
+        )
+
+
+    def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+        template1 = "what is the city {person} is from?"
+        template2 = "what country is the city {city} in? respond in {language}"
+
+        prompt1 = langchain.PromptTemplate(input_variables=["person"], template=template1)
+        prompt2 = langchain.PromptTemplate(input_variables=["city", "language"], template=template2)
+
+        chat = langchain.chat_models.ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=256)
+
+        chain1 = langchain.chains.LLMChain(
+            llm=chat,
+            prompt=prompt1,
+            output_key="city",
+        )
+
+        chain2 = langchain.chains.LLMChain(
+            llm=chat,
+            prompt=prompt2,
+            output_key="final_output",
+        )
+
+        sequential_chain = langchain.chains.SequentialChain(
+            chains=[chain1, chain2],
+            input_variables=["person", "language"],
+            output_variables=["final_output"],
+        )
+
+        self._test_llmobs_invoke(
+            generate_trace=lambda prompt: sequential_chain.run({"person": "Sponegog Squarepants", "language": "Spanish"}),
+            request_vcr=request_vcr,
+            mock_llmobs_writer=mock_llmobs_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="squential_chain_nested.yaml",
+            expected_spans_data=[
+                ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
+                ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
+                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+                ("chain", {"input_parameters": {
+                    "person": "Sponegog Squarepants",
+                    "language": "Spanish",
+                    "city": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom."
+                }}),
+                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+            ],
         )

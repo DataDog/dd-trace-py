@@ -1,0 +1,180 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "what is the city Sponegog Squarepants
+      is from?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false, "n":
+      1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '183'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.13", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-9CAI07PG14SFGrnvGA8fMLYdMgUpK\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1712686516,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"SpongeBob SquarePants is from the fictional
+        underwater city of Bikini Bottom.\"\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        20,\n    \"completion_tokens\": 17,\n    \"total_tokens\": 37\n  },\n  \"system_fingerprint\":
+        \"fp_b28b39ffa8\"\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 871c7b46aac50fa8-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Apr 2024 18:15:16 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=nVSik.HpqeKrsvD0ZqZAbyBflIT2fEVYDbaV5PhTonA-1712686516-1.0.1.1-AArGAzH8NhmtUxarWPiMGmUD69x5DDU0h0ZtXd3yEbBWTAFIwXRMufBh3obcnsU91asL6Da5YM_mc.zvwU9KhA;
+        path=/; expires=Tue, 09-Apr-24 18:45:16 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=XodN.YfZTnYY3RLJGblTP43lZk_31akP6_F1R86YWhQ-1712686516778-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '408'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '198'
+      x-ratelimit-remaining-tokens:
+      - '39731'
+      x-ratelimit-reset-requests:
+      - 13m29.656s
+      x-ratelimit-reset-tokens:
+      - 403ms
+      x-request-id:
+      - req_92de730952a141d5e8df0fb46ca6e935
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": "what country is the city SpongeBob
+      SquarePants is from the fictional underwater city of Bikini Bottom. in? respond
+      in Spanish"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false,
+      "n": 1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '262'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=nVSik.HpqeKrsvD0ZqZAbyBflIT2fEVYDbaV5PhTonA-1712686516-1.0.1.1-AArGAzH8NhmtUxarWPiMGmUD69x5DDU0h0ZtXd3yEbBWTAFIwXRMufBh3obcnsU91asL6Da5YM_mc.zvwU9KhA;
+        _cfuvid=XodN.YfZTnYY3RLJGblTP43lZk_31akP6_F1R86YWhQ-1712686516778-0.0.1.1-604800000
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.13", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-9CAI0f0V19DHszbs0d1DXBOgS1fhI\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1712686516,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"La ciudad de SpongeBob SquarePants
+        es de la ficticia ciudad submarina de Fondo de Bikini.\"\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        33,\n    \"completion_tokens\": 23,\n    \"total_tokens\": 56\n  },\n  \"system_fingerprint\":
+        \"fp_b28b39ffa8\"\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 871c7b4a492878df-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Apr 2024 18:15:17 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '378'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '197'
+      x-ratelimit-remaining-tokens:
+      - '39711'
+      x-ratelimit-reset-requests:
+      - 20m41.081s
+      x-ratelimit-reset-tokens:
+      - 433ms
+      x-request-id:
+      - req_2cc4e3569e8c4113f3aa7758f4e9cc9f
+    status:
+      code: 200
+      message: OK
+version: 1

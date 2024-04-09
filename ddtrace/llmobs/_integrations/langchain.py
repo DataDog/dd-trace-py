@@ -3,12 +3,14 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -39,25 +41,24 @@ class LangChainIntegration(BaseLLMIntegration):
         operation: str,  # oneof "llm","chat","chain"
         span: Span,
         inputs: Any,
-        response: Any,
-        error: bool = False,
+        response: Optional[Any] = None,
+        error: Optional[bool] = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
         model_provider = span.get_tag(PROVIDER)
-        span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, model_provider or "")
 
-        self._llmobs_set_input_parameters(span, model_provider)
+        input_parameters = self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            pass
+            self._llmobs_set_meta_tags_from_chain(span, inputs, input_parameters)
 
         span.set_tag_str(METRICS, json.dumps({}))
 
@@ -65,9 +66,9 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         model_provider: Optional[str] = None,
-    ) -> None:
+    ) -> dict:
         if not model_provider:
-            return
+            return {}
 
         input_parameters = {}
         temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
@@ -79,12 +80,14 @@ class LangChainIntegration(BaseLLMIntegration):
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
 
-        if temperature:
+        if temperature is not None:
             input_parameters["temperature"] = float(temperature)
-        if max_tokens:
+        if max_tokens is not None:
             input_parameters["max_tokens"] = int(max_tokens)
         if input_parameters:
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+
+        return input_parameters
 
     def _llmobs_set_meta_tags_from_llm(
         self,
@@ -93,6 +96,8 @@ class LangChainIntegration(BaseLLMIntegration):
         completions: Any,
         err: bool = False,
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+
         if isinstance(prompts, str):
             prompts = [prompts]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
@@ -109,6 +114,8 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         err: bool = False,
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+        
         input_messages = []
         for message_set in chat_messages:
             for message in message_set:
@@ -135,6 +142,31 @@ class LangChainIntegration(BaseLLMIntegration):
                         }
                     )
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+
+    def _llmobs_set_meta_tags_from_chain(
+        self,
+        span: Span,
+        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+        input_parameters: dict
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow")
+
+        if inputs is not None:
+            if isinstance(inputs, dict):
+                input_parameters.update(inputs)
+            elif isinstance(inputs, list): # batched chain call
+                input_parameters = {}
+                for idx, inp in enumerate(inputs):
+                    if isinstance(inp, dict):
+                        for k, v in inp.items():
+                            input_parameters[f"input.{idx}.{k}"] = v
+                    else:
+                        input_parameters[f"input.{idx}"] = inp
+            elif isinstance(inputs, str):
+                span.set_tag_str(INPUT_VALUE, inputs)
+                return
+            
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
