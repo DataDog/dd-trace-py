@@ -211,6 +211,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
 
         if args:
             if config.botocore["distributed_tracing"]:
+                cloud_service = None
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
@@ -219,44 +220,31 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                         )
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="events",
-                            direction=SpanDirection.OUTBOUND,
-                        )
+                        cloud_service = "events"
                     if endpoint_name == "sns" and operation == "Publish":
                         inject_trace_to_sqs_or_sns_message(
                             params,
                             span,
                             endpoint_service=endpoint_name,
                         )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sns",
-                            direction=SpanDirection.OUTBOUND,
-                        )
+                        cloud_service = "sns"
                     if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(
                             params,
                             span,
                             endpoint_service=endpoint_name,
                         )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sns",
-                            direction=SpanDirection.OUTBOUND,
-                        )
+                        cloud_service = "sns"
                     if endpoint_name == "states" and (
                         operation == "StartExecution" or operation == "StartSyncExecution"
                     ):
                         inject_trace_to_stepfunction_input(params, span)
+                        cloud_service = "stepfunctions"
+                    if cloud_service is not None:
                         span.name = schematize_cloud_messaging_operation(
                             trace_operation,
                             cloud_provider="aws",
-                            cloud_service="stepfunctions",
+                            cloud_service=cloud_service,
                             direction=SpanDirection.OUTBOUND,
                         )
                 except Exception:

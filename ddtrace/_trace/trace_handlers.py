@@ -543,7 +543,7 @@ def _on_django_after_request_headers_post(
     )
 
 
-def _on_botocore_patched_api_call(ctx, span, instance, args, params, endpoint_name, operation, aws):
+def _on_botocore_patched_api_call(span, instance, args, params, endpoint_name, operation, aws):
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
