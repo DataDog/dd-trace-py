@@ -23,4 +23,3 @@ class HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 with socketserver.TCPServer(("", PORT), HTTPRequestHandler) as httpd:
     print(f"Serving at port {PORT}")
     httpd.serve_forever()
-

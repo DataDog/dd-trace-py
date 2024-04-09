@@ -217,7 +217,7 @@ class _ProfilerInstance(service.Service):
         if self._export_libdd_enabled:
             try:
                 # If crashtracker is enabled, propagate the configuration
-                if self._enable_crashtracker:
+                if self._crashtracker_enabled:
                     # We don't check file writability, we leave that to the crashtracker
                     if self._crashtracker_stdout_filename:
                         ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
@@ -245,11 +245,16 @@ class _ProfilerInstance(service.Service):
                 # Start the crashtracker only after libddup has been configured and started.
                 # Conceptually, the crashtracker can work without ddup.start() succeeding, but in practice we don't
                 # want to optimize for that case, so just do it here.
-                if self._enable_crashtracker:
+                # Don't allow this to fail the outer call
+                if self._crashtracker_enabled:
                     LOG.debug("Starting the crashtracker")
-                    if self._crashtracker_debug_url:
-                        ddup.set_crashtracker_url(self._crashtracker_debug_url)
-                    ddup.start_crashtracker()
+                    try:
+                        if self._crashtracker_debug_url:
+                            ddup.set_crashtracker_url(self._crashtracker_debug_url)
+                        ddup.start_crashtracker()
+                    except Exception as e:
+                        LOG.error("Failed to start the crashtracker (%s)", e)
+
                 return []
             except Exception as e:
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
