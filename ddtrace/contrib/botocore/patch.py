@@ -118,9 +118,11 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
-    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
-        span.set_tag_str(COMPONENT, config.botocore.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    with core.context_with_data(
+        "botocore.patched_lib_function",
+        span_name="{}.{}".format(original_func.__module__, original_func.__name__),
+        tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
+    ) as ctx, ctx.get_item(ctx.get_item("call_key")):
         return original_func(*args, **kwargs)
 
 
