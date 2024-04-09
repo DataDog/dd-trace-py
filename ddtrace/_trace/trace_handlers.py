@@ -26,8 +26,8 @@ from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
-from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.vendor import wrapt
 
 
@@ -543,36 +543,51 @@ def _on_django_after_request_headers_post(
     )
 
 
-def _on_botocore_patched_api_call(span, instance, args, params, endpoint_name, operation, aws):
-    span.set_tag_str(COMPONENT, config.botocore.integration_name)
-    # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag(SPAN_MEASURED_KEY)
+def _on_botocore_patched_api_call_started(ctx):
+    callback = ctx.get_item("context_started_callback")
+    callback(
+        ctx.get_item(ctx.get_item("call_key")),
+        ctx.get_item("instance"),
+        ctx.get_item("args"),
+        ctx.get_item("params"),
+        ctx.get_item("endpoint_name"),
+        ctx.get_item("operation"),
+    )
 
-    if args:
-        # DEV: join is the fastest way of concatenating strings that is compatible
-        # across Python versions (see
-        # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
-        span.resource = ".".join((endpoint_name, operation.lower()))
-        span.set_tag("aws_service", endpoint_name)
 
-        if params and not config.botocore["tag_no_params"]:
-            aws._add_api_param_span_tags(span, endpoint_name, params)
+def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_response_metadata_tags):
+    span = ctx.get_item("instrumented_api_call")
+    # `ClientError.response` contains the result, so we can still grab response metadata
+    set_response_metadata_tags(span, response)
 
-    else:
-        span.resource = endpoint_name
+    # If we have a status code, and the status code is not an error,
+    #   then ignore the exception being raised
+    status_code = span.get_tag(http.STATUS_CODE)
+    if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+        span._ignore_exception(exception_type)
 
-    region_name = deep_getattr(instance, "meta.region_name")
 
-    span.set_tag_str("aws.agent", "botocore")
-    if operation is not None:
-        span.set_tag_str("aws.operation", operation)
-    if region_name is not None:
-        span.set_tag_str("aws.region", region_name)
-        span.set_tag_str("region", region_name)
+def _on_botocore_patched_api_call_success(ctx, response, set_response_metadata_tags):
+    span = ctx.get_item("instrumented_api_call")
+    set_response_metadata_tags(span, response)
 
-    # set analytics sample rate
-    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
+
+def _on_botocore_trace_context_injection_prepared(
+    ctx, cloud_service, schematization_function, injection_function, trace_operation
+):
+    endpoint_name = ctx.get_item("endpoint_name")
+    params = ctx.get_item("params")
+    if cloud_service is not None:
+        span = ctx.get_item("instrumented_api_call")
+        inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
+        schematize_kwargs = dict(cloud_provider="aws", cloud_service=cloud_service)
+        if endpoint_name != "lambda":
+            schematize_kwargs["direction"] = SpanDirection.OUTBOUND
+        try:
+            injection_function(params, span, **inject_kwargs)
+            span.name = schematization_function(trace_operation, **schematize_kwargs)
+        except Exception:
+            log.warning("Unable to inject trace context", exc_info=True)
 
 
 def listen():
@@ -600,7 +615,10 @@ def listen():
     core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
-    core.on("botocore.patched_api_call", _on_botocore_patched_api_call)
+    core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.patched_api_call.success", _on_botocore_patched_api_call_success)
+    core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
+    core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
 
     for context_name in (
         "flask.call",
