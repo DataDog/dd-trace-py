@@ -1434,7 +1434,7 @@ class TestLLMObsLangchain:
         chain = langchain.chains.LLMChain(llm=chat, prompt=prompt)
 
         self._test_llmobs_invoke(
-            generate_trace=lambda prompt: chain.invoke({"input": "an LLM chain"}),
+            generate_trace=lambda prompt: chain.run({"input": "an LLM chain"}),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
