@@ -53,6 +53,11 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+PATCHING_FUNCTIONS = {
+    "kinesis": patched_kinesis_api_call,
+    "sqs": patched_sqs_api_call,
+    "states": patched_stepfunction_api_call,
+}
 
 log = get_logger(__name__)
 
@@ -152,43 +157,18 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    if endpoint_name == "kinesis":
-        return patched_kinesis_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "sqs":
-        return patched_sqs_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
-        return patched_bedrock_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "states":
-        return patched_stepfunction_api_call(
-            original_func=original_func, instance=instance, args=args, kwargs=kwargs, function_vars=function_vars
-        )
+    if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
+        patching_fn = patched_bedrock_api_call
     else:
-        # this is the default patched api call
-        return patched_api_call_fallback(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
+        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
+
+    return patching_fn(
+        original_func=original_func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        function_vars=function_vars,
+    )
 
 
 def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
