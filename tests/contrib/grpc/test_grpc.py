@@ -18,7 +18,8 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TracerTestCase, override_env
+from tests.utils import TracerTestCase
+from tests.utils import override_env
 from tests.utils import snapshot
 
 from .hello_pb2 import HelloReply
@@ -34,6 +35,7 @@ _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
 
 def _check_test_range(value):
     from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+
     ranges = get_tainted_ranges(value)
     assert len(ranges) == 1
     source = ranges[0].source
@@ -60,7 +62,7 @@ class GrpcTestCase(TracerTestCase):
                     assert "response" in res
                     assert hasattr(res["response"], "value")
                     assert hasattr(res["response"].value, "message")
-                    _check_test_range(res['response'].value.message)
+                    _check_test_range(res["response"].value.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_twice(self):
@@ -74,7 +76,7 @@ class GrpcTestCase(TracerTestCase):
                         assert "response" in res
                         assert hasattr(res["response"], "value")
                         assert hasattr(res["response"].value, "message")
-                        _check_test_range(res['response'].value.message)
+                        _check_test_range(res["response"].value.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_repeatedly(self):
@@ -84,14 +86,14 @@ class GrpcTestCase(TracerTestCase):
                     channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
                     stub1 = HelloStub(channel1)
                     requests_iterator = iter(
-                        HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"])
+                        HelloRequest(name=name) for name in ["first", "second", "third", "fourth", "fifth"]
+                    )
                     responses_iterator = stub1.SayHelloRepeatedly(requests_iterator)
                     for res in responses_iterator:
                         assert "response" in res
                         assert hasattr(res["response"], "value")
                         assert hasattr(res["response"].value, "message")
-                        _check_test_range(res['response'].value.message)
-
+                        _check_test_range(res["response"].value.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_last(self):
@@ -105,8 +107,7 @@ class GrpcTestCase(TracerTestCase):
                     assert "response" in res
                     assert hasattr(res["response"], "value")
                     assert hasattr(res["response"].value, "message")
-                    _check_test_range(res['response'].value.message)
-
+                    _check_test_range(res["response"].value.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
@@ -339,7 +340,6 @@ class GrpcTestCase(TracerTestCase):
         assert spans[1].service == "server1"
         assert spans[1].get_tag("tag1") == "server"
         assert spans[0].get_tag("tag2") == "client"
-
 
     def test_pin_can_be_defined_per_channel(self):
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")

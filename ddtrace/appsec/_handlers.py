@@ -359,11 +359,13 @@ def _on_django_patch():
 
 
 def _custom_protobuf_getattribute(self, name):
-    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-    from ddtrace.appsec._iast._taint_utils import taint_structure
     from collections.abc import MutableMapping
+
     from google._upb._message import MessageMapContainer
+
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import taint_structure
 
     ret = type(self).__saved_getattr(self, name)
     if isinstance(ret, (str, bytes, bytearray)):

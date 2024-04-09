@@ -24,6 +24,7 @@ from .. import trace_utils
 from . import constants
 from . import utils
 
+
 log = get_logger(__name__)
 
 
@@ -84,7 +85,6 @@ def _handle_response(span, response):
         response._response = core.dispatch_with_results(
             "grpc.response_message",
             (response._response, response),
-
         )
 
     if hasattr(response, "add_done_callback"):
@@ -96,9 +96,9 @@ def _handle_error(span, response_error, status_code):
     # exception() and traceback() methods if a computation has resulted in an
     # exception being raised
     if (
-            not callable(getattr(response_error, "cancelled", None))
-            and not callable(getattr(response_error, "exception", None))
-            and not callable(getattr(response_error, "traceback", None))
+        not callable(getattr(response_error, "cancelled", None))
+        and not callable(getattr(response_error, "exception", None))
+        and not callable(getattr(response_error, "traceback", None))
     ):
         return
 
