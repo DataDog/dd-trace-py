@@ -1,0 +1,177 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "what is the city Sponegog Squarepants
+      is from?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false, "n":
+      1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '183'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=2MI8O7Rv9khsWYblYBawx6JSLCzZ8N8Oii7gSjLMzSI-1712694097-1.0.1.1-nNlZDNve8tmg6Jxki58SMRmZP6tsIQj3KTbh3n.boOHQNPAj4DO4JAvrBaabI2_x5LiSSfsq3Tl9H.kfDFLj_Q;
+        _cfuvid=nJYdUm5tV7Yi1BQaJ3lng6IiUhLZgY97hW0j.fmcoag-1712694097984-0.0.1.1-604800000
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.18", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1RQy27CMBC85ytWPgMioTzCEaSiHiohUXGpKuSYTXBxvK69oSDEv1eGAOplDzM7
+        uzNzTgCE3oopCLWTrGpnuvl8vngzNFqfnFoePkan44KyPD28u/WrFJ2ooOIbFd9VPUW1M8ia7I1W
+        HiVjvJqO02yUv/TzyZWoaYsmyirH3UFv2OXGF9Ttp9mwVe5IKwxiCp8JAMD5OqNHu8WjmEK/c0dq
+        DEFWKKaPJQDhyUREyBB0YGlZdJ6kIstor7ZXjmyFMypg9dNIj0tpOYAOUHqqgXcIpVYxkDTQ2C36
+        X8noQWk+AZUw03ttNcyImeqeaF9cHt4MVc5TEXPYxpgHXmqrw27jUQay0Udgcjf5JQH4unbQ/Isl
+        nKfa8YZpjzYezNoKxLP1J5mOW5KJpXnig3HS+hPhFBjrTalthd55fSukdJsimxSDvCzlRCSX5A8A
+        AP//AwCy/N0lGgIAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 871d34614a6a0c88-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Apr 2024 20:21:39 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '1000'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '197'
+      x-ratelimit-remaining-tokens:
+      - '39731'
+      x-ratelimit-reset-requests:
+      - 15m16.492s
+      x-ratelimit-reset-tokens:
+      - 403ms
+      x-request-id:
+      - req_fb3d735a1f91d4876cef2a3df3d15ea9
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": "what country is the city SpongeBob
+      SquarePants is from the fictional underwater city of Bikini Bottom. in? respond
+      in Spanish"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false,
+      "n": 1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '262'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=2MI8O7Rv9khsWYblYBawx6JSLCzZ8N8Oii7gSjLMzSI-1712694097-1.0.1.1-nNlZDNve8tmg6Jxki58SMRmZP6tsIQj3KTbh3n.boOHQNPAj4DO4JAvrBaabI2_x5LiSSfsq3Tl9H.kfDFLj_Q;
+        _cfuvid=nJYdUm5tV7Yi1BQaJ3lng6IiUhLZgY97hW0j.fmcoag-1712694097984-0.0.1.1-604800000
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.18", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1RRwW7qMBC85ytWPgcEpFDCkbYgtZX67k8VcuxNcLG9rr2Riir+vTKk8N5lDzM7
+        o9nZ7wJAGC1WINResnLBjuqHh+3z4+LuZfO0fjHL5fawmW+Pj/Wf6vP4JsqsoOYDFf+qxopcsMiG
+        /IVWESVjdp3eT2eL+m5S12fCkUabZV3gUTWej7iPDY0m09l8UO7JKExiBX8LAIDv88wZvcYvsYJJ
+        +Ys4TEl2KFbXJQARyWZEyJRMYulZlDdSkWf059ivEpTptdTQGsVGGQkaYU0NPKVA/kOWsDYH4w2s
+        iZlcCQkBverRc5SAHtBCS14TaLTgZMxY78H2nYxgrXRSE2yGjcFsLIYwp+sVlroQqckX+97aK94a
+        b9J+F1Em8jlxYgoX+akAeD+31f9XgAiRXOAd0wF9Nqyqi524/ecfcjaQTCztDV/MiyGfSMfE6Hat
+        8R3GEM2lujbsmtmyqeq2lUtRnIofAAAA//8DANkDr4dEAgAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 871d346849290c88-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Apr 2024 20:21:40 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '864'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '196'
+      x-ratelimit-remaining-tokens:
+      - '39711'
+      x-ratelimit-reset-requests:
+      - 22m27.355s
+      x-ratelimit-reset-tokens:
+      - 433ms
+      x-request-id:
+      - req_54fbdd49079b466f30b88128d2853783
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,97 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Can you explain what an LLM
+      chain is?"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "stream": false,
+      "n": 1, "temperature": 0.0}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '174'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.9.18", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64"}'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3xUy27bMBC8+ysWOjWAbDgvN/YtMNKmgN0WbYAemsJYSSuRDUUS3FViIci/F5Rs
+        2UGbXnzgcIazsxo/jwASXSQLSHKFktfejOfL5ccbnIVvoj7cWrr9PNNXX6639Y/vNw8uSSPDZb8p
+        lz1rkrvaGxLtbA/ngVAoqp6+Pz2bzS+m84sOqF1BJtIqL+PzyeVYmpC58fT07HLHVE7nxMkCfo4A
+        AJ673+jRFrRNFjBN9yc1MWNFyWK4BJAEZ+JJgsyaBa0k6QHMnRWyne1rC6vVGnKF2qaAhh08WPdk
+        ARkQVrrWQgWsNGbaaGlhjSwUBuArBrEUWGkP71ar9UkKOhKl9QSuhKxhbYkZWEKTSxMIRKFA7uos
+        AiCKICNLpRaOBASzkzbDmzFVtG18YHkCaAtAqHsf+8v+2Md69fVkAvf23n6ygK8GjM9VZCmg2XOi
+        YWm9ztGYtr++TOFJ6VyBD+5RF8T/MOWDE8rjqkFcp+ueogNwYXAzgTtFf3lMIXIiQRQFUGiLFDAm
+        M7h4ezreW0Nj3BOULnRSHpnHooJrKgWCW+yMvQ72SGUSw7lT+ngvnSAPiqWhrd7NGiP/bwJR/xCc
+        of5D6tPTtuoEBbeAxSNawYp2lt6ec3LYGnfh5K6unTUtNEwFaAvaFg1L0MTATQyEIRAaIBYUSiFu
+        uWrTznypLdqcJsmuAy9DeYyrfHBZLJptjBnOS201q00gZGdjUVic7+kvI4BfXUmbV71LfHC1l424
+        B7Lcdb6XSw5/C0fgxfkOFSdojoDZdLRzmHDLQvWm1Lai4IPuO1v6TXZ2lZ3PyxKvktHL6A8AAAD/
+        /wMAhP1yA70EAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 871d344b8b1242bf-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Apr 2024 20:21:37 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=2MI8O7Rv9khsWYblYBawx6JSLCzZ8N8Oii7gSjLMzSI-1712694097-1.0.1.1-nNlZDNve8tmg6Jxki58SMRmZP6tsIQj3KTbh3n.boOHQNPAj4DO4JAvrBaabI2_x5LiSSfsq3Tl9H.kfDFLj_Q;
+        path=/; expires=Tue, 09-Apr-24 20:51:37 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=nJYdUm5tV7Yi1BQaJ3lng6IiUhLZgY97hW0j.fmcoag-1712694097984-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '3169'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '198'
+      x-ratelimit-remaining-tokens:
+      - '39733'
+      x-ratelimit-reset-requests:
+      - 8m7.918s
+      x-ratelimit-reset-tokens:
+      - 400ms
+      x-request-id:
+      - req_1a9dd63a1b1938078ff480c23d929e05
+    status:
+      code: 200
+      message: OK
+version: 1
