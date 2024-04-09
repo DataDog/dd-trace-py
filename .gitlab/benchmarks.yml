@@ -80,12 +80,9 @@ benchmark-django-simple:
 benchmark-flask-simple:
   extends: .benchmarks
   timeout: 1h 30m
-  services:
-    - name: datadog/agent:latest
-      alias: datadog-agent
   variables:
     SCENARIO: "flask_simple"
-    DD_AGENT_HOST: datadog-agent
+    DD_TRACE_AGENT_URL: unix:///var/run/datadog-agent
 
 benchmark-flask-sqli:
   extends: .benchmarks
