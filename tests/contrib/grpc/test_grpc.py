@@ -17,7 +17,6 @@ from ddtrace.contrib.grpc import constants
 from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import _unpatch_server
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase, override_env
 from tests.utils import snapshot
@@ -31,8 +30,6 @@ from .hello_pb2_grpc import add_HelloServicer_to_server
 
 _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split(".")])
-
-log = get_logger(__name__)
 
 
 def _check_test_range(value):
