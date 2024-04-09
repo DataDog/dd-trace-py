@@ -14,6 +14,7 @@ to be run at specific points during pytest execution. The most important hooks u
 from doctest import DocTest
 import json
 import re
+import sys
 from typing import Dict  # noqa:F401
 
 from _pytest.nodes import get_fslocation_from_item
@@ -452,6 +453,12 @@ def pytest_configure(config):
         _CIVisibility.enable(config=ddtrace.config.pytest)
     if _is_pytest_cov_enabled(config):
         patch_coverage()
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    # Force subsequent imports of http.client to use "their own" version. This prevents issues like vcrpy monkey
+    # patching HTTPSConnection and breaking our tracer writer thread's ability to send data
+    sys.modules.pop("http.client", None)
 
 
 def pytest_sessionstart(session):
