@@ -7,9 +7,6 @@ variables:
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $BASE_CI_IMAGE
-  services:
-    - name: datadog/agent:latest
-      alias: datadog-agent
   interruptible: true
   timeout: 1h
   script:
@@ -35,7 +32,6 @@ variables:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
-    DD_AGENT_HOST: datadog-agent
 
 benchmarks-pr-comment:
   stage: benchmarks-pr-comment
@@ -84,14 +80,18 @@ benchmark-django-simple:
 benchmark-flask-simple:
   extends: .benchmarks
   timeout: 1h 30m
+  services:
+    - name: datadog/agent:latest
+      alias: datadog-agent
   variables:
     SCENARIO: "flask_simple"
+    DD_AGENT_HOST: datadog-agent
 
 benchmark-flask-sqli:
   extends: .benchmarks
   variables:
     SCENARIO: "flask_sqli"
-    
+
 benchmark-core-api:
   extends: .benchmarks
   variables:
