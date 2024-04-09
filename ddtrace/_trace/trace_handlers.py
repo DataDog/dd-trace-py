@@ -631,7 +631,7 @@ def listen():
         "django.process_exception",
         "django.func.wrapped",
         "botocore.instrumented_api_call",
-        "botocore.patched_lib_function",
+        "botocore.instrumented_lib_function",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
