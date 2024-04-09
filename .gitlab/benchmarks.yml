@@ -15,7 +15,7 @@ variables:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
-    - ./steps/run-benchmarks.sh
+    - BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t
     - ./steps/analyze-results.sh
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
@@ -82,7 +82,6 @@ benchmark-flask-simple:
   timeout: 1h 30m
   variables:
     SCENARIO: "flask_simple"
-    DD_TRACE_AGENT_URL: unix:///var/run/datadog-agent
 
 benchmark-flask-sqli:
   extends: .benchmarks
@@ -145,3 +144,4 @@ benchmark-serverless-trigger:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+
