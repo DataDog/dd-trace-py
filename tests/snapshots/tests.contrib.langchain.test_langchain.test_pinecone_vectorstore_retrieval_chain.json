@@ -6,18 +6,18 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "6615aa1d00000000",
       "langchain.request.inputs.question": "Who was Alan Turing?",
       "langchain.request.type": "chain",
       "langchain.response.outputs.answer": " Alan Turing was a brilliant mathematician and cryptographer who was the founder of modern-day computer science and artificial i...",
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "cfe560562fe5439bb5acb2287ceb37cb"
+      "runtime-id": "5bdc2648fed64ec2a49138caab5a0bf0"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -28,10 +28,10 @@
       "langchain.tokens.prompt_tokens": 2889,
       "langchain.tokens.total_cost": 0.06042,
       "langchain.tokens.total_tokens": 3021,
-      "process_id": 13644
+      "process_id": 45546
     },
-    "duration": 32621964,
-    "start": 1694032718660734106
+    "duration": 13629000,
+    "start": 1712695837726187000
   },
      {
        "name": "langchain.request",
@@ -43,7 +43,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "654a694400000000",
          "langchain.request.api_key": "...key>",
          "langchain.request.pinecone.environment": "<not-a-real-env>",
          "langchain.request.pinecone.index_name": "langchain-retrieval",
@@ -76,8 +75,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 4
        },
-       "duration": 25801185,
-       "start": 1694032718661072150
+       "duration": 10320000,
+       "start": 1712695837726395000
      },
         {
           "name": "langchain.request",
@@ -89,7 +88,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.inputs.0.text": "Who was Alan Turing?",
             "langchain.request.model": "text-embedding-ada-002",
@@ -101,8 +99,8 @@
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
-          "duration": 4421475,
-          "start": 1694032718661202733
+          "duration": 2073000,
+          "start": 1712695837726458000
         },
      {
        "name": "langchain.request",
@@ -111,10 +109,9 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
+       "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
          "langchain.request.inputs.question": "Who was Alan Turing?",
          "langchain.request.type": "chain",
@@ -129,8 +126,8 @@
          "langchain.tokens.total_cost": 0.06042,
          "langchain.tokens.total_tokens": 3021
        },
-       "duration": 6094725,
-       "start": 1694032718687084924
+       "duration": 2907000,
+       "start": 1712695837736786000
      },
         {
           "name": "langchain.request",
@@ -139,10 +136,9 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "",
+          "type": "llm",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "654a694400000000",
             "langchain.request.inputs.question": "Who was Alan Turing?",
             "langchain.request.inputs.summaries": "Content: A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificia...",
             "langchain.request.prompt": "Given the following extracted parts of a long document and a question, create a final answer with references (\"SOURCES\"). \\nIf y...",
@@ -158,8 +154,8 @@
             "langchain.tokens.total_cost": 0.06042,
             "langchain.tokens.total_tokens": 3021
           },
-          "duration": 5617134,
-          "start": 1694032718687442211
+          "duration": 2595000,
+          "start": 1712695837737017000
         },
            {
              "name": "langchain.request",
@@ -171,7 +167,6 @@
              "type": "llm",
              "error": 0,
              "meta": {
-               "_dd.p.tid": "654a694400000000",
                "langchain.request.api_key": "...key>",
                "langchain.request.model": "text-davinci-003",
                "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -196,6 +191,6 @@
                "langchain.tokens.total_cost": 0.06042,
                "langchain.tokens.total_tokens": 3021
              },
-             "duration": 5208514,
-             "start": 1694032718687734189
+             "duration": 2345000,
+             "start": 1712695837737211000
            }]]

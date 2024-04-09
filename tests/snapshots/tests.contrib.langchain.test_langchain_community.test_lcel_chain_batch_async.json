@@ -6,11 +6,11 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66105d4d00000000",
+      "_dd.p.tid": "6615ac0c00000000",
       "langchain.request.inputs.0": "chickens",
       "langchain.request.inputs.1": "cows",
       "langchain.request.inputs.2": "pigs",
@@ -19,7 +19,7 @@
       "langchain.response.outputs.1": "Why did the chicken join a band? Because it had the drumsticks!",
       "langchain.response.outputs.2": "Why did the pig go to the casino? To play the slop machine!",
       "language": "python",
-      "runtime-id": "fc2f6a33a0164dc1a9cf783dd1a45f64"
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -30,10 +30,10 @@
       "langchain.tokens.prompt_tokens": 42,
       "langchain.tokens.total_cost": 0.000161,
       "langchain.tokens.total_tokens": 91,
-      "process_id": 70761
+      "process_id": 74685
     },
-    "duration": 48643000,
-    "start": 1712348493124056000
+    "duration": 31254000,
+    "start": 1712696332437760000
   },
      {
        "name": "langchain.request",
@@ -66,8 +66,8 @@
          "langchain.tokens.total_cost": 5.7e-05,
          "langchain.tokens.total_tokens": 32
        },
-       "duration": 31085000,
-       "start": 1712348493139743000
+       "duration": 11070000,
+       "start": 1712696332456394000
      },
      {
        "name": "langchain.request",
@@ -100,8 +100,8 @@
          "langchain.tokens.total_cost": 5.1000000000000006e-05,
          "langchain.tokens.total_tokens": 29
        },
-       "duration": 30884000,
-       "start": 1712348493140105000
+       "duration": 10736000,
+       "start": 1712696332456829000
      },
      {
        "name": "langchain.request",
@@ -134,6 +134,6 @@
          "langchain.tokens.total_cost": 5.3e-05,
          "langchain.tokens.total_tokens": 30
        },
-       "duration": 30607000,
-       "start": 1712348493140476000
+       "duration": 10405000,
+       "start": 1712696332457250000
      }]]

@@ -6,18 +6,18 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ebafd900000000",
+      "_dd.p.tid": "6615ac1600000000",
       "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
       "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
       "langchain.request.type": "chain",
       "langchain.response.outputs.answer": "Answer: 18014398509481984",
       "langchain.response.outputs.question": "what is two raised to the fifty-fourth power?",
       "language": "python",
-      "runtime-id": "9f52b7e016c04b4a994ec1df509018a4"
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -28,10 +28,10 @@
       "langchain.tokens.prompt_tokens": 202,
       "langchain.tokens.total_cost": 0.00034100000000000005,
       "langchain.tokens.total_tokens": 221,
-      "process_id": 88379
+      "process_id": 74685
     },
-    "duration": 4717000,
-    "start": 1709944793467898000
+    "duration": 4994000,
+    "start": 1712696342123503000
   },
      {
        "name": "langchain.request",
@@ -40,7 +40,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
+       "type": "llm",
        "error": 0,
        "meta": {
          "langchain.request.inputs.question": "what is two raised to the fifty-fourth power?",
@@ -58,8 +58,8 @@
          "langchain.tokens.total_cost": 0.00034100000000000005,
          "langchain.tokens.total_tokens": 221
        },
-       "duration": 3858000,
-       "start": 1709944793468620000
+       "duration": 4094000,
+       "start": 1712696342124144000
      },
         {
           "name": "langchain.request",
@@ -94,6 +94,6 @@
             "langchain.tokens.total_cost": 0.00034100000000000005,
             "langchain.tokens.total_tokens": 221
           },
-          "duration": 3183000,
-          "start": 1709944793469239000
+          "duration": 3366000,
+          "start": 1712696342124822000
         }]]

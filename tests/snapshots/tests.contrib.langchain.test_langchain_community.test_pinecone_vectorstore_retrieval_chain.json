@@ -6,18 +6,18 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ef796e00000000",
+      "_dd.p.tid": "6615ac1900000000",
       "langchain.request.inputs.question": "Who was Alan Turing?",
       "langchain.request.type": "chain",
       "langchain.response.outputs.answer": " Alan Turing was a brilliant mathematician, cryptographer, and computer scientist who is known for his contributions to breaking...",
       "langchain.response.outputs.question": "Who was Alan Turing?",
       "langchain.response.outputs.sources": "https://simple.wikipedia.org/wiki/Alan%20Turing",
       "language": "python",
-      "runtime-id": "af4607a77884424f858da05339b2960e"
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -28,10 +28,10 @@
       "langchain.tokens.prompt_tokens": 2706,
       "langchain.tokens.total_cost": 0.0042510000000000004,
       "langchain.tokens.total_tokens": 2802,
-      "process_id": 7810
+      "process_id": 74685
     },
-    "duration": 282329584,
-    "start": 1710193006505881469
+    "duration": 9488000,
+    "start": 1712696345267649000
   },
      {
        "name": "langchain.request",
@@ -72,8 +72,8 @@
          "_dd.measured": 1,
          "langchain.response.document_count": 4
        },
-       "duration": 198426667,
-       "start": 1710193006509116302
+       "duration": 1982000,
+       "start": 1712696345269356000
      },
         {
           "name": "langchain.request",
@@ -96,8 +96,8 @@
             "langchain.request.input_count": 1,
             "langchain.response.outputs.embedding_length": 1536
           },
-          "duration": 194381083,
-          "start": 1710193006509198844
+          "duration": 42000,
+          "start": 1712696345269432000
         },
      {
        "name": "langchain.request",
@@ -106,7 +106,7 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
+       "type": "llm",
        "error": 0,
        "meta": {
          "langchain.request.inputs.input_documents": "[Document(page_content='A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer scienc...",
@@ -123,8 +123,8 @@
          "langchain.tokens.total_cost": 0.0042510000000000004,
          "langchain.tokens.total_tokens": 2802
        },
-       "duration": 10805625,
-       "start": 1710193006777220178
+       "duration": 5473000,
+       "start": 1712696345271458000
      },
         {
           "name": "langchain.request",
@@ -133,7 +133,7 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "",
+          "type": "llm",
           "error": 0,
           "meta": {
             "langchain.request.inputs.question": "Who was Alan Turing?",
@@ -151,8 +151,8 @@
             "langchain.tokens.total_cost": 0.0042510000000000004,
             "langchain.tokens.total_tokens": 2802
           },
-          "duration": 9249750,
-          "start": 1710193006778678969
+          "duration": 4395000,
+          "start": 1712696345272449000
         },
            {
              "name": "langchain.request",
@@ -187,6 +187,6 @@
                "langchain.tokens.total_cost": 0.0042510000000000004,
                "langchain.tokens.total_tokens": 2802
              },
-             "duration": 3855291,
-             "start": 1710193006783997803
+             "duration": 2851000,
+             "start": 1712696345273938000
            }]]
