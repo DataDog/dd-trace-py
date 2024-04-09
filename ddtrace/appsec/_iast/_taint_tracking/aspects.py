@@ -157,6 +157,19 @@ def index_aspect(candidate_text, index) -> Any:
 
 
 def slice_aspect(candidate_text, start, stop, step) -> Any:
+    import inspect
+
+    stack = inspect.stack()
+    print(stack[1:3])
+    print("slice!!!!!!!!!!!!!")
+    print(candidate_text)
+    print(type(candidate_text))
+    print(start)
+    print(type(start))
+    print(stop)
+    print(type(stop))
+    print(step)
+
     if (
         not isinstance(candidate_text, TEXT_TYPES)
         or (start is not None and not isinstance(start, int))
