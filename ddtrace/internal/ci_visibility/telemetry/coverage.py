@@ -53,11 +53,6 @@ def record_code_coverage_empty():
 @skip_if_agentless
 def record_code_coverage_files(count_files: int):
     log.debug("Recording code coverage files telemetry: %s", count_files)
-    try:
-        count_files = int(count_files)
-    except ValueError:
-        log.error("Invalid count_files value %s", count_files)
-        return
     telemetry_writer.add_distribution_metric(_NAMESPACE, COVERAGE_TELEMETRY.FILES, count_files)
 
 

@@ -479,12 +479,11 @@ class CIVisibility(Service):
             url = "https://api." + self._dd_site + SKIPPABLE_ENDPOINT
         else:
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
-            record_itr_skippable_request(0, 0, 0, skipping_mode, ERROR_TYPES.UNKNOWN)
             return
 
         error_type: Optional[ERROR_TYPES] = None
-        response_bytes = 0
-        skippable_count = 0
+        response_bytes: int = 0
+        skippable_count: int = 0
         sw = StopWatch()
 
         try:
@@ -549,7 +548,11 @@ class CIVisibility(Service):
 
         finally:
             record_itr_skippable_request(
-                sw.elapsed() * 1000, response_bytes, skippable_count, skipping_mode, error_type
+                sw.elapsed() * 1000,
+                response_bytes,
+                skipping_mode,
+                skippable_count if error_type is None else None,
+                error_type,
             )
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):

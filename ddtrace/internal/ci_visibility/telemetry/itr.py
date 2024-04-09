@@ -64,8 +64,8 @@ def record_itr_forced_run(event_type: EVENT_TYPES):
 def record_itr_skippable_request(
     duration: float,
     response_bytes: int,
-    skippable_count: int,
     skipping_level: str,
+    skippable_count: Optional[int] = None,
     error: Optional[ERROR_TYPES] = None,
 ):
     log.debug(
@@ -76,6 +76,7 @@ def record_itr_skippable_request(
         skipping_level,
         error,
     )
+
     telemetry_writer.add_count_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST, 1)
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.REQUEST_MS, duration)
     telemetry_writer.add_distribution_metric(_NAMESPACE, SKIPPABLE_TESTS_TELEMETRY.RESPONSE_BYTES, response_bytes)
@@ -87,9 +88,10 @@ def record_itr_skippable_request(
         # If there was an error, assume no skippable items can be counted
         return
 
-    skippable_count_metric = (
-        SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
-        if skipping_level == SUITE
-        else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
-    )
-    telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)
+    if skippable_count is not None:
+        skippable_count_metric = (
+            SKIPPABLE_TESTS_TELEMETRY.RESPONSE_SUITES
+            if skipping_level == SUITE
+            else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
+        )
+        telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)
