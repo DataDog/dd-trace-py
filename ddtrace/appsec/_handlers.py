@@ -358,59 +358,59 @@ def _on_django_patch():
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
 
-# def _custom_protobuf_getattribute(self, name):
-#     from collections.abc import MutableMapping
-#
-#     from google._upb._message import MessageMapContainer
-#
-#     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-#     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
-#     from ddtrace.appsec._iast._taint_utils import taint_structure
-#
-#     ret = type(self).__saved_getattr(self, name)
-#     if isinstance(ret, (str, bytes, bytearray)):
-#         ret = taint_pyobject(
-#             pyobject=ret,
-#             source_name=OriginType.GRPC_BODY,
-#             source_value=ret,
-#             source_origin=OriginType.GRPC_BODY,
-#         )
-#     elif isinstance(ret, MutableMapping):
-#         if isinstance(ret, MessageMapContainer) and len(ret):
-#             # Patch the message-values class
-#             first_key = next(iter(ret))
-#             value_type = type(ret[first_key])
-#             _patch_protobuf_class(value_type)
-#         else:
-#             ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
-#
-#     return ret
-#
-#
-# _custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defined]
-#
-#
-# # Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
-# # of the original __getattribute__ method
-# def _patch_protobuf_class(cls):
-#     getattr_method = getattr(cls, "__getattribute__")
-#     if not getattr_method:
-#         return
-#
-#     if not hasattr(getattr_method, "__datadog_custom"):
-#         # Replace the class __getattribute__ method with our custom one
-#         # (replacement is done at the class level because it would incur on a recursive loop with the instance)
-#         cls.__saved_getattr = getattr_method
-#         cls.__getattribute__ = _custom_protobuf_getattribute
-#
-#
-# def _on_grpc_response(response):
-#     if not _is_iast_enabled():
-#         return
-#
-#     msg_cls = type(response)
-#     _patch_protobuf_class(msg_cls)
-#     return response
+def _custom_protobuf_getattribute(self, name):
+    from collections.abc import MutableMapping
+
+    from google._upb._message import MessageMapContainer
+
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+
+    ret = type(self).__saved_getattr(self, name)
+    if isinstance(ret, (str, bytes, bytearray)):
+        ret = taint_pyobject(
+            pyobject=ret,
+            source_name=OriginType.GRPC_BODY,
+            source_value=ret,
+            source_origin=OriginType.GRPC_BODY,
+        )
+    elif isinstance(ret, MutableMapping):
+        if isinstance(ret, MessageMapContainer) and len(ret):
+            # Patch the message-values class
+            first_key = next(iter(ret))
+            value_type = type(ret[first_key])
+            _patch_protobuf_class(value_type)
+        else:
+            ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
+
+    return ret
+
+
+_custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defined]
+
+
+# Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
+# of the original __getattribute__ method
+def _patch_protobuf_class(cls):
+    getattr_method = getattr(cls, "__getattribute__")
+    if not getattr_method:
+        return
+
+    if not hasattr(getattr_method, "__datadog_custom"):
+        # Replace the class __getattribute__ method with our custom one
+        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
+        cls.__saved_getattr = getattr_method
+        cls.__getattribute__ = _custom_protobuf_getattribute
+
+
+def _on_grpc_response(response):
+    if not _is_iast_enabled():
+        return
+
+    msg_cls = type(response)
+    _patch_protobuf_class(msg_cls)
+    return response
 
 
 def listen():
@@ -425,4 +425,4 @@ core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
-# core.on("grpc.response_message", _on_grpc_response, "response")
+core.on("grpc.response_message", _on_grpc_response, "response")
