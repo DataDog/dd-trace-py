@@ -599,7 +599,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pymysql',dde='staging',ddh='127.0.0.1',ddps='service-name-override',"
+            f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
@@ -630,7 +630,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pymysql',dde='staging',ddh='127.0.0.1',ddps='pin-service-name-override',"
+            f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
@@ -658,7 +658,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='orders-app',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")

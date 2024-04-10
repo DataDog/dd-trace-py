@@ -70,6 +70,6 @@ def _convert_tags(conn, attribute):
     attr = getattr(conn, attribute, "")
 
     if isinstance(attr, int) or isinstance(attr, float):
-        return str(attr, "utf-8")
+        return str(attr)
     else:
         return ensure_text(attr)
