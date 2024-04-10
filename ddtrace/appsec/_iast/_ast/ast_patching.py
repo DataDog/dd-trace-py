@@ -31,7 +31,7 @@ IAST_DENYLIST = (
     "pycparser",  # this package is called when a module is imported, propagation is not needed
     "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc", # ditto
+    "api_pb2_grpc",  # ditto
 )  # type: tuple[str, ...]
 
 
