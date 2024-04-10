@@ -34,12 +34,14 @@ def _exec_iast_patched_module(module_watchdog, module):
         # Patched source is executed instead of original module
         try:
             exec(compiled_code, module.__dict__)  # nosec B102
-            return
         except ImportError:
             log.debug("Unexpected exception while executing patched code", exc_info=True)
 
     # Fallback
-    try:
-        module_watchdog.loader.exec_module(module)
-    except ImportError:
-        log.debug("Unexpected exception on import loader fallback", exc_info=True)
+    if module_watchdog.loader is not None:
+        try:
+            module_watchdog.loader.exec_module(module)
+        except ImportError:
+            log.debug("Unexpected exception on import loader fallback", exc_info=True)
+    else:
+        log.debug("Module loader is not available, cannot execute module %s", module)
