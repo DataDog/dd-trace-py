@@ -77,8 +77,21 @@ def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
     )
 
 
-_COLLECTED_REQUEST_HEADERS = {
+_COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
+    "content-type",
+    "user-agent",
+    "x-amzn-trace-id",
+    "cloudfront-viewer-ja3-fingerprint",
+    "cf-ray",
+    "x-cloud-trace-context",
+    "x-appgw-trace-id",
+    "akamai-user-risk",
+    "x-sigsci-requestid",
+    "x-sigsci-tags",
+}
+
+_COLLECTED_REQUEST_HEADERS = {
     "accept-encoding",
     "accept-language",
     "cf-connecting-ip",
@@ -86,13 +99,11 @@ _COLLECTED_REQUEST_HEADERS = {
     "content-encoding",
     "content-language",
     "content-length",
-    "content-type",
     "fastly-client-ip",
     "forwarded",
     "forwarded-for",
     "host",
     "true-client-ip",
-    "user-agent",
     "via",
     "x-client-ip",
     "x-cluster-client-ip",
@@ -101,8 +112,10 @@ _COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
+_COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
-def _set_headers(span: Span, headers: Any, kind: str) -> None:
+
+def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
     from ddtrace.contrib.trace_utils import _normalize_tag_name
 
     for k in headers:
@@ -110,7 +123,7 @@ def _set_headers(span: Span, headers: Any, kind: str) -> None:
             key, value = k
         else:
             key, value = k, headers[k]
-        if key.lower() in _COLLECTED_REQUEST_HEADERS:
+        if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name(kind, key), value)
 
@@ -411,9 +424,13 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if span.span_type == SpanTypes.WEB:
                 # Force to set respond headers at the end
-                headers_req = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                if headers_res:
+                    _set_headers(span, headers_res, kind="response")
+
+                headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
                 if headers_req:
-                    _set_headers(span, headers_req, kind="response")
+                    _set_headers(span, headers_req, kind="request", only_asm_enabled=True)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
                 if not has_triggers(span) and _asm_request_context.in_context():

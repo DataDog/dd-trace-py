@@ -12,6 +12,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -1171,6 +1172,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
         chain.batch(["chickens", "cows", "pigs"])
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):

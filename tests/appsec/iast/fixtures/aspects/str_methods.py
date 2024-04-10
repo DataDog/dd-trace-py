@@ -927,6 +927,30 @@ def do_slice(
     return key_lambda_map[cases_key](text)
 
 
+def do_slice_complex(
+    s,  # type: str
+):
+    import struct
+
+    unpack = struct.unpack
+
+    length = len(s)
+    acc = 0
+    if length % 4:
+        extra = 4 - length % 4
+        s = b"\x00" * extra + s
+        length = length + extra
+    for i in range(0, length, 4):
+        acc = (acc << 32) + unpack(">I", s[i : i + 4])[0]
+    return acc
+
+
+def do_slice_negative(
+    s,  # type: str
+):
+    return s[-16:]
+
+
 def mult_two(a, b):  # type: (Any, Any) -> Any
     return a * b
 
