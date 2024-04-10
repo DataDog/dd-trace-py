@@ -1049,6 +1049,25 @@ class Contrib_TestClass_For_Threats:
             else:
                 raise AssertionError("extra service not found")
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_asm_enabled_headers(self, asm_enabled, interface, get_tag, root_span):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(
+                "/",
+                headers={"accept": "testheaders/a1b2c3", "user-agent": "UnitTestAgent", "content-type": "test/x0y9z8"},
+            )
+            assert response.status_code == 200
+            assert self.status(response) == 200
+            if asm_enabled:
+                assert get_tag("http.request.headers.accept") == "testheaders/a1b2c3"
+                assert get_tag("http.request.headers.user-agent") == "UnitTestAgent"
+                assert get_tag("http.request.headers.content-type") == "test/x0y9z8"
+            else:
+                assert get_tag("http.request.headers.accept") is None
+                assert get_tag("http.request.headers.user-agent") is None
+                assert get_tag("http.request.headers.content-type") is None
+
     def test_global_callback_list_length(self, interface):
         from ddtrace.appsec import _asm_request_context
 

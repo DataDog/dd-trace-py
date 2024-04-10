@@ -89,6 +89,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15
+DEFAULT_ITR_SKIPPABLE_TIMEOUT = 20
 
 _CIVisibilitySettings = NamedTuple(
     "_CIVisibilitySettings",
@@ -125,12 +126,12 @@ def _get_custom_configurations():
     return custom_configurations
 
 
-def _do_request(method, url, payload, headers):
-    # type: (str, str, str, Dict) -> Response
+def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
+    # type: (str, str, str, Dict, int) -> Response
     try:
         parsed_url = verify_url(url)
         url_path = parsed_url.path
-        conn = get_connection(url, timeout=DEFAULT_TIMEOUT)
+        conn = get_connection(url, timeout=timeout)
         log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
         conn.request("POST", url_path, payload, headers)
         resp = compat.get_connection_response(conn)
