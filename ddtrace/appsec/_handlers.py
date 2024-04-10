@@ -404,7 +404,10 @@ def _patch_protobuf_class(cls):
         cls.__getattribute__ = _custom_protobuf_getattribute
 
 
-def _on_grpc_response(response, _):
+def _on_grpc_response(response):
+    if not _is_iast_enabled():
+        return
+
     msg_cls = type(response)
     _patch_protobuf_class(msg_cls)
     return response

@@ -27,7 +27,6 @@ from . import utils
 
 log = get_logger(__name__)
 
-
 # DEV: Follows Python interceptors RFC laid out in
 # https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
 
@@ -82,10 +81,12 @@ def _handle_response(span, response):
     # google-api-core which has its own future base class
     # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23
     if hasattr(response, "_response"):
-        response._response = core.dispatch_with_results(
+        result = core.dispatch_with_results(
             "grpc.response_message",
-            (response._response, response),
+            (response._response,),
         )
+        if result:
+            response._response = result.value
 
     if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
@@ -168,10 +169,12 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __next__(self):
         n = self._next()
         if n is not None:
-            n = core.dispatch_with_results(
+            result = core.dispatch_with_results(
                 "grpc.response_message",
-                (n, self.__wrapped__),
+                (n,),
             )
+            if result:
+                n = result.value
         return n
 
     next = __next__
