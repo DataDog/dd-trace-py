@@ -14,7 +14,6 @@ from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
-from ....ext import http
 from ....internal.compat import time_ns
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
@@ -149,29 +148,35 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
         - func_run_err: There was an error when calling the `getRecords` function
     """
     if (func_run and message_received) or config.botocore.empty_poll_enabled or not func_run or func_run_err:
-        with pin.tracer.start_span(
-            trace_operation,
+        with core.context_with_data(
+            "botocore.patched_kinesis_api_call",
+            instance=instance,
+            args=args,
+            params=params,
+            endpoint_name=endpoint_name,
+            operation=operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            call_trace=False,
+            context_started_callback=set_patched_api_call_span_tags,
+            pin=pin,
+            span_name=trace_operation,
             span_type=SpanTypes.HTTP,
             child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
-        ) as span:
-            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+            func_run=func_run,
+            start_ns=start_ns,
+            call_key="patched_kinesis_api_call",
+        ) as ctx, ctx.get_item(ctx.get_item("call_key")) as span:
+            core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
 
-            # we need this since we may have ran the wrapped operation before starting the span
-            # we need to ensure the span start time is correct
-            if start_ns is not None and func_run:
-                span.start_ns = start_ns
-
-            if config.botocore["distributed_tracing"]:
+            if config.botocore["distributed_tracing"] or config._data_streams_enabled:
                 try_inject_DD_context(
-                    endpoint_name, operation, params, span, trace_operation, inject_trace_context=True
-                )
-
-            # we still want to inject DSM context (if DSM is enabled) even if distributed tracing is disabled
-            elif not config.botocore["distributed_tracing"] and config._data_streams_enabled:
-                try_inject_DD_context(
-                    endpoint_name, operation, params, span, trace_operation, inject_trace_context=False
+                    endpoint_name,
+                    operation,
+                    params,
+                    span,
+                    trace_operation,
+                    inject_trace_context=bool(config.botocore["distributed_tracing"]),
                 )
 
             try:
@@ -184,18 +189,14 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 if func_run_err:
                     raise func_run_err
 
-                set_response_metadata_tags(span, result)
+                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result, set_response_metadata_tags])
                 return result
 
             except botocore.exceptions.ClientError as e:
-                # `ClientError.response` contains the result, so we can still grab response metadata
-                set_response_metadata_tags(span, e.response)
-
-                # If we have a status code, and the status code is not an error,
-                #   then ignore the exception being raised
-                status_code = span.get_tag(http.STATUS_CODE)
-                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                    span._ignore_exception(botocore.exceptions.ClientError)
+                core.dispatch(
+                    "botocore.patched_kinesis_api_call.exception",
+                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                )
                 raise
     # return results in the case that we ran the function, but no records were returned and empty
     # poll spans are disabled
