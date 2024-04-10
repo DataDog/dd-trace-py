@@ -310,6 +310,7 @@ def test_simplejson_encode_list():
 
 def test_taint_structure():
     from ddtrace.appsec._iast._taint_utils import taint_structure
+
     d = {1: "foo"}
     tainted = taint_structure(d, OriginType.PARAMETER, OriginType.PARAMETER)
     assert is_pyobject_tainted(tainted[1])
