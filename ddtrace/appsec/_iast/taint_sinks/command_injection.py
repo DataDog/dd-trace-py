@@ -56,7 +56,7 @@ def patch():
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
 
-    if asm_config._ep_enabled or asm_config._iast_enabled:
+    if asm_config._ep_enabled:
         from ddtrace.appsec._common_module_patches import patch_common_modules
 
         patch_common_modules()
