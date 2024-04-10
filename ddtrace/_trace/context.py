@@ -134,6 +134,10 @@ class Context(object):
     @sampling_priority.setter
     def sampling_priority(self, value: Optional[NumericType]) -> None:
         with self._lock:
+            if value and value <= 0:
+                import pdb
+
+                pdb.set_trace()
             if value is None:
                 if SAMPLING_PRIORITY_KEY in self._metrics:
                     del self._metrics[SAMPLING_PRIORITY_KEY]
