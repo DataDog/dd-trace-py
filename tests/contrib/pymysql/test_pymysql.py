@@ -553,7 +553,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         )
     )
     def test_pymysql_dbm_propagation_comment_with_global_service_name_configured(self):
-        """tests if dbm comment is set in postgres"""
+        """tests if dbm comment is set in mysql"""
         db_name = MYSQL_CONFIG["database"]
 
         conn, tracer = self._get_conn_tracer()
@@ -589,7 +589,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         )
     )
     def test_pymysql_dbm_propagation_comment_integration_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
+        """tests if dbm comment is set in mysql"""
         db_name = MYSQL_CONFIG["database"]
 
         conn, tracer = self._get_conn_tracer()
@@ -617,7 +617,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         )
     )
     def test_pymysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
+        """tests if dbm comment is set in mysql"""
         db_name = MYSQL_CONFIG["database"]
 
         conn, tracer = self._get_conn_tracer()
@@ -648,7 +648,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         )
     )
     def test_pymysql_dbm_propagation_comment_peer_service_enabled(self):
-        """tests if dbm comment is set in postgres"""
+        """tests if dbm comment is set in mysql"""
         db_name = MYSQL_CONFIG["database"]
 
         conn, tracer = self._get_conn_tracer()

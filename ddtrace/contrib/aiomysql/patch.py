@@ -15,12 +15,17 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...internal.compat import ensure_text
 from ...internal.schema import schematize_service_name
+from ...propagation._database_monitoring import _DBM_Propagator
 
 
 config._add(
     "aiomysql",
-    dict(_default_service=schematize_service_name("mysql")),
+    dict(
+        _default_service=schematize_service_name("mysql"),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
+    ),
 )
 
 
@@ -42,7 +47,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     tags = {}
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
-            tags[tag] = getattr(conn, attr)
+            tags[tag] = _convert_tags(conn, attr)
     tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
@@ -79,6 +84,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
+
+            dbm_propagator = getattr(config.aiomysql, "_dbm_propagator", None)
+            if dbm_propagator:
+                args, kwargs = dbm_propagator.inject(s, args, kwargs)
 
             try:
                 result = await method(*args, **kwargs)
@@ -159,3 +168,12 @@ def unpatch():
     if getattr(aiomysql, "__datadog_patch", False):
         aiomysql.__datadog_patch = False
         unwrap(aiomysql.connection, "_connect")
+
+
+def _convert_tags(conn, attribute):
+    attr = getattr(conn, attribute, "")
+
+    if isinstance(attr, int) or isinstance(attr, float):
+        return str(attr)
+    else:
+        return ensure_text(attr)
