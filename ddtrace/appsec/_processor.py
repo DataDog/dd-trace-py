@@ -77,38 +77,6 @@ def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
     )
 
 
-_COLLECTED_REQUEST_HEADERS = {
-    "accept",
-    "accept-encoding",
-    "accept-language",
-    "cf-connecting-ip",
-    "cf-connecting-ipv6",
-    "content-encoding",
-    "content-language",
-    "content-length",
-    "content-type",
-    "fastly-client-ip",
-    "forwarded",
-    "forwarded-for",
-    "host",
-    "true-client-ip",
-    "user-agent",
-    "via",
-    "x-client-ip",
-    "x-cluster-client-ip",
-    "x-forwarded",
-    "x-forwarded-for",
-    "x-real-ip",
-    "x-amzn-trace-id",
-    "cloudfront-viewer-ja3-fingerprint",
-    "cf-ray",
-    "x-cloud-trace-context",
-    "x-appgw-trace-id",
-    "akamai-user-risk",
-    "x-sigsci-requestid",
-    "x-sigsci-tags",
-}
-
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
     "content-type",
@@ -122,6 +90,29 @@ _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "x-sigsci-requestid",
     "x-sigsci-tags",
 }
+
+_COLLECTED_REQUEST_HEADERS = {
+    "accept-encoding",
+    "accept-language",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "fastly-client-ip",
+    "forwarded",
+    "forwarded-for",
+    "host",
+    "true-client-ip",
+    "via",
+    "x-client-ip",
+    "x-cluster-client-ip",
+    "x-forwarded",
+    "x-forwarded-for",
+    "x-real-ip",
+}
+
+_COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
 def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
