@@ -1,5 +1,5 @@
-from ddtrace.internal.compat import httplib  # noqa: E402
-from ddtrace.internal.compat import parse  # noqa: E402
+from ddtrace.internal.compat import httplib
+from ddtrace.internal.compat import parse
 
 
 class BasePathMixin(httplib.HTTPConnection, object):
