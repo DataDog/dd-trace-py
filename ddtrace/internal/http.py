@@ -1,6 +1,3 @@
-# Prevent other patching of http.client from breaking our usage of HTTP
-# eg: vcr's patching of HTTPSConnection causes the pytest use case to drop traces
-
 from ddtrace.internal.compat import httplib  # noqa: E402
 from ddtrace.internal.compat import parse  # noqa: E402
 
