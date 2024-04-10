@@ -30,7 +30,6 @@ def _exec_iast_patched_module(module_watchdog, module):
             log.debug("Unexpected exception while compiling patched code", exc_info=True)
             compiled_code = None
 
-    # JJJ quitar
     if compiled_code:
         # Patched source is executed instead of original module
         try:
