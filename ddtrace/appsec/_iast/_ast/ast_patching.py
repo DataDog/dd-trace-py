@@ -23,8 +23,14 @@ from .visitor import AstVisitor
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
-IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
-
+IAST_DENYLIST = (
+    "ddtrace",
+    "pkg_resources",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+)  # type: tuple[str, ...]
 
 if IAST.PATCH_MODULES in os.environ:
     IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
