@@ -56,7 +56,7 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    tags = {t: ensure_text(getattr(conn, a, "")) for t, a in CONN_ATTR_BY_TAG.items()}
+    tags = {t: _convert_tags(conn, a) for t, a in CONN_ATTR_BY_TAG.items()}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
@@ -64,3 +64,12 @@ def patch_conn(conn):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.pymysql)
     pin.onto(wrapped)
     return wrapped
+
+
+def _convert_tags(conn, attribute):
+    attr = getattr(conn, attribute, "")
+
+    if isinstance(attr, int) or isinstance(attr, float):
+        return str(attr, "utf-8")
+    else:
+        return ensure_text(attr)
