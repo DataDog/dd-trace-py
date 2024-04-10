@@ -1,0 +1,3 @@
+fixes:
+  - |
+    pymongo: this resolves an issue where ddtrace caused pymongo.pool.validate_session to fail due to a mismatched client and ObjectProxy behavior
