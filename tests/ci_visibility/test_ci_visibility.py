@@ -1494,5 +1494,6 @@ def test_fetch_tests_to_skip_custom_configurations():
                 "https://api.datadoghq.com/api/v2/ci/tests/skippable",
                 expected_data_arg,
                 {"dd-api-key": "foobar.baz", "Content-Type": "application/json"},
+                20,
             )
             CIVisibility.disable()
