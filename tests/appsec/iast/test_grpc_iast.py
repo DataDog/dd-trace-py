@@ -31,10 +31,8 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))
                     stub1 = HelloStub(channel1)
                     res = stub1.SayHello(HelloRequest(name="test"))
-                    assert "response" in res
-                    assert hasattr(res["response"], "value")
-                    assert hasattr(res["response"].value, "message")
-                    _check_test_range(res["response"].value.message)
+                    assert hasattr(res, "message")
+                    _check_test_range(res.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_twice(self):
@@ -45,10 +43,8 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     stub1 = HelloStub(channel1)
                     responses_iterator = stub1.SayHelloTwice(HelloRequest(name="test"))
                     for res in responses_iterator:
-                        assert "response" in res
-                        assert hasattr(res["response"], "value")
-                        assert hasattr(res["response"].value, "message")
-                        _check_test_range(res["response"].value.message)
+                        assert hasattr(res, "message")
+                        _check_test_range(res.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_repeatedly(self):
@@ -62,10 +58,8 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     )
                     responses_iterator = stub1.SayHelloRepeatedly(requests_iterator)
                     for res in responses_iterator:
-                        assert "response" in res
-                        assert hasattr(res["response"], "value")
-                        assert hasattr(res["response"].value, "message")
-                        _check_test_range(res["response"].value.message)
+                        assert hasattr(res, "message")
+                        _check_test_range(res.message)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_IAST_ENABLED="1"))
     def test_taint_iast_last(self):
@@ -76,7 +70,5 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     stub1 = HelloStub(channel1)
                     requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
                     res = stub1.SayHelloLast(requests_iterator)
-                    assert "response" in res
-                    assert hasattr(res["response"], "value")
-                    assert hasattr(res["response"].value, "message")
-                    _check_test_range(res["response"].value.message)
+                    assert hasattr(res, "message")
+                    _check_test_range(res.message)
