@@ -182,6 +182,7 @@ venv = Venv(
             command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "coverage": latest,
+                "pycryptodome": latest,
                 "flask": "~=3.0",
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
@@ -212,7 +213,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
                 "requests": latest,
-                "pycryptodome": latest,
                 "gunicorn": latest,
                 "psycopg2-binary": "~=2.9.9",
             },
