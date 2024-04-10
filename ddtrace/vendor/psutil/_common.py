@@ -37,7 +37,7 @@ if sys.version_info >= (3, 4):
 else:
     enum = None
 
-# can't take it from common.py as this script is imported by setup.py
+# can't take it from _common.py as this script is imported by setup.py
 PY3 = sys.version_info[0] == 3
 
 __all__ = [
