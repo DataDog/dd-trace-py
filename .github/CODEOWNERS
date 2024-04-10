@@ -33,6 +33,8 @@ ddtrace/contrib/pytest_bdd          @DataDog/ci-app-libraries
 ddtrace/contrib/unittest            @DataDog/ci-app-libraries
 tests/contrib/pytest                @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd            @DataDog/ci-app-libraries
+tests/contrib/grpc                  @DataDog/ci-app-libraries @DataDog/asm-python
+
 tests/contrib/unittest_plugin       @DataDog/ci-app-libraries
 ddtrace/ext/ci.py                   @DataDog/ci-app-libraries
 ddtrace/ext/ci_visibility           @DataDog/ci-app-libraries
