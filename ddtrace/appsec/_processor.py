@@ -99,12 +99,28 @@ _COLLECTED_REQUEST_HEADERS = {
     "x-forwarded",
     "x-forwarded-for",
     "x-real-ip",
+    "x-amzn-trace-id",
+    "cloudfront-viewer-ja3-fingerprint",
+    "cf-ray",
+    "x-cloud-trace-context",
+    "x-appgw-trace-id",
+    "akamai-user-risk",
+    "x-sigsci-requestid",
+    "x-sigsci-tags",
 }
 
 _COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
     "content-type",
     "user-agent",
+    "x-amzn-trace-id",
+    "cloudfront-viewer-ja3-fingerprint",
+    "cf-ray",
+    "x-cloud-trace-context",
+    "x-appgw-trace-id",
+    "akamai-user-risk",
+    "x-sigsci-requestid",
+    "x-sigsci-tags",
 }
 
 
