@@ -226,6 +226,9 @@ class DatadogSampler(RateByServiceSampler):
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
         """
+        import pdb
+
+        pdb.set_trace()
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
 
@@ -294,6 +297,9 @@ class DatadogSampler(RateByServiceSampler):
 
     def sample(self, span):
         span.context._update_tags(span)
+        import pdb
+
+        pdb.set_trace()
 
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
