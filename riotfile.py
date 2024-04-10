@@ -218,6 +218,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/integrations/",
             pkgs={
                 "requests": latest,
+                "pycryptodome": latest,
                 "gunicorn": latest,
                 "psycopg2-binary": "~=2.9.9",
             },
