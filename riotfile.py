@@ -602,7 +602,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="python3 -m slipcover -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command="python3 -m slipcover -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",  # noqa: E501
                     venvs=[
                         Venv(
                             pys=select_pys(max_version="3.9"),
@@ -611,7 +611,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",  # noqa: E501
                     env={"DD_SERVICE": "bottle-app"},
                     venvs=[
                         Venv(
@@ -954,7 +954,7 @@ venv = Venv(
         Venv(
             name="elasticsearch-opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
-            command="python3 -m slipcover -m pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            command="python3 -m slipcover -m pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",  # noqa: E501
             pys=select_pys(),
             pkgs={
                 "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
@@ -990,7 +990,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",  # noqa: E501
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -1014,7 +1014,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.8"),
-                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",  # noqa: E501
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -1036,7 +1036,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
-                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/flask_autopatch",  # noqa: E501
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -1205,10 +1205,10 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="python3 -m slipcover -m pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"
+                    command="python3 -m slipcover -m pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"  # noqa: E501
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/pymemcache/autopatch/"
+                    command="python tests/ddtrace_run.py python3 -m slipcover -m pytest {cmdargs} tests/contrib/pymemcache/autopatch/"  # noqa: E501
                 ),
             ],
         ),
