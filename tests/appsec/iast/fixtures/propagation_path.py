@@ -8,6 +8,17 @@ import os
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def propagation_no_path(origin_string):
+    from Crypto.Cipher import AES
+
+    key = b"Sixteen byte key"
+    data = b"abcdefgh"
+    crypt_obj = AES.new(key, AES.MODE_EAX)
+    # label propagation_no_path
+    result = crypt_obj.encrypt(data)
+    return result
+
+
 def propagation_path_1_source_1_prop(origin_string):
     if type(origin_string) is str:
         string1 = str(origin_string)  # 1 Range
