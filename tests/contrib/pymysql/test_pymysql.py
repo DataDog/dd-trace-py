@@ -25,8 +25,8 @@ class PyMySQLCore(object):
     }
     DB_INFO.update(
         {
-            "db.user": str(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
-            "db.name": str(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8")),
+            "db.user": str(MYSQL_CONFIG.get("user")),
+            "db.name": str(MYSQL_CONFIG.get("database")),
         }
     )
 
