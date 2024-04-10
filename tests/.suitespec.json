@@ -173,6 +173,9 @@
         "llmobs": [
             "ddtrace/llmobs/*"
         ],
+        "settings": [
+            "ddtrace/settings/*"
+        ],
         "sourcecode": [
             "ddtrace/sourcecode/*"
         ],
@@ -507,15 +510,6 @@
             "@remoteconfig",
             "tests/appsec/iast/*"
         ],
-        "appsec_iast_tdd_propagation": [
-            "@bootstrap",
-            "@core",
-            "@tracing",
-            "@appsec",
-            "@appsec_iast",
-            "@remoteconfig",
-            "tests/appsec/iast_tdd_propagation/*"
-        ],
         "appsec_iast_memcheck": [
             "@bootstrap",
             "@core",
@@ -632,6 +626,7 @@
             "@bootstrap",
             "@core",
             "@telemetry",
+            "@settings",
             "tests/telemetry/*",
             "tests/snapshots/tests.telemetry.*"
         ],
