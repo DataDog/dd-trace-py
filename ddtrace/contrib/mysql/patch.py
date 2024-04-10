@@ -9,9 +9,11 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.compat import ensure_text
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
+from ...propagation._database_monitoring import _DBM_Propagator
 
 
 config._add(
@@ -21,6 +23,7 @@ config._add(
         _dbapi_span_name_prefix="mysql",
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(os.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 
@@ -58,7 +61,7 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
+    tags = {t: _convert_tags(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
@@ -66,3 +69,12 @@ def patch_conn(conn):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
     pin.onto(wrapped)
     return wrapped
+
+
+def _convert_tags(conn, attribute):
+    attr = getattr(conn, attribute, "")
+
+    if isinstance(attr, int) or isinstance(attr, float):
+        return str(attr)
+    else:
+        return ensure_text(attr)
