@@ -74,18 +74,27 @@ def rasp(request, endpoint: str):
         return HttpResponse("<\br>\n".join(res))
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
+        use_request = False
         for param in query_params:
             if param.startswith("url"):
-                filename = query_params[param]
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
             try:
                 import urllib.request
 
-                with urllib.request.urlopen(query_params[param]) as f:
-                    res.append(f"Url: {f.read()}")
+                if use_request:
+                    req = urllib.request.Request(urlname)
+                    with urllib.request.urlopen(req, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
+                else:
+                    with urllib.request.urlopen(urlname, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        return HttpResponse("<\br>\n".join(res))
-
+            finally:
+                use_request = not use_request
+        return HttpResponse("<\\br>\n".join(res))
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
 

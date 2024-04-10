@@ -77,9 +77,10 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
 
         url = args[0] if args else kwargs.get("fullurl", None)
         if url and in_context():
-            if isinstance(url, str) and not (url.startswith("http://") or url.startswith("https://")):
-                url = "http://" + url  # + "/latest/user-data"
-            call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
+            if url.__class__.__name__ == "Request":
+                url = url.get_full_url()
+            if isinstance(url, str):
+                call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
 

@@ -75,16 +75,26 @@ def rasp(endpoint: str):
         return "<\\br>\n".join(res)
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
+        use_request = False
         for param in query_params:
             if param.startswith("url"):
-                url = query_params[param]
-                try:
-                    import urllib.request
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
+            try:
+                import urllib.request
 
-                    with urllib.request.urlopen(url) as f:
+                if use_request:
+                    req = urllib.request.Request(urlname)
+                    with urllib.request.urlopen(req, timeout=0.5) as f:
                         res.append(f"Url: {f.read()}")
-                except Exception as e:
-                    res.append(f"Error: {e}")
+                else:
+                    with urllib.request.urlopen(urlname, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
+            except Exception as e:
+                res.append(f"Error: {e}")
+            finally:
+                use_request = not use_request
         return "<\\br>\n".join(res)
     elif endpoint == "shell":
         res = ["shell endpoint"]
