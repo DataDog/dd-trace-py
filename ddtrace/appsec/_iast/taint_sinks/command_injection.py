@@ -7,6 +7,7 @@ from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.contrib import trace_utils
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -57,9 +58,7 @@ def patch():
         subprocess._datadog_cmdi_patch = True
 
     if asm_config._ep_enabled:
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-
-        patch_common_modules()
+        core.dispatch("exploit.prevention.ssrf.patch.urllib")
 
 
 def unpatch():

@@ -4,6 +4,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -16,7 +17,15 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+
+    # due to incompatibilities with gevent, delay the patching if IAST is enabled
+    if asm_config._iast_enabled:
+        core.on(
+            "exploit.prevention.ssrf.patch.urllib",
+            lambda: try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF),
+        )
+    else:
+        try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
@@ -68,7 +77,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
 
         url = args[0] if args else kwargs.get("fullurl", None)
         if url and in_context():
-            if not (url.startswith("http://") or url.startswith("https://")):
+            if isinstance(url, str) and not (url.startswith("http://") or url.startswith("https://")):
                 url = "http://" + url  # + "/latest/user-data"
             call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
             # DEV: Next part of the exploit prevention feature: add block here
