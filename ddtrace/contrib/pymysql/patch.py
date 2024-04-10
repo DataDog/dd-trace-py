@@ -9,6 +9,7 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
+from ...internal.compat import ensure_text
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
@@ -54,15 +55,8 @@ def _connect(func, instance, args, kwargs):
     return patch_conn(conn)
 
 
-def convert(conn, a):
-    attribute = getattr(conn, a, "")
-    if isinstance(attribute, bytes):
-        attribute = str(attribute, encoding="utf-8")
-    return attribute
-
-
 def patch_conn(conn):
-    tags = {t: convert(conn, a) for t, a in CONN_ATTR_BY_TAG.items()}
+    tags = {t: ensure_text(getattr(conn, a, "")) for t, a in CONN_ATTR_BY_TAG.items()}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
