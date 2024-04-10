@@ -26,6 +26,8 @@ class MySQLCore(object):
                 self.conn.ping()
             except mysql.connector.errors.InternalError:
                 pass
+            except mysql.connector.errors.InterfaceError:
+                pass
             else:
                 self.conn.close()
         unpatch()
