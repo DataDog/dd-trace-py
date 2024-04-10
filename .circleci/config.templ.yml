@@ -1015,7 +1015,7 @@ jobs:
     steps:
       - run_test:
           wait: mysql
-          pattern: 'pymysql$'
+          pattern: 'mysql'
 
   pylibmc:
     <<: *contrib_job_small

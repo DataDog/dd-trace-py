@@ -104,7 +104,6 @@ async def test_patch_unpatch(tracer, test_spans):
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
     Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
-    breakpoint()
     conn.close()
 
     spans = test_spans.pop()
@@ -305,15 +304,15 @@ class AioMySQLTestCase(AsyncioTestCase):
         cursor.__wrapped__.reset_mock()
 
     @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
-        )
-    )
+    # @AsyncioTestCase.run_in_subprocess(
+    #     env_overrides=dict(
+    #         DD_DBM_PROPAGATION_MODE="service",
+    #         DD_SERVICE="orders-app",
+    #         DD_ENV="staging",
+    #         DD_VERSION="v7343437-d7ac743",
+    #         DD_AIOMYSQL_SERVICE="service-name-override",
+    #     )
+    # )
     async def test_aiomysql_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in mysql"""
         db_name = AIOMYSQL_CONFIG["db"]
@@ -322,6 +321,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
         # test string queries
+        breakpoint()
         await cursor.execute("select 'blah'")
         await cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
