@@ -1068,6 +1068,40 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag("http.request.headers.user-agent") is None
                 assert get_tag("http.request.headers.content-type") is None
 
+    @pytest.mark.parametrize(
+        "header",
+        [
+            "X-Amzn-Trace-Id",
+            "Cloudfront-Viewer-Ja3-Fingerprint",
+            "Cf-Ray",
+            "X-Cloud-Trace-Context",
+            "X-Appgw-Trace-id",
+            "Akamai-User-Risk",
+            "X-SigSci-RequestID",
+            "X-SigSci-Tags",
+        ],
+    )
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    # RFC: https://docs.google.com/document/d/1xf-s6PtSr6heZxmO_QLUtcFzY_X_rT94lRXNq6-Ghws/edit
+    def test_asm_waf_integration_identify_requests(self, asm_enabled, header, interface, get_tag, root_span):
+        import random
+        import string
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            random_value = "".join(random.choices(string.ascii_letters + string.digits, k=random.randint(6, 128)))
+            response = interface.client.get(
+                "/",
+                headers={header: random_value},
+            )
+            assert response.status_code == 200
+            assert self.status(response) == 200
+            meta_tagname = "http.request.headers." + header.lower()
+            if asm_enabled:
+                assert get_tag(meta_tagname) == random_value
+            else:
+                assert get_tag(meta_tagname) is None
+
     def test_global_callback_list_length(self, interface):
         from ddtrace.appsec import _asm_request_context
 
