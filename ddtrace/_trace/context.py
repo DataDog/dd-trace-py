@@ -11,6 +11,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal.compat import NumericType
+from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
@@ -207,6 +208,15 @@ class Context(object):
         if user_id:
             return str(base64.b64decode(user_id), encoding="utf-8")
         return None
+
+    @property
+    def _trace_id_64_bits(self):
+        # type: () -> Optional[int]
+        """Return the trace ID as a 64-bit value."""
+        if self.trace_id is None:
+            return None
+        else:
+            return _MAX_UINT_64BITS & self.trace_id
 
     @dd_user_id.setter
     def dd_user_id(self, value):
