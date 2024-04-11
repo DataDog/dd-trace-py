@@ -291,7 +291,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.service == "aiomysql"
+        assert span.service == "mysql"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
