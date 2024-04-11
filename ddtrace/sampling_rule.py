@@ -178,6 +178,8 @@ class SamplingRule(object):
                         else:
                             return False
                         continue
+                    else:
+                        value = int(value)
 
                 tag_match = self._tag_value_matchers[tag_key].match(str(value))
             else:
