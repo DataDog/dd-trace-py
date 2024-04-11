@@ -63,7 +63,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     wrapper for open url function
     """
     if asm_config._iast_enabled:
-        # SSRF sink to be added
+        # TODO: IAST SSRF sink to be added
         pass
 
     if asm_config._asm_enabled and asm_config._ep_enabled:
