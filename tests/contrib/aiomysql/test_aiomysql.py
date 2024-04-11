@@ -8,6 +8,9 @@ from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
+from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
 
 
@@ -218,3 +221,122 @@ asyncio.run(test())""",
     )
     assert status == 0, err
     assert out == err == b""
+
+
+class AioMySQLTestCase(AsyncioTestCase):
+    # default service
+    TEST_SERVICE = "mysql"
+    conn = None
+
+    async def _get_conn_tracer(self):
+        if not self.conn:
+            self.conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
+            assert not self.conn.closed
+            # Ensure that the default pin is there, with its default value
+            pin = Pin.get_from(self.conn)
+            assert pin
+            # Customize the service
+            # we have to apply it on the existing one since new one won't inherit `app`
+            pin.clone(tracer=self.tracer).onto(self.conn)
+
+            return self.conn, self.tracer
+
+    def setUp(self):
+        super().setUp()
+        self.conn = None
+        patch()
+
+    async def tearDown(self):
+        super().tearDown()
+        if self.conn and not self.conn.closed:
+            self.conn.close()
+
+        unpatch()
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    async def test_user_specified_service_integration_v0(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    async def test_user_specified_service_integration_v1(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    async def test_user_specified_service_v0(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "aiomysql"
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_user_specified_service_v1(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_unspecified_service_v1(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    async def test_span_name_v0_schema(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "mysql.query"
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_span_name_v1_schema(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "mysql.query"
