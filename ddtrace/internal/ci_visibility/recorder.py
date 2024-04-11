@@ -490,7 +490,7 @@ class CIVisibility(Service):
         try:
             try:
                 sw.start()
-                response = _do_request("POST", url, json.dumps(payload), _headers)
+                response = _do_request("POST", url, json.dumps(payload), _headers, DEFAULT_ITR_SKIPPABLE_TIMEOUT)
                 sw.stop()
             except (TimeoutError, socket.timeout, RemoteDisconnected) as e:
                 sw.stop()
