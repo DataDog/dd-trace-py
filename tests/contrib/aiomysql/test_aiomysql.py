@@ -379,7 +379,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         await cursor.execute("select 'blah'")
         await cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+            f"/*dddb='{db_name}',dddbs='mysql',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
@@ -439,7 +439,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         db_name = AIOMYSQL_CONFIG["db"]
         conn, tracer = await self._get_conn_tracer()
 
-        Pin.override(patched_conn, service="pin-service-name-override", tracer=tracer)
+        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
 
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()

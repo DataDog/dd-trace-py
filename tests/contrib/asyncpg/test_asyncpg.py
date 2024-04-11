@@ -344,7 +344,7 @@ class AioPGTestCase(AsyncioTestCase):
                 database=POSTGRES_CONFIG["dbname"],
                 password=POSTGRES_CONFIG["password"],
             )
-            assert not self.conn.closed
+            assert not self.conn.is_closed()
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
