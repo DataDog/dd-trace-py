@@ -13,8 +13,8 @@ from flask import request
 
 from ddtrace import tracer
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 from ddtrace.internal import core
 
 
