@@ -293,6 +293,116 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         assert spans[0].name == "postgresql.query"
 
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
+    )
+    async def test_user_specified_service_integration_v0(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    async def test_user_specified_service_integration_v1(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    async def test_user_specified_service_v0(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "aiopg"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_user_specified_service_v1(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "mysvc"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_AIOPG_SERVICE="aiopg_service", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
+    )
+    async def test_pin_override_service_v1(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer, service="override").onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "override"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_unspecified_service_v1(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    async def test_span_name_v0_schema(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "postgres.query"
+
+    @pytest.mark.asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_span_name_v1_schema(self):
+        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "postgresql.query"
+
 
 class AiopgAnalyticsTestCase(AiopgTestCase):
     async def trace_spans(self):

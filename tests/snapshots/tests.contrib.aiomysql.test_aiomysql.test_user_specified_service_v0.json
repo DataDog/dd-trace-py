@@ -1,7 +1,7 @@
 [[
   {
     "name": "mysql.query",
-    "service": "my-service-name",
+    "service": "mysql",
     "resource": "select 'dba4x4'",
     "trace_id": 0,
     "span_id": 1,
