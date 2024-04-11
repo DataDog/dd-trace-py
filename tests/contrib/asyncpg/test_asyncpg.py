@@ -330,7 +330,7 @@ def test_patch_unpatch_asyncpg():
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
 
 
-class AioPGTestCase(AsyncioTestCase):
+class AsyncPgTestCase(AsyncioTestCase):
     # default service
     TEST_SERVICE = "mysql"
     conn = None
@@ -371,8 +371,7 @@ class AioPGTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_enabled(self):
         conn, tracer = await self._get_conn_tracer()
 
-        cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
+        await conn.execute("SELECT 1")
         spans = tracer.get_spans()
         assert len(spans) == 1
         span = spans[0]
@@ -394,27 +393,26 @@ class AioPGTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
+        conn.__wrapped__ = mock.AsyncMock()
         # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
+        await conn.execute("select 'blah'")
+        await conn.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
             f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
         # test byte string queries
-        cursor.__wrapped__.reset_mock()
-        await cursor.execute(b"select 'blah'")
-        await cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(
+        conn.__wrapped__.reset_mock()
+        await conn.execute(b"select 'blah'")
+        await conn.executemany(b"select %s", ((b"foo",), (b"bar",)))
+        conn.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
+        conn.__wrapped__.executemany.assert_called_once_with(
             dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
         )
         # test composed queries
-        cursor.__wrapped__.reset_mock()
+        conn.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -431,19 +429,18 @@ class AioPGTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
+        conn.__wrapped__ = mock.AsyncMock()
         # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
+        await conn.execute("select 'blah'")
+        await conn.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
             f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
         # test byte string queries
-        cursor.__wrapped__.reset_mock()
+        conn.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -462,19 +459,18 @@ class AioPGTestCase(AsyncioTestCase):
 
         Pin.override(patched_conn, service="pin-service-name-override", tracer=tracer)
 
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
+        conn.__wrapped__ = mock.AsyncMock()
         # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
+        await conn.execute("select 'blah'")
+        await conn.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
             f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
         # test byte string queries
-        cursor.__wrapped__.reset_mock()
+        conn.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -491,16 +487,15 @@ class AioPGTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
+        conn.__wrapped__ = mock.AsyncMock()
         # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
+        await conn.execute("select 'blah'")
+        await conn.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = (
             f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
             "ddpv='v7343437-d7ac743'*/ "
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
+        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
         # test byte string queries
-        cursor.__wrapped__.reset_mock()
+        conn.__wrapped__.reset_mock()
