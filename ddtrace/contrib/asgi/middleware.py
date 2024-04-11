@@ -172,9 +172,9 @@ class TraceMiddleware:
 
             host_header = None
             for key, value in _extract_headers(scope).items():
-                if key == b"host":
+                if key.encode() == b"host":
                     try:
-                        host_header = value.decode("ascii")
+                        host_header = value
                     except UnicodeDecodeError:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
