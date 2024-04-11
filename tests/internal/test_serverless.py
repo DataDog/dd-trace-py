@@ -99,6 +99,7 @@ def test_slow_imports(monkeypatch):
         "ddtrace.appsec._iast._ast.ast_patching",
         "ddtrace.internal.telemetry.telemetry_writer",
         "ddtrace.appsec._api_security.api_manager",
+        "logging.handlers",
     ]
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", False)
     monkeypatch.setenv("DD_API_SECURITY_ENABLED", False)
@@ -117,7 +118,7 @@ def test_slow_imports(monkeypatch):
     deleted_modules = {}
 
     for mod in sys.modules.copy():
-        if mod.startswith("ddtrace"):
+        if mod.startswith("ddtrace") or mod in blocklist:
             deleted_modules[mod] = sys.modules[mod]
             del sys.modules[mod]
 
