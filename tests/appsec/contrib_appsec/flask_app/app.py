@@ -63,14 +63,50 @@ def new_service(service_name: str):
 def rasp(endpoint: str):
     query_params = request.args.to_dict()
     if endpoint == "lfi":
-        res = []
+        res = ["lfi endpoint"]
         for param in query_params:
             if param.startswith("filename"):
                 filename = query_params[param]
+                try:
+                    with open(filename, "rb") as f:
+                        res.append(f"File: {f.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        return "<\\br>\n".join(res)
+    elif endpoint == "ssrf":
+        res = ["ssrf endpoint"]
+        use_request = False
+        for param in query_params:
+            if param.startswith("url"):
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
             try:
-                with open(filename, "rb") as f:
-                    res.append(f"File: {f.read()}")
+                import urllib.request
+
+                if use_request:
+                    req = urllib.request.Request(urlname)
+                    with urllib.request.urlopen(req, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
+                else:
+                    with urllib.request.urlopen(urlname, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        return "<\br>\n".join(res)
+            finally:
+                use_request = not use_request
+        return "<\\br>\n".join(res)
+    elif endpoint == "shell":
+        res = ["shell endpoint"]
+        for param in query_params:
+            if param.startswith("cmd"):
+                cmd = query_params[param]
+                try:
+                    import subprocess
+
+                    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
+                        res.append(f"cmd stdout: {f.stdout.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        return "<\\br>\n".join(res)
     return f"Unknown endpoint: {endpoint}"
