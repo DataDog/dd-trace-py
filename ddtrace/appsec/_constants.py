@@ -129,6 +129,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
     LFI_ADDRESS = "server.io.fs.file"
+    SSRF_ADDRESS = "server.io.net.url"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -241,6 +242,7 @@ class DEFAULT(metaclass=Constant_Class):
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACES = "_dd.stack"
+    STACK_TRACE_ID = "stack_id"
     EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
