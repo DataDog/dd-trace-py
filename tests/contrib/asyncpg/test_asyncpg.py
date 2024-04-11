@@ -359,10 +359,10 @@ class AioPGTestCase(AsyncioTestCase):
         self.conn = None
         patch()
 
-    def tearDown(self):
+    async def tearDown(self):
         super().tearDown()
-        if self.conn and not self.conn.closed:
-            self.conn.close()
+        if self.conn and not self.conn.is_closed():
+            await self.conn.close()
 
         unpatch()
 
