@@ -1199,8 +1199,6 @@ class Contrib_TestClass_For_Threats:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert self.body(response).startswith("shell endpoint")
-                print(self.body(response))
-                print(core.get_item("_iast_data", root_span()))
                 assert get_tag("_dd.iast.json")
         finally:
             assert iast is None
