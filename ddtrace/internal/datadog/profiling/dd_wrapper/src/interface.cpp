@@ -329,12 +329,6 @@ ddup_config_crashtracker_alt_stack(bool alt_stack)
 }
 
 void
-ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace)
-{
-    crashtracker.set_collect_stacktrace(collect_stacktrace);
-}
-
-void
 ddup_config_crashtracker_resolve_frames_never()
 {
     crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_NEVER);

@@ -249,6 +249,8 @@ class _ProfilerInstance(service.Service):
                 if self._crashtracker_enabled:
                     LOG.debug("Starting the crashtracker")
                     try:
+                        # Normally the crashtracker inherits the configuration from ddup, but we allow overriding the
+                        # configuration with certain debug parameters.  Perform that override now.
                         if self._crashtracker_debug_url:
                             ddup.set_crashtracker_url(self._crashtracker_debug_url)
                         ddup.start_crashtracker()

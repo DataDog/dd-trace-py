@@ -9,7 +9,6 @@
 namespace Datadog {
 class Crashtracker {
   private:
-    bool collect_stacktrace = false;
     bool create_alt_stack = false;
     std::optional<std::string> stderr_filename{std::nullopt};
     std::optional<std::string> stdout_filename{std::nullopt};
@@ -44,7 +43,6 @@ class Crashtracker {
     void set_url(std::string_view _url);
     void set_runtime_id(std::string_view _runtime_id);
 
-    void set_collect_stacktrace(bool _collect_stacktrace);
     void set_create_alt_stack(bool _create_alt_stack);
     void set_stderr_filename(std::string_view _stderr_filename);
     void set_stdout_filename(std::string_view _stdout_filename);

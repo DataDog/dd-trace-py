@@ -44,11 +44,6 @@ def set_crashtracker_alt_stack(alt_stack: bool) -> None:
 
 
 @not_implemented
-def set_crashtracker_collect_stacktrace(collect_stacktrace: bool) -> None:
-    pass
-
-
-@not_implemented
 def set_crashtracker_resolve_frames_never() -> None:
     pass
 

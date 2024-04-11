@@ -1,25 +1,23 @@
-import http.server
-import socketserver
+from flask import Flask, request, jsonify
+from werkzeug.utils import secure_filename
+import os
 
-PORT = 8000
+app = Flask(__name__)
 
-class HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        print(f"GET request,\nPath: {self.path}\nHeaders:\n{self.headers}")
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(b"Received GET request")
+@app.route('/telemetry/proxy/api/v2/apmtelemetry', methods=['POST'])
+def telemetry():
+    # Write the entire body to files/telemetry.json
+    with open('./files/telemetry.json', 'w') as f:
+        f.write(request.get_data(as_text=True))
+    return jsonify({"message": "Telemetry received"}), 200
 
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        print(f"POST request,\nPath: {self.path}\nHeaders:\n{self.headers}\n\nBody:\n{post_data.decode('utf-8')}")
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(b"Received POST request")
+@app.route('/profiling/v1/input', methods=['POST'])
+def profiling_input():
+    for key in request.files.keys():
+        file = request.files[key]
+        filename = secure_filename(file.filename)
+        file.save(os.path.join('./files', filename))
+    return jsonify({"message": "Files received"}), 200
 
-with socketserver.TCPServer(("", PORT), HTTPRequestHandler) as httpd:
-    print(f"Serving at port {PORT}")
-    httpd.serve_forever()
+if __name__ == '__main__':
+    app.run(port=8000, debug=True)

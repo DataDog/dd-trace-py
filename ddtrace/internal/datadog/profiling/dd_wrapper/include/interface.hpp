@@ -62,7 +62,6 @@ extern "C"
     void ddup_config_crashtracker_stdout_filename(std::string_view filename);
     void ddup_config_crashtracker_stderr_filename(std::string_view filename);
     void ddup_config_crashtracker_alt_stack(bool alt_stack);
-    void ddup_config_crashtracker_collect_stacktrace(bool collect_stacktrace);
     void ddup_config_crashtracker_resolve_frames_never();
     void ddup_config_crashtracker_resolve_frames_self();
     void ddup_config_crashtracker_resolve_frames_receiver();

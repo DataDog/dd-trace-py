@@ -37,15 +37,6 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _derive_stacktrace_resolver(config):
-    # type: ProfilingConfig.Crashtracker -> t.Optional[str]
-    resolver = config._stacktrace_resolver or ""
-    resolver = resolver.lower()
-    if resolver in ("safe", "full"):
-        return resolver
-    return None
-
-
 def _check_for_ddup_available():
     ddup_is_available = False
     try:
@@ -71,14 +62,136 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
+def _derive_stacktrace_resolver(config):
+    # type: ProfilingConfig.Crashtracker -> t.Optional[str]
+    resolver = config._stacktrace_resolver or ""
+    resolver = resolver.lower()
+    if resolver in ("safe", "full"):
+        return resolver
+    return None
+
+
+def _derive_crashtracker_enabled(config):
+    # type: ProfilingConfig.Crashtracker -> bool
+    if not _check_for_ddup_available():
+        return False
+    return config._enabled
+
+
+def _derive_libdd_enabled(config):
+    # type: ProfilingConfig.Export -> bool
+    if not _check_for_ddup_available():
+        return False
+    if not config._libdd_enabled and config.crashtracker.enabled:
+        logger.debug("Enabling libdd because the crashtracker is enabled")
+    if not config._libdd_enabled and config.libdd_required:
+        logger.debug("Enabling libdd because it is required")
+    return config.libdd_required or config.crashtracker.enabled or config._libdd_enabled
+
+
 # We don't check for the availability of the ddup module when determining whether libdd is _required_,
 # since it's up to the application code to determine what happens in that failure case.
-def _is_libdd_required(config):
+def _derive_libdd_required(config):
+    # type: ProfilingConfig.Export -> bool
+    if not config._libdd_required and config.stack.v2.enabled:
+        logger.debug("Requiring libdd because stack v2 is enabled")
     return config.stack.v2.enabled or config._libdd_required
 
 
+# When you have nested classes and include them, it looks like envier prefixes the included class with the outer class.
+# The way around this is to define classes-to-be-included on the outside of the parent class, instantiate them within
+# the parent, then include them in the inner class.
+# This is fine, except we want the prefixes to line up
+profiling_prefix = "dd.profiling"
+
+
+class CrashtrackerConfig(En):
+    __prefix__ = profiling_prefix + ".crashtracker"
+
+    _enabled = En.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Enables the crashtracker",
+    )
+
+    enabled = En.d(bool, _derive_crashtracker_enabled)
+
+    debug_url = En.v(
+        t.Optional[str],
+        "debug_url",
+        default=None,
+        help_type="String",
+        help="Overrides the URL parameter set by the ddtrace library.  This is for testing and debugging purposes"
+        " and is not generally useful for end-users.",
+    )
+
+    stdout_filename = En.v(
+        t.Optional[str],
+        "stdout_filename",
+        default=None,
+        help_type="String",
+        help="The destination filename for crashtracker stdout",
+    )
+
+    stderr_filename = En.v(
+        t.Optional[str],
+        "stderr_filename",
+        default=None,
+        help_type="String",
+        help="The destination filename for crashtracker stderr",
+    )
+
+    alt_stack = En.v(
+        bool,
+        "alt_stack",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use an alternate stack for the crashtracker.  This is used for internal development.",
+    )
+
+    _stacktrace_resolver = En.v(
+        t.Optional[str],
+        "stacktrace_resolver",
+        default=None,
+        help_type="String",
+        help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'safe',"
+        " and 'full'.  The default value is 'none' (no stack traces).",
+    )
+    stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+
+
+class StackConfig(En):
+    __prefix__ = profiling_prefix + ".stack"
+
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the stack profiler",
+    )
+
+    class V2(En):
+        __item__ = __prefix__ = "v2"
+
+        _enabled = En.v(
+            bool,
+            "enabled",
+            default=False,
+            help_type="Boolean",
+            help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+        )
+
+        enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+
+
 class ProfilingConfig(En):
-    __prefix__ = "dd.profiling"
+    __prefix__ = profiling_prefix
+
+    crashtracker = CrashtrackerConfig()
+    stack = StackConfig()
 
     enabled = En.v(
         bool,
@@ -188,30 +301,6 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    class Stack(En):
-        __item__ = __prefix__ = "stack"
-
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the stack profiler",
-        )
-
-        class V2(En):
-            __item__ = __prefix__ = "v2"
-
-            _enabled = En.v(
-                bool,
-                "enabled",
-                default=False,
-                help_type="Boolean",
-                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
-            )
-
-            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
-
     class Lock(En):
         __item__ = __prefix__ = "lock"
 
@@ -275,7 +364,7 @@ class ProfilingConfig(En):
 
         libdd_required = En.d(
             bool,
-            _is_libdd_required,
+            _derive_libdd_required,
         )
 
         _libdd_enabled = En.v(
@@ -288,66 +377,12 @@ class ProfilingConfig(En):
 
         libdd_enabled = En.d(
             bool,
-            lambda c: (_is_libdd_required(c) or c.crashtracker.enabled or c._libdd_enabled)
-            and _check_for_ddup_available(),
+            _derive_libdd_enabled,
         )
 
-    class Crashtracker(En):
-        __item__ = __prefix__ = "crashtracker"
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=False,
-            help_type="Boolean",
-            help="Enables the crashtracker",
-        )
-
-        debug_url = En.v(
-            t.Optional[str],
-            "debug_url",
-            default=None,
-            help_type="String",
-            help="Overrides the URL parameter set by the ddtrace library.  This is for testing and debugging purposes"
-            " and is not generally useful for end-users.",
-        )
-
-        stdout_filename = En.v(
-            t.Optional[str],
-            "stdout_filename",
-            default=None,
-            help_type="String",
-            help="The destination filename for crashtracker stdout",
-        )
-
-        stderr_filename = En.v(
-            t.Optional[str],
-            "stderr_filename",
-            default=None,
-            help_type="String",
-            help="The destination filename for crashtracker stderr",
-        )
-
-        alt_stack = En.v(
-            bool,
-            "alt_stack",
-            default=False,
-            help_type="Boolean",
-            help="Whether to use an alternate stack for the crashtracker.  This is used for internal development.",
-        )
-
-        _stacktrace_resolver = En.v(
-            t.Optional[str],
-            "stacktrace_resolver",
-            default=None,
-            help_type="String",
-            help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'safe',"
-            " and 'full'.  The default value is 'none' (no stack traces).",
-        )
-        stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
-
-    Export.include(Stack, namespace="stack")
-    Export.include(Crashtracker, namespace="crashtracker")
+ProfilingConfig.Export.include(ProfilingConfig.stack, namespace="stack")
+ProfilingConfig.Export.include(ProfilingConfig.crashtracker, namespace="crashtracker")
 
 
 config = ProfilingConfig()

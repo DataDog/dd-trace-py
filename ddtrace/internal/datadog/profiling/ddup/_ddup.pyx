@@ -73,7 +73,6 @@ cdef extern from "interface.hpp":
     void ddup_config_crashtracker_stdout_filename(string_view filename)
     void ddup_config_crashtracker_stderr_filename(string_view filename)
     void ddup_config_crashtracker_alt_stack(bint alt_stack)
-    void ddup_config_crashtracker_collect_stacktrace(bint collect_stacktrace)
     void ddup_config_crashtracker_resolve_frames_never()
     void ddup_config_crashtracker_resolve_frames_self()
     void ddup_config_crashtracker_resolve_frames_receiver()
@@ -190,10 +189,6 @@ def set_crashtracker_stderr_filename(filename: StringType) -> None:
 
 def set_crashtracker_alt_stack(alt_stack: bool) -> None:
     ddup_config_crashtracker_alt_stack(alt_stack)
-
-
-def set_crashtracker_collect_stacktrace(collect_stacktrace: bool) -> None:
-    ddup_config_crashtracker_collect_stacktrace(collect_stacktrace)
 
 
 def set_crashtracker_resolve_frames_never() -> None:

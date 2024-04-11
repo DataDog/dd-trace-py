@@ -4,11 +4,6 @@
 #include <iostream>
 #include <vector>
 
-void
-Datadog::Crashtracker::set_collect_stacktrace(bool _collect_stacktrace)
-{
-    collect_stacktrace = _collect_stacktrace;
-}
 
 void
 Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
@@ -109,11 +104,22 @@ ddog_prof_CrashtrackerConfiguration
 Datadog::Crashtracker::get_config()
 {
     ddog_prof_CrashtrackerConfiguration config{};
-    config.collect_stacktrace = collect_stacktrace;
     config.create_alt_stack = create_alt_stack;
     config.endpoint = ddog_prof_Endpoint_agent(to_slice(url)),
     config.path_to_receiver_binary = to_slice(path_to_receiver_binary);
     config.resolve_frames = resolve_frames;
+
+    // collect_stacktrace depends on the value of resolve_frames
+    switch (resolve_frames) {
+        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_EXPERIMENTAL_IN_PROCESS:
+        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_IN_RECEIVER:
+            config.collect_stacktrace = true;
+            break;
+        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_NEVER:
+        default:
+            config.collect_stacktrace = false;
+            break;
+    }
 
     if (stderr_filename.has_value()) {
         config.optional_stderr_filename = to_slice(stderr_filename.value());
@@ -168,6 +174,8 @@ Datadog::Crashtracker::start()
   auto config = get_config();
   auto tags = get_tags();
   auto metadata = get_metadata(tags);
+
+  std::cerr << "Starting crash tracker" << std::endl;
 
   auto result = ddog_prof_Crashtracker_init(config, metadata);
   ddog_Vec_Tag_drop(tags);
