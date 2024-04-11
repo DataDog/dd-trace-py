@@ -461,7 +461,7 @@ jobs:
           path: starlette
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ./ddtrace
+        run: pip install ../ddtrace
       - name: Install dependencies
         if: needs.needs-run.outputs.outcome == 'success'
         run: scripts/install
