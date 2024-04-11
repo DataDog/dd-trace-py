@@ -123,6 +123,8 @@ def _remove_flask_run(text):  # type (str) -> str
     a new instance.
     """
     flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
+    if not flask_instance_name:
+        return text
     groups = flask_instance_name.groups()
     if not groups:
         return text
