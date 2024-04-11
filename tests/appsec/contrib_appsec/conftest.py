@@ -12,8 +12,6 @@ def iast():
     from os import environ
 
     from ddtrace import config
-
-    # from ddtrace.appsec._iast import ddtrace_iast_flask_patch
     from ddtrace.appsec._iast import oce
     from ddtrace.appsec._iast._patch_modules import patch_iast
 
@@ -26,7 +24,6 @@ def iast():
     oce._enabled = True
 
     patch_iast()
-    # ddtrace_iast_flask_patch()
     yield
 
 
