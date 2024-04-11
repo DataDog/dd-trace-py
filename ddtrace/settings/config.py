@@ -574,7 +574,7 @@ class Config(object):
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
-        self.__original_log_level = log.level
+        self.__original_log_level = 0  # NOTSET
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -986,9 +986,10 @@ class Config(object):
         # print("encoded: ", json.dumps(metadata).encode())
         headers = {
             "Content-Type": "multipart/form-data; boundary=" + boundary,
-            # 'Content-Length': body.getbuffer().nbytes
+            "Content-Length": str(body.getbuffer().nbytes),
         }
         # from aiohttp import FormData
+
         # form = FormData()
         # form.add_field("source", "tracer_test")
         # form.add_field("case_id", "12345")
