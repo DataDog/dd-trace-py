@@ -3,13 +3,13 @@ import os
 import requests
 
 from ddtrace import config
+from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ..trace_utils import unwrap as _u
-from .connection import _wrap_request
 from .connection import _wrap_send
 
 
