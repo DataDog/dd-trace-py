@@ -1144,7 +1144,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
 
-    # @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
+    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
