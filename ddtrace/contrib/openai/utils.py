@@ -118,6 +118,7 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
     """
     message = {}
     content = ""
+    idx = None
     for chunk in streamed_chunks:
         chunk_content = getattr(chunk.delta, "content", "")
         if chunk_content:
@@ -126,7 +127,10 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
             content += chunk.delta.function_call.arguments
         elif getattr(chunk.delta, "tool_calls", None):
             for tool_call in chunk.delta.tool_calls:
-                content += tool_call.function.arguments
+                if tool_call.index != idx:
+                    content += "\n\n{}\n\n".format(getattr(tool_call.function, "name", ""))
+                    idx = tool_call.index
+                content += "{}".format(tool_call.function.arguments)
 
     message["role"] = streamed_chunks[0].delta.role or "assistant"
     if streamed_chunks[-1].finish_reason is not None:
