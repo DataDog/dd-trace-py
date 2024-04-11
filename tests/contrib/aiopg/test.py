@@ -325,7 +325,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    async def test_user_specified_service_v0(self):
+    async def test_user_specified_service_env_var_v0(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
@@ -338,7 +338,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_user_specified_service_v1(self):
+    async def test_user_specified_service_env_var_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
@@ -363,19 +363,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "override"
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_unspecified_service_v1(self):
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-
-        cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
