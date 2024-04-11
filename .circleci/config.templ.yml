@@ -984,7 +984,7 @@ jobs:
       - run_test:
           pattern: 'molten'
 
-  mysqlconnector:
+  mysql:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
@@ -995,7 +995,7 @@ jobs:
           wait: mysql
           pattern: 'mysql$'
 
-  mysqlpython:
+  mysqldb:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
