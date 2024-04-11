@@ -119,7 +119,7 @@ def get_app():
     async def rasp(endpoint: str, request: Request):
         query_params = dict(request.query_params)
         if endpoint == "lfi":
-            res = []
+            res = ["lfi endpoint"]
             for param in query_params:
                 if param.startswith("filename"):
                     filename = query_params[param]
@@ -129,6 +129,29 @@ def get_app():
                 except Exception as e:
                     res.append(f"Error: {e}")
             return HTMLResponse("<\br>\n".join(res))
+        elif endpoint == "ssrf":
+            res = ["ssrf endpoint"]
+            use_request = False
+            for param in query_params:
+                if param.startswith("url"):
+                    urlname = query_params[param]
+                    if not urlname.startswith("http"):
+                        urlname = f"http://{urlname}"
+                try:
+                    import urllib.request
+
+                    if use_request:
+                        request = urllib.request.Request(urlname)
+                        with urllib.request.urlopen(request, timeout=0.5) as f:
+                            res.append(f"Url: {f.read()}")
+                    else:
+                        with urllib.request.urlopen(urlname, timeout=0.5) as f:
+                            res.append(f"Url: {f.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+                finally:
+                    use_request = not use_request
+            return HTMLResponse("<\\br>\n".join(res))
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
     return app
