@@ -984,7 +984,7 @@ jobs:
       - run_test:
           pattern: 'molten'
 
-  mysql:
+  mysql_connector:
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
