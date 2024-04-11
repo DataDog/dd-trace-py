@@ -5,11 +5,11 @@ import os
 import mock
 import pytest
 
+from ddtrace.internal.constants import DDTRACE_FILE_HANDLER_NAME
 from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import Config
-from tests.internal.remoteconfig.test_remoteconfig import confirm_cleanup
 
 
 @pytest.fixture
@@ -358,8 +358,11 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
-def _generate_agent_config(log_level: str) -> dict:
-    return {
+@pytest.mark.parametrize("log_level", ["DEBUG", "INFO"])
+def test_tracer_flare_remote_config_valid_log_level(log_level: str):
+    from ddtrace import config
+
+    agent_config = {
         "metadata": [
             {
                 "id": f"flare-log-level.{log_level}",
@@ -368,13 +371,6 @@ def _generate_agent_config(log_level: str) -> dict:
         ],
         "config": [{"config": {"log_level": log_level}, "name": f"flare-log-level.{log_level}"}],
     }
-
-
-@pytest.mark.parametrize("log_level", ["DEBUG", "INFO"])
-def test_tracer_flare_remote_config_valid_log_level(log_level: str):
-    from ddtrace import config
-
-    agent_config = _generate_agent_config(log_level)
     agent_task = {
         "metadata": [
             {
@@ -396,24 +392,24 @@ def test_tracer_flare_remote_config_valid_log_level(log_level: str):
         ],
     }
 
-    logger = get_logger("ddtrace.settings.config")
+    logger = get_logger("ddtrace.tracer")
     original_log_level = logger.level
 
-    config._handle_tracerflare(agent_config)
-    assert os.environ.get("DD_TRACE_LOG_FILE").startswith(f"{TRACER_FLARE_DIRECTORY}/tracer_python_")
-    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") == log_level
+    config._handle_tracer_flare(agent_config)
 
     assert type(logger) == DDLogger
     log_level_int = logging.getLevelName(log_level)
-    assert logger.level == log_level_int
+    valid_logger_level = config._get_valid_logger_level(log_level_int)
+    assert logger.level == valid_logger_level
     assert logger._getHandler("ddtrace_file_handler") is not None
 
-    with mock.patch("requests.post") as mock_post:
-        mock_post.return_value.status_code = 200
-        config._handle_tracerflare(agent_task)
+    response = mock.MagicMock()
+    response.status = 200
+    with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
+    ):
+        config._handle_tracer_flare(agent_task)
 
-    assert os.environ.get("DD_TRACE_LOG_FILE") is None
-    assert os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is None
     assert logger._getHandler("ddtrace_file_handler") is None
     assert logger.level == original_log_level
 
@@ -421,11 +417,20 @@ def test_tracer_flare_remote_config_valid_log_level(log_level: str):
 def test_tracer_flare_remote_config_invalid_log_level():
     from ddtrace import config
 
-    agent_config = _generate_agent_config("invalidloglevel")
+    agent_config = {
+        "metadata": [
+            {
+                "id": "flare-log-level.invalidloglevel",
+                "product_name": "AGENT_CONFIG",
+            }
+        ],
+        "config": [{"config": {"log_level": "invalidloglevel"}, "name": "flare-log-level.invalidloglevel"}],
+    }
 
     with pytest.raises(TypeError):
-        config._handle_tracerflare(agent_config)
+        config._handle_tracer_flare(agent_config)
 
     config._clean_up_tracer_flare_files()
     config._revert_tracer_flare_configs()
-    confirm_cleanup(get_logger("ddtrace.settings.config"))
+    assert not os.path.exists(TRACER_FLARE_DIRECTORY), f"The directory {TRACER_FLARE_DIRECTORY} still exists"
+    assert get_logger("ddtrace.tracer")._getHandler(DDTRACE_FILE_HANDLER_NAME) is None

@@ -62,7 +62,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         self,
         data_connector: PublisherSubscriberConnector,
         callback: Callable,
-        stale_flare_age: int = STALE_TRACER_FLARE_NUM_MINS,
+        stale_flare_age: int = 1,
     ):
         super().__init__(data_connector, callback, "TracerFlareConfig")
         self._current_request_start: Optional[datetime] = None
@@ -85,7 +85,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
     def _get_data_from_connector_and_exec(self):
         # Check for stale tracer flare job
         if self._current_request_start is not None and self._has_stale_flare():
-            log.debug(
+            log.info(
                 "Tracer flare request started at %s is stale, reverting "
                 "logger configurations and cleaning up resources now",
                 self._current_request_start,
@@ -97,6 +97,8 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         data = self._data_connector.read()
         product_type = data.get("metadata", [{}])[0].get("product_name")
         if product_type == "AGENT_CONFIG":
+            log.info("RECEIVED AGENT_CONFIG PRODUCT")
+            log.info(data)
             # We will only process one tracer flare request at a time
             if self._current_request_start is not None:
                 log.warning(
@@ -106,6 +108,8 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 return
             self._current_request_start = datetime.now()
         elif product_type == "AGENT_TASK":
+            log.info("RECEIVED AGENT_TASK PRODUCT")
+            log.info(data)
             # Possible edge case where we missed the AGENT_CONFIG product
             # In this case we won't have anything to send, so we log and do nothing
             if self._current_request_start is None:
@@ -113,7 +117,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 return
             self._current_request_start = None
         else:
-            log.warning("Unexpected tracer flare product type %r", product_type)
             return
         log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
         self._callback(data)
+        log.info("CURRENT START TIME: ", self._current_request_start)

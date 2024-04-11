@@ -107,5 +107,5 @@ _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
 
 TRACER_FLARE_DIRECTORY: str = "tracer_flare"
-TRACER_FLARE_ENDPOINT: str = "tracer_flare/v1"
+TRACER_FLARE_ENDPOINT: str = "/tracer_flare/v1"
 DDTRACE_FILE_HANDLER_NAME: str = "ddtrace_file_handler"

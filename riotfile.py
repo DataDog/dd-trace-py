@@ -424,6 +424,10 @@ venv = Venv(
         ),
         Venv(
             name="internal",
+            env={
+                "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "True",
+            },
             command="pytest {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
@@ -431,7 +435,6 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
-                "requests": latest,
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),

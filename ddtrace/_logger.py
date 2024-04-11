@@ -2,7 +2,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-from ddtrace.internal.constants import DDTRACE_FILE_HANDLER_NAME
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.utils.formats import asbool
 
@@ -63,6 +62,10 @@ def _configure_ddtrace_file_logger(logger):
         )
 
     log_path = os.environ.get("DD_TRACE_LOG_FILE")
+    _add_file_handler(logger, log_path, file_log_level_value)
+
+
+def _add_file_handler(logger: logging.Logger, log_path: str, log_level: int, handler_name: str = ""):
     if log_path is not None:
         log_path = os.path.abspath(log_path)
         max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
@@ -72,21 +75,22 @@ def _configure_ddtrace_file_logger(logger):
         )
         log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
         log_formatter = logging.Formatter(log_format)
-        ddtrace_file_handler.setLevel(file_log_level_value)
+        ddtrace_file_handler.setLevel(log_level)
         ddtrace_file_handler.setFormatter(log_formatter)
-        ddtrace_file_handler.set_name(DDTRACE_FILE_HANDLER_NAME)
+        if handler_name:
+            ddtrace_file_handler.set_name(handler_name)
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
 
 
-def _disable_ddtrace_file_logger(logger: DDLogger):
-    handler_to_remove = logger._getHandler(DDTRACE_FILE_HANDLER_NAME)
+def _disable_ddtrace_file_logger(logger: DDLogger, handler_name: str):
+    handler_to_remove = logger._getHandler(handler_name)
 
     if handler_to_remove:
         logger.removeHandler(handler_to_remove)
         logger.debug("ddtrace logs will not be routed to the file handler anymore")
     else:
-        logger.debug("Could not find %s to remove", DDTRACE_FILE_HANDLER_NAME)
+        logger.debug("Could not find %s to remove", handler_name)
 
 
 def _configure_log_injection():
