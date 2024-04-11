@@ -55,6 +55,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiopg.get_analytics_sample_rate())
 
+            dbm_propagator = getattr(config.aiopg, "_dbm_propagator", None)
+            if dbm_propagator:
+                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+
             try:
                 result = await method(*args, **kwargs)
                 return result

@@ -247,7 +247,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         self.conn = None
         patch()
 
-    async def tearDown(self):
+    def tearDown(self):
         super().tearDown()
         if self.conn and not self.conn.closed:
             self.conn.close()
