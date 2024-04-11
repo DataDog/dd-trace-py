@@ -171,7 +171,7 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            for key, value in scope["headers"]:
+            for key, value in _extract_headers(scope):
                 if key == b"host":
                     try:
                         host_header = value.decode("ascii")
