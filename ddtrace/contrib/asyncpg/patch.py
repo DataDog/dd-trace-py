@@ -17,6 +17,7 @@ from ...internal.logger import get_logger
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils import get_argument_value
+from ...propagation._database_monitoring import _DBM_Propagator
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from ..trace_utils import wrap
@@ -37,6 +38,7 @@ config._add(
     "asyncpg",
     dict(
         _default_service=schematize_service_name("postgres"),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 
@@ -113,6 +115,10 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
+        dbm_propagator = getattr(config.asyncpg, "_dbm_propagator", None)
+        if dbm_propagator:
+            args, kwargs = dbm_propagator.inject(span, [query], kwargs)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
