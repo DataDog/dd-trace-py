@@ -10,7 +10,7 @@ from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_llm_span_event, _expected_llmobs_non_llm_span_event
 from tests.utils import override_global_config
 
 
@@ -1281,11 +1281,15 @@ class TestLLMObsLangchain:
         return expected_llmobs_writer_calls
 
     @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters=None):
-        return _expected_llmobs_llm_span_event(
+    def _expected_llmobs_chain_call(span, input_parameters_keys=None):
+        input_parameters = None
+        if input_parameters_keys is not None:
+            input_parameters = { key: mock.ANY for key in input_parameters_keys }
+
+        return _expected_llmobs_non_llm_span_event(
             span,
             span_kind="workflow",
-            parameters=input_parameters or {},
+            parameters=input_parameters,
             tags={
                 "ml_app": "langchain_test",
             },
@@ -1435,73 +1439,66 @@ class TestLLMObsLangchain:
         )
 
     def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
-        prompt = langchain.PromptTemplate(input_variables=["input"], template="Can you explain what {input} is?")
-        chat = langchain.chat_models.ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=256)
-        chain = langchain.chains.LLMChain(llm=chat, prompt=prompt)
-
+        chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
+        
         self._test_llmobs_invoke(
-            generate_trace=lambda prompt: chain.run({"input": "an LLM chain"}),
+            generate_trace=lambda prompt: chain.run("what is two raised to the fifty-fourth power?"),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
-            cassette_name="chain_openai_completion_sync.yaml",
+            cassette_name='openai_math_chain_sync.yaml',
             expected_spans_data=[
-                ("chain", {"input_parameters": {"input": "an LLM chain"}}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+                ("chain", {"input_parameters_keys": ["question"]}),
+                ("chain", {"input_parameters_keys": ["question", "stop"]}),
+                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
             ],
-            different_py39_cassette=True,
+            different_py39_cassette=True
         )
 
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
-        template1 = "what is the city {person} is from?"
-        template2 = "what country is the city {city} in? respond in {language}"
+        template = """Paraphrase this text:
 
-        prompt1 = langchain.PromptTemplate(input_variables=["person"], template=template1)
-        prompt2 = langchain.PromptTemplate(input_variables=["city", "language"], template=template2)
+            {input_text}
 
-        chat = langchain.chat_models.ChatOpenAI(model="gpt-3.5-turbo", temperature=0, max_tokens=256)
-
-        chain1 = langchain.chains.LLMChain(
-            llm=chat,
-            prompt=prompt1,
-            output_key="city",
+            Paraphrase: """
+        prompt = langchain.PromptTemplate(input_variables=["input_text"], template=template)
+        style_paraphrase_chain = langchain.chains.LLMChain(
+            llm=langchain.llms.OpenAI(), prompt=prompt, output_key="paraphrased_output"
         )
+        rhyme_template = """Make this text rhyme:
 
-        chain2 = langchain.chains.LLMChain(
-            llm=chat,
-            prompt=prompt2,
-            output_key="final_output",
-        )
+            {paraphrased_output}
 
+            Rhyme: """
+        rhyme_prompt = langchain.PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
+        rhyme_chain = langchain.chains.LLMChain(llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output")
         sequential_chain = langchain.chains.SequentialChain(
-            chains=[chain1, chain2],
-            input_variables=["person", "language"],
+            chains=[style_paraphrase_chain, rhyme_chain],
+            input_variables=["input_text"],
             output_variables=["final_output"],
         )
 
+        input_text = """
+                I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no
+                bodies. Does it now follow that I too do not exist? No: if I convinced myself of something then I certainly
+                existed. But there is a deceiver of supreme power and cunning who is deliberately and constantly deceiving
+                me. In that case I too undoubtedly exist, if he is deceiving me; and let him deceive me as much as he can,
+                he will never bring it about that I am nothing so long as I think that I am something. So after considering
+                everything very thoroughly, I must finally conclude that this proposition, I am, I exist, is necessarily
+                true whenever it is put forward by me or conceived in my mind.
+                """
+        
         self._test_llmobs_invoke(
-            generate_trace=lambda prompt: sequential_chain.run(
-                {"person": "Sponegog Squarepants", "language": "Spanish"}
-            ),
+            generate_trace=lambda prompt: sequential_chain.run({"input_text": input_text}),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
-            cassette_name="squential_chain_nested.yaml",
+            cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
-                ("chain", {"input_parameters": {"person": "Sponegog Squarepants", "language": "Spanish"}}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                (
-                    "chain",
-                    {
-                        "input_parameters": {
-                            "person": "Sponegog Squarepants",
-                            "language": "Spanish",
-                            "city": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom.",
-                        }
-                    },
-                ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-            ],
-            different_py39_cassette=True,
+                ("chain", {"input_parameters_keys": ["input_text"]}),
+                ("chain", {"input_parameters_keys": ["input_text"]}),
+                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+                ("chain", {"input_parameters_keys": ["input_text", "paraphrased_output"]}), # what to put here
+                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+            ]
         )

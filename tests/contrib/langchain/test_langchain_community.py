@@ -11,7 +11,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_llm_span_event, _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -1250,11 +1250,15 @@ class TestLLMObsLangchain:
         return expected_llmobs_writer_calls
 
     @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters=None):
-        return _expected_llmobs_llm_span_event(
+    def _expected_llmobs_chain_call(span, input_parameters_keys=None):
+        input_parameters = None
+        if input_parameters_keys is not None:
+            input_parameters = { key: mock.ANY for key in input_parameters_keys }
+
+        return _expected_llmobs_non_llm_span_event(
             span,
             span_kind="workflow",
-            parameters=input_parameters or {},
+            parameters=input_parameters,
             tags={
                 "ml_app": "langchain_community_test",
             },
@@ -1396,7 +1400,7 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_call.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"input": "Can you explain what an LLM chain is?"}}),
+                ("chain", {"input_parameters_keys": ["input"]}),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
             ],
         )
@@ -1423,8 +1427,8 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_nested.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"person": "Spongebob Squarepants", "language": "Spanish"}}),
-                ("chain", {"input_parameters": {"person": "Spongebob Squarepants", "language": "Spanish"}}),
+                ("chain", {"input_parameters_keys": ["person", "language"]}),
+                ("chain", {"input_parameters_keys": ["person", "language"]}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
@@ -1444,7 +1448,7 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="lcel_openai_chain_batch.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"input.0": "chickens", "input.1": "cows", "input.2": "pigs"}}),
+                ("chain", {"input_parameters_keys": ["input.0", "input.1", "input.2"]}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
