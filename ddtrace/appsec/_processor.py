@@ -21,6 +21,7 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
@@ -77,8 +78,21 @@ def get_appsec_obfuscation_parameter_value_regexp() -> bytes:
     )
 
 
-_COLLECTED_REQUEST_HEADERS = {
+_COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
     "accept",
+    "content-type",
+    "user-agent",
+    "x-amzn-trace-id",
+    "cloudfront-viewer-ja3-fingerprint",
+    "cf-ray",
+    "x-cloud-trace-context",
+    "x-appgw-trace-id",
+    "akamai-user-risk",
+    "x-sigsci-requestid",
+    "x-sigsci-tags",
+}
+
+_COLLECTED_REQUEST_HEADERS = {
     "accept-encoding",
     "accept-language",
     "cf-connecting-ip",
@@ -86,13 +100,11 @@ _COLLECTED_REQUEST_HEADERS = {
     "content-encoding",
     "content-language",
     "content-length",
-    "content-type",
     "fastly-client-ip",
     "forwarded",
     "forwarded-for",
     "host",
     "true-client-ip",
-    "user-agent",
     "via",
     "x-client-ip",
     "x-cluster-client-ip",
@@ -101,11 +113,7 @@ _COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
-_COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
-    "accept",
-    "content-type",
-    "user-agent",
-}
+_COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
 def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
@@ -315,8 +323,6 @@ class AppSecSpanProcessor(SpanProcessor):
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
-        if waf_results.data:
-            log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         blocked = {}
         for action in waf_results.actions:
@@ -338,7 +344,10 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 stack_trace_id = report_stack("exploit detected", span, kwargs.get("crop_trace"))
                 for rule in waf_results.data:
-                    rule["stack_trace_id"] = stack_trace_id
+                    rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
+
+        if waf_results.data:
+            log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         _asm_request_context.set_waf_telemetry_results(
             self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout

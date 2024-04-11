@@ -58,10 +58,11 @@ def multi_view(request, param_int=0, param_str=""):
     return json_response
 
 
+@csrf_exempt
 def rasp(request, endpoint: str):
     query_params = request.GET.dict()
     if endpoint == "lfi":
-        res = []
+        res = ["lfi endpoint"]
         for param in query_params:
             if param.startswith("filename"):
                 filename = query_params[param]
@@ -71,7 +72,29 @@ def rasp(request, endpoint: str):
             except Exception as e:
                 res.append(f"Error: {e}")
         return HttpResponse("<\br>\n".join(res))
+    elif endpoint == "ssrf":
+        res = ["ssrf endpoint"]
+        use_request = False
+        for param in query_params:
+            if param.startswith("url"):
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
+            try:
+                import urllib.request
 
+                if use_request:
+                    req = urllib.request.Request(urlname)
+                    with urllib.request.urlopen(req, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
+                else:
+                    with urllib.request.urlopen(urlname, timeout=0.5) as f:
+                        res.append(f"Url: {f.read()}")
+            except Exception as e:
+                res.append(f"Error: {e}")
+            finally:
+                use_request = not use_request
+        return HttpResponse("<\\br>\n".join(res))
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
 
