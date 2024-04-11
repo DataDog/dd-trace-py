@@ -448,7 +448,7 @@ jobs:
       - uses: actions/setup-python@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.11'
+          python-version: '3.10'
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
@@ -457,7 +457,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: encode/starlette
-          ref: 0.37.2
+          ref: 0.20.3
           path: starlette
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
