@@ -457,7 +457,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: encode/starlette
-          ref: 0.25.0
+          ref: 0.29.0
           path: starlette
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
