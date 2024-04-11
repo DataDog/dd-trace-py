@@ -252,7 +252,7 @@ class AioMySQLTestCase(AsyncioTestCase):
             super().tearDown()
             if self.conn and not self.conn.closed:
                 self.conn.close()
-        except:
+        except RuntimeError:
             pass
 
         unpatch()
