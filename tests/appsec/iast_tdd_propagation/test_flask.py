@@ -57,7 +57,7 @@ def test_iast_flask_weak_cipher():
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        app="flask_taint_sinks_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_taint_sinks_app.py",
     ) as context:
         server_process, client, pid = context
         for i in range(10):

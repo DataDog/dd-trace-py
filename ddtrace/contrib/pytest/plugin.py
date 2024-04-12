@@ -54,6 +54,7 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_module_name
@@ -398,7 +399,7 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
 
     if should_enable_coverage and _module_has_dd_coverage_enabled(pytest):
         fqn_module = _generate_fully_qualified_module_name(test_module_path, test_suite_name)
-        _switch_coverage_context(pytest._dd_coverage, fqn_module)
+        _switch_coverage_context(pytest._dd_coverage, fqn_module, TEST_FRAMEWORKS.PYTEST)
     return test_suite_span
 
 
@@ -777,13 +778,13 @@ def pytest_runtest_protocol(item, nextitem):
         root_directory = str(item.config.rootdir)
         if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
             fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
-            _switch_coverage_context(pytest._dd_coverage, fqn_test)
+            _switch_coverage_context(pytest._dd_coverage, fqn_test, TEST_FRAMEWORKS.PYTEST)
         # Run the actual test
         yield
 
         # Finish coverage for the test suite if coverage is enabled
         if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
-            _report_coverage_to_span(pytest._dd_coverage, span, root_directory)
+            _report_coverage_to_span(pytest._dd_coverage, span, root_directory, TEST_FRAMEWORKS.PYTEST)
 
         nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)
         if nextitem is None or nextitem_pytest_module_item != pytest_module_item and not test_suite_span.finished:

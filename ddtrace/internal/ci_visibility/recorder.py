@@ -1,4 +1,5 @@
 from collections import defaultdict
+from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
@@ -70,7 +71,9 @@ from .errors import CIVisibilityError
 from .git_client import METADATA_UPLOAD_STATUS
 from .git_client import CIVisibilityGitClient
 from .telemetry.constants import ERROR_TYPES
+from .telemetry.constants import TEST_FRAMEWORKS
 from .telemetry.git import record_settings
+from .telemetry.itr import record_itr_skippable_request
 from .writer import CIVisibilityWriter
 
 
@@ -432,7 +435,7 @@ class CIVisibility(Service):
             return False
         return cls._instance and cls._instance._api_settings.skipping_enabled
 
-    def _fetch_tests_to_skip(self, skipping_mode):
+    def _fetch_tests_to_skip(self, skipping_mode: str):
         # Make sure git uploading has finished
         # this will block the thread until that happens
         try:
@@ -467,6 +470,7 @@ class CIVisibility(Service):
             "dd-api-key": self._api_key,
             "Content-Type": "application/json",
         }
+
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             url = get_trace_url() + EVP_PROXY_AGENT_BASE_PATH + SKIPPABLE_ENDPOINT
             _headers = {
@@ -478,52 +482,79 @@ class CIVisibility(Service):
             log.warning("Cannot make requests to skippable endpoint if mode is not agentless or evp proxy")
             return
 
+        error_type: Optional[ERROR_TYPES] = None
+        response_bytes: int = 0
+        skippable_count: int = 0
+        sw = StopWatch()
+
         try:
-            response = _do_request("POST", url, json.dumps(payload), _headers, DEFAULT_ITR_SKIPPABLE_TIMEOUT)
-        except (TimeoutError, socket.timeout):
-            log.warning("Request timeout while fetching skippable tests")
+            try:
+                sw.start()
+                response = _do_request("POST", url, json.dumps(payload), _headers, DEFAULT_ITR_SKIPPABLE_TIMEOUT)
+                sw.stop()
+            except (TimeoutError, socket.timeout, RemoteDisconnected) as e:
+                sw.stop()
+                log.warning("Error while fetching skippable tests: ", exc_info=True)
+                error_type = ERROR_TYPES.NETWORK if isinstance(e, RemoteDisconnected) else ERROR_TYPES.TIMEOUT
+                self._test_suites_to_skip = []
+                return
+
             self._test_suites_to_skip = []
-            return
 
-        self._test_suites_to_skip = []
+            if response.status >= 400:
+                error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
+                log.warning("Skippable tests request responded with status %d", response.status)
+                return
+            try:
+                response_bytes = len(response.body)
+                if isinstance(response.body, bytes):
+                    parsed = json.loads(response.body.decode())
+                else:
+                    parsed = json.loads(response.body)
+            except json.JSONDecodeError:
+                log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
+                error_type = ERROR_TYPES.BAD_JSON
+                return
 
-        if response.status >= 400:
-            log.warning("Skippable tests request responded with status %d", response.status)
-            return
-        try:
-            if isinstance(response.body, bytes):
-                parsed = json.loads(response.body.decode())
+            if "data" not in parsed:
+                log.warning("Skippable tests request missing data, no tests will be skipped")
+                error_type = ERROR_TYPES.BAD_JSON
+                return
+
+            if "meta" in parsed and "correlation_id" in parsed["meta"]:
+                itr_correlation_id = parsed["meta"]["correlation_id"]
+                log.debug("Skippable tests response correlation_id: %s", itr_correlation_id)
+                self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = itr_correlation_id
             else:
-                parsed = json.loads(response.body)
-        except json.JSONDecodeError:
-            log.warning("Skippable tests request responded with invalid JSON '%s'", response.body)
-            return
+                log.debug("Skippable tests response missing correlation_id")
 
-        if "data" not in parsed:
-            log.warning("Skippable tests request missing data, no tests will be skipped")
-            return
+            try:
+                for item in parsed["data"]:
+                    if item["type"] == skipping_mode and "suite" in item["attributes"]:
+                        module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
+                        path = (
+                            "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
+                        )
+                        skippable_count += 1
 
-        if "meta" in parsed and "correlation_id" in parsed["meta"]:
-            itr_correlation_id = parsed["meta"]["correlation_id"]
-            log.debug("Skippable tests response correlation_id: %s", itr_correlation_id)
-            self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = itr_correlation_id
-        else:
-            log.debug("Skippable tests response missing correlation_id")
+                        if skipping_mode == SUITE:
+                            self._test_suites_to_skip.append(path)
+                        else:
+                            self._tests_to_skip[path].append(item["attributes"]["name"])
+            except Exception:
+                log.warning("Error processing skippable test data, no tests will be skipped", exc_info=True)
+                error_type = ERROR_TYPES.UNKNOWN
+                self._test_suites_to_skip = []
+                self._tests_to_skip = defaultdict(list)
 
-        try:
-            for item in parsed["data"]:
-                if item["type"] == skipping_mode and "suite" in item["attributes"]:
-                    module = item["attributes"].get("configurations", {}).get("test.bundle", "").replace(".", "/")
-                    path = "/".join((module, item["attributes"]["suite"])) if module else item["attributes"]["suite"]
-
-                    if skipping_mode == SUITE:
-                        self._test_suites_to_skip.append(path)
-                    else:
-                        self._tests_to_skip[path].append(item["attributes"]["name"])
-        except Exception:
-            log.warning("Error processing skippable test data, no tests will be skipped", exc_info=True)
-            self._test_suites_to_skip = []
-            self._tests_to_skip = defaultdict(list)
+        finally:
+            record_itr_skippable_request(
+                sw.elapsed() * 1000,
+                response_bytes,
+                skipping_mode,
+                skippable_count if error_type is None else None,
+                error_type,
+            )
 
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         if test_skipping_mode is None:
@@ -807,6 +838,14 @@ class CIVisibility(Service):
 
         return item_id.name in instance._tests_to_skip.get(item_path, [])
 
+    @classmethod
+    def is_unknown_ci(cls) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+
+        return instance._tags.get(ci.PROVIDER_NAME) is None
+
 
 def _requires_civisibility_enabled(func):
     def wrapper(*args, **kwargs):
@@ -819,7 +858,9 @@ def _requires_civisibility_enabled(func):
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(discover_args: CISession.DiscoverArgs):
+def _on_discover_session(
+    discover_args: CISession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
+):
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -835,6 +876,9 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
     # If we're not provided a root directory, try and extract it from CWD
     root_dir = (discover_args.root_dir or Path(extract_workspace_path())).absolute()
 
+    if test_framework_telemetry_name is None:
+        test_framework_telemetry_name = TEST_FRAMEWORKS.MANUAL
+
     session_settings = CIVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
@@ -842,12 +886,14 @@ def _on_discover_session(discover_args: CISession.DiscoverArgs):
         reject_unknown_items=discover_args.reject_unknown_items,
         reject_duplicates=discover_args.reject_duplicates,
         test_framework=discover_args.test_framework,
+        test_framework_metric_name=test_framework_telemetry_name,
         test_framework_version=discover_args.test_framework_version,
         session_operation_name=discover_args.session_operation_name,
         module_operation_name=discover_args.module_operation_name,
         suite_operation_name=discover_args.suite_operation_name,
         test_operation_name=discover_args.test_operation_name,
         root_dir=root_dir,
+        is_unknown_ci=CIVisibility.is_unknown_ci(),
         itr_enabled=CIVisibility.is_itr_enabled(),
         itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
         itr_test_skipping_level=SUITE if instance._suite_skipping_mode else TEST,
