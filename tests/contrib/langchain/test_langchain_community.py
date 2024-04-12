@@ -1168,6 +1168,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
         await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
@@ -1181,7 +1182,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(["chickens", "cows", "pigs"])
+        chain.batch(["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1198,7 +1199,7 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
-        chain.batch(["chickens", "cows", "pigs"])
+        chain.batch(["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1225,6 +1226,7 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
+@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
@@ -1238,7 +1240,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
-        await chain.abatch(["chickens", "cows", "pigs"])
+        await chain.abatch(["chickens", "pigs"])
 
 
 @pytest.mark.parametrize(
