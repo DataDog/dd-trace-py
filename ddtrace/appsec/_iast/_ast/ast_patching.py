@@ -30,7 +30,10 @@ IAST_DENYLIST = (
     "inspect",  # this package is used to get the stack frames, propagation is not needed
     "pycparser",  # this package is called when a module is imported, propagation is not needed
     "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
+    "api_pb2_grpc",  # ditto
 )  # type: tuple[str, ...]
+
 
 if IAST.PATCH_MODULES in os.environ:
     IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
@@ -120,6 +123,8 @@ def _remove_flask_run(text):  # type (str) -> str
     a new instance.
     """
     flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
+    if not flask_instance_name:
+        return text
     groups = flask_instance_name.groups()
     if not groups:
         return text
