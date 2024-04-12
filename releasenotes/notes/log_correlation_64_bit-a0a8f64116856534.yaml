@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    logging: This fix resolves an issue where ``tracer.get_log_correlation_context()`` incorrectly returned
+    a 128-bit trace_id even with ``DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED`` set to ``False`` (the default),
+    breaking log correlation. It now returns a 64-bit trace_id.
