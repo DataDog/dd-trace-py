@@ -209,15 +209,6 @@ class Context(object):
             return str(base64.b64decode(user_id), encoding="utf-8")
         return None
 
-    @property
-    def _trace_id_64_bits(self):
-        # type: () -> Optional[int]
-        """Return the trace ID as a 64-bit value."""
-        if self.trace_id is None:
-            return None
-        else:
-            return _MAX_UINT_64BITS & self.trace_id
-
     @dd_user_id.setter
     def dd_user_id(self, value):
         # type: (Optional[Text]) -> None
@@ -228,6 +219,14 @@ class Context(object):
                     del self._meta[USER_ID_KEY]
                 return
             self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
+
+    @property
+    def _trace_id_64bits(self):
+        """Return the trace ID as a 64-bit value."""
+        if self.trace_id is None:
+            return None
+        else:
+            return _MAX_UINT_64BITS & self.trace_id
 
     def _set_baggage_item(self, key, value):
         # type: (str, Any) -> None
