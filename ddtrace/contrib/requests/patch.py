@@ -48,4 +48,5 @@ def unpatch():
         return
     requests.__datadog_patch = False
 
+    _u(requests.Session, "request")
     _u(requests.Session, "send")
