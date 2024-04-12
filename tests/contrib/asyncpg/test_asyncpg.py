@@ -375,7 +375,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         spans = tracer.get_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "postgresql.query"
+        assert span.name == "postgres.query"
 
         assert span.get_tag("_dd.dbm_trace_injected") == "true"
 
@@ -393,26 +393,27 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        conn.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await conn.execute("select 'blah'")
-        await conn.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
-        )
-        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        conn.__wrapped__.reset_mock()
-        await conn.execute(b"select 'blah'")
-        await conn.executemany(b"select %s", ((b"foo",), (b"bar",)))
-        conn.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
-        conn.__wrapped__.executemany.assert_called_once_with(
-            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
-        )
-        # test composed queries
-        conn.__wrapped__.reset_mock()
+        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
+            return args, kwargs
+
+        with mock.patch(
+            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
+        ) as patched:
+            # test string queries
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS my_table(
+                    my_column text PRIMARY KEY
+                )
+            """
+
+            await conn.execute(create_table_query)
+            dbm_comment = (
+                f"/*dddb='{db_name}',dddbs='postgres',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+                "ddpv='v7343437-d7ac743'*/ "
+            )
+            assert (
+                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
+            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -429,18 +430,27 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        conn.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await conn.execute("select 'blah'")
-        await conn.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
-        )
-        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        conn.__wrapped__.reset_mock()
+        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
+            return args, kwargs
+
+        with mock.patch(
+            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
+        ) as patched:
+            # test string queries
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS my_table(
+                    my_column text PRIMARY KEY
+                )
+            """
+
+            await conn.execute(create_table_query)
+            dbm_comment = (
+                f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+                "ddpv='v7343437-d7ac743'*/ "
+            )
+            assert (
+                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
+            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -457,20 +467,29 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        Pin.override(patched_conn, service="pin-service-name-override", tracer=tracer)
+        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
 
-        conn.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await conn.execute("select 'blah'")
-        await conn.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
-        )
-        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        conn.__wrapped__.reset_mock()
+        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
+            return args, kwargs
+
+        with mock.patch(
+            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
+        ) as patched:
+            # test string queries
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS my_table(
+                    my_column text PRIMARY KEY
+                )
+            """
+
+            await conn.execute(create_table_query)
+            dbm_comment = (
+                f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+                "ddpv='v7343437-d7ac743'*/ "
+            )
+            assert (
+                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
+            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -487,15 +506,24 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        conn.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await conn.execute("select 'blah'")
-        await conn.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
-        )
-        conn.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        conn.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        conn.__wrapped__.reset_mock()
+        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
+            return args, kwargs
+
+        with mock.patch(
+            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
+        ) as patched:
+            # test string queries
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS my_table(
+                    my_column text PRIMARY KEY
+                )
+            """
+
+            await conn.execute(create_table_query)
+            dbm_comment = (
+                f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+                "ddpv='v7343437-d7ac743'*/ "
+            )
+            assert (
+                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
+            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"

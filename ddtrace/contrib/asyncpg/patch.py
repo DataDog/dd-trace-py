@@ -115,20 +115,20 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-        dbm_propagator = getattr(config.asyncpg, "_dbm_propagator", None)
-        if dbm_propagator:
-            args, kwargs = dbm_propagator.inject(span, [query], kwargs)
-
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
+
+        dbm_propagator = getattr(config.asyncpg, "_dbm_propagator", None)
+        # bind_execute_many uses prepared statements which we want to avoid injection for
+        if dbm_propagator and method.__name__ != "bind_execute_many":
+            args, kwargs = dbm_propagator.inject(span, args, kwargs)
         return await method(*args, **kwargs)
 
 
 @with_traced_module
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
     state = get_argument_value(args, kwargs, 0, "state")  # type: Union[str, PreparedStatement]
-    query = state if isinstance(state, str) else state.query
+    query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
     return await _traced_query(pin, func, query, args, kwargs)
 
 
