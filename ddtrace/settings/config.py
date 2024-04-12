@@ -1,4 +1,5 @@
 from copy import deepcopy
+import http.client as http_client
 import io
 import json
 import logging
@@ -57,6 +58,7 @@ else:
 log = get_logger(__name__)
 
 lock = threading.Lock()
+http_client.HTTPConnection.debuglevel = 1
 
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
@@ -968,32 +970,31 @@ class Config(object):
                 flare_file_name = f"{TRACER_FLARE_DIRECTORY}/{file_name}"
                 tar.add(flare_file_name)
         tar_stream.seek(0)
-        boundary = "BOUNDARY".encode()
-        body = io.BytesIO()
+        newline = "\r\n"
+        boundary = "abcdefg"
+        body = io.StringIO()
         for key, value in metadata.items():
-            body.write(b"--" + boundary + b"\r\n")
-            body.write(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
-            body.write(f"{value}\r\n".encode())
-        # Add tarfile
-        body.write(b"--" + boundary + b"\r\n")
-        body.write(b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"\r\n')
-        body.write(b"Content-Type: application/octet-stream\r\n\r\n")
-        body.write(tar_stream.getvalue() + b"\r\n")
-        # Add final boundary
-        body.write(b"--" + boundary + b"--\r\n")
+            body.write("--" + boundary + newline)
+            body.write(f'Content-Disposition: form-data; name="{key}"{newline}{newline}')
+            body.write(f"{value}{newline}")
 
+        # Add tarfile
+        body.write("--" + boundary + newline)
+        body.write(f'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"{newline}')
+        body.write(f"Content-Type: application/octet-stream{newline}{newline}")
+        body.write(tar_stream.getvalue().decode() + newline)
+        body.write("--" + boundary + "--")
         headers = {
-            "Content-Type": "multipart/form-data; boundary=" + boundary.decode(),
-            "Content-Length": str(body.getbuffer().nbytes),
+            "Content-Type": "multipart/form-data; boundary=" + boundary,
+            "Content-Length": str(len(body.getvalue().encode())),
         }
         if self._dd_api_key:
             headers["DD-API-KEY"] = self._dd_api_key
 
         try:
-            client.request("POST", TRACER_FLARE_ENDPOINT, body=body.getvalue(), headers=headers)
+            client.request("POST", TRACER_FLARE_ENDPOINT, body=body.getvalue().encode(), headers=headers)
             response = client.getresponse()
-            print(response.getheaders())
-            print("CONTENT: ", response.read().decode())
+            print("content: ", response.read().decode())
 
             if response.status == 200:
                 log.info("Successfully sent the flare")
