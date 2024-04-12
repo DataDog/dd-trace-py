@@ -178,11 +178,3 @@ class DDLogger(logging.Logger):
             # Increment the count of records we have skipped
             # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
-
-
-def _get_handler(logger: logging.Logger, handler_name: str) -> Optional[logging.Handler]:
-    handlers = logger.handlers
-    for handler in handlers:
-        if handler.name == handler_name:
-            return handler
-    return None

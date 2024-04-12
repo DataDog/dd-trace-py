@@ -72,7 +72,7 @@ def _add_file_handler(
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
-):
+) -> RotatingFileHandler:
     if log_path is not None:
         log_path = log_path.absolute()
         num_backup = 1
@@ -87,6 +87,7 @@ def _add_file_handler(
             ddtrace_file_handler.set_name(handler_name)
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
+        return ddtrace_file_handler
 
 
 def _configure_log_injection():

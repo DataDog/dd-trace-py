@@ -2,13 +2,13 @@ import logging
 from logging import Logger
 import multiprocessing
 import os
+from typing import Optional
 import unittest
 from unittest import mock
 
 from ddtrace.internal.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare import Flare
-from ddtrace.internal.logger import _get_handler
 from ddtrace.internal.logger import get_logger
 
 
@@ -29,11 +29,9 @@ class TracerFlareTests(unittest.TestCase):
             "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
         },
     ]
-    response = mock.MagicMock()
-    response.status = 200
-    flare = Flare()
 
     def setUp(self):
+        self.flare = Flare()
         self.pid = os.getpid()
         self.flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{self.pid}.json"
@@ -41,27 +39,26 @@ class TracerFlareTests(unittest.TestCase):
     def tearDown(self):
         self.confirm_cleanup()
 
+    def _get_handler(self) -> Optional[logging.Handler]:
+        ddlogger = get_logger("ddtrace")
+        handlers = ddlogger.handlers
+        for handler in handlers:
+            if handler.name == TRACER_FLARE_FILE_HANDLER_NAME:
+                return handler
+        return None
+
     def test_single_process_success(self):
         """
         Validate that the baseline tracer flare works for a single process
-        AGENT_CONFIG expected behavior:
-        - file handler added to logger
-        - correct log level set for handler and logger
-        - logs added to file
-        AGENT_TASK expected behavior:
-        - file handler removed from logger
-        - log level reverted for logger
-        - new logs are not being added to file
-        - generated files are cleaned up
         """
         ddlogger = get_logger("ddtrace")
 
         self.flare.prepare(self.mock_agent_config)
 
-        file_handler = _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME)
+        file_handler = self._get_handler()
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
-        assert file_handler is not None
-        assert file_handler.level == DEBUG_LEVEL_INT
+        assert file_handler is not None, "File handler did not get added to the ddtrace logger"
+        assert file_handler.level == DEBUG_LEVEL_INT, "File handler does not have the correct log level"
         assert ddlogger.level == valid_logger_level
 
         assert os.path.exists(self.flare_file_path)
@@ -84,7 +81,7 @@ class TracerFlareTests(unittest.TestCase):
             mock_json.side_effect = Exception("file issue happened")
             self.flare.prepare(self.mock_agent_config)
 
-        file_handler = _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME)
+        file_handler = self._get_handler()
         assert file_handler is not None
         assert file_handler.level == DEBUG_LEVEL_INT
         assert ddlogger.level == valid_logger_level
@@ -133,12 +130,12 @@ class TracerFlareTests(unittest.TestCase):
         """
         processes = []
 
-        def do_tracer_flare():
-            self.flare._prepare(self.mock_agent_config)
+        def do_tracer_flare(agent_config, agent_task):
+            self.flare._prepare(agent_config)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
-            self.flare.send(self.mock_agent_task)
+            self.flare.send(agent_task)
 
         # Create successful process
         p = multiprocessing.Process(target=do_tracer_flare, args=(self.mock_agent_config, self.mock_agent_task))
@@ -172,6 +169,5 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.revert_configs()
 
     def confirm_cleanup(self):
-        ddlogger = get_logger("ddtrace")
         assert not os.path.exists(TRACER_FLARE_DIRECTORY), f"The directory {TRACER_FLARE_DIRECTORY} still exists"
-        assert _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME) is None
+        assert self._get_handler() is None, "File handler was not removed"

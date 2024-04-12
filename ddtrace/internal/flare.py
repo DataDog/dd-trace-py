@@ -2,6 +2,7 @@ import binascii
 import io
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
@@ -9,11 +10,11 @@ import tarfile
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 from ddtrace import config
 from ddtrace._logger import _add_file_handler
-from ddtrace.internal.logger import _get_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
@@ -30,8 +31,9 @@ log = get_logger(__name__)
 
 class Flare:
     def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
-        self.original_log_level = 0
+        self.original_log_level = 0  # NOTSET
         self.timeout = timeout_sec
+        self.file_handler: Optional[RotatingFileHandler] = None
 
     def prepare(self, configs: List[dict]):
         """
@@ -70,7 +72,9 @@ class Flare:
             valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
             logger_level = min(valid_original_level, flare_log_level_int)
             ddlogger.setLevel(logger_level)
-            _add_file_handler(ddlogger, flare_file_path, flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME)
+            self.file_handler = _add_file_handler(
+                ddlogger, flare_file_path, flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
+            )
 
             # Create and add config file
             self._generate_config_file(pid)
@@ -92,11 +96,12 @@ class Flare:
 
             # We only want the flare to be sent once, even if there are
             # multiple tracer instances
-            if not os.path.exists(TRACER_FLARE_LOCK):
+            lock_path = TRACER_FLARE_DIRECTORY / TRACER_FLARE_LOCK
+            if not os.path.exists(lock_path):
                 try:
-                    open(TRACER_FLARE_LOCK, "w").close()
+                    open(lock_path, "w").close()
                 except Exception as e:
-                    log.error("Failed to create %s file", TRACER_FLARE_LOCK)
+                    log.error("Failed to create %s file", lock_path)
                     raise e
                 data = {
                     "case_id": args.get("case_id"),
@@ -125,6 +130,7 @@ class Flare:
                     client.close()
                     # Clean up files regardless of success/failure
                     self.clean_up_files()
+                    return
 
     def _generate_config_file(self, pid: int):
         config_file = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_config_{pid}.json")
@@ -146,9 +152,8 @@ class Flare:
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
-        handler_to_remove = _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME)
-        if handler_to_remove:
-            ddlogger.removeHandler(handler_to_remove)
+        if self.file_handler:
+            ddlogger.removeHandler(self.file_handler)
             log.debug("ddtrace logs will not be routed to the %s file handler anymore", TRACER_FLARE_FILE_HANDLER_NAME)
         else:
             log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
@@ -195,8 +200,3 @@ class Flare:
             shutil.rmtree(TRACER_FLARE_DIRECTORY)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)
-
-        try:
-            os.remove(TRACER_FLARE_LOCK)
-        except Exception as e:
-            log.warning("Failed to clean up tracer lock file, need to clean up manually: %s", e)
