@@ -2065,8 +2065,9 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[
                 {
-                    "content": "\nextract_student_info\n\n{}\n".format(
-                        resp.choices[0].message.tool_calls[0].function.arguments
+                    "content": "[tool: {}]\n\n{}".format(
+                        resp.choices[0].message.tool_calls[0].function.name,
+                        resp.choices[0].message.tool_calls[0].function.arguments,
                     ),
                     "role": "assistant",
                 }

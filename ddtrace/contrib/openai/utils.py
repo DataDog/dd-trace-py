@@ -135,7 +135,7 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
     message["role"] = streamed_chunks[0].delta.role or "assistant"
     if streamed_chunks[-1].finish_reason is not None:
         message["finish_reason"] = streamed_chunks[-1].finish_reason
-    message["content"] = content
+    message["content"] = content.strip()
     return message
 
 

@@ -190,10 +190,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 elif getattr(choice.message, "tool_calls", None):
                     content = ""
                     for tool_call in choice.message.tool_calls:
-                        content += "\n{}\n\n{}\n".format(
+                        content += "\n[tool: {}]\n\n{}\n".format(
                             getattr(tool_call.function, "name", ""), tool_call.function.arguments
                         )
-                output_messages.append({"content": str(content), "role": choice.message.role})
+                output_messages.append({"content": str(content).strip(), "role": choice.message.role})
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod

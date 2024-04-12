@@ -2380,6 +2380,7 @@ def test_llmobs_chat_completion_function_call_stream(
             )
             for chunk in resp:
                 resp_model = chunk.model
+
     expected_output = '{"name":"David Nguyen","major":"Computer Science","school":"Stanford University","grades":3.8,"clubs":["Chess Club","South Asian Student Association"]}'  # noqa: E501
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
@@ -2411,7 +2412,7 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
             tool_choice="auto",
             user="ddtrace-test",
         )
-    expected_output = '\nextract_student_info\n\n{\n  "name": "David Nguyen",\n  "major": "computer science",\n  "school": "Stanford University",\n  "grades": 3.8,\n  "clubs": ["Chess Club", "South Asian Student Association"]\n}\n'  # noqa: E501
+    expected_output = '[tool: extract_student_info]\n\n{\n  "name": "David Nguyen",\n  "major": "computer science",\n  "school": "Stanford University",\n  "grades": 3.8,\n  "clubs": ["Chess Club", "South Asian Student Association"]\n}'  # noqa: E501
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.enqueue.assert_called_with(
