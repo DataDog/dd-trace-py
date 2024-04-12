@@ -96,9 +96,11 @@ def test_slow_imports(monkeypatch):
     # any of those modules are imported during the import of ddtrace.
 
     blocklist = [
+        "ddtrace.appsec._api_security.api_manager",
         "ddtrace.appsec._iast._ast.ast_patching",
         "ddtrace.internal.telemetry.telemetry_writer",
-        "ddtrace.appsec._api_security.api_manager",
+        "email.mime.application",
+        "email.mime.multipart",
         "logging.handlers",
     ]
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", False)

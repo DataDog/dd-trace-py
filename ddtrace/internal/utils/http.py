@@ -1,7 +1,5 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
 from json import loads
 import logging
 import os
@@ -437,6 +435,8 @@ class FormData:
 
 
 def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
+    from email.mime.application import MIMEApplication
+    from email.mime.multipart import MIMEMultipart
     msg = MIMEMultipart("form-data")
     del msg["MIME-Version"]
 
