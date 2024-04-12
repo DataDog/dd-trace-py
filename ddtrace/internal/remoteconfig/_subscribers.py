@@ -72,6 +72,9 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         return self._current_request_start
 
     def _set_stale_tracer_flare_num_mins(self, mins: int):
+        """
+        This method should be used only for testing
+        """
         self._stale_tracer_flare_num_mins = mins
 
     def _has_stale_flare(self) -> bool:
@@ -97,8 +100,6 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         data = self._data_connector.read()
         product_type = data.get("metadata", [{}])[0].get("product_name")
         if product_type == "AGENT_CONFIG":
-            log.info("RECEIVED AGENT_CONFIG PRODUCT")
-            log.info(data)
             # We will only process one tracer flare request at a time
             if self._current_request_start is not None:
                 log.warning(
@@ -108,8 +109,6 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 return
             self._current_request_start = datetime.now()
         elif product_type == "AGENT_TASK":
-            log.info("RECEIVED AGENT_TASK PRODUCT")
-            log.info(data)
             # Possible edge case where we missed the AGENT_CONFIG product
             # In this case we won't have anything to send, so we log and do nothing
             if self._current_request_start is None:
@@ -120,4 +119,3 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             return
         log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
         self._callback(data)
-        log.info("CURRENT START TIME: ", self._current_request_start)

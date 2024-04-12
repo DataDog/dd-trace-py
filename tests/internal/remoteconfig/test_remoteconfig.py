@@ -17,7 +17,7 @@ import pytest
 from ddtrace import config
 from ddtrace.internal.constants import DDTRACE_FILE_HANDLER_NAME
 from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
-from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import _getHandler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
@@ -471,7 +471,6 @@ class TracerFlareTests(unittest.TestCase):
 
     def setUp(self):
         self.pid = os.getpid()
-        self.logger = get_logger("ddtrace.tracer")
         self.flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{self.pid}.json"
 
@@ -492,15 +491,15 @@ class TracerFlareTests(unittest.TestCase):
         - new logs are not being added to file
         - generated files are cleaned up
         """
-        assert type(self.logger) == DDLogger
+        logger = get_logger("ddtrace")
 
         config._prepare_tracer_flare(self.agent_config)
 
-        file_handler = self.logger._getHandler(DDTRACE_FILE_HANDLER_NAME)
+        file_handler = _getHandler(logger, DDTRACE_FILE_HANDLER_NAME)
         valid_logger_level = config._get_valid_logger_level(self.debug_level_int)
         assert file_handler is not None
         assert file_handler.level == self.debug_level_int
-        assert self.logger.level == valid_logger_level
+        assert logger.level == valid_logger_level
 
         assert os.path.exists(self.flare_file_path)
         assert os.path.exists(self.config_file_path)
@@ -508,10 +507,9 @@ class TracerFlareTests(unittest.TestCase):
         # Generate a few dummy tracer logs
         for n in range(10):
             if n % 2 == 0:
-                self.logger.debug(n)
+                logger.debug(n)
             else:
-                self.logger.info(n)
-
+                logger.info(n)
         config._generate_tracer_flare(self.agent_task)
         with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
             "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
@@ -523,6 +521,7 @@ class TracerFlareTests(unittest.TestCase):
         Validate that even if one of the files fails to be generated,
         we still attempt to send the flare with partial info (ensure best effort)
         """
+        logger = get_logger("ddtrace")
         valid_logger_level = config._get_valid_logger_level(self.debug_level_int)
 
         # Mock the partial failure
@@ -530,10 +529,10 @@ class TracerFlareTests(unittest.TestCase):
             mock_json.side_effect = Exception("file issue happened")
             config._prepare_tracer_flare(self.agent_config)
 
-        file_handler = self.logger._getHandler(DDTRACE_FILE_HANDLER_NAME)
+        file_handler = _getHandler(logger, DDTRACE_FILE_HANDLER_NAME)
         assert file_handler is not None
         assert file_handler.level == self.debug_level_int
-        assert self.logger.level == valid_logger_level
+        assert logger.level == valid_logger_level
 
         assert os.path.exists(self.flare_file_path)
         assert not os.path.exists(self.config_file_path)
@@ -541,9 +540,9 @@ class TracerFlareTests(unittest.TestCase):
         # Generate a few dummy logs
         for n in range(10):
             if n % 2 == 0:
-                self.logger.debug(n)
+                logger.debug(n)
             else:
-                self.logger.info(n)
+                logger.info(n)
 
         with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
             "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
@@ -709,5 +708,6 @@ class TracerFlareTests(unittest.TestCase):
         config._revert_tracer_flare_configs()
 
     def confirm_cleanup(self):
+        logger = get_logger("ddtrace")
         assert not os.path.exists(TRACER_FLARE_DIRECTORY), f"The directory {TRACER_FLARE_DIRECTORY} still exists"
-        assert self.logger._getHandler(DDTRACE_FILE_HANDLER_NAME) is None
+        assert _getHandler(logger, DDTRACE_FILE_HANDLER_NAME) is None

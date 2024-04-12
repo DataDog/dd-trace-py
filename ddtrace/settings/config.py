@@ -885,7 +885,7 @@ class Config(object):
             if type(flare_log_level_int) != int:
                 raise TypeError("Invalid log level provided: %s", flare_log_level_int)
 
-            ddlogger = get_logger("ddtrace.tracer")
+            ddlogger = get_logger("ddtrace")
             pid = os.getpid()
             flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{pid}.log"
             self.__setattr__("__original_log_level", ddlogger.level)
@@ -960,7 +960,7 @@ class Config(object):
 
     def _send_tracer_flare(self, metadata: dict):
         client = get_connection(self._trace_agent_url, timeout=5)
-        # client.set_debuglevel(1)
+        client.set_debuglevel(1)
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
             for file_name in os.listdir(TRACER_FLARE_DIRECTORY):
@@ -968,46 +968,32 @@ class Config(object):
                 flare_file_name = f"{TRACER_FLARE_DIRECTORY}/{file_name}"
                 tar.add(flare_file_name)
         tar_stream.seek(0)
-        metadata = {"source": "tracer_python"}
-        boundary = "----BOUNDARY----"
+        boundary = "BOUNDARY".encode()
         body = io.BytesIO()
         for key, value in metadata.items():
-            body.write(b"--" + boundary.encode() + b"\r\n")
+            body.write(b"--" + boundary + b"\r\n")
             body.write(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode())
             body.write(f"{value}\r\n".encode())
-            body.write(b"--" + boundary.encode() + b"--\r\n")
         # Add tarfile
-        body.write(b"--" + boundary.encode() + b"\r\n")
+        body.write(b"--" + boundary + b"\r\n")
         body.write(b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"\r\n')
         body.write(b"Content-Type: application/octet-stream\r\n\r\n")
         body.write(tar_stream.getvalue() + b"\r\n")
         # Add final boundary
-        body.write(b"--" + boundary.encode() + b"--\r\n")
-        # print("encoded: ", json.dumps(metadata).encode())
+        body.write(b"--" + boundary + b"--\r\n")
+
         headers = {
-            "Content-Type": "multipart/form-data; boundary=" + boundary,
+            "Content-Type": "multipart/form-data; boundary=" + boundary.decode(),
             "Content-Length": str(body.getbuffer().nbytes),
         }
-        # from aiohttp import FormData
-
-        # form = FormData()
-        # form.add_field("source", "tracer_test")
-        # form.add_field("case_id", "12345")
-        # form.add_field("email", "its.me@datadoghq.com")
-        # form.add_field("hostname", "my.hostname")
-        # form.add_field(
-        #     "flare_file",
-        #     b"PK\x05\x06\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
-        #     filename="test-flare.zip",
-        #     content_type="application/octet-stream",
-        # )
         if self._dd_api_key:
             headers["DD-API-KEY"] = self._dd_api_key
 
         try:
             client.request("POST", TRACER_FLARE_ENDPOINT, body=body.getvalue(), headers=headers)
             response = client.getresponse()
-            # print("content: ", response.read().decode())
+            print(response.getheaders())
+            print("CONTENT: ", response.read().decode())
 
             if response.status == 200:
                 log.info("Successfully sent the flare")
@@ -1019,7 +1005,7 @@ class Config(object):
             client.close()
 
     def _revert_tracer_flare_configs(self):
-        ddlogger = get_logger("ddtrace.tracer")
+        ddlogger = get_logger("ddtrace")
         _disable_ddtrace_file_logger(ddlogger, DDTRACE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.__original_log_level)
 

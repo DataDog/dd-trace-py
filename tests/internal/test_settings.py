@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.internal.constants import DDTRACE_FILE_HANDLER_NAME
 from ddtrace.internal.constants import TRACER_FLARE_DIRECTORY
-from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import _getHandler
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import Config
 
@@ -392,16 +392,16 @@ def test_tracer_flare_remote_config_valid_log_level(log_level: str):
         ],
     }
 
-    logger = get_logger("ddtrace.tracer")
+    logger = get_logger("ddtrace")
     original_log_level = logger.level
 
     config._handle_tracer_flare(agent_config)
 
-    assert type(logger) == DDLogger
+    assert type(logger) == logging.Logger
     log_level_int = logging.getLevelName(log_level)
     valid_logger_level = config._get_valid_logger_level(log_level_int)
     assert logger.level == valid_logger_level
-    assert logger._getHandler("ddtrace_file_handler") is not None
+    assert _getHandler(logger, "ddtrace_file_handler") is not None
 
     response = mock.MagicMock()
     response.status = 200
@@ -410,7 +410,7 @@ def test_tracer_flare_remote_config_valid_log_level(log_level: str):
     ):
         config._handle_tracer_flare(agent_task)
 
-    assert logger._getHandler("ddtrace_file_handler") is None
+    assert _getHandler(logger, "ddtrace_file_handler") is None
     assert logger.level == original_log_level
 
 
@@ -433,4 +433,4 @@ def test_tracer_flare_remote_config_invalid_log_level():
     config._clean_up_tracer_flare_files()
     config._revert_tracer_flare_configs()
     assert not os.path.exists(TRACER_FLARE_DIRECTORY), f"The directory {TRACER_FLARE_DIRECTORY} still exists"
-    assert get_logger("ddtrace.tracer")._getHandler(DDTRACE_FILE_HANDLER_NAME) is None
+    assert _getHandler(get_logger("ddtrace"), DDTRACE_FILE_HANDLER_NAME) is None

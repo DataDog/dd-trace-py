@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-from ddtrace.internal.logger import DDLogger
+from ddtrace.internal.logger import _getHandler
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -83,12 +83,12 @@ def _add_file_handler(logger: logging.Logger, log_path: str, log_level: int, han
         logger.debug("ddtrace logs will be routed to %s", log_path)
 
 
-def _disable_ddtrace_file_logger(logger: DDLogger, handler_name: str):
-    handler_to_remove = logger._getHandler(handler_name)
+def _disable_ddtrace_file_logger(logger: logging.Logger, handler_name: str):
+    handler_to_remove = _getHandler(logger, handler_name)
 
     if handler_to_remove:
         logger.removeHandler(handler_to_remove)
-        logger.debug("ddtrace logs will not be routed to the file handler anymore")
+        logger.debug("ddtrace logs will not be routed to the %s file handler anymore", handler_name)
     else:
         logger.debug("Could not find %s to remove", handler_name)
 
