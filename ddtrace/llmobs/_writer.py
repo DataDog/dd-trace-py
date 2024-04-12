@@ -29,7 +29,6 @@ class LLMObsEvent(TypedDict):
     tags: List[str]
     service: str
     name: str
-    error: int
     start_ns: int
     duration: float
     status: str

@@ -42,26 +42,14 @@ def test_processor_only_creates_llmobs_span_event():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
                 grandchild_span.set_tag_str(SPAN_KIND, "llm")
     trace = [root_span, child_span, grandchild_span]
+    expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
+    expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 2
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.enqueue(_expected_llmobs_llm_span_event(root_span, "llm")),
-            mock.call.enqueue(
-                {
-                    "span_id": str(grandchild_span.span_id),
-                    "trace_id": "{:x}".format(grandchild_span.trace_id),
-                    "parent_id": str(root_span.span_id),
-                    "session_id": "{:x}".format(grandchild_span.trace_id),
-                    "name": grandchild_span.name,
-                    "tags": mock.ANY,
-                    "start_ns": grandchild_span.start_ns,
-                    "duration": grandchild_span.duration_ns,
-                    "error": 0,
-                    "meta": mock.ANY,
-                    "metrics": mock.ANY,
-                },
-            ),
+            mock.call.enqueue(expected_grandchild_llmobs_span),
         ]
     )
 
