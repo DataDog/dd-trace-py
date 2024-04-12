@@ -20,6 +20,7 @@ def _assert_metric(
 ):
     test_agent.telemetry_writer.periodic()
     events = test_agent.get_events()
+    # print(f"EVENTS EVETNTS {events=}")
 
     filtered_events = [event for event in events if event["request_type"] != "app-dependencies-loaded"]
 
