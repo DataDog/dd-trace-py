@@ -66,10 +66,9 @@ class TracerFlareTests(unittest.TestCase):
         assert os.path.exists(self.flare_file_path)
         assert os.path.exists(self.config_file_path)
 
-        with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-            "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
-        ):
-            self.flare._send(self.mock_agent_task)
+        # Sends request to testagent
+        # This just validates the request params
+        self.flare._send(self.mock_agent_task)
 
     def test_single_process_partial_failure(self):
         """
@@ -92,10 +91,7 @@ class TracerFlareTests(unittest.TestCase):
         assert os.path.exists(self.flare_file_path)
         assert not os.path.exists(self.config_file_path)
 
-        with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-            "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
-        ):
-            self.flare._send(self.mock_agent_task)
+        self.flare._send(self.mock_agent_task)
 
     def test_multiple_process_success(self):
         """
@@ -108,10 +104,7 @@ class TracerFlareTests(unittest.TestCase):
             self.flare._prepare(self.mock_agent_config)
 
         def handle_agent_task():
-            with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-                "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
-            ):
-                self.flare._send(self.mock_agent_task)
+            self.flare._send(self.mock_agent_task)
 
         # Create multiple processes
         for _ in range(num_processes):
@@ -139,15 +132,12 @@ class TracerFlareTests(unittest.TestCase):
         """
         processes = []
 
-        def do_tracer_flare(agent_config, agent_task):
-            self.flare._prepare(agent_config)
+        def do_tracer_flare():
+            self.flare._prepare(self.mock_agent_config)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
-            with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-                "ddtrace.internal.http.HTTPConnection.getresponse", return_value=self.response
-            ):
-                self.flare._send(agent_task)
+            self.flare._send(self.mock_agent_task)
 
         # Create successful process
         p = multiprocessing.Process(target=do_tracer_flare, args=(self.mock_agent_config, self.mock_agent_task))

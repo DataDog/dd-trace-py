@@ -22,13 +22,15 @@ TRACER_FLARE_TAR = f"{TRACER_FLARE_DIRECTORY}.tar"
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
 TRACER_FLARE_LOCK = "tracer_flare.lock"
+DEFAULT_TIMEOUT_SECONDS = 5
 
 log = get_logger(__name__)
 
 
 class Flare:
-    def __init__(self):
+    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
         self.original_log_level = 0
+        self.timeout = timeout_sec
 
     def _prepare(self, configs: List[dict]):
         """
@@ -92,15 +94,16 @@ class Flare:
                     "email": args.get("user_handle"),
                 }
                 try:
-                    client = get_connection(config._trace_agent_url, timeout=5)
+                    client = get_connection(config._trace_agent_url, timeout=self.timeout)
                     headers, body = self._generate_payload(data)
                     client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                     response = client.getresponse()
                     if response.status == 200:
                         log.info("Successfully sent the flare")
-                    else:
-                        print("error uploading")
-                        log.error("Upload failed with status code %s: %s", response.status, response.reason)
+                    elif response.status == 400:
+                        log.error(
+                            "Upload failed with 400 status code:(%s) %s", response.reason, response.read().decode()
+                        )
                 except Exception as e:
                     raise Exception("Failed to send tracer flare: %s" % e)
                 finally:
@@ -178,4 +181,4 @@ class Flare:
         try:
             os.remove(TRACER_FLARE_LOCK)
         except Exception as e:
-            log.warning("Failed to clean up tracer lock file: %s", e)
+            log.warning("Failed to clean up tracer lock file, need to clean up manually: %s", e)
