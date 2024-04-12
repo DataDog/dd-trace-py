@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    (aiomysql, aiopg): Implement span service naming changes to be consistent with other database integrations.
+    (aiomysql, aiopg): Implement span service naming determination to be consistent with other database integrations.
