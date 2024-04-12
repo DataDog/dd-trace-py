@@ -237,7 +237,7 @@ def _iast_report_cmdi(shell_args):
     elif is_pyobject_tainted(shell_args):
         report_cmdi = shell_args
 
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
+    _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     if report_cmdi:
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
-        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)

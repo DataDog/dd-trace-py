@@ -33,7 +33,7 @@ class CICoverageSegment:
 class CICoverageData:
     """Container for coverage data for an item (suite or test)"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._coverage_data: Dict[Path, List[CICoverageSegment]] = defaultdict(list)
 
     def __bool__(self):
