@@ -1,18 +1,23 @@
 # #!/usr/bin/env python3
 # flake8: noqa
+import os
 from typing import TYPE_CHECKING
 
+from ddtrace.internal.logger import get_logger
+
+from ..._constants import IAST
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
 
+log = get_logger(__name__)
+
 if _is_python_version_supported():
-    from .. import oce
     from ._native import ops
+    from ._native.aspect_format import _format_aspect
     from ._native.aspect_helpers import _convert_escaped_text_to_tainted_text
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
-    from ._native.aspect_format import _format_aspect
     from ._native.aspect_helpers import parse_params
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
@@ -25,6 +30,8 @@ if _is_python_version_supported():
     from ._native.taint_tracking import Source
     from ._native.taint_tracking import TagMappingMode
     from ._native.taint_tracking import are_all_text_all_ranges
+    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
+    from ._native.taint_tracking import copy_ranges_from_strings
     from ._native.taint_tracking import get_range_by_hash
     from ._native.taint_tracking import get_ranges
     from ._native.taint_tracking import is_notinterned_notfasttainted_unicode
@@ -32,8 +39,6 @@ if _is_python_version_supported():
     from ._native.taint_tracking import origin_to_str
     from ._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
     from ._native.taint_tracking import set_ranges
-    from ._native.taint_tracking import copy_ranges_from_strings
-    from ._native.taint_tracking import copy_and_shift_ranges_from_strings
     from ._native.taint_tracking import shift_taint_range
     from ._native.taint_tracking import shift_taint_ranges
     from ._native.taint_tracking import str_to_origin
@@ -103,8 +108,19 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
-    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-    _set_metric_iast_executed_source(source_origin)
+    try:
+        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+    except TypeError:
+        if os.environ.get(IAST.ENV_DEBUG, False):
+            import inspect
+
+            stack = inspect.stack()
+            result = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:5])
+            log.warning("Failed to taint pyobject stack:\n%s", result)
+        else:
+            log.debug("Failed to taint pyobject")
+        return pyobject
     return pyobject_newid
 
 

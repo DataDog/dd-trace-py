@@ -94,13 +94,13 @@ api_get_ranges(py::object& string_input)
     return get_ranges(string_input.ptr());
 }
 
-void
+bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
-inline void
+inline bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges)
 {
-    set_ranges(str, ranges, nullptr);
+    return set_ranges(str, ranges, nullptr);
 }
 inline void
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
