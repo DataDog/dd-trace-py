@@ -59,19 +59,30 @@ def _configure_ddtrace_file_logger(logger):
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
-
+    max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     log_path = os.environ.get("DD_TRACE_LOG_FILE")
+    _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
+
+
+def _add_file_handler(
+    logger: logging.Logger,
+    log_path: str,
+    log_level: int,
+    handler_name: str = "",
+    max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
+):
     if log_path is not None:
         log_path = os.path.abspath(log_path)
-        max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
         num_backup = 1
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
         log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
         log_formatter = logging.Formatter(log_format)
-        ddtrace_file_handler.setLevel(file_log_level_value)
+        ddtrace_file_handler.setLevel(log_level)
         ddtrace_file_handler.setFormatter(log_formatter)
+        if handler_name:
+            ddtrace_file_handler.set_name(handler_name)
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
 

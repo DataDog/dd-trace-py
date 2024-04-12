@@ -180,7 +180,7 @@ class DDLogger(logging.Logger):
             self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
 
 
-def _getHandler(logger: logging.Logger, handler_name: str) -> Optional[logging.Handler]:
+def _get_handler(logger: logging.Logger, handler_name: str) -> Optional[logging.Handler]:
     handlers = logger.handlers
     for handler in handlers:
         if handler.name == handler_name:
