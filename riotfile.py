@@ -138,6 +138,8 @@ venv = Venv(
                 "simplejson": latest,
                 "SQLAlchemy": "==2.0.22",
                 "psycopg2-binary": "~=2.9.9",
+                "googleapis-common-protos": latest,
+                "grpcio": latest,
             },
             env={
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -182,6 +184,7 @@ venv = Venv(
             command="pytest tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "coverage": latest,
+                "pycryptodome": latest,
                 "flask": "~=3.0",
                 "sqlalchemy": "~=2.0.23",
                 "pony": latest,
