@@ -49,3 +49,37 @@ def test_iast_flask_orm(orm, xfail):
             assert content["sources"] == "my-bytes-string"
             assert content["vulnerabilities"] == "SQL_INJECTION"
         assert content["params_are_tainted"] is True
+
+
+def test_iast_flask_weak_cipher():
+    with flask_server(
+        iast_enabled="true",
+        tracer_enabled="true",
+        remote_configuration_enabled="false",
+        token=None,
+        app="tests/appsec/iast_tdd_propagation/flask_taint_sinks_app.py",
+    ) as context:
+        server_process, client, pid = context
+        for i in range(10):
+            try:
+                tainted_response = client.get("/?param=my-bytes-string")
+            except Exception:
+                pytest.fail(
+                    "Server FAILED, see stdout and stderr logs"
+                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                    % (server_process.stdout, server_process.stderr)
+                )
+            assert tainted_response.status_code == 200
+            content = json.loads(tainted_response.content)
+            assert content["param"] == "my-bytes-string"
+            assert content["sources"] == ""
+            assert content["vulnerabilities"] == ""
+            assert content["params_are_tainted"] is True
+
+            weak_response = client.get("/weak_cipher?param=my-bytes-string")
+            assert weak_response.status_code == 200
+            content = json.loads(weak_response.content)
+            assert content["sources"] == ""
+            assert content["vulnerabilities"] == "WEAK_CIPHER"
+            assert content["params_are_tainted"] is True
