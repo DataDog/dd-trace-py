@@ -73,7 +73,7 @@ class Flare:
             logger_level = min(valid_original_level, flare_log_level_int)
             ddlogger.setLevel(logger_level)
             self.file_handler = _add_file_handler(
-                ddlogger, flare_file_path, flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
+                ddlogger, flare_file_path.__str__(), flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
             )
 
             # Create and add config file

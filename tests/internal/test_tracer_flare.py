@@ -131,7 +131,7 @@ class TracerFlareTests(unittest.TestCase):
         processes = []
 
         def do_tracer_flare(agent_config, agent_task):
-            self.flare._prepare(agent_config)
+            self.flare.prepare(agent_config)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
