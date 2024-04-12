@@ -10,7 +10,8 @@ from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event, _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import override_global_config
 
 
@@ -1281,11 +1282,7 @@ class TestLLMObsLangchain:
         return expected_llmobs_writer_calls
 
     @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters_keys=None):
-        input_parameters = None
-        if input_parameters_keys is not None:
-            input_parameters = { key: mock.ANY for key in input_parameters_keys }
-
+    def _expected_llmobs_chain_call(span, input_parameters=None):
         return _expected_llmobs_non_llm_span_event(
             span,
             span_kind="workflow",
@@ -1440,19 +1437,27 @@ class TestLLMObsLangchain:
 
     def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
-        
+
         self._test_llmobs_invoke(
             generate_trace=lambda prompt: chain.run("what is two raised to the fifty-fourth power?"),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
-            cassette_name='openai_math_chain_sync.yaml',
+            cassette_name="openai_math_chain_sync.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters_keys": ["question"]}),
-                ("chain", {"input_parameters_keys": ["question", "stop"]}),
+                ("chain", {"input_parameters": {"question": "what is two raised to the fifty-fourth power?"}}),
+                (
+                    "chain",
+                    {
+                        "input_parameters": {
+                            "question": "what is two raised to the fifty-fourth power?",
+                            "stop": mock.ANY,
+                        }
+                    },
+                ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
             ],
-            different_py39_cassette=True
+            different_py39_cassette=True,
         )
 
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -1471,7 +1476,9 @@ class TestLLMObsLangchain:
 
             Rhyme: """
         rhyme_prompt = langchain.PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
-        rhyme_chain = langchain.chains.LLMChain(llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output")
+        rhyme_chain = langchain.chains.LLMChain(
+            llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output"
+        )
         sequential_chain = langchain.chains.SequentialChain(
             chains=[style_paraphrase_chain, rhyme_chain],
             input_variables=["input_text"],
@@ -1480,14 +1487,14 @@ class TestLLMObsLangchain:
 
         input_text = """
                 I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no
-                bodies. Does it now follow that I too do not exist? No: if I convinced myself of something then I certainly
-                existed. But there is a deceiver of supreme power and cunning who is deliberately and constantly deceiving
-                me. In that case I too undoubtedly exist, if he is deceiving me; and let him deceive me as much as he can,
-                he will never bring it about that I am nothing so long as I think that I am something. So after considering
+                bodies.Does it now follow that I too do not exist?No,if I convinced myself of something then I certainly
+                existed.But there is deceiver of supreme power and cunning who is deliberately and constantly deceiving
+                me.In that case I too undoubtedly exist,if he is deceiving me; and let him deceive me as much as he can,
+                he will never bring about that I am nothing so long as I think that I am something.So after considering
                 everything very thoroughly, I must finally conclude that this proposition, I am, I exist, is necessarily
                 true whenever it is put forward by me or conceived in my mind.
                 """
-        
+
         self._test_llmobs_invoke(
             generate_trace=lambda prompt: sequential_chain.run({"input_text": input_text}),
             request_vcr=request_vcr,
@@ -1495,10 +1502,10 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters_keys": ["input_text"]}),
-                ("chain", {"input_parameters_keys": ["input_text"]}),
+                ("chain", {"input_parameters": {"input_text": input_text}}),
+                ("chain", {"input_parameters": {"input_text": input_text}}),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
-                ("chain", {"input_parameters_keys": ["input_text", "paraphrased_output"]}), # what to put here
+                ("chain", {"input_parameters": {"input_text": input_text, "paraphrased_output": mock.ANY}}),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
-            ]
+            ],
         )
