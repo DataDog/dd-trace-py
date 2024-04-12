@@ -37,7 +37,11 @@ class Flare:
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
+        try:
+            os.makedirs(TRACER_FLARE_DIRECTORY, exist_ok=True)
+        except Exception as e:
+            log.error("Failed to create %s directory: %s", TRACER_FLARE_DIRECTORY, e)
+            return
         for c in configs:
             # AGENT_CONFIG is currently being used for multiple purposes
             # We only want to prepare for a tracer flare if the config name
@@ -64,6 +68,7 @@ class Flare:
             logger_level = min(valid_original_level, flare_log_level_int)
             ddlogger.setLevel(logger_level)
             _add_file_handler(ddlogger, flare_file_path, flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME)
+            log.info("Tracer logs will now be sent to the %s directory", TRACER_FLARE_DIRECTORY)
 
             # Create and add config file
             self._generate_config_file(pid)
@@ -86,7 +91,11 @@ class Flare:
             # We only want the flare to be sent once, even if there are
             # multiple tracer instances
             if not os.path.exists(TRACER_FLARE_LOCK):
-                open(TRACER_FLARE_LOCK, "w").close()
+                try:
+                    open(TRACER_FLARE_LOCK, "w").close()
+                except Exception as e:
+                    log.error("Failed to create %s file", TRACER_FLARE_LOCK)
+                    raise e
                 data = {
                     "case_id": args.get("case_id"),
                     "source": "tracer_python",
@@ -105,7 +114,8 @@ class Flare:
                             "Upload failed with 400 status code:(%s) %s", response.reason, response.read().decode()
                         )
                 except Exception as e:
-                    raise Exception("Failed to send tracer flare: %s" % e)
+                    log.error("Failed to send tracer flare")
+                    raise e
                 finally:
                     client.close()
                     # Clean up files regardless of success/failure
