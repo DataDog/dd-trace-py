@@ -108,7 +108,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     return get_ranges(pyobject)
 
 
-def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], list[Source]]:
+def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:
     value_parts = []
     sources = []
     current_pos = 0
