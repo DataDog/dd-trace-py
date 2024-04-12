@@ -51,7 +51,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         try:
             span_event = self._llmobs_span_event(span)
             self._writer.enqueue(span_event)
-        except:
+        except (KeyError, TypeError):
             log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
