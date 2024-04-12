@@ -4,7 +4,6 @@ import mock
 import pytest
 
 from ddtrace.internal.logger import DDLogger
-from ddtrace.internal.logger import _get_handler
 from ddtrace.internal.logger import get_logger
 from tests.utils import BaseTestCase
 
@@ -451,8 +450,12 @@ def test_logger_does_not_add_handler_when_configured():
     assert ddtrace_logger.handlers == []
 
 
+@pytest.mark.subprocess()
 def test_get_handler():
+    import logging
+
     import ddtrace  # noqa:F401
+    from ddtrace.internal.logger import _get_handler
 
     ddtrace_logger = logging.getLogger("ddtrace")
 
