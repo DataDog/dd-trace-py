@@ -1,6 +1,8 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import pathlib
+from typing import Optional
 
 from ddtrace.internal.utils.formats import asbool
 
@@ -66,13 +68,13 @@ def _configure_ddtrace_file_logger(logger):
 
 def _add_file_handler(
     logger: logging.Logger,
-    log_path: str,
+    log_path: pathlib.Path,
     log_level: int,
-    handler_name: str = "",
+    handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
 ):
     if log_path is not None:
-        log_path = os.path.abspath(log_path)
+        log_path = log_path.absolute()
         num_backup = 1
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup

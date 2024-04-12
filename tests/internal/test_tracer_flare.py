@@ -1,3 +1,4 @@
+import logging
 from logging import Logger
 import multiprocessing
 import os
@@ -11,7 +12,7 @@ from ddtrace.internal.logger import _get_handler
 from ddtrace.internal.logger import get_logger
 
 
-DEBUG_LEVEL_INT = 10
+DEBUG_LEVEL_INT = logging.DEBUG
 
 
 class TracerFlareTests(unittest.TestCase):
@@ -55,7 +56,7 @@ class TracerFlareTests(unittest.TestCase):
         """
         ddlogger = get_logger("ddtrace")
 
-        self.flare._prepare(self.mock_agent_config)
+        self.flare.prepare(self.mock_agent_config)
 
         file_handler = _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME)
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
@@ -68,7 +69,7 @@ class TracerFlareTests(unittest.TestCase):
 
         # Sends request to testagent
         # This just validates the request params
-        self.flare._send(self.mock_agent_task)
+        self.flare.send(self.mock_agent_task)
 
     def test_single_process_partial_failure(self):
         """
@@ -81,7 +82,7 @@ class TracerFlareTests(unittest.TestCase):
         # Mock the partial failure
         with mock.patch("json.dump") as mock_json:
             mock_json.side_effect = Exception("file issue happened")
-            self.flare._prepare(self.mock_agent_config)
+            self.flare.prepare(self.mock_agent_config)
 
         file_handler = _get_handler(ddlogger, TRACER_FLARE_FILE_HANDLER_NAME)
         assert file_handler is not None
@@ -91,7 +92,7 @@ class TracerFlareTests(unittest.TestCase):
         assert os.path.exists(self.flare_file_path)
         assert not os.path.exists(self.config_file_path)
 
-        self.flare._send(self.mock_agent_task)
+        self.flare.send(self.mock_agent_task)
 
     def test_multiple_process_success(self):
         """
@@ -101,10 +102,10 @@ class TracerFlareTests(unittest.TestCase):
         num_processes = 3
 
         def handle_agent_config():
-            self.flare._prepare(self.mock_agent_config)
+            self.flare.prepare(self.mock_agent_config)
 
         def handle_agent_task():
-            self.flare._send(self.mock_agent_task)
+            self.flare.send(self.mock_agent_task)
 
         # Create multiple processes
         for _ in range(num_processes):
@@ -137,7 +138,7 @@ class TracerFlareTests(unittest.TestCase):
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
-            self.flare._send(self.mock_agent_task)
+            self.flare.send(self.mock_agent_task)
 
         # Create successful process
         p = multiprocessing.Process(target=do_tracer_flare, args=(self.mock_agent_config, self.mock_agent_task))
@@ -155,8 +156,8 @@ class TracerFlareTests(unittest.TestCase):
         Validate that app logs are not being added to the
         file, just the tracer logs
         """
-        app_logger = Logger(name="my-app", level=10)  # DEBUG level
-        self.flare._prepare(self.mock_agent_config)
+        app_logger = Logger(name="my-app", level=DEBUG_LEVEL_INT)
+        self.flare.prepare(self.mock_agent_config)
 
         app_log_line = "this is an app log"
         app_logger.debug(app_log_line)
@@ -167,8 +168,8 @@ class TracerFlareTests(unittest.TestCase):
             for line in file:
                 assert app_log_line not in line, f"File {self.flare_file_path} contains excluded line: {app_log_line}"
 
-        self.flare._clean_up_files()
-        self.flare._revert_configs()
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
 
     def confirm_cleanup(self):
         ddlogger = get_logger("ddtrace")
