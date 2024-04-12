@@ -14,6 +14,7 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityItemBase
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api.ci_coverage_data import CICoverageData
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.logger import get_logger
 
 
@@ -22,6 +23,7 @@ log = get_logger(__name__)
 
 class CIVisibilityTest(CIVisibilityChildItem[CITestId], CIVisibilityItemBase):
     event_type = TEST
+    event_type_metric_name = EVENT_TYPES.TEST
 
     def __init__(
         self,
