@@ -647,7 +647,7 @@ venv = Venv(
                 Venv(
                     # celery dropped support for Python 2.7/3.5 in 5.0
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=4.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
@@ -666,7 +666,7 @@ venv = Venv(
                     # celery added support for Python 3.9 in 4.x
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=4.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
@@ -1080,7 +1080,7 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=3.0",
+                        "pytest": "~=4.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "==2.1.0",
                         "Jinja2": "~=2.11.0",
