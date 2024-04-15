@@ -35,27 +35,26 @@ class TraceInjectionSizeExceed(Exception):
 
 
 def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
-    if inject_trace_context or config._data_streams_enabled:
-        line_break, data_obj = get_kinesis_data_object(record["Data"])
-        if data_obj is not None:
-            core.dispatch(
-                "botocore.kinesis.update_record",
-                [ctx, stream, data_obj, record, inject_trace_context],
-            )
+    line_break, data_obj = get_kinesis_data_object(record["Data"])
+    if data_obj is not None:
+        core.dispatch(
+            "botocore.kinesis.update_record",
+            [ctx, stream, data_obj, record, inject_trace_context],
+        )
 
-            try:
-                data_json = json.dumps(data_obj)
-            except Exception:
-                log.warning("Unable to update kinesis record", exc_info=True)
+        try:
+            data_json = json.dumps(data_obj)
+        except Exception:
+            log.warning("Unable to update kinesis record", exc_info=True)
 
-            if line_break is not None:
-                data_json += line_break
+        if line_break is not None:
+            data_json += line_break
 
-            data_size = len(data_json)
-            if data_size >= MAX_KINESIS_DATA_SIZE:
-                log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
+        data_size = len(data_json)
+        if data_size >= MAX_KINESIS_DATA_SIZE:
+            log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
 
-            record["Data"] = data_json
+        record["Data"] = data_json
 
 
 def select_records_for_injection(params: List[Any], inject_trace_context: bool) -> List[Tuple[Any, bool]]:
@@ -124,6 +123,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
         received_message_when_polling or instrument_empty_poll_calls or function_is_not_getrecords or getrecords_error
     )
     is_kinesis_put_operation = endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}
+
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_kinesis_api_call",
