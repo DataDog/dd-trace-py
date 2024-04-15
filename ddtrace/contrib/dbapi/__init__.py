@@ -120,9 +120,11 @@ class TracedCursor(wrapt.ObjectProxy):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
-            result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs)).result
-            if result:
-                s, args, kwargs = result.value
+            if dbm_propagator:
+                # this check is necessary to prevent fetch methods from trying to add dbm propagation
+                result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs)).result
+                if result:
+                    s, args, kwargs = result.value
 
             try:
                 return method(*args, **kwargs)

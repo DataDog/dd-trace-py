@@ -332,6 +332,18 @@ class AioMySQLTestCase(AsyncioTestCase):
         assert span.name == "mysql.query"
 
     @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    async def test_span_name_v1_schema(self):
+        conn, tracer = await self._get_conn_tracer()
+
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT 1")
+        spans = tracer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == "mysql.query"
+
+    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiomysql_dbm_propagation_enabled(self):
         conn, tracer = await self._get_conn_tracer()
