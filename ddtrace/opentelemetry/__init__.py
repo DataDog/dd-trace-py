@@ -38,10 +38,10 @@ Usage
 Datadog and OpenTelemetry APIs can be used interchangeably::
 
     # Sample Usage
-    import opentelemetry
+    from opentelemetry import trace
     import ddtrace
 
-    oteltracer = opentelemetry.trace.get_tracer(__name__)
+    oteltracer = trace.get_tracer(__name__)
 
     with oteltracer.start_as_current_span("otel-span") as parent_span:
         parent_span.set_attribute("otel_key", "otel_val")
