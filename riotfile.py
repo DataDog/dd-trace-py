@@ -654,7 +654,7 @@ venv = Venv(
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
                         "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
-                        "pytest-cov": "==2.3.0",
+                        "pytest-cov": "~=3.0",
                         "pytest-mock": "==2.0.0",
                     },
                     venvs=[
@@ -1082,7 +1082,7 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=4.0",
                         "pytest-mock": "==2.0.0",
-                        "pytest-cov": "==2.1.0",
+                        "pytest-cov": "~=3.0",
                         "Jinja2": "~=2.11.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
