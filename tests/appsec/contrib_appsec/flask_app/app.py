@@ -63,14 +63,54 @@ def new_service(service_name: str):
 def rasp(endpoint: str):
     query_params = request.args.to_dict()
     if endpoint == "lfi":
-        res = []
+        res = ["lfi endpoint"]
         for param in query_params:
             if param.startswith("filename"):
                 filename = query_params[param]
+                try:
+                    with open(filename, "rb") as f:
+                        res.append(f"File: {f.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        return "<\\br>\n".join(res)
+    elif endpoint == "ssrf":
+        res = ["ssrf endpoint"]
+        for param in query_params:
+            if param.startswith("url"):
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
             try:
-                with open(filename, "rb") as f:
-                    res.append(f"File: {f.read()}")
+                if param.startswith("url_urlopen_request"):
+                    import urllib.request
+
+                    req = urllib.request.Request(urlname)
+                    with urllib.request.urlopen(req, timeout=0.15) as f:
+                        res.append(f"Url: {f.read()}")
+                elif param.startswith("url_urlopen_string"):
+                    import urllib.request
+
+                    with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                        res.append(f"Url: {f.read()}")
+                elif param.startswith("url_requests"):
+                    import requests
+
+                    r = requests.get(urlname, timeout=0.15)
+                    res.append(f"Url: {r.text}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        return "<\br>\n".join(res)
+        return "<\\br>\n".join(res)
+    elif endpoint == "shell":
+        res = ["shell endpoint"]
+        for param in query_params:
+            if param.startswith("cmd"):
+                cmd = query_params[param]
+                try:
+                    import subprocess
+
+                    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
+                        res.append(f"cmd stdout: {f.stdout.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        return "<\\br>\n".join(res)
     return f"Unknown endpoint: {endpoint}"

@@ -23,6 +23,8 @@
       "django.view": "tests.contrib.django.views.index",
       "http.client_ip": "127.0.0.1",
       "http.method": "GET",
+      "http.request.headers.accept": "*/*",
+      "http.request.headers.user-agent": "python-requests/2.31.0",
       "http.response.headers.content-length": "16",
       "http.response.headers.content-type": "text/html; charset=utf-8",
       "http.route": "^$",
