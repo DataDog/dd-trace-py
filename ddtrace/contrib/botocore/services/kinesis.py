@@ -105,7 +105,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             message_received = True
             if config.botocore.propagation_enabled:
                 child_of = extract_DD_context(result["Records"])
-                
+
     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
         span_name = schematize_cloud_messaging_operation(
             trace_operation,
