@@ -28,6 +28,7 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
@@ -597,6 +598,13 @@ def _on_botocore_trace_context_injection_prepared(
             log.warning("Unable to inject trace context", exc_info=True)
 
 
+def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inject_trace_context):
+    if inject_trace_context:
+        if "_datadog" not in data_obj:
+            data_obj["_datadog"] = {}
+        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -629,6 +637,7 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
 
     for context_name in (
         "flask.call",

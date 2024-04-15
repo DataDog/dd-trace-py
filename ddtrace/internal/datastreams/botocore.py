@@ -107,9 +107,12 @@ def calculate_kinesis_payload_size(message, trace_data=None):
     return payload_size
 
 
-def handle_kinesis_produce(stream, dd_ctx_json, record):
-    if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
-        inject_context(dd_ctx_json, "kinesis", stream, record)
+def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
+    if config._data_streams_enabled:
+        if "_datadog" not in dd_ctx_json:
+            dd_ctx_json["_datadog"] = {}
+        if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
+            inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
 def handle_sqs_sns_produce(endpoint_service, trace_data, params, message=None):
@@ -211,7 +214,7 @@ def handle_kinesis_receive(params, time_estimate, context_json, record):
 
 
 if config._data_streams_enabled:
-    core.on("botocore.kinesis.start", handle_kinesis_produce)
+    core.on("botocore.kinesis.update_record", handle_kinesis_produce)
     core.on("botocore.sqs_sns.start", handle_sqs_sns_produce)
     core.on("botocore.sqs.ReceiveMessage.pre", handle_sqs_prepare)
     core.on("botocore.sqs.ReceiveMessage.post", handle_sqs_receive)
