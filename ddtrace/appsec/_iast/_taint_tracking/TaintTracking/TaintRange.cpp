@@ -104,15 +104,15 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 
         long len_pyobject = PyLong_AsLong(len_pyobject_py);
         string source_name = PyObjectToString(args[2]);
-        if (!source_name.empty()) {
+        if (not source_name.empty()) {
             string source_value = PyObjectToString(args[3]);
-            if (!source_value.empty()) {
+            if (not source_value.empty()) {
                 auto source_origin = OriginType(PyLong_AsLong(args[4]));
                 auto source = Source(source_name, source_value, source_origin);
                 auto range = initializer->allocate_taint_range(0, len_pyobject, source);
                 TaintRangeRefs ranges = vector{ range };
                 result = set_ranges(pyobject_n, ranges, ctx_map);
-                if (!result) {
+                if (not result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
             } else {
@@ -122,7 +122,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
             result_error_msg = "[IAST] Invalid or empty source_name";
         }
     }
-    if (!result) {
+    if (not result) {
         py::set_error(PyExc_ValueError, result_error_msg);
         return nullptr;
     }
@@ -138,12 +138,14 @@ get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
-        if (!tx_map) {
+        if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
             throw py::error_already_set();
         }
     }
-
+    if (tx_map->empty()) {
+        return {};
+    }
     const auto it = tx_map->find(get_unique_id(string_input));
     if (it == tx_map->end()) {
         return {};
@@ -165,7 +167,7 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
-        if (!tx_map) {
+        if (not tx_map) {
             return false;
         }
     }
@@ -221,7 +223,7 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 {
-    if (!taint_ranges or taint_ranges->empty()) {
+    if (not taint_ranges or taint_ranges->empty()) {
         return nullptr;
     }
     // TODO: Replace this loop with a efficient function, vector.find() is O(n)
@@ -242,7 +244,7 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
     auto tx_map = initializer->get_tainting_map();
     auto ranges = get_ranges(str_1.ptr(), tx_map);
     bool result = set_ranges(str_2.ptr(), ranges, tx_map);
-    if (!result) {
+    if (not result) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
@@ -258,7 +260,7 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int
     ranges = get_ranges(str_1.ptr(), tx_map);
 
     result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
-    if (!result) {
+    if (not result) {
         py::set_error(PyExc_TypeError, result_error_msg);
     }
 }
