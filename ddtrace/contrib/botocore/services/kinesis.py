@@ -12,6 +12,7 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.propagation.http import HTTPPropagator
 
 from ....ext import SpanTypes
 from ....internal.compat import time_ns
@@ -19,7 +20,6 @@ from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ....pin import Pin  # noqa:F401
-from ....propagation.http import HTTPPropagator
 from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
 from ..utils import set_patched_api_call_span_tags
@@ -37,40 +37,27 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def inject_trace_to_kinesis_stream_data(
+def inject_trace_to_kinesis_stream_record(
     record: Dict[str, Any], context_to_propagate: Context, stream: str, inject_trace_context: bool = True
 ) -> None:
-    """
-    :record: contains args for the current botocore action, Kinesis record is at index 1
-    :inject_trace_context: whether to inject DataDog trace context
-    Inject trace headers and DSM headers into the Kinesis record's Data field in addition to the existing
-    data. Only possible if the existing data is JSON string or base64 encoded JSON string
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-    """
-    if "Data" not in record:
-        log.warning("Unable to inject context. The kinesis stream has no data")
-        return
-
-    # always inject if Data Stream is enabled, otherwise only inject if distributed tracing is enabled and this is the
-    # first record in the payload
-    if (config.botocore["distributed_tracing"] and inject_trace_context) or config._data_streams_enabled:
-        data = record["Data"]
-        line_break, data_obj = get_kinesis_data_object(data)
+    if inject_trace_context or config._data_streams_enabled:
+        line_break, data_obj = get_kinesis_data_object(record["Data"])
         if data_obj is not None:
             data_obj["_datadog"] = {}
 
             if config.botocore["distributed_tracing"] and inject_trace_context:
                 HTTPPropagator.inject(context_to_propagate, data_obj["_datadog"])
 
-            core.dispatch("botocore.kinesis.start", [stream, data_obj["_datadog"], record])
+            core.dispatch(
+                "botocore.kinesis.start",
+                [stream, data_obj["_datadog"], record, inject_trace_context, context_to_propagate],
+            )
 
             data_json = json.dumps(data_obj)
 
-            # if original string had a line break, add it back
             if line_break is not None:
                 data_json += line_break
 
-            # check if data size will exceed max size with headers
             data_size = len(data_json)
             if data_size >= MAX_KINESIS_DATA_SIZE:
                 raise TraceInjectionSizeExceed(
@@ -83,23 +70,22 @@ def inject_trace_to_kinesis_stream_data(
 def inject_trace_to_kinesis_stream(
     params: List[Any], context_to_propagate: Context, inject_trace_context: bool = True
 ) -> None:
-    """
-    :params: contains the params for the current botocore action
-    :inject_trace_context: whether to inject DataDog trace context
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-    """
-    stream = params.get("StreamARN", params.get("StreamName", ""))
-    if "Records" in params:
-        records = params["Records"]
-
-        if records:
-            for i in range(0, len(records)):
-                inject_trace_to_kinesis_stream_data(
-                    records[i], context_to_propagate, stream, inject_trace_context=inject_trace_context and i == 0
+    records_to_inject_into = []
+    if "Records" in params and params["Records"]:
+        for i, record in enumerate(params["Records"]):
+            if "Data" in record:
+                records_to_inject_into.append(
+                    (record, config.botocore["distributed_tracing"] and inject_trace_context and i == 0)
                 )
     elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(
-            params, context_to_propagate, stream, inject_trace_context=inject_trace_context
+        records_to_inject_into.append((params, inject_trace_context))
+
+    for record, should_inject_trace_context in records_to_inject_into:
+        inject_trace_to_kinesis_stream_record(
+            record,
+            context_to_propagate,
+            params.get("StreamARN", params.get("StreamName", "")),
+            inject_trace_context=should_inject_trace_context,
         )
 
 

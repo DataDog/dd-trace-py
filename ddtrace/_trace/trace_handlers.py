@@ -6,6 +6,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -28,6 +29,7 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
@@ -596,6 +598,11 @@ def _on_botocore_trace_context_injection_prepared(
             log.warning("Unable to inject trace context", exc_info=True)
 
 
+def _on_botocore_kinesis_start(stream, data_obj: Dict, record, inject_trace_context, context_to_propagate: Context):
+    if config.botocore["distributed_tracing"] and inject_trace_context:
+        HTTPPropagator.inject(context_to_propagate, data_obj)
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -628,6 +635,7 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
+    # core.on("botocore.kinesis.start", _on_botocore_kinesis_start)
 
     for context_name in (
         "flask.call",

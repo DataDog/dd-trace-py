@@ -107,8 +107,11 @@ def calculate_kinesis_payload_size(message, trace_data=None):
     return payload_size
 
 
-def handle_kinesis_produce(stream, dd_ctx_json, record):
-    if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
+def handle_kinesis_produce(stream, dd_ctx_json, record, *args):
+    if (
+        config._data_streams_enabled
+        and stream  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
+    ):
         inject_context(dd_ctx_json, "kinesis", stream, record)
 
 
