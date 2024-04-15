@@ -144,4 +144,4 @@ if dbm_config.propagation_mode in ["full", "service"]:
     dbm_integrations = ["aiomysql", "aiopg", "dbapi"]
     for integration in dbm_integrations:
         core.on(f"{integration}.execute", handle_dbm_injection)
-    core.on("asyncpg.execute", handle_dbm_injection_asyncpg)
+    core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
