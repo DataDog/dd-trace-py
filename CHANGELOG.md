@@ -16,9 +16,9 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
 - internal: This fix resolves an issue where importing the `ddtrace.contrib.botocore.services` module would fail raising an ImportError
 - starlette: Fix a bug that crashed background tasks started from functions without a <span class="title-ref">\_\_name\_\_</span> attribute
-- Code Security (IAST): Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
-- Vulnerability Management for Code-level (IAST): This fix addresses an issue where tainting objects may fail due to context not being created in the current span.
-- Vulnerability Management for Code-level (IAST): Some native exceptions were not being caught correctly by the python tracer. This fix remove those exceptions to avoid fatal error executions.
+- Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- Code Security: This fix addresses an issue where tainting objects may fail due to context not being created in the current span.
+- Code Security: Some native exceptions were not being caught correctly by the python tracer. This fix remove those exceptions to avoid fatal error executions.
 - ASM: This fix removes unrequired API security metrics.
 - structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection when resetting to defaults.
 
