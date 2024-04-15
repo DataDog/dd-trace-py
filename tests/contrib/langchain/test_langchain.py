@@ -1266,7 +1266,7 @@ def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, 
 )
 class TestLLMObsLangchain:
     @staticmethod
-    def _expected_llmobs_calls(trace, expected_spans_data: list):
+    def _expected_llmobs_chain_calls(trace, expected_spans_data: list):
         expected_llmobs_writer_calls = [mock.call.start()]
 
         for idx, span in enumerate(trace):
@@ -1282,11 +1282,13 @@ class TestLLMObsLangchain:
         return expected_llmobs_writer_calls
 
     @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters=None):
+    def _expected_llmobs_chain_call(span, input_parameters=None, input_value=None, output_value=None):
         return _expected_llmobs_non_llm_span_event(
             span,
             span_kind="workflow",
             parameters=input_parameters,
+            input_value=input_value,
+            output_value=output_value,
             tags={
                 "ml_app": "langchain_test",
             },
@@ -1333,7 +1335,44 @@ class TestLLMObsLangchain:
         )
 
     @classmethod
-    def _test_llmobs_invoke(
+    def _test_llmobs_llm_invoke(
+        cls,
+        provider,
+        generate_trace,
+        request_vcr,
+        mock_llmobs_writer,
+        mock_tracer,
+        cassette_name,
+        input_role=None,
+        output_role=None,
+        different_py39_cassette=False,
+    ):
+        LLMObs.disable()
+        LLMObs.enable(tracer=mock_tracer)
+
+        if sys.version_info < (3, 10, 0) and different_py39_cassette:
+            cassette_name = cassette_name.replace(".yaml", "_39.yaml")
+        with request_vcr.use_cassette(cassette_name):
+            generate_trace("Can you explain what an LLM chain is?")
+        span = mock_tracer.pop_traces()[0][0]
+
+        expected_llmons_writer_calls = [
+            mock.call.start(),
+            mock.call.enqueue(
+                cls._expected_llmobs_llm_calls(
+                    span,
+                    provider=provider,
+                    input_role=input_role,
+                    output_role=output_role,
+                )
+            ),
+        ]
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.assert_has_calls(expected_llmons_writer_calls)
+
+    @classmethod
+    def _test_llmobs_chain_invoke(
         cls,
         generate_trace,
         request_vcr,
@@ -1352,44 +1391,47 @@ class TestLLMObsLangchain:
             generate_trace("Can you explain what an LLM chain is?")
         trace = mock_tracer.pop_traces()[0]
 
-        expected_llmobs_writer_calls = cls._expected_llmobs_calls(trace=trace, expected_spans_data=expected_spans_data)
+        expected_llmobs_writer_calls = cls._expected_llmobs_chain_calls(
+            trace=trace, expected_spans_data=expected_spans_data
+        )
         assert mock_llmobs_writer.enqueue.call_count == len(expected_spans_data)
         mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
 
     def test_llmobs_openai_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.OpenAI()
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_completion_sync.yaml",
             different_py39_cassette=True,
+            provider="openai",
         )
 
     def test_llmobs_cohere_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.Cohere(model="cohere.command-light-text-v14")
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="cohere_completion_sync.yaml",
-            expected_spans_data=[("llm", {"provider": "cohere", "input_role": None, "output_role": None})],
+            provider="cohere",
         )
 
     def test_llmobs_ai21_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         llm = langchain.llms.AI21()
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="ai21_completion_sync.yaml",
-            expected_spans_data=[("llm", {"provider": "ai21", "input_role": None, "output_role": None})],
+            provider="ai21",
             different_py39_cassette=True,
         )
 
@@ -1400,59 +1442,67 @@ class TestLLMObsLangchain:
             huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
         )
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="huggingfacehub_completion_sync.yaml",
-            expected_spans_data=[("llm", {"provider": "huggingface_hub", "input_role": None, "output_role": None})],
+            provider="huggingface_hub",
         )
 
     def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            expected_spans_data=[("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"})],
+            provider="openai",
+            input_role="user",
+            output_role="assistant",
             different_py39_cassette=True,
         )
 
     def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_llm_invoke(
             generate_trace=lambda prompt: chat([langchain.schema.ChatMessage(content=prompt, role="custom")]),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
-            expected_spans_data=[("llm", {"provider": "openai", "input_role": "custom", "output_role": "assistant"})],
+            provider="openai",
+            input_role="custom",
+            output_role="assistant",
             different_py39_cassette=True,
         )
 
     def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_chain_invoke(
             generate_trace=lambda prompt: chain.run("what is two raised to the fifty-fourth power?"),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_math_chain_sync.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"question": "what is two raised to the fifty-fourth power?"}}),
                 (
                     "chain",
                     {
-                        "input_parameters": {
-                            "question": "what is two raised to the fifty-fourth power?",
-                            "stop": mock.ANY,
-                        }
+                        "input_value": str({"question": "what is two raised to the fifty-fourth power?"}),
+                        "output_value": mock.ANY,
+                    },
+                ),
+                (
+                    "chain",
+                    {
+                        "input_value": mock.ANY,
+                        "output_value": mock.ANY,
                     },
                 ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
@@ -1495,17 +1545,36 @@ class TestLLMObsLangchain:
                 true whenever it is put forward by me or conceived in my mind.
                 """
 
-        self._test_llmobs_invoke(
+        self._test_llmobs_chain_invoke(
             generate_trace=lambda prompt: sequential_chain.run({"input_text": input_text}),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
             expected_spans_data=[
-                ("chain", {"input_parameters": {"input_text": input_text}}),
-                ("chain", {"input_parameters": {"input_text": input_text}}),
+                (
+                    "chain",
+                    {
+                        "input_value": str({"input_text": input_text}),
+                        "output_value": mock.ANY,
+                    },
+                ),
+                (
+                    "chain",
+                    {
+                        "input_value": str({"input_text": input_text}),
+                        "output_value": mock.ANY,
+                    },
+                ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
-                ("chain", {"input_parameters": {"input_text": input_text, "paraphrased_output": mock.ANY}}),
+                (
+                    "chain",
+                    {
+                        "input_value": mock.ANY,
+                        "output_value": mock.ANY,
+                    },
+                ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
             ],
+            different_py39_cassette=True,
         )

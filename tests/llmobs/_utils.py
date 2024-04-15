@@ -124,7 +124,7 @@ def _expected_llmobs_non_llm_span_event(
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     if output_value is not None:
-        meta_dict["output"].update({"messages": output_value})
+        meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
         meta_dict.pop("input")
     if not meta_dict["output"]:
