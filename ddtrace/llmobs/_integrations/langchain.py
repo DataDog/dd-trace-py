@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
@@ -41,8 +42,8 @@ class LangChainIntegration(BaseLLMIntegration):
         operation: str,  # oneof "llm","chat","chain"
         span: Span,
         inputs: Any,
-        response: Optional[Any] = None,
-        error: Optional[bool] = False,
+        response: Any = None,
+        error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -51,14 +52,14 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, model_provider or "")
 
-        input_parameters = self._llmobs_set_input_parameters(span, model_provider)
+        self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, inputs, input_parameters)
+            self._llmobs_set_meta_tags_from_chain(span, inputs, response)
 
         span.set_tag_str(METRICS, json.dumps({}))
 
@@ -66,9 +67,9 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         model_provider: Optional[str] = None,
-    ) -> dict:
+    ):
         if not model_provider:
-            return {}
+            return
 
         input_parameters = {}
         temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
@@ -87,14 +88,12 @@ class LangChainIntegration(BaseLLMIntegration):
         if input_parameters:
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
 
-        return input_parameters
-
     def _llmobs_set_meta_tags_from_llm(
         self,
         span: Span,
         prompts: List[Any],
         completions: Any,
-        err: Optional[bool] = False,
+        err: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
 
@@ -112,7 +111,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         chat_messages: List[List[Any]],
         chat_completions: Any,
-        err: Optional[bool] = False,
+        err: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
 
@@ -144,26 +143,17 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     def _llmobs_set_meta_tags_from_chain(
-        self, span: Span, inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]], input_parameters: dict
+        self,
+        span: Span,
+        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+        outputs: Any,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            if isinstance(inputs, dict):
-                input_parameters.update(inputs)
-            elif isinstance(inputs, list):  # batched chain call
-                input_parameters = {}
-                for idx, inp in enumerate(inputs):
-                    if isinstance(inp, dict):
-                        for k, v in inp.items():
-                            input_parameters[f"input.{idx}.{k}"] = v
-                    else:
-                        input_parameters[f"input.{idx}"] = inp
-            elif isinstance(inputs, str):
-                span.set_tag_str(INPUT_VALUE, inputs)
-                return
-
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+            span.set_tag_str(INPUT_VALUE, str(inputs))
+        if outputs is not None:
+            span.set_tag_str(OUTPUT_VALUE, str(outputs))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
