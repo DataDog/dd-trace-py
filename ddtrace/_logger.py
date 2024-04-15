@@ -70,7 +70,7 @@ def _add_file_handler(
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
-) -> Optional[RotatingFileHandler]:
+):
     ddtrace_file_handler = None
     if log_path is not None:
         log_path = os.path.abspath(log_path)
