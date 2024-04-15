@@ -17,7 +17,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -76,8 +75,6 @@ def inject_trace_to_sqs_or_sns_batch_message(ctx, params: Any, span, endpoint_se
     """
 
     trace_data = {}
-    context = span.context if span else ctx[ctx["call_key"]].context
-    HTTPPropagator.inject(context, trace_data)
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
