@@ -14,7 +14,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
 - Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
 - ASM: This fix removes unrequired API security metrics.
-- instrumentation: fixes crashses that could occur in certain integrations with packages that use non-integer components in their version specifiers
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
 
 
 ---
