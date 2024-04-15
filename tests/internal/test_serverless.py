@@ -103,6 +103,8 @@ def test_slow_imports(monkeypatch):
         "email.mime.multipart",
         "logging.handlers",
         "multiprocessing",
+        "importlib.metadata",
+        "importlib_metadata",
     ]
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", False)
     monkeypatch.setenv("DD_API_SECURITY_ENABLED", False)
