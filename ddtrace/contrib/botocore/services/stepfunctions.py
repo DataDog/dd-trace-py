@@ -55,6 +55,9 @@ def inject_trace_to_stepfunction_input(params, span):
         if isinstance(input_obj, dict):
             input_obj["_datadog"] = {}
             HTTPPropagator.inject(span.context, input_obj["_datadog"])
+            input_json = json.dumps(input_obj)
+
+            params["input"] = input_json
             return
         else:
             log.warning("Unable to inject context. The StepFunction input was not a dict.")
