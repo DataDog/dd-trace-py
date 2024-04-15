@@ -6,6 +6,7 @@ import functools
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import ipaddress
+import multiprocessing
 import os
 import platform
 import re
@@ -273,7 +274,7 @@ def is_valid_ip(ip: str) -> bool:
         # try parsing the IP address
         ipaddress.ip_address(str(ip))
         return True
-    except BaseException:
+    except Exception:
         return False
 
 
@@ -456,3 +457,24 @@ else:
         @property
         def __isabstractmethod__(self):
             return getattr(self.func, "__isabstractmethod__", False)
+
+
+if PYTHON_VERSION_INFO >= (3, 9):
+    from pathlib import Path
+else:
+    from pathlib import Path
+
+    # Taken from Python 3.9. This is not implemented in older versions of Python
+    def is_relative_to(self, other):
+        """Return True if the path is relative to another path or False."""
+        try:
+            self.relative_to(other)
+            return True
+        except ValueError:
+            return False
+
+    Path.is_relative_to = is_relative_to  # type: ignore[assignment]
+
+
+def get_mp_context():
+    return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")

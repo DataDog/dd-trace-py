@@ -13,7 +13,10 @@ authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -23,11 +26,12 @@ classifiers = [
 ]
 dependencies = [
     "attrs>=20",
-    "bytecode; python_version>='3.8'",
-    "bytecode~=0.13.0; python_version=='3.7'",
+    "bytecode>=0.15.0; python_version>='3.12'",
+    "bytecode>=0.14.0; python_version~='3.11.0'",
+    "bytecode>=0.13.0; python_version<'3.11'",
     "cattrs",
-    "ddsketch>=2.0.1",
-    "envier",
+    "ddsketch>=3.0.0",
+    "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "opentelemetry-api>=1",
     "protobuf>=3",
@@ -35,11 +39,15 @@ dependencies = [
     "six>=1.12.0",
     "typing_extensions",
     "xmltodict>=0.12",
+    "sqlparse>=0.2.2",
 ]
 
 [project.optional-dependencies]
 opentracing = [
     "opentracing>=2.0.0",
+]
+openai = [
+    "tiktoken",
 ]
 
 [project.scripts]
@@ -61,7 +69,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"
+version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
 write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]
@@ -92,7 +100,7 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/_ddup.pyx$
+  | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/
   | ddtrace/_version.py
@@ -130,6 +138,8 @@ exclude-modules = '''
   | ddtrace.bootstrap.sitecustomize
   | ddtrace.profiling.bootstrap.sitecustomize
   | ddtrace.profiling.auto
+  # also ignore preload module to avoid exception after moving ddtrace.tracing module
+  | ddtrace.bootstrap.preload
   # protobuf file fails to import
   | ddtrace.profiling.exporter.pprof_3_pb2
   | ddtrace.profiling.exporter.pprof_312_pb2
@@ -145,6 +155,11 @@ exclude-modules = '''
   | ddtrace.appsec._iast.taint_sinks.sql_injection
   # DSM specific contribs
   | ddtrace.internal.datastreams.kafka
+  # libdd_wrapper is a common native dependency, not a module
+  | ddtrace.internal.datadog.profiling.libdd_wrapper
+  # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
+  | ddtrace.internal.datadog.profiling.ddup._ddup
+  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
 )
 '''
 
@@ -158,6 +173,7 @@ exclude_dirs = [
   "ddtrace/commands/ddtrace_run.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
+  "ddtrace/internal/datadog/profiling/ddup/test/interface.py",
   "ddtrace/internal/module.py",
   "ddtrace/internal/processor/stats.py",
   "ddtrace/internal/rate_limiter.py",

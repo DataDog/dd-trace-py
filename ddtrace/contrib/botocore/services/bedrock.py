@@ -5,9 +5,10 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
-from ddtrace.internal.llmobs.integrations import BedrockIntegration
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
@@ -106,7 +107,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
             )
         if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-            self._datadog_integration.generate_llm_record(
+            self._datadog_integration.llmobs_set_tags(
                 self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
             )
 
@@ -114,9 +115,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 def _handle_exception(span, integration, prompt, exc_info):
     """Helper method to finish the span on stream read error."""
     span.set_exc_info(*exc_info)
-    span.finish()
     if integration.is_pc_sampled_llmobs(span):
-        integration.generate_llm_record(span, formatted_response=None, prompt=prompt, err=1)
+        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    span.finish()
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -127,46 +128,48 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("topP", None),
-            "max_tokens": request_body.get("maxTokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("topP", ""),
+            "max_tokens": request_body.get("maxTokens", ""),
             "stop_sequences": request_body.get("stopSequences", []),
         }
     elif provider == _AMAZON:
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),
-            "temperature": text_generation_config.get("temperature", None),
-            "top_p": text_generation_config.get("topP", None),
-            "max_tokens": text_generation_config.get("maxTokenCount", None),
+            "temperature": text_generation_config.get("temperature", ""),
+            "top_p": text_generation_config.get("topP", ""),
+            "max_tokens": text_generation_config.get("maxTokenCount", ""),
             "stop_sequences": text_generation_config.get("stopSequences", []),
         }
     elif provider == _ANTHROPIC:
+        prompt = request_body.get("prompt", "")
+        messages = request_body.get("messages", "")
         return {
-            "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "top_k": request_body.get("top_k", None),
-            "max_tokens": request_body.get("max_tokens_to_sample", None),
+            "prompt": prompt or messages,
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "top_k": request_body.get("top_k", ""),
+            "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
         }
     elif provider == _COHERE:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("p", None),
-            "top_k": request_body.get("k", None),
-            "max_tokens": request_body.get("max_tokens", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("p", ""),
+            "top_k": request_body.get("k", ""),
+            "max_tokens": request_body.get("max_tokens", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
-            "stream": request_body.get("stream", None),
-            "n": request_body.get("num_generations", None),
+            "stream": request_body.get("stream", ""),
+            "n": request_body.get("num_generations", ""),
         }
     elif provider == _META:
         return {
             "prompt": request_body.get("prompt"),
-            "temperature": request_body.get("temperature", None),
-            "top_p": request_body.get("top_p", None),
-            "max_tokens": request_body.get("max_gen_len", None),
+            "temperature": request_body.get("temperature", ""),
+            "top_p": request_body.get("top_p", ""),
+            "max_tokens": request_body.get("max_gen_len", ""),
         }
     elif provider == _STABILITY:
         # TODO: request/response formats are different for image-based models. Defer for now
@@ -188,7 +191,7 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
             text = body.get("results")[0].get("outputText")
             finish_reason = body.get("results")[0].get("completionReason")
         elif provider == _ANTHROPIC:
-            text = body.get("completion")
+            text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
         elif provider == _COHERE:
             text = [generation["text"] for generation in body.get("generations")]
@@ -225,12 +228,19 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
             text = "".join([chunk["outputText"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["completionReason"]
         elif provider == _ANTHROPIC:
-            text = "".join([chunk["completion"] for chunk in streamed_body])
-            finish_reason = streamed_body[-1]["stop_reason"]
+            for chunk in streamed_body:
+                if "completion" in chunk:
+                    text += chunk["completion"]
+                    if chunk["stop_reason"]:
+                        finish_reason = chunk["stop_reason"]
+                elif "delta" in chunk:
+                    text += chunk["delta"].get("text", "")
+                    if "stop_reason" in chunk["delta"]:
+                        finish_reason = str(chunk["delta"]["stop_reason"])
         elif provider == _COHERE and streamed_body:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    n = int(span.get_tag("bedrock.request.n"))
+                    n = int(span.get_tag("bedrock.request.n") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(n)
@@ -251,7 +261,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
             text = "".join([chunk["generation"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["stop_reason"]
         elif provider == _STABILITY:
-            # TODO: figure out extraction for image-based models
+            # We do not yet support image modality models
             pass
     except (IndexError, AttributeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
@@ -282,7 +292,7 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     }
 
 
-def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: Dict[str, Any]) -> None:
+def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: Dict[str, Any]) -> Any:
     """Perform request param extraction and tagging."""
     model_provider, model_name = params.get("modelId").split(".")
     request_params = _extract_request_params(params, model_provider)
@@ -291,10 +301,11 @@ def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: 
     span.set_tag_str("bedrock.request.model", model_name)
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and integration.is_pc_sampled_span(span):
-            v = integration.trunc(str(v))
-        if k == "prompt" and integration.is_pc_sampled_llmobs(span):
-            prompt = v
+        if k == "prompt":
+            if integration.is_pc_sampled_llmobs(span):
+                prompt = v
+            if integration.is_pc_sampled_span(span):
+                v = integration.trunc(str(v))
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
     return prompt
 
@@ -323,12 +334,12 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     integration = function_vars.get("integration")
-    # This span will be finished separately as the user fully consumes the stream body, or on error.
-    bedrock_span = pin.tracer.start_span(
+    # This span will be finished once the user fully consumes the stream body, or on error.
+    bedrock_span = pin.tracer.trace(
         trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         resource=operation,
-        activate=False,
+        span_type=SpanTypes.LLM,
     )
     prompt = None
     try:

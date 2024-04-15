@@ -5,17 +5,19 @@ class GlobMatcher(object):
     """This is a backtracking implementation of the glob matching algorithm.
     The glob pattern language supports `*` as a multiple character wildcard which includes matches on `""`
     and `?` as a single character wildcard, but no escape sequences.
+    The match is case insensitive.
     The match method will be cached for quicker matching and is in a class to keep it from being global.
     """
 
     def __init__(self, pattern):
         # type: (str) -> None
-        self.pattern = pattern
+        self.pattern = pattern.lower()
 
     @cachedmethod()
     def match(self, subject):
         # type: (str) -> bool
         pattern = self.pattern
+        subject = subject.lower()
         px = 0  # [p]attern inde[x]
         sx = 0  # [s]ubject inde[x]
         nextPx = 0

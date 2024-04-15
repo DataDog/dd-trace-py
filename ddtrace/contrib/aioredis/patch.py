@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -46,7 +47,8 @@ config._add(
 )
 
 aioredis_version_str = getattr(aioredis, "__version__", "")
-aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
+aioredis_version = parse_version(aioredis_version_str)
+V2 = parse_version("2.0")
 
 
 def get_version():
@@ -59,7 +61,7 @@ def patch():
         return
     aioredis._datadog_patch = True
     pin = Pin()
-    if aioredis_version >= (2, 0):
+    if aioredis_version >= V2:
         _w("aioredis.client", "Redis.execute_command", traced_execute_command)
         _w("aioredis.client", "Redis.pipeline", traced_pipeline)
         _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
@@ -76,7 +78,7 @@ def unpatch():
         return
 
     aioredis._datadog_patch = False
-    if aioredis_version >= (2, 0):
+    if aioredis_version >= V2:
         _u(aioredis.client.Redis, "execute_command")
         _u(aioredis.client.Redis, "pipeline")
         _u(aioredis.client.Pipeline, "execute")
@@ -175,7 +177,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             if redis_command in ROW_RETURNING_COMMANDS:
                 determine_row_count(redis_command=redis_command, span=span, result=future.result())
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
-        except BaseException:
+        except (Exception, aioredis.CancelledError):
             span.set_exc_info(*sys.exc_info())
             if redis_command in ROW_RETURNING_COMMANDS:
                 span.set_metric(db.ROWCOUNT, 0)

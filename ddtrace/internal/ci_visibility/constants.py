@@ -1,4 +1,5 @@
 from enum import IntEnum
+import re
 
 
 SUITE = "suite"
@@ -49,6 +50,7 @@ SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 # Intelligent Test Runner constants
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
+ITR_CORRELATION_ID_TAG_NAME = "itr_correlation_id"
 
 # Tracer configuration defaults:
 TRACER_PARTIAL_FLUSH_MIN_SPANS = 1
@@ -63,4 +65,17 @@ class REQUESTS_MODE(IntEnum):
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
 
-CIVISIBILITY_LOG_FILTER_RE = r"^ddtrace\.(contrib\.(coverage|pytest|unittest)|internal\.ci_visibility|ext\.git)"
+CIVISIBILITY_LOG_FILTER_RE = re.compile(
+    "|".join(
+        [
+            r"^ddtrace\.contrib\.(coverage|pytest|unittest)",
+            r"ddtrace\.internal\.(ci_visibility|gitmetadata).*",
+            r"ddtrace\.ext\.(git|ci_visibility|test)",
+        ]
+    )
+)
+
+
+CIVISIBILITY_SPAN_TYPE = "ci_visibility"
+
+DEFAULT_CI_VISIBILITY_SERVICE = "default_ci_visibility_service"

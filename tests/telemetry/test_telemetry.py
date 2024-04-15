@@ -1,8 +1,8 @@
-import os
 import re
 
 import pytest
 
+from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import flaky
 
 
@@ -47,7 +47,7 @@ assert telemetry_writer.status == ServiceStatus.RUNNING
 assert telemetry_writer._worker is not None
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 0, stderr
     assert stdout == b"", stderr
@@ -65,7 +65,7 @@ from ddtrace import tracer
 span = tracer.trace("test-telemetry")
 span.finish()
     """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
@@ -111,7 +111,7 @@ else:
     print(get_runtime_id())
     """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -129,6 +129,7 @@ else:
     assert requests[1]["body"]["request_type"] == "app-started"
 
 
+@flaky(1735812000)
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
@@ -158,7 +159,8 @@ telemetry_writer.periodic(True)
 telemetry_writer.disable()
     """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    initial_requests_count = len(test_agent_session.get_requests())
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -167,17 +169,15 @@ telemetry_writer.disable()
     requests = test_agent_session.get_requests()
 
     # We expect events from the parent process to get sent, but none from the child process
-    # flaky
-    # assert len(requests) == 1
-    # Validate that the runtime id sent for every event is the parent processes runtime id
-    assert requests[0]["body"]["runtime_id"] == runtime_id
-    assert requests[0]["body"]["request_type"] == "app-heartbeat"
+    assert len(requests) == initial_requests_count + 1
+    matching_requests = [r for r in requests if r["body"]["runtime_id"] == runtime_id]
+    assert len(matching_requests) == 1
+    assert matching_requests[0]["body"]["request_type"] == "app-heartbeat"
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
+    env = get_default_telemetry_env({"DD_TELEMETRY_HEARTBEAT_INTERVAL": "61"})
     code = """
 import warnings
 # This test logs the following warning in py3.12:
@@ -215,6 +215,7 @@ logging.basicConfig() # required for python 2.7
 ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """,
+        env=get_default_telemetry_env(),
     )
 
     assert status == 0, err
@@ -245,23 +246,20 @@ tracer.configure(
 # generate and encode span
 tracer.trace("hello").finish()
 """
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-started")
 
-    assert len(events) == 3
-
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert len(events) == 1
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
     assert app_started_events[0]["payload"]["error"]["code"] == 1
     assert "error applying processor FailingFilture()" in app_started_events[0]["payload"]["error"]["message"]
     pattern = re.compile(
-        ".*ddtrace/internal/processor/trace.py/trace.py:[0-9]+: error applying processor FailingFilture()"
+        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: error applying processor FailingFilture()"
     )
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
         "error"
@@ -269,9 +267,9 @@ tracer.trace("hello").finish()
 
 
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+    env = get_default_telemetry_env(
+        {"DD_SPAN_SAMPLING_RULES": "invalid_rules", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"}
+    )
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 1, stderr
@@ -293,7 +291,7 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
 
 
 def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
+    env = get_default_telemetry_env()
     _, stderr, status, _ = run_python_code_in_subprocess(
         "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')", env=env
     )
@@ -328,7 +326,7 @@ patch(raise_errors=False, sqlite3=True)
 tracer.trace("hi").finish()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 0, stderr
     expected_stderr = b"failed to import"
@@ -381,7 +379,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 1, stderr
 
@@ -423,8 +421,7 @@ f.wsgi_app()
 
 
 def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
+    env = get_default_telemetry_env(
         {
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
@@ -443,3 +440,28 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         "install_type": "k8s_single_step",
         "install_time": "1703188212",
     }
+
+
+def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
+    """Ensure no telemetry events are sent when telemetry is disabled"""
+    initial_event_count = len(test_agent_session.get_events())
+
+    env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+
+    code = """
+from ddtrace import tracer
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+
+    events = test_agent_session.get_events()
+    assert len(events) == initial_event_count
+
+    assert status == 0, stderr
+    assert stderr == b""

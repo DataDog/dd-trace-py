@@ -1,3 +1,4 @@
+import fastapi
 import pytest
 
 import ddtrace
@@ -7,10 +8,12 @@ from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.fastapi_app.app import get_app
 
 
+FASTAPI_VERSION = tuple(int(v) for v in fastapi.__version__.split("."))
+
+
 class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self, tracer):
-        import fastapi
+    def interface(self, tracer, printer):
         from fastapi.testclient import TestClient
 
         fastapi_patch()
@@ -35,6 +38,9 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                     headers["Content-Type"] = kwargs["content_type"]
                     kwargs["headers"] = headers
                     del kwargs["content_type"]
+                # httpx does not accept unicode headers and is now used in the TestClient
+                if "headers" in kwargs and FASTAPI_VERSION >= (0, 87, 0):
+                    kwargs["headers"] = {k.encode(): v.encode() for k, v in kwargs["headers"].items()}
                 return initial_post(*args, **kwargs, allow_redirects=False)
 
             client.post = patch_post
@@ -47,15 +53,21 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                     headers["Content-Type"] = kwargs["content_type"]
                     kwargs["headers"] = headers
                     del kwargs["content_type"]
+                # httpx does not accept unicode headers and is now used in the TestClient
+                if "headers" in kwargs and FASTAPI_VERSION >= (0, 87, 0):
+                    kwargs["headers"] = {k.encode(): v.encode() for k, v in kwargs["headers"].items()}
                 return initial_get(*args, **kwargs, allow_redirects=False)
 
             client.get = patch_get
 
             interface = utils.Interface("fastapi", fastapi, client)
             interface.tracer = tracer
-            with utils.post_tracer(interface):
-                yield interface
-            fastapi_unpatch()
+            interface.printer = printer
+            try:
+                with utils.post_tracer(interface):
+                    yield interface
+            finally:
+                fastapi_unpatch()
 
     def status(self, response):
         return response.status_code

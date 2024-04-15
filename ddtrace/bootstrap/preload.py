@@ -15,6 +15,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.asm import config as asm_config  # noqa:F401
+from ddtrace.settings.symbol_db import config as symdb_config  # noqa:F401
 from ddtrace import tracer
 
 
@@ -48,6 +49,11 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
+if symdb_config.enabled:
+    from ddtrace.internal import symbol_db
+
+    symbol_db.bootstrap()
+
 if di_config.enabled or ed_config.enabled:
     from ddtrace.debugging import DynamicInstrumentation
 
@@ -57,14 +63,14 @@ if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
 if asbool(os.getenv("DD_IAST_ENABLED", False)):
-    from ddtrace.appsec._iast._utils import _is_python_version_supported
+    """
+    This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
+    too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it
+    here and it's not a duplicate call due to `enable_iast_propagation` has a global variable to avoid multiple calls.
+    """
+    from ddtrace.appsec._iast import enable_iast_propagation
 
-    if _is_python_version_supported():
-        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-        log.debug("IAST enabled")
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    enable_iast_propagation()
 
 if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -87,6 +93,11 @@ if config._otel_enabled:
 
         set_tracer_provider(TracerProvider())
 
+
+if config._llmobs_enabled:
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable()
 
 if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     from ddtrace import patch_all

@@ -84,7 +84,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     if len(entries) != 0:
         for entry in entries:
-            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
+            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params, entry])
             inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
     else:
         log.warning("Skipping injecting Datadog attributes to records, no records available")
@@ -100,7 +100,6 @@ def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
-
     core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
     inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
@@ -130,7 +129,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             start_ns = time_ns()
             func_run = True
             # run the function before in order to extract possible parent context before starting span
-
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
             core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
@@ -146,8 +144,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         - not func_run: The function is not `ReceiveMessage` and we need to run it
         - func_run and message_received: Received a message when polling
         - config.empty_poll_enabled: We want to trace empty poll operations
+        - func_run_err: There was an error when calling the `ReceiveMessage` function
     """
-    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
+    if (func_run and message_received) or config.botocore.empty_poll_enabled or not func_run or func_run_err:
         with pin.tracer.start_span(
             trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
@@ -161,7 +160,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             # we need to ensure the span start time is correct
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
-
             if args and config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "sqs" and operation == "SendMessage":
@@ -218,3 +216,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                 if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
                     span._ignore_exception(botocore.exceptions.ClientError)
                 raise
+    # return results in the case that we ran the function, but no records were returned and empty
+    # poll spans are disabled
+    elif func_run:
+        if func_run_err:
+            raise func_run_err
+        return result

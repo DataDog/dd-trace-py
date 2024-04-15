@@ -405,7 +405,9 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
     # type: (Optional[Callable], Any, Any, Any) -> Any
 
     # DEV: We call this function directly passing None as orig_function
-    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
+    if orig_function is not None and not (
+        orig_function is repr or getattr(orig_function, "__name__", None) == "__repr__"
+    ):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
@@ -414,12 +416,18 @@ def repr_aspect(orig_function, flag_added_args, *args, **kwargs):
 
     if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
         try:
-            if isinstance(args[0], (bytes, bytearray)):
-                check_offset = args[0].decode("utf-8")
+            if isinstance(args[0], bytes):
+                check_offset = ascii(args[0])[2:-1]
+            elif isinstance(args[0], bytearray):
+                check_offset = ascii(args[0])[12:-2]
             else:
                 check_offset = args[0]
-            offset = result.index(check_offset)
-            copy_and_shift_ranges_from_strings(args[0], result, offset)
+            try:
+                offset = result.index(check_offset)
+            except ValueError:
+                offset = 0
+
+            copy_and_shift_ranges_from_strings(args[0], result, offset, len(check_offset))
         except Exception as e:
             _set_iast_error_metric("IAST propagation error. repr_aspect. {}".format(e))
     return result
@@ -471,6 +479,10 @@ def incremental_translation(self, incr_coder, funcode, empty):
     result_list, new_ranges = [], []
     result_length, i = 0, 0
     tainted_range = next(tainted_ranges, None)
+    tainted_new_length = 0
+    in_tainted = False
+    tainted_start = 0
+    bytes_iterated = 0
     try:
         for i in range(len(self)):
             if tainted_range is None:
@@ -480,20 +492,29 @@ def incremental_translation(self, incr_coder, funcode, empty):
                 break
             if i == tainted_range.start:
                 # start new tainted range
-                new_ranges.append(TaintRange(start=i, length=result_length, source=tainted_range.source))
+                tainted_start = bytes_iterated
+                tainted_new_length = 0
+                in_tainted = True
 
             new_prod = funcode(self[i : i + 1])
             result_list.append(new_prod)
             result_length += len(new_prod)
 
-            if i + 1 == tainted_range.start + tainted_range.length:
+            if in_tainted:
+                tainted_new_length += len(new_prod)
+            else:
+                bytes_iterated += len(new_prod)
+
+            if i + 1 == tainted_range.start + tainted_range.length and tainted_new_length > 0:
                 # end range. Do no taint partial multi-bytes character that comes next.
-                # new_ranges[-1].append(result_length - new_ranges[-1].length)
-                new_ranges[-1] = TaintRange(
-                    start=new_ranges[-1].length,
-                    length=(result_length - new_ranges[-1].length),
-                    source=new_ranges[-1].source,
+                new_ranges.append(
+                    TaintRange(
+                        start=tainted_start,
+                        length=tainted_new_length,
+                        source=tainted_range.source,
+                    )
                 )
+
                 tainted_range = next(tainted_ranges, None)
         result_list.append(funcode(self[:0], True))
     except UnicodeDecodeError as e:

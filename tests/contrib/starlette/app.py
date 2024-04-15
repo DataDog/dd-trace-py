@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from tempfile import NamedTemporaryFile
 import time
 
@@ -118,6 +119,10 @@ def get_app(engine):
 
         tasks = BackgroundTasks()
         tasks.add_task(custom_task, task_arg="hi")
+
+        anonymous = functools.partial(custom_task, task_arg="hi")
+        tasks.add_task(anonymous)
+
         return JSONResponse(jsonmsg, background=tasks)
 
     routes = [
@@ -133,6 +138,21 @@ def get_app(engine):
         Route("/notes", endpoint=list_notes, methods=["GET"]),
         Route("/notes", endpoint=add_note, methods=["POST"]),
         Mount("/sub-app", Starlette(routes=[Route("/hello/{name}", endpoint=success, name="200", methods=["GET"])])),
+        Mount(
+            "/sub-app-two", Starlette(routes=[Route("/hello/{name}", endpoint=success, name="200", methods=["GET"])])
+        ),
+        Mount(
+            "/sub-app-nested",
+            Starlette(
+                routes=[
+                    Route("/hello", endpoint=success, name="200", methods=["GET"]),
+                    Mount(
+                        "/nested-app",
+                        Starlette(routes=[Route("/hello/{name}", endpoint=success, name="200", methods=["GET"])]),
+                    ),
+                ]
+            ),
+        ),
         Route("/backgroundtask", endpoint=background_task, name="200", methods=["GET"]),
     ]
 

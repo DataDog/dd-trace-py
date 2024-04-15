@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Vulnerability Management for Code-level (IAST): to enable IAST in the application, you had to start it with 
+    the command ``ddtrace-run [your-application-run-command]`` so far. Now, you can also activate IAST with the 
+    ``patch_all`` function.

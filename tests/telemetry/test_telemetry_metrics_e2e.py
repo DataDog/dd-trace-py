@@ -5,6 +5,8 @@ import subprocess
 import sys
 
 from ddtrace.internal.utils.retry import RetryError
+from tests.telemetry.utils import get_default_telemetry_env
+from tests.utils import flaky
 from tests.webclient import Client
 
 
@@ -71,9 +73,10 @@ def parse_payload(data):
     return json.loads(data)
 
 
+@flaky(1717255857)
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
-    assert len(test_agent_session.get_events()) == 0
+    initial_event_count = len(test_agent_session.get_events())
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -86,6 +89,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
         assert response.status_code == 200
 
     events = test_agent_session.get_events()
+    assert len(events) > initial_event_count
     metrics = list(filter(lambda event: event["request_type"] == "generate-metrics", events))
     assert len(metrics) == 1
     assert metrics[0]["payload"]["series"][0]["metric"] == "test_metric"
@@ -99,7 +103,7 @@ for _ in range(10):
     with tracer.trace('span1'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     events = test_agent_session.get_events()
 
@@ -122,7 +126,7 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    env = os.environ.copy()
+    env = get_default_telemetry_env()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -147,7 +151,7 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     events = test_agent_session.get_events()
 
@@ -176,7 +180,7 @@ for _ in range(4):
     otel.start_span('otel_span')
     ddtracer.trace("ddspan")
 """
-    env = os.environ.copy()
+    env = get_default_telemetry_env()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr

@@ -15,8 +15,10 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
-from ddtrace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -29,8 +31,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.span import Span
-from ddtrace.tracing._span_link import SpanLink
 from tests.utils import DummyTracer
 
 
@@ -257,6 +257,33 @@ class TestEncoders(TestCase):
         for i in range(3):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
+
+
+@pytest.mark.parametrize("version", ["v0.3", "v0.4"])
+def test_encode_meta_struct(version):
+    # test encoding for MsgPack format
+    encoder = MSGPACK_ENCODERS[version](2 << 10, 2 << 10)
+    super_span = Span(name="client.testing", trace_id=1)
+    payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
+
+    super_span.set_struct_tag("payload", payload)
+    super_span.set_tag("payload", "meta_payload")
+    encoder.put(
+        [
+            super_span,
+            Span(name="client.testing", trace_id=1),
+        ]
+    )
+
+    spans = encoder.encode()
+    items = decode(spans)
+    assert isinstance(spans, bytes)
+    assert len(items) == 1
+    assert len(items[0]) == 2
+    assert items[0][0][b"trace_id"] == items[0][1][b"trace_id"]
+    for j in range(2):
+        assert b"client.testing" == items[0][j][b"name"]
+    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload
 
 
 def decode(obj, reconstruct=True):
@@ -816,8 +843,8 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
+    from ddtrace._trace.span import Span
     import ddtrace.internal.encoding as encoding
-    from ddtrace.span import Span
 
     encoder_class_name = os.getenv("encoder_cls")
 

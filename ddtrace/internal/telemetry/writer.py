@@ -34,6 +34,7 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..packages import Distribution
 from ..periodic import PeriodicService
+from ..runtime import container
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
@@ -58,7 +59,6 @@ from .constants import TELEMETRY_PARTIAL_FLUSH_MIN_SPANS
 from .constants import TELEMETRY_PRIORITY_SAMPLING
 from .constants import TELEMETRY_PROFILING_CAPTURE_PCT
 from .constants import TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED
-from .constants import TELEMETRY_PROFILING_EXPORT_PY_ENABLED
 from .constants import TELEMETRY_PROFILING_HEAP_ENABLED
 from .constants import TELEMETRY_PROFILING_LOCK_ENABLED
 from .constants import TELEMETRY_PROFILING_MAX_FRAMES
@@ -106,6 +106,21 @@ from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 
 log = get_logger(__name__)
 
+AGENT_ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+AGENTLESS_ENDPOINT_V2 = "api/v2/apmtelemetry"
+
+
+def _get_endpoint_v2(agentless):
+    return AGENTLESS_ENDPOINT_V2 if agentless else AGENT_ENDPOINT
+
+
+def _get_agentless_telemetry_url(site: str):
+    if site == "datad0g.com":
+        return "https://all-http-intake.logs.datad0g.com"
+    if site == "datadoghq.eu":
+        return "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+    return f"https://instrumentation-telemetry-intake.{site}/"
+
 
 class LogData(dict):
     def __hash__(self):
@@ -121,38 +136,52 @@ class LogData(dict):
 
 
 class _TelemetryClient:
-    def __init__(self, endpoint):
-        # type: (str) -> None
-        self._agent_url = get_trace_url()
+    def __init__(self, endpoint, agentless=False):
+        # type: (str, bool) -> None
+        self._telemetry_url = _get_agentless_telemetry_url(config._dd_site) if agentless else get_trace_url()
         self._endpoint = endpoint
         self._encoder = JSONEncoderV2()
+        self._is_agentless = agentless
+        self._is_disabled = False
+
         self._headers = {
             "Content-Type": "application/json",
             "DD-Client-Library-Language": "python",
             "DD-Client-Library-Version": _pep440_to_semver(),
         }
 
+        if self._is_agentless:
+            if not config._dd_api_key:
+                log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
+                self._is_disabled = True
+                return
+            self._headers["dd-api-key"] = config._dd_api_key
+
     @property
     def url(self):
-        return parse.urljoin(self._agent_url, self._endpoint)
+        return parse.urljoin(self._telemetry_url, self._endpoint)
 
     def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
+        if self._is_disabled:
+            return None
+
         resp = None
         conn = None
+        endpoint_str = "Datadog endpoint" if self._is_agentless else "Datadog Agent"
         try:
             rb_json = self._encoder.encode(request)
             headers = self.get_headers(request)
             with StopWatch() as sw:
-                conn = get_connection(self._agent_url)
+                conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
                 resp = get_connection_response(conn)
             if resp.status < 300:
                 log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             else:
-                log.debug("failed to send telemetry to the Datadog Agent at %s. response: %s", self.url, resp.status)
+                log.debug("failed to send telemetry to the %s at %s. response: %s", endpoint_str, self.url, resp.status)
         except Exception:
-            log.debug("failed to send telemetry to the Datadog Agent at %s.", self.url)
+            log.debug("failed to send telemetry to the %s at %s.", endpoint_str, self.url, exc_info=True)
         finally:
             if conn is not None:
                 conn.close()
@@ -165,6 +194,7 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
+        container.update_headers_with_container_info(headers, container.get_container_info())
         return headers
 
 
@@ -203,15 +233,13 @@ class TelemetryWriter(PeriodicService):
     Supports v2 of the instrumentation telemetry api
     """
 
-    # telemetry endpoint uses events platform v2 api
-    ENDPOINT_V2 = "telemetry/proxy/api/v2/apmtelemetry"
     # Counter representing the number of events sent by the writer. Here we are relying on the atomicity
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
 
-    def __init__(self, is_periodic=True):
-        # type: (bool) -> None
+    def __init__(self, is_periodic=True, agentless=None):
+        # type: (bool, Optional[bool]) -> None
         super(TelemetryWriter, self).__init__(interval=min(config._telemetry_heartbeat_interval, 10))
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
@@ -233,13 +261,17 @@ class TelemetryWriter(PeriodicService):
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
+        self._is_agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
+
         self.started = False
         forksafe.register(self._fork_writer)
 
         # Debug flag that enables payload debug mode.
         self._debug = asbool(os.environ.get("DD_TELEMETRY_DEBUG", "false"))
 
-        self._client = _TelemetryClient(self.ENDPOINT_V2)
+        self._endpoint = _get_endpoint_v2(self._is_agentless)
+
+        self._client = _TelemetryClient(self._endpoint, self._is_agentless)
 
     def enable(self):
         # type: () -> bool
@@ -366,6 +398,12 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "_tracing_enabled":
             name = "tracing_enabled"
             value = "true" if item.value() else "false"
+        elif cfg_name == "_sca_enabled":
+            name = "DD_APPSEC_SCA_ENABLED"
+            if item.value() is None:
+                value = ""
+            else:
+                value = "true" if item.value() else "false"
         else:
             raise ValueError("Unknown configuration item: %s" % cfg_name)
         return name, value, item.source()
@@ -387,6 +425,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
+                self._telemetry_entry("_sca_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
                 self._telemetry_entry("logs_injection"),
@@ -447,13 +486,15 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_MEMORY_ENABLED, prof_config.memory.enabled, "unknown"),
                 (TELEMETRY_PROFILING_HEAP_ENABLED, prof_config.heap.sample_size > 0, "unknown"),
                 (TELEMETRY_PROFILING_LOCK_ENABLED, prof_config.lock.enabled, "unknown"),
-                (TELEMETRY_PROFILING_EXPORT_PY_ENABLED, prof_config.export.py_enabled, "unknown"),
                 (TELEMETRY_PROFILING_EXPORT_LIBDD_ENABLED, prof_config.export.libdd_enabled, "unknown"),
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
         )
+
+        if config._config["_sca_enabled"].value() is None:
+            self.remove_configuration("DD_APPSEC_SCA_ENABLED")
 
         payload = {
             "configuration": self._flush_configuration_queue(),
@@ -544,6 +585,10 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def remove_configuration(self, configuration_name):
+        with self._lock:
+            del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
         # type: (str, Union[bool, float, str], str) -> None
@@ -706,9 +751,8 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._update_dependencies_event(newly_imported_deps)
 
-        if not self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
-            self._app_heartbeat_event()
+        # Send a heartbeat event to the agent, this is required to keep RC connections alive
+        self._app_heartbeat_event()
 
         telemetry_events = self._flush_events_queue()
         for telemetry_event in telemetry_events:

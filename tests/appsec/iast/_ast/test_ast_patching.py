@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import logging
+
 import astunparse
+import mock
 import pytest
 
 from ddtrace.appsec._iast._ast.ast_patching import _in_python_stdlib_or_third_party
@@ -112,6 +115,7 @@ import html"""
         ("tests.appsec.iast.fixtures.ast.str.__init__"),  # Empty __init__.py
         ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
         ("tests.appsec.iast.fixtures.ast.str.empty_file"),
+        ("tests.appsec.iast.fixtures.ast.subscript.store_context"),
     ],
 )
 def test_astpatch_source_unchanged(module_name):
@@ -145,3 +149,9 @@ def test_module_should_iast_patch():
 )
 def test_module_in_python_stdlib_or_third_party(module_name, result):
     assert _in_python_stdlib_or_third_party(module_name) == result
+
+
+def test_module_path_none(caplog):
+    with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
+        assert ("", "") == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None]))
+        assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text

@@ -19,10 +19,12 @@ PROPAGATION_STYLE_ALL = (
 )
 W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
+W3C_TRACESTATE_PARENT_ID_KEY = "p"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
+LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
@@ -72,6 +74,9 @@ HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
+
+ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
+CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 
 MESSAGING_SYSTEM = "messaging.system"
 

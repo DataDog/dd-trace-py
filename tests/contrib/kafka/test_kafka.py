@@ -12,11 +12,12 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer
+from ddtrace.contrib.kafka.patch import TracedConsumer
 from ddtrace.contrib.kafka.patch import patch
 from ddtrace.contrib.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
-from ddtrace.internal.datastreams.kafka import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
@@ -31,7 +32,7 @@ GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "localhost:{}".format(KAFKA_CONFIG["port"])
 KEY = "test_key"
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-DSM_TEST_PATH_HEADER_SIZE = 20
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class KafkaConsumerPollFilter(TraceFilter):
@@ -90,10 +91,16 @@ def dummy_tracer():
 
 
 @pytest.fixture
-def tracer():
+def should_filter_empty_polls():
+    yield True
+
+
+@pytest.fixture
+def tracer(should_filter_empty_polls):
     patch()
     t = Tracer()
-    t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    if should_filter_empty_polls:
+        t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     # disable backoff because it makes these tests less reliable
     t._writer._send_payload_with_backoff = t._writer._send_payload
     try:
@@ -196,6 +203,26 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
     consumer.close()
 
 
+def test_empty_list_from_consume_does_not_raise():
+    # https://github.com/DataDog/dd-trace-py/issues/8846
+    patch()
+    consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+            "request.timeout.ms": 1000,
+            "retry.backoff.ms": 10,
+        },
+    )
+    assert isinstance(consumer, TracedConsumer)
+    max_messages_per_batch = 1
+    timeout = 0
+    consumer.consume(max_messages_per_batch, timeout)
+    consumer.close()
+    unpatch()
+
+
 @pytest.mark.parametrize(
     "config,expect_servers",
     [
@@ -267,6 +294,42 @@ def test_commit(producer, consumer, kafka_topic):
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume_single_message(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        # One message is consumed and one span is generated.
+        messages = consumer.consume(num_messages=1)
+        assert len(messages) == 1
+        consumer.commit(messages[0])
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_topic):
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        # Two messages are consumed but only ONE span is generated
+        messages = consumer.consume(num_messages=2)
+        assert len(messages) == 2
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.error.stack"])
+@pytest.mark.parametrize("should_filter_empty_polls", [False])
+def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+    # Raises an exception by consuming messages after the consumer has been closed
+    with pytest.raises(TypeError):
+        # Empty poll spans are filtered out by the KafkaConsumerPollFilter. We need to disable
+        # it to test error spans.
+        # Allowing empty poll spans could introduce flakiness in the test.
+        with override_config("kafka", dict(trace_empty_poll_enabled=True)):
+            consumer.consume(num_messages=1, invalid_args="invalid_args")
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
@@ -330,7 +393,7 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
         test_header_size += len(k) + len(v)
     expected_payload_size = float(payload_length + key_length)
     expected_payload_size += test_header_size  # to account for headers we add here
-    expected_payload_size += len(PROPAGATION_KEY)  # Add in header key length
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
     try:
@@ -415,19 +478,9 @@ def _generate_in_subprocess(random_topic):
     import ddtrace
     from ddtrace.contrib.kafka.patch import patch
     from ddtrace.contrib.kafka.patch import unpatch
-    from ddtrace.filters import TraceFilter
+    from tests.contrib.kafka.test_kafka import KafkaConsumerPollFilter
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
-
-    class KafkaConsumerPollFilter(TraceFilter):
-        def process_trace(self, trace):
-            # Filter out all poll spans that have no received message
-            return (
-                None
-                if trace[0].name in {"kafka.consume", "kafka.process"}
-                and trace[0].get_tag("kafka.received_message") == "False"
-                else trace
-            )
 
     ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
     # disable backoff because it makes these tests less reliable
@@ -669,8 +722,8 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     # message comes back with expected test string
     assert message.value() == b"context test"
 
-    # DSM header 'dd-pathway-ctx' was propagated in the headers
-    assert message.headers()[0][0] == PROPAGATION_KEY
+    # DSM header 'dd-pathway-ctx-base64' was propagated in the headers
+    assert message.headers()[0][0] == PROPAGATION_KEY_BASE_64
     assert message.headers()[0][1] is not None
 
 
@@ -733,6 +786,7 @@ from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
+from tests.contrib.kafka.test_kafka import should_filter_empty_polls
 from tests.utils import DummyTracer
 
 def test(consumer, producer, kafka_topic):
@@ -837,7 +891,7 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
         try:
             return json.loads(as_bytes)
         except json.decoder.JSONDecodeError:
-            return as_bytes
+            return  # return a type that has no __len__ because such types caused a crash at one point
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
@@ -923,6 +977,7 @@ from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
 from tests.contrib.kafka.test_kafka import producer
 from tests.contrib.kafka.test_kafka import tracer
+from tests.contrib.kafka.test_kafka import should_filter_empty_polls
 from tests.utils import DummyTracer
 
 def test(consumer, producer, kafka_topic):

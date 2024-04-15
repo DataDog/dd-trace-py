@@ -3,6 +3,7 @@ import pytest
 import urllib3
 
 from ddtrace import config
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -12,7 +13,6 @@ from ddtrace.contrib.urllib3 import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.pin import Pin
-from ddtrace.span import _get_64_highest_order_bits_as_hex
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -493,11 +493,34 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-sampling-priority": "1",
                 "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
                 "traceparent": s.context._traceparent,
-                "tracestate": s.context._tracestate,
+                # outgoing headers must contain last parent span id in tracestate
+                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
             }
-            m_make_request.assert_called_with(
-                mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers=expected_headers, timeout=mock.ANY
-            )
+
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers=expected_headers,
+                    timeout=mock.ANY,
+                )
 
     def test_distributed_tracing_disabled(self):
         """Test with distributed tracing disabled does not propagate the headers"""
@@ -508,9 +531,30 @@ class TestUrllib3(BaseUrllib3TestCase):
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
-            m_make_request.assert_called_with(
-                mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers={}, timeout=mock.ANY
-            )
+            if int(urllib3.__version__.split(".")[0]) >= 2:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                    retries=mock.ANY,
+                    response_conn=mock.ANY,
+                    preload_content=mock.ANY,
+                    decode_content=mock.ANY,
+                )
+            else:
+                m_make_request.assert_called_with(
+                    mock.ANY,
+                    "GET",
+                    "/status/200",
+                    body=None,
+                    chunked=mock.ANY,
+                    headers={},
+                    timeout=mock.ANY,
+                )
 
 
 @pytest.fixture()

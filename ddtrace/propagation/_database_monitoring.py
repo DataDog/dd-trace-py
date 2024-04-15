@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union  # noqa:F401
 
+import ddtrace
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
 
 DBM_PARENT_SERVICE_NAME_KEY = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"
+DBM_PEER_HOSTNAME_KEY = "ddh"
+DBM_PEER_DB_NAME_KEY = "dddb"
 DBM_ENVIRONMENT_KEY = "dde"
 DBM_VERSION_KEY = "ddpv"
 DBM_TRACE_PARENT_KEY = "traceparent"
@@ -45,12 +48,28 @@ def default_sql_injector(dbm_comment, sql_statement):
 
 
 class _DBM_Propagator(object):
-    def __init__(self, sql_pos, sql_kw, sql_injector=default_sql_injector):
+    def __init__(
+        self,
+        sql_pos,
+        sql_kw,
+        sql_injector=default_sql_injector,
+        peer_hostname_tag="out.host",
+        peer_db_name_tag="db.name",
+    ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
         self.sql_injector = sql_injector
+        self.peer_hostname_tag = peer_hostname_tag
+        self.peer_db_name_tag = peer_db_name_tag
 
     def inject(self, dbspan, args, kwargs):
+        # run sampling before injection to propagate correct sampling priority
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if dbspan.context.sampling_priority is None:
+                ddtrace.tracer.sample(dbspan._local_root)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
             # injection_mode is disabled
@@ -85,6 +104,14 @@ class _DBM_Propagator(object):
             DBM_VERSION_KEY: dd_config.version,
             DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
+
+        peer_db_name = db_span.get_tag(self.peer_db_name_tag)
+        if peer_db_name:
+            dbm_tags[DBM_PEER_DB_NAME_KEY] = peer_db_name
+
+        peer_hostname = db_span.get_tag(self.peer_hostname_tag)
+        if peer_hostname:
+            dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
 
         if dbm_config.propagation_mode == "full":
             db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")

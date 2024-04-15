@@ -36,28 +36,31 @@ TaintRange::get_hash() const
 };
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
+    if (new_length == -1) {
+        new_length = source_taint_range->length;
+    }
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
-                                                  source_taint_range->length,         // length
+                                                  new_length,                         // length
                                                   source_taint_range->source);        // origin
     return tptr;
 }
 
 TaintRangeRefs
-shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
 
     for (const auto& trange : source_taint_ranges) {
-        new_ranges.emplace_back(api_shift_taint_range(trange, offset));
+        new_ranges.emplace_back(api_shift_taint_range(trange, offset, new_length));
     }
     return new_ranges;
 }
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset)
+api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
     return shift_taint_ranges(source_taint_ranges, offset);
 }
@@ -77,7 +80,7 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
  * @param self The Python extension module.
  * @param args An array of Python objects containing the candidate text and text aspect.
  *   @param args[0] PyObject, string to set the ranges
- *   @param args[1] long. Lenght of the string
+ *   @param args[1] long. Length of the string
  *   @param args[2] string. source name
  *   @param args[3] string. source value
  *   @param args[4] int. origin type
@@ -149,7 +152,8 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return;
         }
     }
 
@@ -227,11 +231,11 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 }
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset)
+api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset, int new_length = -1)
 {
     auto tx_map = initializer->get_tainting_map();
     auto ranges = get_ranges(str_1.ptr(), tx_map);
-    set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset), tx_map);
+    set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
 }
 
 TaintedObjectPtr
@@ -243,7 +247,8 @@ get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return nullptr;
         }
     }
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
@@ -291,7 +296,8 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
     if (not tx_taint_map) {
         tx_taint_map = initializer->get_tainting_map();
         if (not tx_taint_map) {
-            throw py::value_error("Tainted Map isn't initialized. Call create_context() first");
+            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
+            return;
         }
     }
 
@@ -344,19 +350,29 @@ pyexport_taintrange(py::module& m)
           "parameter_list"_a,
           py::return_value_policy::move);
 
-    // TODO: check return value policy
-    m.def("get_tainted_object", &get_tainted_object, "str"_a, "tx_taint_map"_a);
-
-    m.def(
-      "shift_taint_range", &api_shift_taint_range, py::return_value_policy::move, "source_taint_range"_a, "offset"_a);
-    m.def("shift_taint_ranges", &api_shift_taint_ranges, py::return_value_policy::move, "ranges"_a, "offset"_a);
+    m.def("shift_taint_range",
+          &api_shift_taint_range,
+          py::return_value_policy::move,
+          "source_taint_range"_a,
+          "offset"_a,
+          "new_length"_a = -1);
+    m.def("shift_taint_ranges",
+          &api_shift_taint_ranges,
+          py::return_value_policy::move,
+          "ranges"_a,
+          "offset"_a,
+          "new_length"_a = -1);
 
     m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
 
     m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
-    m.def(
-      "copy_and_shift_ranges_from_strings", &api_copy_and_shift_ranges_from_strings, "str_1"_a, "str_2"_a, "offset"_a);
+    m.def("copy_and_shift_ranges_from_strings",
+          &api_copy_and_shift_ranges_from_strings,
+          "str_1"_a,
+          "str_2"_a,
+          "offset"_a,
+          "new_length"_a = -1);
 
     m.def("get_ranges",
           py::overload_cast<PyObject*>(&get_ranges),

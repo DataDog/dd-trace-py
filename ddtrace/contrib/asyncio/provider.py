@@ -1,8 +1,9 @@
 import asyncio
 
-from ...provider import BaseContextProvider
-from ...provider import DatadogContextMixin
-from ...span import Span
+from ddtrace._trace.provider import BaseContextProvider
+from ddtrace._trace.provider import DatadogContextMixin
+from ddtrace._trace.span import Span
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class AsyncioContextProvider(BaseContextProvider, DatadogContextMixin):
@@ -18,6 +19,14 @@ class AsyncioContextProvider(BaseContextProvider, DatadogContextMixin):
 
     # Task attribute used to set/get the context
     _CONTEXT_ATTR = "__datadog_context"
+
+    def __init__(self) -> None:
+        deprecate(
+            "The `ddtrace.contrib.asyncio.AsyncioContextProvider` class is deprecated."
+            " Use `ddtrace.DefaultContextProvider` instead.",
+            version="3.0.0",
+        )
+        super().__init__()
 
     def activate(self, context, loop=None):
         """Sets the scoped ``Context`` for the current running ``Task``."""

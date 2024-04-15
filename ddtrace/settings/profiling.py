@@ -1,5 +1,4 @@
 import math
-import platform
 import typing as t
 
 from envier import En
@@ -38,9 +37,35 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _is_valid_libdatadog():
-    # type: () -> bool
-    return platform.machine() in ["x86_64", "aarch64"] and "glibc" in platform.libc_ver()[0]
+def _check_for_ddup_available():
+    ddup_is_available = False
+    try:
+        from ddtrace.internal.datadog.profiling import ddup
+
+        ddup_is_available = ddup.is_available
+    except Exception:
+        pass  # nosec
+    return ddup_is_available
+
+
+def _check_for_stack_v2_available():
+    stack_v2_is_available = False
+    if not _check_for_ddup_available():
+        return False
+
+    try:
+        from ddtrace.internal.datadog.profiling import stack_v2
+
+        stack_v2_is_available = stack_v2.is_available
+    except Exception:
+        pass  # nosec
+    return stack_v2_is_available
+
+
+# We don't check for the availability of the ddup module when determining whether libdd is _required_,
+# since it's up to the application code to determine what happens in that failure case.
+def _is_libdd_required(config):
+    return config.stack.v2.enabled or config._libdd_required
 
 
 class ProfilingConfig(En):
@@ -165,6 +190,19 @@ class ProfilingConfig(En):
             help="Whether to enable the stack profiler",
         )
 
+        class V2(En):
+            __item__ = __prefix__ = "v2"
+
+            _enabled = En.v(
+                bool,
+                "enabled",
+                default=False,
+                help_type="Boolean",
+                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+            )
+
+            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+
     class Lock(En):
         __item__ = __prefix__ = "lock"
 
@@ -218,24 +256,36 @@ class ProfilingConfig(En):
     class Export(En):
         __item__ = __prefix__ = "export"
 
+        _libdd_required = En.v(
+            bool,
+            "libdd_required",
+            default=False,
+            help_type="Boolean",
+            help="Requires the native exporter to be enabled",
+        )
+
+        libdd_required = En.d(
+            bool,
+            _is_libdd_required,
+        )
+
         _libdd_enabled = En.v(
             bool,
             "libdd_enabled",
             default=False,
             help_type="Boolean",
-            help="Enables collection and export using the experimental exporter",
+            help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
         )
 
-        # For now, only allow libdd to be enabled if the user asks for it
-        libdd_enabled = En.d(bool, lambda c: c._libdd_enabled and _is_valid_libdatadog())
-
-        py_enabled = En.v(
-            bool,
-            "py_enabled",
-            default=True,
-            help_type="Boolean",
-            help="Enables collection and export using the classic Python exporter",
+        libdd_enabled = En.d(
+            bool, lambda c: (_is_libdd_required(c) or c._libdd_enabled) and _check_for_ddup_available()
         )
+
+    Export.include(Stack, namespace="stack")
 
 
 config = ProfilingConfig()
+
+if config.export.libdd_required and not config.export.libdd_enabled:
+    logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
+    config.enabled = False

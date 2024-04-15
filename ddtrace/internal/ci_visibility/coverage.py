@@ -8,6 +8,13 @@ from typing import Tuple  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_error
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_files
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
+from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_started
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.logger import get_logger
 
@@ -73,17 +80,28 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
     return True
 
 
-def _switch_coverage_context(coverage_data: Coverage, unique_test_name: str):
+def _switch_coverage_context(
+    coverage_data: Coverage, unique_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
+):
+    record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     if not _coverage_has_valid_data(coverage_data, silent_mode=True):
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
-    coverage_data.switch_context(unique_test_name)
+    try:
+        coverage_data.switch_context(unique_test_name)
+    except RuntimeError as err:
+        record_code_coverage_error()
+        log.warning(err)
 
 
-def _report_coverage_to_span(coverage_data: Coverage, span: ddtrace.Span, root_dir: str):
+def _report_coverage_to_span(
+    coverage_data: Coverage, span: ddtrace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
+):
     span_id = str(span.trace_id)
     if not _coverage_has_valid_data(coverage_data):
+        record_code_coverage_error()
         return
+    record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
     span.set_tag_str(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
@@ -156,5 +174,9 @@ def build_payload(coverage: Coverage, root_dir: str, test_id: Optional[str] = No
             )
         else:
             files_data.append({"filename": _global_relative_file_paths_for_cov[root_dir_str][filename]})
+
+    if len(files_data) == 0:
+        record_code_coverage_empty()
+    record_code_coverage_files(len(files_data))
 
     return json.dumps({"files": files_data})

@@ -55,7 +55,7 @@ The following environment variables for the tracer are supported:
    DD_SITE:
      default: datadoghq.com
      description: |
-         Specify which site to use for uploading profiles. Set to
+         Specify which site to use for uploading profiles and logs. Set to
          ``datadoghq.eu`` to use EU site.
 
    DD_TRACE_ENABLED:
@@ -76,6 +76,14 @@ The following environment variables for the tracer are supported:
          to the following :mod:`docs <ddtrace.opentelemetry>`.
      version_added:
        v1.12.0:
+    
+   DD_RUNTIME_METRICS_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
+         These metrics track the memory management and concurrency of the python runtime. 
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
@@ -243,10 +251,10 @@ The following environment variables for the tracer are supported:
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
-         **Note** Tag and resource values must be passed in upon span start, or else they will not be evaluated. There is work planned to improve this.
      version_added:
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
+       v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
 
    DD_SPAN_SAMPLING_RULES:
      type: string
@@ -390,6 +398,15 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: True
      description: Prevents large payloads being sent to APM.
+    
+   DD_ASGI_TRACE_WEBSOCKET:
+     default: False
+     description: |
+         Enables tracing ASGI websockets. Please note that the websocket span duration will last until the 
+         connection is closed, which can result in long running spans.
+
+     version_added:
+       v2.7.0:
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
@@ -400,6 +417,11 @@ The following environment variables for the tracer are supported:
      type: Boolean
      default: False
      description: Whether to enable AppSec monitoring.
+
+   DD_APPSEC_SCA_ENABLED:
+     type: Boolean
+     default: None
+     description: Whether to enable/disable SCA (Software Composition Analysis).
 
    DD_APPSEC_RULES:
      type: String
@@ -448,7 +470,7 @@ The following environment variables for the tracer are supported:
      type: String
      default: ""
      description: |
-        Specify methods to trace. For example: ``mod.submod[method1,method2];mod.submod.Class[method1]``.
+        Specify methods to trace. For example: ``mod.submod:method1,method2;mod.submod:Class.method1``.
         Note that this setting is only compatible with ``ddtrace-run``, and that it doesn't work for methods implemented
         by libraries for which there's an integration in ``ddtrace/contrib``.
      version_added:

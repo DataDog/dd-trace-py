@@ -4,6 +4,8 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -301,3 +303,73 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
         {"value": tainted_text2, "source": 1},
     ]
     assert sources == [input_info1, input_info2]
+
+
+def test_taint_object_error_with_no_context():
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+
+    destroy_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 0
+
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+
+
+def test_get_ranges_from_object_with_no_context():
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    destroy_context()
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 0
+
+
+def test_propagate_ranges_with_no_context():
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    destroy_context()
+    result_2 = add_aspect(result, "another_string")
+    ranges_result = get_tainted_ranges(result_2)
+    assert len(ranges_result) == 0

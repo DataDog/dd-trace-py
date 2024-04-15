@@ -1,5 +1,6 @@
 variables:
   BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
   stage: benchmarks
@@ -41,6 +42,7 @@ benchmarks-pr-comment:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    - "(for i in {1..2}; do ./steps/upload-results-to-benchmarking-api.sh && break; done) || :"
     - "./steps/post-pr-comment.sh || :"
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
@@ -118,12 +120,27 @@ benchmark-http-propagation-inject:
 
 benchmark-serverless:
   stage: benchmarks
+  image: $SLS_CI_IMAGE
+  tags: ["arch:amd64"]
+  when: on_success
+  needs:
+    - benchmark-serverless-trigger
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
+    - ./ci/check_trigger_status.sh
+
+benchmark-serverless-trigger:
+  stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
-    branch: jordan.gonzalez/read-cold-start-from-logs
-  allow_failure: false
+  allow_failure: true
   variables:
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL

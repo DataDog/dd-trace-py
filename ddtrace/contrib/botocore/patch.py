@@ -13,9 +13,9 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.agent import get_stats_url
-from ddtrace.internal.llmobs.integrations import BedrockIntegration
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
@@ -64,17 +64,11 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "llmobs_enabled": asbool(os.getenv("DD_BEDROCK_LLMOBS_ENABLED", False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "llmobs_prompt_completion_sample_rate": float(
-            os.getenv("DD_LANGCHAIN_LLMOBS_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
         "span_char_limit": int(os.getenv("DD_BEDROCK_SPAN_CHAR_LIMIT", 128)),
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "_api_key": os.getenv("DD_API_KEY"),
-        "_app_key": os.getenv("DD_APP_KEY"),
         "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
     },
@@ -91,7 +85,10 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    botocore._datadog_integration = BedrockIntegration(config=config.botocore, stats_url=get_stats_url())
+    if config._llmobs_enabled:
+        LLMObs.enable()
+
+    botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
@@ -105,6 +102,8 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
+    if LLMObs.enabled:
+        LLMObs.disable()
 
 
 def patch_submodules(submodules):

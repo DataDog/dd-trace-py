@@ -12,6 +12,7 @@ IPv
 MySQL
 OpenTracing
 Runtimes
+RuntimeErrors
 SpanContext
 aiobotocore
 aiohttp
@@ -223,6 +224,7 @@ statsd
 stderr
 stdout
 stringable
+struct
 structlog
 subclass
 subdirectory
@@ -259,6 +261,8 @@ vendored
 versioned
 vertica
 w3c
+websocket
+websockets
 whitelist
 whitespace
 workflow
@@ -281,3 +285,4 @@ Enablement
 hotspot
 CMake
 libdatadog
+importlib

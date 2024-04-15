@@ -1,9 +1,11 @@
 import base64
+import collections
 import gzip
 import json
-import sys
-from typing import TYPE_CHECKING  # noqa:F401
+import time
+from typing import Optional
 
+from ddtrace import constants
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec import _processor as appsec_processor
 from ddtrace.appsec._asm_request_context import add_context_callback
@@ -12,18 +14,18 @@ from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
 
 
-if TYPE_CHECKING:
-    from typing import Optional  # noqa:F401
-
-
 log = get_logger(__name__)
-metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
+
+
+# Max number of endpoint hashes to keep in the hashtable
+MAX_HASHTABLE_SIZE = 4096
+
+M_INFINITY = float("-inf")
 
 
 class TooLargeSchemaException(Exception):
@@ -38,69 +40,77 @@ class APIManager(Service):
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, None),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
     ]
 
-    _instance = None  # type: Optional[APIManager]
-
-    SAMPLE_START_VALUE = 1.0 - sys.float_info.epsilon
+    _instance: Optional["APIManager"] = None
 
     @classmethod
-    def enable(cls):
-        # type: () -> None
+    def enable(cls) -> None:
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = True
         log.debug("Enabling %s", cls.__name__)
-        metrics.enable()
         cls._instance = cls()
         cls._instance.start()
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def disable(cls):
-        # type: () -> None
+    def disable(cls) -> None:
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
 
+        asm_config._api_security_active = False
         log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
-        metrics.disable()
         log.debug("%s disabled", cls.__name__)
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         super(APIManager, self).__init__()
 
-        self.current_sampling_value = self.SAMPLE_START_VALUE
-        self._schema_meter = metrics.get_meter("schema")
         log.debug("%s initialized", self.__class__.__name__)
+        self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
-    def _stop_service(self):
-        # type: () -> None
+    def _stop_service(self) -> None:
         remove_context_callback(self._schema_callback, global_callback=True)
+        self._hashtable.clear()
 
-    def _start_service(self):
-        # type: () -> None
+    def _start_service(self) -> None:
         add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env):
+    def _should_collect_schema(self, env, priority: int) -> bool:
+        # Rate limit per route
+        if priority <= 0:
+            return False
+
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
-        sample_rate = asm_config._api_security_sample_rate
+        status = env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_STATUS)
         # Framework is not fully supported
-        if not method or not route:
-            log.debug("unsupported groupkey for api security [method %s] [route %s]", bool(method), bool(route))
+        if method is None or route is None or status is None:
+            log.debug(
+                "unsupported groupkey for api security [method %s] [route %s] [status %s]",
+                bool(method),
+                bool(route),
+                bool(status),
+            )
             return False
-        # Rate limit per route
-        self.current_sampling_value += sample_rate
-        if self.current_sampling_value >= 1.0:
-            self.current_sampling_value -= 1.0
-            return True
-        return False
+        end_point_hash = hash((route, method, status))
+        current_time = time.monotonic()
+        previous_time = self._hashtable.get(end_point_hash, M_INFINITY)
+        if previous_time >= current_time - asm_config._api_security_sample_delay:
+            return False
+        if previous_time is M_INFINITY:
+            if len(self._hashtable) >= MAX_HASHTABLE_SIZE:
+                self._hashtable.popitem(last=False)
+        else:
+            self._hashtable.move_to_end(end_point_hash)
+        self._hashtable[end_point_hash] = current_time
+        return True
 
     def _schema_callback(self, env):
         from ddtrace.appsec._utils import _appsec_apisec_features_is_active
@@ -112,10 +122,24 @@ class APIManager(Service):
             return
 
         try:
-            if not self._should_collect_schema(env):
+            # check both current span and root span for sampling priority
+            # if sampling has not yet run for the span, we default to treating it as sampled
+            if root.context.sampling_priority is None and env.span.context.sampling_priority is None:
+                priorities = (1,)
+            else:
+                priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
+            # if any of them is set to USER_KEEP or USER_REJECT, we should respect it
+            if constants.USER_KEEP in priorities:
+                priority = constants.USER_KEEP
+            elif constants.USER_REJECT in priorities:
+                priority = constants.USER_REJECT
+            else:
+                priority = max(priorities)
+            if not self._should_collect_schema(env, priority):
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
+            return
 
         # we need the request content type on the span
         try:
@@ -125,7 +149,7 @@ class APIManager(Service):
         except Exception:
             log.debug("Failed to enrich request span with headers", exc_info=True)
 
-        waf_payload = {}
+        waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
         for address, _, transform in self.COLLECTED:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
@@ -136,28 +160,25 @@ class APIManager(Service):
             if transform is not None:
                 value = transform(value)
             waf_payload[address] = value
-        if waf_payload:
-            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
-            result = call_waf_callback(waf_payload)
-            if result is None:
-                return
-            for meta, schema in result.items():
-                b64_gzip_content = b""
-                try:
-                    b64_gzip_content = base64.b64encode(
-                        gzip.compress(json.dumps(schema, separators=",:").encode())
-                    ).decode()
-                    if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                        raise TooLargeSchemaException
-                    root._meta[meta] = b64_gzip_content
-                except Exception as e:
-                    self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
-                    self._log_limiter.limit(
-                        log.warning,
-                        "Failed to get schema from %r [schema length=%d]:\n%s",
-                        address,
-                        len(b64_gzip_content),
-                        repr(value)[:256],
-                        exc_info=True,
-                    )
-        self._schema_meter.increment("spans")
+
+        result = call_waf_callback(waf_payload)
+        if result is None:
+            return
+        for meta, schema in result.derivatives.items():
+            b64_gzip_content = b""
+            try:
+                b64_gzip_content = base64.b64encode(
+                    gzip.compress(json.dumps(schema, separators=",:").encode())
+                ).decode()
+                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
+                    raise TooLargeSchemaException
+                root._meta[meta] = b64_gzip_content
+            except Exception:
+                self._log_limiter.limit(
+                    log.warning,
+                    "Failed to get schema from %r [schema length=%d]:\n%s",
+                    address,
+                    len(b64_gzip_content),
+                    repr(value)[:256],
+                    exc_info=True,
+                )

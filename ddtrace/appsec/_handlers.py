@@ -32,7 +32,7 @@ def _get_content_length(environ):
 
     try:
         return max(0, int(content_length))
-    except ValueError:
+    except Exception:
         return 0
 
 
@@ -95,8 +95,11 @@ async def _on_asgi_request_parse_body(receive, headers):
         data_received = await receive()
         body = data_received.get("body", b"")
 
-        async def receive():
-            return data_received
+        async def receive_wrapped(once=[True]):
+            if once[0]:
+                once[0] = False
+                return data_received
+            return await receive()
 
         content_type = headers.get("content-type") or headers.get("Content-Type")
         try:
@@ -111,9 +114,9 @@ async def _on_asgi_request_parse_body(receive, headers):
                 req_body = None
             else:
                 req_body = parse_form_multipart(body.decode(), headers) or None
-            return receive, req_body
-        except BaseException:
-            return receive, None
+            return receive_wrapped, req_body
+        except Exception:
+            return receive_wrapped, None
 
     return receive, None
 
@@ -133,7 +136,8 @@ def _on_request_span_modifier(
         if wsgi_input:
             try:
                 seekable = wsgi_input.seekable()
-            except AttributeError:
+            # expect AttributeError in normal error cases
+            except Exception:
                 seekable = False
             if not seekable:
                 # https://gist.github.com/mitsuhiko/5721547
@@ -162,16 +166,7 @@ def _on_request_span_modifier(
             else:
                 # no raw body
                 req_body = None
-        except (
-            exception_type,
-            AttributeError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            json.JSONDecodeError,
-            xmltodict.expat.ExpatError,
-            xmltodict.ParsingInterrupted,
-        ):
+        except Exception:
             log.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
@@ -187,9 +182,12 @@ def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if _is_iast_enabled():
         try:
-            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+            from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+            if not AppSecIastSpanProcessor.is_span_analyzed():
+                return
 
             # TODO: instance.query_string = ??
             instance.query_string = taint_pyobject(
@@ -204,8 +202,6 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
-            _set_metric_iast_instrumented_source(OriginType.PATH)
-            _set_metric_iast_instrumented_source(OriginType.QUERY)
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
@@ -239,6 +235,10 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.HEADER)
 
             _w("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.QUERY)
+
             _w(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
@@ -269,6 +269,10 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return
 
         http_req = fn_args[0]
 
@@ -315,20 +319,12 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
         if not args:
             return wrapped(*args, **kwargs)
 
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
         from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
         from ddtrace.appsec._iast._taint_utils import taint_structure
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
-        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
-        # we instrument those sources on _on_django_func_wrapped
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PATH)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.BODY)
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return wrapped(*args, **kwargs)
 
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
@@ -336,18 +332,85 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def _on_django_patch():
-    try:
-        from ddtrace.appsec._iast._taint_tracking import OriginType  # noqa: F401
+    if _is_iast_enabled():
+        try:
+            from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+            from ddtrace.appsec._iast._taint_tracking import OriginType
 
-        when_imported("django.http.request")(
-            lambda m: trace_utils.wrap(
-                m,
-                "QueryDict.__getitem__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+            # we instrument those sources on _on_django_func_wrapped
+            _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+            _set_metric_iast_instrumented_source(OriginType.PATH)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+            when_imported("django.http.request")(
+                lambda m: trace_utils.wrap(
+                    m,
+                    "QueryDict.__getitem__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+                )
             )
+        except Exception:
+            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+
+
+def _custom_protobuf_getattribute(self, name):
+    from collections.abc import MutableMapping
+
+    from google._upb._message import MessageMapContainer
+
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import taint_structure
+
+    ret = type(self).__saved_getattr(self, name)
+    if isinstance(ret, (str, bytes, bytearray)):
+        ret = taint_pyobject(
+            pyobject=ret,
+            source_name=OriginType.GRPC_BODY,
+            source_value=ret,
+            source_origin=OriginType.GRPC_BODY,
         )
-    except Exception:
-        log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+    elif isinstance(ret, MutableMapping):
+        if isinstance(ret, MessageMapContainer) and len(ret):
+            # Patch the message-values class
+            first_key = next(iter(ret))
+            value_type = type(ret[first_key])
+            _patch_protobuf_class(value_type)
+        else:
+            ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
+
+    return ret
+
+
+_custom_protobuf_getattribute.__datadog_custom = True  # type: ignore[attr-defined]
+
+
+# Used to replace the Protobuf message class "getattribute" with a custom one that taints the return
+# of the original __getattribute__ method
+def _patch_protobuf_class(cls):
+    getattr_method = getattr(cls, "__getattribute__")
+    if not getattr_method:
+        return
+
+    if not hasattr(getattr_method, "__datadog_custom"):
+        # Replace the class __getattribute__ method with our custom one
+        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
+        cls.__saved_getattr = getattr_method
+        cls.__getattribute__ = _custom_protobuf_getattribute
+
+
+def _on_grpc_response(response):
+    if not _is_iast_enabled():
+        return
+
+    msg_cls = type(response)
+    _patch_protobuf_class(msg_cls)
+    return response
 
 
 def listen():
@@ -362,3 +425,4 @@ core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+core.on("grpc.response_message", _on_grpc_response, "response")

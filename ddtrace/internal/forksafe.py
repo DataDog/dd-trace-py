@@ -1,6 +1,7 @@
 """
 An API to provide fork-safe functions.
 """
+import functools
 import logging
 import os
 import threading
@@ -14,6 +15,7 @@ log = logging.getLogger(__name__)
 
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
+_registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -22,13 +24,23 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 _soft = True
 
 
-def ddtrace_after_in_child():
-    # type: () -> None
-    global _registry
+# Flag to determine, from the parent process, if fork has been called
+_forked = False
 
-    # DEV: we make a copy of the registry to prevent hook execution from
-    # introducing new hooks, potentially causing an infinite loop.
-    for hook in list(_registry):
+
+def set_forked():
+    global _forked
+
+    _forked = True
+
+
+def has_forked():
+    return _forked
+
+
+def run_hooks(registry):
+    # type: (typing.List[typing.Callable[[], None]]) -> None
+    for hook in list(registry):
         try:
             hook()
         except Exception:
@@ -36,51 +48,37 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def register(after_in_child):
-    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
-    """Register a function to be called after fork in the child process.
+ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
+ddtrace_after_in_child = functools.partial(run_hooks, _registry)
 
-    Note that ``after_in_child`` will be called in all child processes across
-    multiple forks unless it is unregistered.
-    """
-    _registry.append(after_in_child)
-    return after_in_child
+
+def register_hook(registry, hook):
+    registry.append(hook)
+    return hook
+
+
+register_before_fork = functools.partial(register_hook, _registry_before_fork)
+register = functools.partial(register_hook, _registry)
 
 
 def unregister(after_in_child):
     # type: (typing.Callable[[], None]) -> None
-    """Unregister a function to be called after fork in the child process.
+    try:
+        _registry.remove(after_in_child)
+    except ValueError:
+        log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
-    Raises `ValueError` if the function was not registered.
-    """
-    _registry.remove(after_in_child)
+
+def unregister_before_fork(before_fork):
+    # type: (typing.Callable[[], None]) -> None
+    try:
+        _registry_before_fork.remove(before_fork)
+    except ValueError:
+        log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=ddtrace_after_in_child)
-elif hasattr(os, "fork"):
-    # DEV: This "should" be the correct way of implementing this, but it doesn't
-    # work if hooks create new threads.
-    _threading_after_fork = threading._after_fork  # type: ignore
-
-    def _after_fork():
-        # type: () -> None
-        _threading_after_fork()
-        if not _soft:
-            ddtrace_after_in_child()
-
-    threading._after_fork = _after_fork  # type: ignore[attr-defined]
-
-    # DEV: If hooks create threads, we should do this instead.
-    _os_fork = os.fork
-
-    def _fork():
-        pid = _os_fork()
-        if pid == 0 and _soft:
-            ddtrace_after_in_child()
-        return pid
-
-    os.fork = _fork
+    os.register_at_fork(before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 

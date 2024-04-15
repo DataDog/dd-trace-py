@@ -10,8 +10,8 @@ import django
 from django.utils.functional import SimpleLazyObject
 import xmltodict
 
-from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
@@ -281,7 +281,7 @@ def _extract_body(request):
                 req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
-        except BaseException:
+        except Exception:
             log.debug("Failed to parse request body", exc_info=True)
         return req_body
 

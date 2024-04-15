@@ -11,7 +11,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from .constants import ENV_KEY
-from .constants import SAMPLE_RATE_METRIC_KEY
 from .internal.constants import _PRIORITY_CATEGORY
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -31,7 +30,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from .span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -53,7 +52,8 @@ class BaseSampler(metaclass=abc.ABCMeta):
     __slots__ = ()
 
     @abc.abstractmethod
-    def sample(self, span, allow_false=True):
+    def sample(self, span):
+        # type: (Span) -> bool
         pass
 
 
@@ -68,9 +68,8 @@ class BasePrioritySampler(BaseSampler):
 class AllSampler(BaseSampler):
     """Sampler sampling all the traces"""
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
-        return not allow_false or True
+    def sample(self, span):
+        return True
 
 
 class RateSampler(BaseSampler):
@@ -96,14 +95,8 @@ class RateSampler(BaseSampler):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
+    def sample(self, span):
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
-        # NB allow_false has weird functionality here, doing something other than "allowing false" to be returned
-        # this is an artifact of this library's sampler abstractions having fallen out of alignment
-        # with the functional specification over time.
-        if sampled and allow_false:
-            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
         return sampled
 
 
@@ -148,7 +141,7 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = _AgentRateSampler(sample_rate)
 
-    def sample(self, span, allow_false=True):
+    def sample(self, span):
         sampled, sampler = self._make_sampling_decision(span)
         _set_sampling_tags(
             span,
@@ -156,7 +149,7 @@ class RateByServiceSampler(BasePrioritySampler):
             sampler.sample_rate,
             self._choose_priority_category(sampler),
         )
-        return not allow_false or sampled
+        return sampled
 
     def _choose_priority_category(self, sampler):
         # type: (BaseSampler) -> str
@@ -172,7 +165,7 @@ class RateByServiceSampler(BasePrioritySampler):
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
         sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span, allow_false=False)
+        sampled = sampler.sample(span)
         return sampled, sampler
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
@@ -299,11 +292,9 @@ class DatadogSampler(RateByServiceSampler):
             sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def sample(self, span, allow_false=True):
-        # type: (Span, bool) -> bool
-        """
-        If allow_false is False, this function will return True regardless of the sampling decision
-        """
+    def sample(self, span):
+        span.context._update_tags(span)
+
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
 
         sampler = self._default_sampler  # type: BaseSampler
@@ -324,9 +315,7 @@ class DatadogSampler(RateByServiceSampler):
         )
         cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
-        if not allow_false:
-            return True
-        return not cleared_rate_limit or sampled
+        return cleared_rate_limit and sampled
 
     def _choose_priority_category_with_rule(self, rule, sampler):
         # type: (Optional[SamplingRule], BaseSampler) -> str

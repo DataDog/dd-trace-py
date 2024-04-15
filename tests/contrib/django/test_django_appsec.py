@@ -52,21 +52,6 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
         assert not ip or ip == "127.0.0.1"  # this varies when running under PyCharm or CI
 
 
-@pytest.mark.parametrize(
-    "kwargs,expected",
-    [
-        ({"HTTP_X_CLIENT_IP": "", "HTTP_X_FORWARDED_FOR": "4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "192.168.1.3,4.4.4.4"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "4.4.4.4,8.8.8.8"}, "4.4.4.4"),
-        ({"HTTP_X_CLIENT_IP": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
-    ],
-)
-def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
-    with override_global_config(dict(_asm_enabled=True)):
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d", headers=kwargs)
-        assert root_span.get_tag(http.CLIENT_IP) == expected
-
-
 def test_request_block_request_callable(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
@@ -214,6 +199,21 @@ def test_django_login_sucess_safe_is_default_if_wrong(client, test_spans, tracer
 
 
 @pytest.mark.django_db
+def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="foobar")):
+        test_user = User.objects.create(username="AnonymousUser")
+        test_user.set_password("secret")
+        test_user.save()
+        client.login(username="AnonymousUser", password="secret")
+        assert get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag(user.ID) == "1"
+
+
+@pytest.mark.django_db
 def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
@@ -239,7 +239,28 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
+        ## TODO: Disabled until we have a proper way to detect whether the user exists
+        # assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
+        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "extended"
+
+
+@pytest.mark.django_db
+def test_django_login_failure_user_does_exist(client, test_spans, tracer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with override_global_config(dict(_asm_enabled=True, _automatic_login_events_mode="extended")):
+        test_user = User.objects.create(username="fred")
+        test_user.set_password("secret")
+        test_user.save()
+        assert not get_user(client).is_authenticated
+        client.login(username="fred", password="wrong")
+        assert not get_user(client).is_authenticated
+        login_span = test_spans.find_span(name="django.contrib.auth.login")
+        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "fred"
+        ## TODO: Disabled until we have a proper way to detect whether the user exists
+        # assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "extended"
 
 

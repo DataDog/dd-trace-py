@@ -1,9 +1,13 @@
 import errno
+import os
 import re
-from typing import Optional  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 import attr
 
+from ..constants import CONTAINER_ID_HEADER_NAME
+from ..constants import ENTITY_ID_HEADER_NAME
 from ..logger import get_logger
 
 
@@ -12,16 +16,13 @@ log = get_logger(__name__)
 
 @attr.s(slots=True)
 class CGroupInfo(object):
-    """
-    CGroup class for container information parsed from a group cgroup file
-    """
-
     id = attr.ib(default=None)
     groups = attr.ib(default=None)
     path = attr.ib(default=None)
     container_id = attr.ib(default=None)
     controllers = attr.ib(default=None)
     pod_id = attr.ib(default=None)
+    node_inode = attr.ib(default=None)
 
     # The second part is the PCF/Garden regexp. We currently assume no suffix ($) to avoid matching pod UIDs
     # See https://github.com/DataDog/datadog-agent/blob/7.40.x/pkg/util/cgroups/reader.go#L50
@@ -81,7 +82,21 @@ class CGroupInfo(object):
             if match:
                 pod_id = match.group(1)
 
-        return cls(id=id_, groups=groups, path=path, container_id=container_id, controllers=controllers, pod_id=pod_id)
+        try:
+            node_inode = os.stat(f"/sys/fs/cgroup/{path.strip('/')}").st_ino
+        except Exception:
+            log.debug("Failed to stat cgroup node file for path %r", path)
+            node_inode = None
+
+        return cls(
+            id=id_,
+            groups=groups,
+            path=path,
+            container_id=container_id,
+            controllers=controllers,
+            pod_id=pod_id,
+            node_inode=node_inode,
+        )
 
 
 def get_container_info(pid="self"):
@@ -105,7 +120,7 @@ def get_container_info(pid="self"):
         with open(cgroup_file, mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
-                if info and info.container_id:
+                if info and (info.container_id or info.node_inode):
                     return info
     except IOError as e:
         if e.errno != errno.ENOENT:
@@ -113,3 +128,21 @@ def get_container_info(pid="self"):
     except Exception:
         log.debug("Failed to parse cgroup file for pid %r", pid, exc_info=True)
     return None
+
+
+def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
+    if container_info is None:
+        return
+    if container_info.container_id:
+        headers.update(
+            {
+                CONTAINER_ID_HEADER_NAME: container_info.container_id,
+                ENTITY_ID_HEADER_NAME: f"cid-{container_info.container_id}",
+            }
+        )
+    elif container_info.node_inode:
+        headers.update(
+            {
+                ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+            }
+        )

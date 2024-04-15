@@ -9,13 +9,14 @@ from ddtrace.settings.asm import config as asm_config
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking import taint_ranges_as_evidence_info
 from .._utils import _has_to_scrub
+from .._utils import _is_iast_enabled
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
 from ..constants import EVIDENCE_SSRF
 from ..constants import VULN_SSRF
 from ..constants import VULNERABILITY_TOKEN_TYPE
+from ..processor import AppSecIastSpanProcessor
 from ..reporter import IastSpanReporter  # noqa:F401
 from ..reporter import Vulnerability
 from ._base import VulnerabilityBase
@@ -33,9 +34,15 @@ _QUERY_FRAGMENT_REGEXP = re.compile(r"[?#&]([^=&;]+)=(?P<QUERY>[^?#&]+)")
 class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
     evidence_type = EVIDENCE_SSRF
+    redact_report = True
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
+        if not _is_iast_enabled():
+            return
+
+        from .._taint_tracking import taint_ranges_as_evidence_info
+
         if isinstance(evidence_value, (str, bytes, bytearray)):
             evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
         super(SSRF, cls).report(evidence_value=evidence_value, sources=sources)
@@ -164,7 +171,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
     _set_metric_iast_executed_sink(SSRF.vulnerability_type)
     if report_ssrf:
-        if oce.request_has_quota and SSRF.has_quota():
+        if AppSecIastSpanProcessor.is_span_analyzed() and SSRF.has_quota():
             try:
                 from .._taint_tracking import is_pyobject_tainted
 
