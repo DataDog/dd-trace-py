@@ -599,7 +599,9 @@ def _on_botocore_trace_context_injection_prepared(
 
 def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inject_trace_context):
     if inject_trace_context:
-        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj)
+        if "_datadog" not in data_obj:
+            data_obj["_datadog"] = {}
+        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
 
 
 def listen():

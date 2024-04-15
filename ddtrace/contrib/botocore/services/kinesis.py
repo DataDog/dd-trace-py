@@ -38,11 +38,9 @@ def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context
     if inject_trace_context or config._data_streams_enabled:
         line_break, data_obj = get_kinesis_data_object(record["Data"])
         if data_obj is not None:
-            data_obj["_datadog"] = {}
-
             core.dispatch(
                 "botocore.kinesis.update_record",
-                [ctx, stream, data_obj["_datadog"], record, inject_trace_context],
+                [ctx, stream, data_obj, record, inject_trace_context],
             )
 
             try:
