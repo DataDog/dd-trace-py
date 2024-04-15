@@ -74,26 +74,30 @@ def rasp(request, endpoint: str):
         return HttpResponse("<\br>\n".join(res))
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
-        use_request = False
         for param in query_params:
             if param.startswith("url"):
                 urlname = query_params[param]
                 if not urlname.startswith("http"):
                     urlname = f"http://{urlname}"
-            try:
-                import urllib.request
+                try:
+                    if param.startswith("url_urlopen_request"):
+                        import urllib.request
 
-                if use_request:
-                    req = urllib.request.Request(urlname)
-                    with urllib.request.urlopen(req, timeout=0.5) as f:
-                        res.append(f"Url: {f.read()}")
-                else:
-                    with urllib.request.urlopen(urlname, timeout=0.5) as f:
-                        res.append(f"Url: {f.read()}")
-            except Exception as e:
-                res.append(f"Error: {e}")
-            finally:
-                use_request = not use_request
+                        request = urllib.request.Request(urlname)
+                        with urllib.request.urlopen(request, timeout=0.15) as f:
+                            res.append(f"Url: {f.read()}")
+                    elif param.startswith("url_urlopen_string"):
+                        import urllib.request
+
+                        with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                            res.append(f"Url: {f.read()}")
+                    elif param.startswith("url_requests"):
+                        import requests
+
+                        r = requests.get(urlname, timeout=0.15)
+                        res.append(f"Url: {r.text}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
         return HttpResponse("<\\br>\n".join(res))
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
