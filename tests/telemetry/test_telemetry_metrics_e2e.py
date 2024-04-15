@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 from ddtrace.internal.utils.retry import RetryError
-from tests.telemetry.utils import _get_default_telemetry_env
+from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import flaky
 from tests.webclient import Client
 
@@ -103,7 +103,7 @@ for _ in range(10):
     with tracer.trace('span1'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=_get_default_telemetry_env())
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     events = test_agent_session.get_events()
 
@@ -126,7 +126,7 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    env = _get_default_telemetry_env()
+    env = get_default_telemetry_env()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
@@ -151,7 +151,7 @@ for _ in range(9):
     with ot.start_span('span'):
         pass
 """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=_get_default_telemetry_env())
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     events = test_agent_session.get_events()
 
@@ -180,7 +180,7 @@ for _ in range(4):
     otel.start_span('otel_span')
     ddtracer.trace("ddspan")
 """
-    env = _get_default_telemetry_env()
+    env = get_default_telemetry_env()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr

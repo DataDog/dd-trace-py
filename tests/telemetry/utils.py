@@ -1,7 +1,7 @@
 import os
 
 
-def _get_default_telemetry_env(update_with=None, agentless=False):
+def get_default_telemetry_env(update_with=None, agentless=False):
     env = os.environ.copy()
 
     if update_with:

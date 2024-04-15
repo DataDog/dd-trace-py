@@ -17,7 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-from tests.telemetry.utils import _get_default_telemetry_env
+from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -183,7 +183,7 @@ logging.basicConfig()
 import ddtrace.auto
     """
 
-    env = _get_default_telemetry_env()
+    env = get_default_telemetry_env()
     # Change configuration default values
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
