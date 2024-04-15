@@ -6,12 +6,16 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymysql.patch import patch
 from ddtrace.contrib.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib import shared_tests
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
 
 from ...contrib.config import MYSQL_CONFIG
+
+
+MYSQL_CONFIG["db"] = MYSQL_CONFIG["database"]
 
 
 class PyMySQLCore(object):
@@ -534,15 +538,9 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_pymysql_dbm_propagation_enabled(self):
         conn, tracer = self._get_conn_tracer()
-
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "pymysql.query"
 
-        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "mysql")
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -554,30 +552,13 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     )
     def test_pymysql_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in mysql"""
-        db_name = MYSQL_CONFIG["database"]
-
         conn, tracer = self._get_conn_tracer()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
-        # test string queries
-        cursor.execute("select 'blah'")
-        cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pymysql',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
+            config=MYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
-        cursor.execute(b"select 'blah'")
-        cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(
-            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
-        )
-        # test composed queries
-        cursor.__wrapped__.reset_mock()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -585,27 +566,18 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_PYMYSQL_SERVICE="service-name-override",
+            DD_AIOMYSQL_SERVICE="service-name-override",
         )
     )
     def test_pymysql_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        db_name = MYSQL_CONFIG["database"]
-
         conn, tracer = self._get_conn_tracer()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
-        # test string queries
-        cursor.execute("select 'blah'")
-        cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        shared_tests._test_dbm_propagation_comment_integration_service_name_override(
+            config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -613,30 +585,18 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_PYMYSQL_SERVICE="service-name-override",
+            DD_AIOMYSQL_SERVICE="service-name-override",
         )
     )
     def test_pymysql_dbm_propagation_comment_pin_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        db_name = MYSQL_CONFIG["database"]
-
         conn, tracer = self._get_conn_tracer()
-
-        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
-
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
-        # test string queries
-        cursor.execute("select 'blah'")
-        cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
+            config=MYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -649,19 +609,10 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     )
     def test_pymysql_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in mysql"""
-        db_name = MYSQL_CONFIG["database"]
-
         conn, tracer = self._get_conn_tracer()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
-        # test string queries
-        cursor.execute("select 'blah'")
-        cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        shared_tests._test_dbm_propagation_comment_peer_service_enabled(
+            config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
