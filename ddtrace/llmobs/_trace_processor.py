@@ -85,7 +85,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "tags": tags,
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
-            "error": span.error,
+            "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
         }
