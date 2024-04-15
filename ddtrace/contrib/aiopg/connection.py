@@ -9,6 +9,7 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -55,9 +56,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiopg.get_analytics_sample_rate())
 
-            dbm_propagator = getattr(config.aiopg, "_dbm_propagator", None)
-            if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+            # dispatch DBM
+            result = core.dispatch_with_results("aiopg.execute", (config.aiopg, s, args, kwargs))
+            if result:
+                s, args, kwargs = result.value
 
             try:
                 result = await method(*args, **kwargs)

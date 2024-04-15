@@ -6,6 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
@@ -15,7 +16,6 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
-from ...internal.compat import ensure_text
 from ...internal.schema import schematize_service_name
 from ...propagation._database_monitoring import _DBM_Propagator
 from .. import trace_utils
@@ -48,7 +48,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     tags = {}
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
-            tags[tag] = _convert_tags(conn, attr)
+            tags[tag] = trace_utils._convert_to_string(getattr(conn, attr, None))
     tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
@@ -88,9 +88,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
-            dbm_propagator = getattr(config.aiomysql, "_dbm_propagator", None)
-            if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+            # dispatch DBM
+            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs))
+            if result:
+                s, args, kwargs = result.value
 
             try:
                 result = await method(*args, **kwargs)
@@ -171,12 +172,3 @@ def unpatch():
     if getattr(aiomysql, "__datadog_patch", False):
         aiomysql.__datadog_patch = False
         unwrap(aiomysql.connection, "_connect")
-
-
-def _convert_tags(conn, attribute):
-    attr = getattr(conn, attribute, "")
-
-    if isinstance(attr, int) or isinstance(attr, float):
-        return str(attr)
-    else:
-        return ensure_text(attr)

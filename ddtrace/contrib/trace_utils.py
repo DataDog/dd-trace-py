@@ -23,6 +23,7 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
@@ -671,3 +672,13 @@ def extract_netloc_and_query_info_from_url(url):
 
 class InterruptException(Exception):
     pass
+
+
+def _convert_to_string(attr):
+    # ensures attribute is converted to a string
+    if attr:
+        if isinstance(attr, int) or isinstance(attr, float):
+            return str(attr)
+        else:
+            return ensure_text(attr)
+    return attr

@@ -984,29 +984,9 @@ jobs:
       - run_test:
           pattern: 'molten'
 
-  mysql_connector:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'mysql$'
-
-  mysqldb:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'mysqldb$'
-
-  pymysql:
+  mysql_integrations:
+    # pymysql, mysqldb, mysql, aiomysql
+    # these integrations are grouped since we were having trouble getting all mysql test suites to run independently
     <<: *contrib_job
     docker:
       - image: *ddtrace_dev_image
@@ -1016,6 +996,7 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'mysql'
+          snapshot: true
 
   pylibmc:
     <<: *contrib_job_small
@@ -1173,15 +1154,6 @@ jobs:
     steps:
        - run_test:
           pattern: 'aiobotocore'
-
-  aiomysql:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'mysql'
-          wait: mysql
-          pattern: 'aiomysql'
-          snapshot: true
 
   aiopg:
     <<: *contrib_job_small

@@ -1,5 +1,6 @@
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec._constants import IAST_SPAN_TAGS
@@ -88,8 +89,10 @@ class TracedAsyncCursor(TracedCursor):
             if not isinstance(self, FetchTracedAsyncCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
-            if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+            # dispatch DBM
+            result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs))
+            if result:
+                s, args, kwargs = result.value
 
             try:
                 return await method(*args, **kwargs)

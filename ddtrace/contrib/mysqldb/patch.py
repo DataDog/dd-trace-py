@@ -16,11 +16,11 @@ from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
-from ...internal.compat import ensure_text
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..trace_utils import _convert_to_string
 
 
 config._add(
@@ -102,7 +102,7 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn, *args, **kwargs):
     tags = {
-        t: _convert_tags(kwargs[k]) if k in kwargs else _convert_tags(args[p])
+        t: _convert_to_string(kwargs[k]) if k in kwargs else _convert_to_string(args[p])
         for t, (k, p) in KWPOS_BY_TAG.items()
         if k in kwargs or len(args) > p
     }
@@ -114,10 +114,3 @@ def patch_conn(conn, *args, **kwargs):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
     pin.onto(wrapped)
     return wrapped
-
-
-def _convert_tags(attr):
-    if isinstance(attr, int) or isinstance(attr, float):
-        return str(attr)
-    else:
-        return ensure_text(attr)

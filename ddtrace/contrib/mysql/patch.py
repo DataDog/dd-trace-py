@@ -9,11 +9,11 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...internal.compat import ensure_text
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
 from ...propagation._database_monitoring import _DBM_Propagator
+from ..trace_utils import _convert_to_string
 
 
 config._add(
@@ -61,7 +61,9 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    tags = {t: _convert_tags(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
+    tags = {
+        t: _convert_to_string(getattr(conn, a, None)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""
+    }
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
@@ -69,12 +71,3 @@ def patch_conn(conn):
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)
     pin.onto(wrapped)
     return wrapped
-
-
-def _convert_tags(conn, attribute):
-    attr = getattr(conn, attribute, "")
-
-    if isinstance(attr, int) or isinstance(attr, float):
-        return str(attr)
-    else:
-        return ensure_text(attr)

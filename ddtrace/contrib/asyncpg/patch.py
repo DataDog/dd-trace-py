@@ -4,6 +4,7 @@ import asyncpg
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.vendor import wrapt
 
@@ -118,10 +119,10 @@ async def _traced_query(pin, method, query, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
 
-        dbm_propagator = getattr(config.asyncpg, "_dbm_propagator", None)
-        # bind_execute_many uses prepared statements which we want to avoid injection for
-        if dbm_propagator and method.__name__ != "bind_execute_many":
-            args, kwargs = dbm_propagator.inject(span, args, kwargs)
+        # dispatch DBM
+        result = core.dispatch_with_results("asyncpg.execute", (config.asyncpg, method, span, args, kwargs))
+        if result:
+            span, args, kwargs = result.value
         return await method(*args, **kwargs)
 
 

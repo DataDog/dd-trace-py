@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -122,3 +123,25 @@ class _DBM_Propagator(object):
             # replace leading whitespace with trailing whitespace
             return sql_comment.strip() + " "
         return ""
+
+
+def handle_dbm_injection(int_config, span, args, kwargs):
+    dbm_propagator = getattr(int_config, "_dbm_propagator", None)
+    if dbm_propagator:
+        args, kwargs = dbm_propagator.inject(span, args, kwargs)
+
+    return span, args, kwargs
+
+
+def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
+    # bind_execute_many uses prepared statements which we want to avoid injection for
+    if method.__name__ != "bind_execute_many":
+        return handle_dbm_injection(int_config, span, args, kwargs)
+    return span, args, kwargs
+
+
+if dbm_config.propagation_mode in ["full", "service"]:
+    dbm_integrations = ["aiomysql", "aiopg", "dbapi"]
+    for integration in dbm_integrations:
+        core.on(f"{integration}.execute", handle_dbm_injection)
+    core.on("asyncpg.execute", handle_dbm_injection_asyncpg)
