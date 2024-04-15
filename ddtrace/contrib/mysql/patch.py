@@ -58,7 +58,7 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    assert 1 == 0
+    raise TypeError
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
