@@ -75,7 +75,7 @@ def pytest_configure(config):
         config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
 
-class _PytestBddPlugin:
+class _PytestBdd_PytestBddPluginPlugin:
     def __init__(self):
         self.framework_version = get_version()
 
