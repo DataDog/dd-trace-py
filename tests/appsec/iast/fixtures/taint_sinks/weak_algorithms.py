@@ -89,3 +89,13 @@ def cryptography_algorithm(algorithm):
     ct = encryptor.update(data)
 
     return ct
+
+
+def cipher_secure():
+    from Crypto.Cipher import AES
+
+    key = b"Sixteen byte key"
+    data = b"abcdefgh"
+    crypt_obj = AES.new(key, AES.MODE_EAX)
+    result = crypt_obj.encrypt(data)
+    return result

@@ -16,6 +16,7 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.schema import schematize_service_name
+from .. import trace_utils
 
 
 config._add(
@@ -63,10 +64,12 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             result = await method(*args, **kwargs)
             return result
-        service = pin.service
 
         with pin.tracer.trace(
-            self._self_datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL
+            self._self_datadog_name,
+            service=trace_utils.ext_service(pin, config.aiomysql),
+            resource=resource,
+            span_type=SpanTypes.SQL,
         ) as s:
             s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
 
