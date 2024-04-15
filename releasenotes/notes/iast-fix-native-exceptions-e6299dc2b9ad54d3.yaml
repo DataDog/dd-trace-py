@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Some native exceptions were not being caught correctly by the python tracer. 
+    This fix remove those exceptions to avoid fatal error executions.
