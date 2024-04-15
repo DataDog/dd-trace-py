@@ -556,6 +556,7 @@ def _on_botocore_patched_api_call_started(ctx):
         ctx.get_item("endpoint_name"),
         ctx.get_item("operation"),
     )
+    
     # we need this since we may have ran the wrapped operation before starting the span
     # we need to ensure the span start time is correct
     start_ns = ctx.get_item("start_ns")
