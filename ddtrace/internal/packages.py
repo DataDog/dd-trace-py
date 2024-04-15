@@ -135,6 +135,14 @@ def _package_file_mapping():
         return None
 
 
+@callonce
+def _third_party_packages() -> set:
+    from gzip import decompress
+    from importlib.resources import read_binary
+
+    return set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
+
+
 def filename_to_package(filename):
     # type: (str) -> t.Optional[Distribution]
 
@@ -167,6 +175,15 @@ def is_stdlib(path: Path) -> bool:
     return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
         rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
     )
+
+
+@cached()
+def is_third_party(path: Path) -> bool:
+    package = filename_to_package(str(path))
+    if package is None:
+        return False
+
+    return package.name in _third_party_packages()
 
 
 @cached()
