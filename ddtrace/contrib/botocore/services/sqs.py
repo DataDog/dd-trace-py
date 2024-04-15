@@ -12,7 +12,6 @@ from ddtrace.contrib.botocore.utils import extract_DD_context
 from ddtrace.contrib.botocore.utils import set_patched_api_call_span_tags
 from ddtrace.contrib.botocore.utils import set_response_metadata_tags
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
@@ -100,9 +99,19 @@ def inject_trace_to_sqs_or_sns_message(params: Any, span: Span, endpoint_service
     Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data)
-    core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
-    inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
+    try:
+        HTTPPropagator.inject(span.context, trace_data)
+        core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
+        inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
+    except Exception:
+        log.warning("Unable to inject trace context", exc_info=True)
+
+
+def _ensure_datadog_messageattribute_enabled(params):
+    if "MessageAttributeNames" not in params:
+        params.update({"MessageAttributeNames": ["_datadog"]})
+    elif "_datadog" not in params["MessageAttributeNames"]:
+        params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
 
 
 def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
@@ -120,17 +129,13 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     result = None
 
     if operation == "ReceiveMessage":
-        # Ensure we have Datadog MessageAttribute enabled
-        if "MessageAttributeNames" not in params:
-            params.update({"MessageAttributeNames": ["_datadog"]})
-        elif "_datadog" not in params["MessageAttributeNames"]:
-            params.update({"MessageAttributeNames": list(params["MessageAttributeNames"]) + ["_datadog"]})
+        _ensure_datadog_messageattribute_enabled(params)
 
         try:
             start_ns = time_ns()
             func_run = True
-            # run the function before in order to extract possible parent context before starting span
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+            # run the function to extract possible parent context before starting span
             result = original_func(*args, **kwargs)
             core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
         except Exception as e:
@@ -146,10 +151,28 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     should_instrument = (
         received_message_when_polling or instrument_empty_poll_calls or function_is_not_recvmessage or func_run_err
     )
+    should_update_messages = (
+        args
+        and config.botocore["distributed_tracing"]
+        and endpoint_name == "sqs"
+        and operation in ("SendMessage", "SendMessageBatch")
+    )
+    injection_function = inject_trace_to_sqs_or_sns_message
+    if operation == "SendMessageBatch":
+        injection_function = inject_trace_to_sqs_or_sns_batch_message
+    if endpoint_name == "sqs" and operation in ("SendMessage", "SendMessageBatch", "ReceiveMessage"):
+        span_name = schematize_cloud_messaging_operation(
+            trace_operation,
+            cloud_provider="aws",
+            cloud_service="sqs",
+            direction=SpanDirection.INBOUND if operation == "ReceiveMessage" else SpanDirection.OUTBOUND,
+        )
+    else:
+        span_name = trace_operation
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_sqs_api_call",
-            span_name=trace_operation,
+            span_name=span_name,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
             child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
@@ -170,64 +193,31 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             # we need to ensure the span start time is correct
             if start_ns is not None and func_run:
                 span.start_ns = start_ns
-            if args and config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sqs" and operation == "ReceiveMessage":
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sqs",
-                            direction=SpanDirection.INBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+
+            if should_update_messages:
+                injection_function(
+                    params,
+                    span,
+                    endpoint_service=endpoint_name,
+                )
+
             try:
                 if not func_run:
                     core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
                     result = original_func(*args, **kwargs)
                     core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                set_response_metadata_tags(span, result)
-                # raise error if it was encountered before the span was started
+                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result, set_response_metadata_tags])
+
                 if func_run_err:
                     raise func_run_err
                 return result
             except botocore.exceptions.ClientError as e:
-                # `ClientError.response` contains the result, so we can still grab response metadata
-                set_response_metadata_tags(span, e.response)
-
-                # If we have a status code, and the status code is not an error,
-                #   then ignore the exception being raised
-                status_code = span.get_tag(http.STATUS_CODE)
-                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                    span._ignore_exception(botocore.exceptions.ClientError)
+                core.dispatch(
+                    "botocore.patched_sqs_api_call.exception",
+                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                )
                 raise
-    # return results in the case that we ran the function, but no records were returned and empty
-    # poll spans are disabled
     elif func_run:
         if func_run_err:
             raise func_run_err

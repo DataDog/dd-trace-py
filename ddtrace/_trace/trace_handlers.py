@@ -564,7 +564,7 @@ def _on_botocore_patched_api_call_started(ctx):
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_response_metadata_tags):
-    span = ctx.get_item("instrumented_api_call")
+    span = ctx.get_item(ctx.get_item("call_key"))
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_response_metadata_tags(span, response)
 
@@ -638,6 +638,8 @@ def listen():
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
     core.on("botocore.patched_sqs_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.patched_sqs_api_call.success", _on_botocore_patched_api_call_success)
 
     for context_name in (
         "flask.call",
