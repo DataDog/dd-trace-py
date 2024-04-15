@@ -46,7 +46,6 @@ async def _test_dbm_propagation_comment_with_global_service_name_configured(
         f"/*dddb='{db_name}',dddbs='{db_system}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
         "ddpv='v7343437-d7ac743'*/ "
     )
-    breakpoint()
     await _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
         await _test_execute_many(dbm_comment, cursor, wrapped_instance)
