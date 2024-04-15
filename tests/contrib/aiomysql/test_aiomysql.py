@@ -10,6 +10,7 @@ from ddtrace import Tracer
 from ddtrace.contrib.aiomysql import patch
 from ddtrace.contrib.aiomysql import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib import shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
@@ -331,30 +332,12 @@ class AioMySQLTestCase(AsyncioTestCase):
         assert span.name == "mysql.query"
 
     @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_span_name_v1_schema(self):
-        conn, tracer = await self._get_conn_tracer()
-
-        cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
-        spans = tracer.pop()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "mysql.query"
-
-    @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiomysql_dbm_propagation_enabled(self):
         conn, tracer = await self._get_conn_tracer()
-
         cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
-        spans = tracer.pop()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "mysql.query"
 
-        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        await shared_tests._test_dbm_propagation_enabled(tracer, cursor, "mysql")
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -367,30 +350,13 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in mysql"""
-        db_name = AIOMYSQL_CONFIG["db"]
         conn, tracer = await self._get_conn_tracer()
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='mysql',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
+            config=AIOMYSQL_CONFIG, db_system="mysql", cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
-        await cursor.execute(b"select 'blah'")
-        await cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(
-            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
-        )
-        # test composed queries
-        cursor.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -404,22 +370,13 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        db_name = AIOMYSQL_CONFIG["db"]
         conn, tracer = await self._get_conn_tracer()
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_integration_service_name_override(
+            config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -433,24 +390,13 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_pin_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        db_name = AIOMYSQL_CONFIG["db"]
         conn, tracer = await self._get_conn_tracer()
-
-        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_pin_service_name_override(
+            config=AIOMYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -464,19 +410,10 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in mysql"""
-        db_name = AIOMYSQL_CONFIG["db"]
         conn, tracer = await self._get_conn_tracer()
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_peer_service_enabled(
+            config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()

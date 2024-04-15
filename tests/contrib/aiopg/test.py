@@ -11,6 +11,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.contrib import shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -19,6 +20,7 @@ from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
+POSTGRES_CONFIG["db"] = POSTGRES_CONFIG["dbname"]
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -124,6 +126,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_async_generator(self):
+        assert 1 == 0
         conn, tracer = await self._get_conn_and_tracer()
         cursor = await conn.cursor()
         q = "select 'foobarblah'"
@@ -299,6 +302,7 @@ class AiopgTestCase(AsyncioTestCase):
         env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     async def test_user_specified_service_integration_v0(self):
+        assert 1 == 0
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
@@ -394,17 +398,11 @@ class AiopgTestCase(AsyncioTestCase):
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiopg_dbm_propagation_enabled(self):
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        conn, tracer = await self._get_conn_tracer()
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-
         cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "postgresql.query"
 
-        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        await shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgresql")
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -415,33 +413,17 @@ class AiopgTestCase(AsyncioTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    async def test_aio_dbm_propagation_comment_with_global_service_name_configured(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
+    async def test_aiopg_dbm_propagation_comment_with_global_service_name_configured(self):
+        """tests if dbm comment is set in mysql"""
+        conn, tracer = await self._get_conn_tracer()
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
+            config=POSTGRES_CONFIG, db_system="test", cursor=cursor, wrapped_instance=cursor
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
-        await cursor.execute(b"select 'blah'")
-        await cursor.executemany(b"select %s", ((b"foo",), (b"bar",)))
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment.encode() + b"select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(
-            dbm_comment.encode() + b"select %s", ((b"foo",), (b"bar",))
-        )
-        # test composed queries
-        cursor.__wrapped__.reset_mock()
+        assert 1 == 0
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -450,28 +432,19 @@ class AiopgTestCase(AsyncioTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOPG_SERVICE="service-name-override",
+            DD_AIOMYSQL_SERVICE="service-name-override",
         )
     )
     async def test_aiopg_dbm_propagation_comment_integration_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        """tests if dbm comment is set in mysql"""
+        conn, tracer = await self._get_conn_tracer()
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_integration_service_name_override(
+            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -480,28 +453,19 @@ class AiopgTestCase(AsyncioTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOPG_SERVICE="service-name-override",
+            DD_AIOMYSQL_SERVICE="service-name-override",
         )
     )
     async def test_aiopg_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer, service="pin-service-name-override").onto(conn)
-
+        """tests if dbm comment is set in mysql"""
+        conn, tracer = await self._get_conn_tracer()
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_pin_service_name_override(
+            config=POSTGRES_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
     @pytest.mark.asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -514,24 +478,15 @@ class AiopgTestCase(AsyncioTestCase):
         )
     )
     async def test_aiopg_dbm_propagation_comment_peer_service_enabled(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn = await aiopg.connect(**POSTGRES_CONFIG)
+        """tests if dbm comment is set in mysql"""
+        conn, tracer = await self._get_conn_tracer()
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
-        # test string queries
-        await cursor.execute("select 'blah'")
-        await cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = (
-            f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-            "ddpv='v7343437-d7ac743'*/ "
+
+        await shared_tests._test_dbm_propagation_comment_peer_service_enabled(
+            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
-        cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
-        cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
-        # test byte string queries
-        cursor.__wrapped__.reset_mock()
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

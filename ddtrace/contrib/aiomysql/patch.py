@@ -89,7 +89,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
             # dispatch DBM
-            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs))
+            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result
             if result:
                 s, args, kwargs = result.value
 

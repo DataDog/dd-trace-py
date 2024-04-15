@@ -90,7 +90,7 @@ class TracedAsyncCursor(TracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
-            result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs))
+            result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs)).result
             if result:
                 s, args, kwargs = result.value
 
