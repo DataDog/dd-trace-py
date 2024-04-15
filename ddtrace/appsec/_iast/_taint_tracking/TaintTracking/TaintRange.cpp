@@ -133,6 +133,9 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 TaintRangeRefs
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 {
+    if (not is_text(string_input))
+        return {};
+
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (!tx_map) {
