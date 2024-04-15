@@ -729,14 +729,16 @@
             "@contrib",
             "@tracing",
             "@dbapi",
-            "@appsec"
+            "@appsec",
+            "tests/contrib/shared_tests.py"
         ],
         "dbapi_async": [
             "@bootstrap",
             "@core",
             "@contrib",
             "@tracing",
-            "@dbapi"
+            "@dbapi",
+            "tests/contrib/shared_tests.py"
         ],
         "asyncpg": [
             "@bootstrap",
@@ -745,7 +747,8 @@
             "@tracing",
             "@pg",
             "tests/contrib/asyncpg/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "tests/snapshots/tests.contrib.{suite}.*",
+            "tests/contrib/shared_tests.py"
         ],
         "aiohttp": [
             "@bootstrap",
@@ -998,7 +1001,8 @@
             "@dbapi",
             "@mysql",
             "tests/contrib/mysqldb/*",
-            "tests/contrib/mysql/*"
+            "tests/contrib/mysql/*",
+            "tests/contrib/shared_tests.py"
         ],
         "pymysql": [
             "@bootstrap",
@@ -1008,7 +1012,8 @@
             "@dbapi",
             "@mysql",
             "tests/contrib/pymysql/*",
-            "tests/contrib/mysql/*"
+            "tests/contrib/mysql/*",
+            "tests/contrib/shared_tests.py"
         ],
         "pylibmc": [
             "@bootstrap",
@@ -1168,7 +1173,8 @@
             "@dbapi",
             "@pg",
             "tests/contrib/psycopg/*",
-            "tests/snapshots/tests.contrib.psycopg.*"
+            "tests/snapshots/tests.contrib.psycopg.*",
+            "tests/contrib/shared_tests.py"
         ],
         "psycopg2": [
             "@bootstrap",
@@ -1178,7 +1184,8 @@
             "@tracing",
             "@pg",
             "tests/contrib/psycopg2/*",
-            "tests/snapshots/tests.contrib.psycopg2.*"
+            "tests/snapshots/tests.contrib.psycopg2.*",
+            "tests/contrib/shared_tests.py"
         ],
         "aiobotocore": [
             "@bootstrap",
@@ -1196,7 +1203,8 @@
             "@dbapi",
             "@mysql",
             "tests/contrib/aiomysql/*",
-            "tests/snapshots/tests.contrib.{suite}.*"
+            "tests/snapshots/tests.contrib.{suite}.*",
+            "tests/contrib/shared_tests.py"
         ],
         "aiopg": [
             "@bootstrap",
@@ -1205,7 +1213,8 @@
             "@tracing",
             "@dbapi",
             "@pg",
-            "tests/contrib/aiopg/*"
+            "tests/contrib/aiopg/*",
+            "tests/contrib/shared_tests.py"
         ],
         "aredis": [
             "@bootstrap",
