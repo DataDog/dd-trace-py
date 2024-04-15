@@ -1,3 +1,6 @@
+# This module must not import other modules inconditionnaly that
+# require iast, ddwaf or any native optional module.
+
 import ctypes
 import gc
 from typing import Any
@@ -83,6 +86,32 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
+
+
+def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
+    """
+    wrapper for third party requests.request function
+    https://requests.readthedocs.io
+    """
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+
+        _iast_report_ssrf(original_request_callable, *args, **kwargs)
+    if asm_config._asm_enabled and asm_config._ep_enabled:
+        try:
+            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import in_context
+        except ImportError:
+            # open is used during module initialization
+            # and shouldn't be changed at that time
+            return original_request_callable(*args, **kwargs)
+
+        url = args[1] if len(args) > 1 else kwargs.get("url", None)
+        if url and in_context():
+            if isinstance(url, str):
+                call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_request_D8CB81E472AF98A2")
+            # DEV: Next part of the exploit prevention feature: add block here
+    return original_request_callable(*args, **kwargs)
 
 
 def try_unwrap(module, name):

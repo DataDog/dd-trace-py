@@ -153,7 +153,7 @@ def _llmobs_base_span_event(
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
-        "error": 1 if error else 0,
+        "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
     }
