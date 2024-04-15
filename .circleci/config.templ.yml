@@ -809,6 +809,20 @@ jobs:
           store_coverage: false
           pattern: 'celery'
 
+  mysql_integrations:
+    # pymysql, mysqldb, mysql, aiomysql
+    # these integrations are grouped since we were having trouble getting all mysql test suites to run independently
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+      - *testagent
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'mysql'
+          snapshot: true
+
   cherrypy:
     <<: *machine_executor
     parallelism: 2
@@ -983,20 +997,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'molten'
-
-  mysql_integrations:
-    # pymysql, mysqldb, mysql, aiomysql
-    # these integrations are grouped since we were having trouble getting all mysql test suites to run independently
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'mysql'
-          snapshot: true
 
   pylibmc:
     <<: *contrib_job_small
