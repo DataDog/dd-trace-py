@@ -104,24 +104,23 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 
         long len_pyobject = PyLong_AsLong(len_pyobject_py);
         string source_name = PyObjectToString(args[2]);
-        if(!source_name.empty()){
+        if (!source_name.empty()) {
             string source_value = PyObjectToString(args[3]);
-            if(!source_value.empty()) {
+            if (!source_value.empty()) {
                 auto source_origin = OriginType(PyLong_AsLong(args[4]));
                 auto source = Source(source_name, source_value, source_origin);
                 auto range = initializer->allocate_taint_range(0, len_pyobject, source);
-                TaintRangeRefs ranges = vector{range};
+                TaintRangeRefs ranges = vector{ range };
                 result = set_ranges(pyobject_n, ranges, ctx_map);
                 if (!result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
-            }else{
+            } else {
                 result_error_msg = "Invalid or empty source_value";
             }
-        }else{
+        } else {
             result_error_msg = "Invalid or empty source_name";
         }
-
     }
     if (!result) {
         py::set_error(PyExc_ValueError, result_error_msg);
