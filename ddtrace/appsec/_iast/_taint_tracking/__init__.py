@@ -118,8 +118,8 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
     try:
         pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-    except ValueError:
-        iast_taint_log_error("Failed to taint pyobject, taint_pyobject")
+    except ValueError as e:
+        iast_taint_log_error(("Tainting object error (pyobject type %s): %s", (type(pyobject), e)))
         return pyobject
 
     _set_metric_iast_executed_source(source_origin)
@@ -129,15 +129,15 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
     try:
         set_ranges(pyobject, tuple(ranges))
-    except ValueError:
-        iast_taint_log_error("Failed to taint pyobject, taint_pyobject_with_ranges")
+    except ValueError as e:
+        iast_taint_log_error(("Tainting object with ranges error (pyobject type %s): %s", (type(pyobject), e)))
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     try:
         return get_ranges(pyobject)
-    except ValueError:
-        iast_taint_log_error("Failed to get tainted ranges")
+    except ValueError as e:
+        iast_taint_log_error(("Get ranges error (pyobject type %s): %s", (type(pyobject), e)))
     return tuple()
 
 
