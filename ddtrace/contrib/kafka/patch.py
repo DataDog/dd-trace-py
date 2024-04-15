@@ -216,6 +216,7 @@ def traced_poll_or_consume(func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception as e:
         err = e
+        raise err
     finally:
         if isinstance(result, confluent_kafka.Message):
             # poll returns a single message
@@ -226,8 +227,6 @@ def traced_poll_or_consume(func, instance, args, kwargs):
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
 
-    if err:
-        raise err
     return result
 
 
