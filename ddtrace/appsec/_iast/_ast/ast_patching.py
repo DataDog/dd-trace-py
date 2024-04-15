@@ -131,9 +131,15 @@ def _remove_flask_run(text):  # type (str) -> str
 
 def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
     module_name = module.__name__
-    module_path = str(origin(module))
+
+    module_origin = origin(module)
+    if module_origin is None:
+        log.debug("astpatch_source couldn't find the module: %s", module_name)
+        return "", ""
+
+    module_path = str(module_origin)
     try:
-        if os.stat(module_path).st_size == 0:
+        if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
             log.debug("empty file: %s", module_path)
             return "", ""
