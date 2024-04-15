@@ -171,10 +171,10 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            for key, value in scope["headers"]:
-                if key == b"host":
+            for key, value in _extract_headers(scope).items():
+                if key.encode() == b"host":
                     try:
-                        host_header = value.decode("ascii")
+                        host_header = value
                     except UnicodeDecodeError:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
