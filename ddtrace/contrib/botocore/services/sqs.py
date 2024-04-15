@@ -6,25 +6,24 @@ from typing import Optional  # noqa:F401
 import botocore.client
 import botocore.exceptions
 
-from ddtrace import Span  # noqa:F401
+from ddtrace import Span
 from ddtrace import config
+from ddtrace.contrib.botocore.utils import extract_DD_context
+from ddtrace.contrib.botocore.utils import set_patched_api_call_span_tags
+from ddtrace.contrib.botocore.utils import set_response_metadata_tags
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.compat import time_ns
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_cloud_messaging_operation
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-
-from ....ext import SpanTypes
-from ....ext import http
-from ....internal.compat import time_ns
-from ....internal.logger import get_logger
-from ....internal.schema import schematize_cloud_messaging_operation
-from ....internal.schema import schematize_service_name
-from ....pin import Pin  # noqa:F401
-from ....propagation.http import HTTPPropagator
-from ..utils import extract_DD_context
-from ..utils import set_patched_api_call_span_tags
-from ..utils import set_response_metadata_tags
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+MAX_INJECTION_DATA_ATTRIBUTES = 10
 
 
 def _encode_data(trace_data):
@@ -35,39 +34,42 @@ def _encode_data(trace_data):
     return json.dumps(trace_data)
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service=None):
-    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
+def inject_trace_data_to_message_attributes(
+    trace_data: Dict[str, str], entry: Dict[str, Any], endpoint_service: Optional[str] = None
+) -> None:
     """
     :trace_data: trace headers and DSM pathway to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
     :endpoint_service: endpoint of message, "sqs" or "sns"
     Inject trace headers and DSM info into the SQS or SNS record's MessageAttributes
     """
-    if "MessageAttributes" not in entry:
-        entry["MessageAttributes"] = {}
-    # Max of 10 message attributes.
-    if len(entry["MessageAttributes"]) < 10:
-        if endpoint_service == "sqs":
-            # Use String since changing this to Binary would be a breaking
-            # change as other tracers expect this to be a String.
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": _encode_data(trace_data)}
-        elif endpoint_service == "sns":
-            # Use Binary since SNS subscription filter policies fail silently
-            # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
-            # AWS will encode our value if it sees "Binary"
-            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": _encode_data(trace_data)}
-        else:
-            log.debug(
-                "skipping trace injection, endpoint service is not SNS or SQS.",
-                extra=dict(endpoint_service=endpoint_service),
-            )
-    else:
-        # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
-        log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
+    entry.setdefault("MessageAttributes", {})
+    data_type = None
+    if len(entry["MessageAttributes"]) >= MAX_INJECTION_DATA_ATTRIBUTES:
+        log.warning(
+            "skipping trace injection, max number (%d) of MessageAttributes exceeded", MAX_INJECTION_DATA_ATTRIBUTES
+        )
+        return
+    if endpoint_service not in ("sqs", "sns"):
+        log.debug(
+            "skipping trace injection, endpoint service is not SNS or SQS.",
+            extra=dict(endpoint_service=endpoint_service),
+        )
+        return
+    if endpoint_service == "sqs":
+        # Use String since changing this to Binary would be a breaking
+        # change as other tracers expect this to be a String.
+        data_type = "String"
+    elif endpoint_service == "sns":
+        # Use Binary since SNS subscription filter policies fail silently
+        # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
+        # AWS will encode our value if it sees "Binary"
+        data_type = "Binary"
+    if data_type is not None:
+        entry["MessageAttributes"]["_datadog"] = {"DataType": data_type, f"{data_type}Value": _encode_data(trace_data)}
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None):
-    # type: (Any, Span, Optional[str]) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params: Any, span: Span, endpoint_service: Optional[str] = None) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -90,8 +92,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_service=None
         log.warning("Skipping injecting Datadog attributes to records, no records available")
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint_service=None):
-    # type: (Any, Span, Optional[str]) -> None
+def inject_trace_to_sqs_or_sns_message(params: Any, span: Span, endpoint_service: Optional[str] = None) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -139,22 +140,31 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             if config.botocore.propagation_enabled:
                 child_of = extract_DD_context(result["Messages"])
 
-    """
-    We only want to create a span for the following cases:
-        - not func_run: The function is not `ReceiveMessage` and we need to run it
-        - func_run and message_received: Received a message when polling
-        - config.empty_poll_enabled: We want to trace empty poll operations
-        - func_run_err: There was an error when calling the `ReceiveMessage` function
-    """
-    if (func_run and message_received) or config.botocore.empty_poll_enabled or not func_run or func_run_err:
-        with pin.tracer.start_span(
-            trace_operation,
+    function_is_not_recvmessage = not func_run
+    received_message_when_polling = func_run and message_received
+    instrument_empty_poll_calls = config.botocore.empty_poll_enabled
+    should_instrument = (
+        received_message_when_polling or instrument_empty_poll_calls or function_is_not_recvmessage or func_run_err
+    )
+    if should_instrument:
+        with core.context_with_data(
+            "botocore.patched_sqs_api_call",
+            span_name=trace_operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
             child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
-        ) as span:
-            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+            context_started_callback=set_patched_api_call_span_tags,
+            instance=instance,
+            args=args,
+            params=params,
+            endpoint_name=endpoint_name,
+            operation=operation,
+            call_trace=False,
+            call_key="instrumented_sqs_call",
+            pin=pin,
+        ) as ctx, ctx.get_item(ctx.get_item("call_key")) as span:
+            core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             # we need this since we may have ran the wrapped operation before starting the span
             # we need to ensure the span start time is correct
