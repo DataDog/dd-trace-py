@@ -88,7 +88,7 @@ class _TracedIterable(wrapt.ObjectProxy):
 
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
     span_kwargs = {}
-    for parameter_name in {"span_type", "resource", "service"}:
+    for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
         parameter_value = ctx.get_item(parameter_name, traverse=False)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
@@ -97,6 +97,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> Span:
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
+    call_trace = ctx.get_item("call_trace", call_trace)
     tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
     distributed_headers_config = ctx.get_item("distributed_headers_config")
     if distributed_headers_config:
@@ -545,14 +546,21 @@ def _on_django_after_request_headers_post(
 
 def _on_botocore_patched_api_call_started(ctx):
     callback = ctx.get_item("context_started_callback")
+    span = ctx.get_item(ctx.get_item("call_key"))
     callback(
-        ctx.get_item(ctx.get_item("call_key")),
+        span,
         ctx.get_item("instance"),
         ctx.get_item("args"),
         ctx.get_item("params"),
         ctx.get_item("endpoint_name"),
         ctx.get_item("operation"),
     )
+
+    # we need this since we may have ran the wrapped operation before starting the span
+    # we need to ensure the span start time is correct
+    start_ns = ctx.get_item("start_ns")
+    if start_ns is not None and ctx.get_item("func_run"):
+        span.start_ns = start_ns
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_response_metadata_tags):
@@ -568,8 +576,7 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_r
 
 
 def _on_botocore_patched_api_call_success(ctx, response, set_response_metadata_tags):
-    span = ctx.get_item("instrumented_api_call")
-    set_response_metadata_tags(span, response)
+    set_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -617,8 +624,11 @@ def listen():
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.patched_api_call.success", _on_botocore_patched_api_call_success)
+    core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
+    core.on("botocore.patched_kinesis_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
 
     for context_name in (
         "flask.call",
@@ -632,6 +642,7 @@ def listen():
         "django.func.wrapped",
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
+        "botocore.patched_kinesis_api_call",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
