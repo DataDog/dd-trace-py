@@ -151,7 +151,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             resource_paths,
         )
     request_cookies = ""
-    for name, value in scope.get("headers"):
+    for name, value in scope.get("headers", []):
         if name == b"cookie":
             request_cookies = value.decode("utf-8", errors="ignore")
             break
