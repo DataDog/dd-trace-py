@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -590,3 +591,64 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     consumer.commit(asynchronous=False)
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == 2
     assert list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)] == 1
+
+
+def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
+    def json_serializer(msg, s_obj):
+        return json.dumps(msg).encode("utf-8")
+
+    conf = {
+        "bootstrap.servers": BOOTSTRAP_SERVERS,
+        "key.serializer": json_serializer,
+        "value.serializer": json_serializer,
+    }
+    try:
+        _producer = confluent_kafka.SerializingProducer(conf)
+    except KafkaException:
+        pytest.xfail("No such configuration property: 'key.serializer'")
+
+    def json_deserializer(as_bytes, ctx):
+        try:
+            return json.loads(as_bytes)
+        except json.decoder.JSONDecodeError:
+            return as_bytes
+
+    conf = {
+        "bootstrap.servers": BOOTSTRAP_SERVERS,
+        "group.id": GROUP_ID,
+        "auto.offset.reset": "earliest",
+        "key.deserializer": json_deserializer,
+        "value.deserializer": json_deserializer,
+    }
+
+    _consumer = confluent_kafka.DeserializingConsumer(conf)
+    tp = TopicPartition(kafka_topic, 0)
+    tp.offset = 0  # we want to read the first message
+    _consumer.commit(offsets=[tp])
+    _consumer.subscribe([kafka_topic])
+
+    Pin.override(_producer, tracer=dummy_tracer)
+    Pin.override(_consumer, tracer=dummy_tracer)
+
+    test_string = "serializing_test"
+    PAYLOAD = {"val": test_string}
+
+    _producer.produce(kafka_topic, key={"name": "keykey"}, value=PAYLOAD)
+    _producer.flush()
+
+    message = None
+    while message is None or message.value() != PAYLOAD:
+        message = _consumer.poll(1.0)
+
+    # message comes back with expected test string
+    assert message.value() == PAYLOAD
+
+    traces = dummy_tracer.pop_traces()
+    produce_span = traces[0][0]
+    consume_span = traces[len(traces) - 1][0]
+
+    assert produce_span.get_tag("kafka.message_key") is not None
+
+    # consumer span will not have tag set since we can't serialize the deserialized key from the original type to
+    # a string
+    assert consume_span.get_tag("kafka.message_key") is None

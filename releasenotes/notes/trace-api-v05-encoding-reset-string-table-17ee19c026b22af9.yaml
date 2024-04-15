@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Resolves trace encoding errors raised when ``DD_TRACE_API_VERSION`` is set to ``v0.5`` and a BufferFull
+    Exception is raised by the TraceWriter. This fix ensures span fields are not overwritten and reduces the frequency
+    of 4XX errors in the trace agent.

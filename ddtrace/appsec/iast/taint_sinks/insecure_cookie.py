@@ -43,13 +43,12 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
 
     for cookie_key, cookie_value in six.iteritems(cookies):
         lvalue = cookie_value.lower().replace(" ", "")
-        evidence = "%s=%s" % (cookie_key, cookie_value)
 
         if ";secure" not in lvalue:
-            InsecureCookie.report(evidence_value=evidence)
+            InsecureCookie.report(evidence_value=cookie_key)
 
         if ";httponly" not in lvalue:
-            NoHttpOnlyCookie.report(evidence_value=evidence)
+            NoHttpOnlyCookie.report(evidence_value=cookie_key)
 
         if ";samesite=" in lvalue:
             ss_tokens = lvalue.split(";samesite=")
@@ -63,4 +62,4 @@ def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
             report_samesite = True
 
         if report_samesite:
-            NoSameSite.report(evidence_value=evidence)
+            NoSameSite.report(evidence_value=cookie_key)

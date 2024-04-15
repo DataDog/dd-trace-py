@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Ensure that Cookies vulnerabilities report only the cookie name.

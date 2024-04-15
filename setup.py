@@ -604,7 +604,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    setup_requires=["setuptools_scm[toml]>=4,<8", "cython<3", "cmake>=3.24.2; python_version>='3.6'"],
+    setup_requires=["setuptools_scm[toml]>=4,<8", "cython<3", "cmake>=3.24.2,<3.28; python_version>='3.6'"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -667,6 +667,5 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
     + get_exts_for("wrapt")
-    + get_exts_for("psutil")
-    + get_ddup_ext(),
+    + get_exts_for("psutil"),
 )

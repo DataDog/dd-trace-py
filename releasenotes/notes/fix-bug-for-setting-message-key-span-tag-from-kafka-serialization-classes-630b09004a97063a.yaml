@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    kafka: Resolves ``TypeError`` raised by serializing producers and deserializing consumers when the ``message.key`` tag is set on spans.
