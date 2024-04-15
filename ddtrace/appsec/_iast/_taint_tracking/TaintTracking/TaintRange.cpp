@@ -93,7 +93,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 {
     bool result = false;
     const char* result_error_msg =
-      "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin";
+      "[IAST] Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin";
     PyObject* pyobject_n = nullptr;
 
     if (nargs == 5) {
@@ -116,10 +116,10 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
             } else {
-                result_error_msg = "Invalid or empty source_value";
+                result_error_msg = "[IAST] Invalid or empty source_value";
             }
         } else {
-            result_error_msg = "Invalid or empty source_name";
+            result_error_msg = "[IAST] Invalid or empty source_name";
         }
     }
     if (!result) {
