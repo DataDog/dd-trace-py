@@ -341,8 +341,9 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
             source_origin=OriginType.PARAMETER,
         )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 0
+    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 0
 
     if expected_log_msg:
         assert any(expected_log_msg in record.message for record in caplog.records), [

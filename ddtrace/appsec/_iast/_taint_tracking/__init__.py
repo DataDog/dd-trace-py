@@ -86,6 +86,17 @@ __all__ = [
 ]
 
 
+def iast_log_error(msg):
+    if os.environ.get(IAST.ENV_DEBUG, False):
+        import inspect
+
+        stack = inspect.stack()
+        result = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:5])
+        log.warning("%s:\n%s", msg, result)
+    else:
+        log.debug(msg)
+
+
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
     if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
@@ -103,17 +114,11 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
     try:
         pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-        _set_metric_iast_executed_source(source_origin)
-    except TypeError:
-        if os.environ.get(IAST.ENV_DEBUG, False):
-            import inspect
-
-            stack = inspect.stack()
-            result = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:5])
-            log.warning("Failed to taint pyobject stack:\n%s", result)
-        else:
-            log.debug("Failed to taint pyobject")
+    except ValueError:
+        iast_log_error("Failed to taint pyobject")
         return pyobject
+
+    _set_metric_iast_executed_source(source_origin)
     return pyobject_newid
 
 
@@ -122,7 +127,11 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    return get_ranges(pyobject)
+    try:
+        return get_ranges(pyobject)
+    except ValueError:
+        iast_log_error("Failed to get tainted ranges")
+    return tuple()
 
 
 def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:

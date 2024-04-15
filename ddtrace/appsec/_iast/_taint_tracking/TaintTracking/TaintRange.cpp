@@ -98,28 +98,33 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 
     if (nargs == 5) {
         PyObject* tainted_object = args[0];
-        if (!PyUnicode_Check(tainted_object) and !PyByteArray_Check(tainted_object) and
-            !PyBytes_Check(tainted_object)) {
-            return tainted_object;
-        }
         auto ctx_map = initializer->get_tainting_map();
         pyobject_n = new_pyobject_id(tainted_object);
         PyObject* len_pyobject_py = args[1];
 
         long len_pyobject = PyLong_AsLong(len_pyobject_py);
         string source_name = PyObjectToString(args[2]);
-        string source_value = PyObjectToString(args[3]);
-        auto source_origin = OriginType(PyLong_AsLong(args[4]));
-        auto source = Source(source_name, source_value, source_origin);
-        auto range = initializer->allocate_taint_range(0, len_pyobject, source);
-        TaintRangeRefs ranges = vector{ range };
-        result = set_ranges(pyobject_n, ranges, ctx_map);
-        if (!result) {
-            result_error_msg = "Set ranges error: Empty ranges or Tainted Map isn't initialized";
+        if(!source_name.empty()){
+            string source_value = PyObjectToString(args[3]);
+            if(!source_value.empty()) {
+                auto source_origin = OriginType(PyLong_AsLong(args[4]));
+                auto source = Source(source_name, source_value, source_origin);
+                auto range = initializer->allocate_taint_range(0, len_pyobject, source);
+                TaintRangeRefs ranges = vector{range};
+                result = set_ranges(pyobject_n, ranges, ctx_map);
+                if (!result) {
+                    result_error_msg = MSG_ERROR_SET_RANGES;
+                }
+            }else{
+                result_error_msg = "Invalid or empty source_value";
+            }
+        }else{
+            result_error_msg = "Invalid or empty source_name";
         }
+
     }
     if (!result) {
-        py::set_error(PyExc_TypeError, result_error_msg);
+        py::set_error(PyExc_ValueError, result_error_msg);
         return nullptr;
     }
 
@@ -129,15 +134,12 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 TaintRangeRefs
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 {
-    if (not is_text(string_input))
-        return {};
-
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
-    }
-    if (!tx_map or tx_map->empty()) {
-        // TODO: log something here: "no tx_map, maybe call create_context()?"
-        return {};
+        if (!tx_map) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+            throw py::error_already_set();
+        }
     }
 
     const auto it = tx_map->find(get_unique_id(string_input));
@@ -161,7 +163,7 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
-        if (not tx_map) {
+        if (!tx_map) {
             return false;
         }
     }
@@ -195,7 +197,7 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
 {
     if (not is_text(candidate_text))
         return {};
-    // TODO: pass tx_map to the function
+
     auto tx_map = initializer->get_tainting_map();
     TaintRangeRefs candidate_text_ranges{ get_ranges(candidate_text, tx_map) };
     TaintRangeRefs all_ranges;
@@ -239,21 +241,22 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
     auto ranges = get_ranges(str_1.ptr(), tx_map);
     bool result = set_ranges(str_2.ptr(), ranges, tx_map);
     if (!result) {
-        const char* result_error_msg =
-          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin";
-        py::set_error(PyExc_TypeError, result_error_msg);
+        py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
 
 inline void
 api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset, int new_length = -1)
 {
+    const char* result_error_msg = MSG_ERROR_SET_RANGES;
+    bool result = false;
+    TaintRangeRefs ranges;
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_1.ptr(), tx_map);
-    bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
+
+    ranges = get_ranges(str_1.ptr(), tx_map);
+
+    result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
     if (!result) {
-        const char* result_error_msg =
-          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin";
         py::set_error(PyExc_TypeError, result_error_msg);
     }
 }
