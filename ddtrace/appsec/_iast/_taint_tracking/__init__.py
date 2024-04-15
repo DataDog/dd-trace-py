@@ -8,6 +8,7 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 
 from ..._constants import IAST
+from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
@@ -83,17 +84,19 @@ __all__ = [
     "parse_params",
     "num_objects_tainted",
     "debug_taint_map",
-    "iast_log_error",
+    "iast_taint_log_error",
 ]
 
 
-def iast_log_error(msg):
+def iast_taint_log_error(msg):
     if os.environ.get(IAST.ENV_DEBUG, False):
         import inspect
 
         stack = inspect.stack()
-        result = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:5])
-        log.warning("%s:\n%s", msg, result)
+        frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
+        log_message = "%s:\n%s", msg, frame_info
+        log.warning(log_message)
+        _set_iast_error_metric("IAST propagation error. {}".format(msg))
     else:
         log.debug(msg)
 
@@ -116,7 +119,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     try:
         pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
     except ValueError:
-        iast_log_error("Failed to taint pyobject")
+        iast_taint_log_error("Failed to taint pyobject, taint_pyobject")
         return pyobject
 
     _set_metric_iast_executed_source(source_origin)
@@ -124,14 +127,17 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
-    set_ranges(pyobject, tuple(ranges))
+    try:
+        set_ranges(pyobject, tuple(ranges))
+    except ValueError:
+        iast_taint_log_error("Failed to taint pyobject, taint_pyobject_with_ranges")
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     try:
         return get_ranges(pyobject)
     except ValueError:
-        iast_log_error("Failed to get tainted ranges")
+        iast_taint_log_error("Failed to get tainted ranges")
     return tuple()
 
 

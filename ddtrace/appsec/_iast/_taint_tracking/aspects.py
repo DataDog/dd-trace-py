@@ -523,7 +523,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     except UnicodeEncodeError:
         funcode(self)
     result = empty.join(result_list)
-    taint_pyobject_with_ranges(result, new_ranges)
+    taint_pyobject_with_ranges(result, tuple(new_ranges))
     return result
 
 
