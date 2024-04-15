@@ -590,6 +590,7 @@ def test_telemetry_writer_agent_setup():
         assert new_telemetry_writer._client._is_disabled is False
         assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
+        assert "dd-api-key" not in new_telemetry_writer._client._headers
 
 
 @pytest.mark.parametrize(
@@ -614,6 +615,7 @@ def test_telemetry_writer_agentless_setup():
         assert new_telemetry_writer._client._is_disabled is False
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
 def test_telemetry_writer_agentless_setup_eu():
@@ -627,6 +629,7 @@ def test_telemetry_writer_agentless_setup_eu():
         assert (
             new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
         )
+        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
 
 
 def test_telemetry_writer_agentless_disabled_without_api_key():
@@ -638,3 +641,4 @@ def test_telemetry_writer_agentless_disabled_without_api_key():
         assert new_telemetry_writer._client._is_disabled is True
         assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
         assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+        assert "dd-api-key" not in new_telemetry_writer._client._headers
