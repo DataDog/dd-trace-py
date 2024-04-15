@@ -23,7 +23,7 @@ def test_string_index_error_type_error():
     assert "string indices must be integers" in str(excinfo.value)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8, 0), reason="Python version not supported by IAST")
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, index_pos, expected_result, tainted",
     [
@@ -58,7 +58,7 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
         assert tainted_ranges[0].length == 1
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8, 0), reason="Python version not supported by IAST")
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_and_no_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
