@@ -140,7 +140,7 @@ get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-            throw py::error_already_set();
+            return {};
         }
     }
     if (tx_map->empty()) {
