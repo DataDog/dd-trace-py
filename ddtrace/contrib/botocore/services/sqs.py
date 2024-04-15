@@ -6,7 +6,6 @@ from typing import Optional  # noqa:F401
 import botocore.client
 import botocore.exceptions
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.botocore.utils import extract_DD_context
 from ddtrace.contrib.botocore.utils import set_patched_api_call_span_tags
@@ -68,7 +67,7 @@ def inject_trace_data_to_message_attributes(
         entry["MessageAttributes"]["_datadog"] = {"DataType": data_type, f"{data_type}Value": _encode_data(trace_data)}
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params: Any, span: Span, endpoint_service: Optional[str] = None) -> None:
+def inject_trace_to_sqs_or_sns_batch_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -77,7 +76,8 @@ def inject_trace_to_sqs_or_sns_batch_message(params: Any, span: Span, endpoint_s
     """
 
     trace_data = {}
-    HTTPPropagator.inject(span.context, trace_data)
+    context = span.context if span else ctx[ctx["call_key"]].context
+    HTTPPropagator.inject(context, trace_data)
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
@@ -85,13 +85,13 @@ def inject_trace_to_sqs_or_sns_batch_message(params: Any, span: Span, endpoint_s
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     if len(entries) != 0:
         for entry in entries:
-            core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params, entry])
+            core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params, entry])
             inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
     else:
         log.warning("Skipping injecting Datadog attributes to records, no records available")
 
 
-def inject_trace_to_sqs_or_sns_message(params: Any, span: Span, endpoint_service: Optional[str] = None) -> None:
+def inject_trace_to_sqs_or_sns_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -99,12 +99,8 @@ def inject_trace_to_sqs_or_sns_message(params: Any, span: Span, endpoint_service
     Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
-    try:
-        HTTPPropagator.inject(span.context, trace_data)
-        core.dispatch("botocore.sqs_sns.start", [endpoint_service, trace_data, params])
-        inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
-    except Exception:
-        log.warning("Unable to inject trace context", exc_info=True)
+    core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params])
+    inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
 
 
 def _ensure_datadog_messageattribute_enabled(params):
@@ -157,9 +153,9 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         and endpoint_name == "sqs"
         and operation in ("SendMessage", "SendMessageBatch")
     )
-    injection_function = inject_trace_to_sqs_or_sns_message
+    message_update_function = inject_trace_to_sqs_or_sns_message
     if operation == "SendMessageBatch":
-        injection_function = inject_trace_to_sqs_or_sns_batch_message
+        message_update_function = inject_trace_to_sqs_or_sns_batch_message
     if endpoint_name == "sqs" and operation in ("SendMessage", "SendMessageBatch", "ReceiveMessage"):
         span_name = schematize_cloud_messaging_operation(
             trace_operation,
@@ -195,9 +191,10 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                 span.start_ns = start_ns
 
             if should_update_messages:
-                injection_function(
+                message_update_function(
+                    ctx,
                     params,
-                    span,
+                    None,
                     endpoint_service=endpoint_name,
                 )
 
