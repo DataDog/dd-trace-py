@@ -4,6 +4,26 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.1
+
+
+### New Features
+
+- Vulnerability Management for Code-level (IAST): to enable IAST in the application, you had to start it with the command `ddtrace-run [your-application-run-command]` so far. Now, you can also activate IAST with the `patch_all` function.
+
+### Bug Fixes
+
+- Code Security: fix setting the wrong source on map elements tainted from <span class="title-ref">taint_structure</span>.
+- Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a `FileNotFoundError`.
+- CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
+- Code Security (IAST): Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration. Empty lists from consume can occur when the call times out.
+- ASM: This fix removes unrequired API security metrics.
+- instrumentation: fixes crashses that could occur in certain integrations with packages that use non-integer components in their version specifiers
+
+
+---
+
 ## 2.8.0
 
 ### Prelude
