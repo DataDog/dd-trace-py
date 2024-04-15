@@ -185,15 +185,15 @@ class OpenAIIntegration(BaseLLMIntegration):
             output_messages = []
             for idx, choice in enumerate(resp.choices):
                 content = getattr(choice.message, "content", "")
-                if content:
-                    output_messages.append({"content": str(content), "role": choice.message.role})
-                elif getattr(choice.message, "function_call", None):
+                if getattr(choice.message, "function_call", None):
                     content = choice.message.function_call.arguments
-                    output_messages.append({"content": str(content), "role": choice.message.role})
                 elif getattr(choice.message, "tool_calls", None):
+                    content = ""
                     for tool_call in choice.message.tool_calls:
-                        content = tool_call.function.arguments
-                        output_messages.append({"content": str(content), "role": choice.message.role})
+                        content += "\n[tool: {}]\n\n{}\n".format(
+                            getattr(tool_call.function, "name", ""), tool_call.function.arguments
+                        )
+                output_messages.append({"content": str(content).strip(), "role": choice.message.role})
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
