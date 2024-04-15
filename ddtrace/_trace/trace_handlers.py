@@ -6,7 +6,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
@@ -598,9 +597,9 @@ def _on_botocore_trace_context_injection_prepared(
             log.warning("Unable to inject trace context", exc_info=True)
 
 
-def _on_botocore_kinesis_start(stream, data_obj: Dict, record, inject_trace_context, context_to_propagate: Context):
-    if config.botocore["distributed_tracing"] and inject_trace_context:
-        HTTPPropagator.inject(context_to_propagate, data_obj)
+def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inject_trace_context):
+    if inject_trace_context:
+        HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj)
 
 
 def listen():
@@ -635,7 +634,7 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
-    core.on("botocore.kinesis.start", _on_botocore_kinesis_start)
+    core.on("botocore.kinesis.update_record", _on_botocore_kinesis_update_record)
 
     for context_name in (
         "flask.call",
