@@ -312,7 +312,7 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
 @pytest.mark.parametrize(
     "log_level, iast_debug, expected_log_msg",
     [
-        (logging.DEBUG, "", "Failed to taint pyobject"),
+        (logging.DEBUG, "", "[IAST] Tainted Map"),
         (logging.WARNING, "", ""),
         (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
         (logging.WARNING, "true", "_iast/_taint_tracking/__init__.py"),
@@ -350,7 +350,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
             record.message for record in caplog.records
         ]
     else:
-        assert not any("Failed to taint pyobject" in record.message for record in caplog.records)
+        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
 
     create_context()
     result = taint_pyobject(
