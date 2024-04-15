@@ -210,15 +210,12 @@ def traced_poll_or_consume(func, instance, args, kwargs):
     # we must get start time now since execute before starting a span in order to get distributed context
     # if it exists
     start_ns = time_ns()
-    # wrap in a try catch and raise exception after span is started
     err = None
     result = None
     try:
         result = func(*args, **kwargs)
-        return result
     except Exception as e:
         err = e
-        raise err
     finally:
         if isinstance(result, confluent_kafka.Message):
             # poll returns a single message
@@ -228,6 +225,10 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             _instrument_message(result, pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
+
+    if err:
+        raise err
+    return result
 
 
 def _instrument_message(messages, pin, start_ns, instance, err):
