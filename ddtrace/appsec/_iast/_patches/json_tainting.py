@@ -43,8 +43,8 @@ def wrapped_loads(wrapped, instance, args, kwargs):
 
     obj = wrapped(*args, **kwargs)
     if asm_config._iast_enabled:
-        from .._taint_tracking import ast_log_error
         from .._taint_tracking import get_tainted_ranges
+        from .._taint_tracking import iast_log_error
         from .._taint_tracking import taint_pyobject
         from ..processor import AppSecIastSpanProcessor
 
@@ -54,7 +54,7 @@ def wrapped_loads(wrapped, instance, args, kwargs):
         try:
             ranges = get_tainted_ranges(args[0])
         except ValueError as e:
-            ast_log_error(e)
+            iast_log_error(e)
             return obj
 
         if ranges and obj:

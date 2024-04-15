@@ -83,6 +83,7 @@ __all__ = [
     "parse_params",
     "num_objects_tainted",
     "debug_taint_map",
+    "iast_log_error",
 ]
 
 
