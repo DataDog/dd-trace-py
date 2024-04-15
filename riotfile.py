@@ -427,6 +427,9 @@ venv = Venv(
         ),
         Venv(
             name="internal",
+            env={
+                "DD_TRACE_AGENT_URL": "http://localhost:8126",
+            },
             command="pytest {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
