@@ -635,7 +635,7 @@ def listen():
     core.on("botocore.prep_context_injection.post", _on_botocore_trace_context_injection_prepared)
     core.on("botocore.patched_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_kinesis_api_call.started", _on_botocore_patched_api_call_started)
-    # core.on("botocore.kinesis.start", _on_botocore_kinesis_start)
+    core.on("botocore.kinesis.start", _on_botocore_kinesis_start)
 
     for context_name in (
         "flask.call",

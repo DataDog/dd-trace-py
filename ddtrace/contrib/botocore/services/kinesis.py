@@ -12,7 +12,6 @@ from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.propagation.http import HTTPPropagator
 
 from ....ext import SpanTypes
 from ....internal.compat import time_ns
@@ -44,9 +43,6 @@ def inject_trace_to_kinesis_stream_record(
         line_break, data_obj = get_kinesis_data_object(record["Data"])
         if data_obj is not None:
             data_obj["_datadog"] = {}
-
-            if config.botocore["distributed_tracing"] and inject_trace_context:
-                HTTPPropagator.inject(context_to_propagate, data_obj["_datadog"])
 
             core.dispatch(
                 "botocore.kinesis.start",
