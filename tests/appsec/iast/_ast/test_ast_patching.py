@@ -152,6 +152,6 @@ def test_module_in_python_stdlib_or_third_party(module_name, result):
 
 
 def test_module_path_none(caplog):
-    with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.appsec._iast._ast.ast_patching.origin", return_value=None):
+    with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
         assert ("", "") == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None]))
         assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
