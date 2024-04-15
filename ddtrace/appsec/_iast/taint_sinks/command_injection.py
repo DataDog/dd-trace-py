@@ -7,6 +7,7 @@ from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.contrib import trace_utils
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -55,6 +56,9 @@ def patch():
 
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
+
+    if asm_config._ep_enabled:
+        core.dispatch("exploit.prevention.ssrf.patch.urllib")
 
 
 def unpatch():
@@ -233,7 +237,7 @@ def _iast_report_cmdi(shell_args):
     elif is_pyobject_tainted(shell_args):
         report_cmdi = shell_args
 
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
+    _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     if report_cmdi:
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
-        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
         CommandInjection.report(evidence_value=report_cmdi)
