@@ -164,7 +164,7 @@ class _TelemetryClient:
     def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         if self._is_disabled:
-            log.debug("Telemetry is disabled, not sending event.")
+            return None
 
         resp = None
         conn = None
@@ -176,7 +176,6 @@ class _TelemetryClient:
                 conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
                 resp = get_connection_response(conn)
-                # print("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             if resp.status < 300:
                 log.debug("sent %d in %.5fs to %s. response: %s", len(rb_json), sw.elapsed(), self.url, resp.status)
             else:
