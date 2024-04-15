@@ -19,7 +19,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
 - kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration. Empty lists from consume can occur when the call times out.
 - ASM: This fix removes unrequired API security metrics.
-- instrumentation: fixes crashses that could occur in certain integrations with packages that use non-integer components in their version specifiers
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
 
 
 ---
