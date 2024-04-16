@@ -43,20 +43,17 @@ def wrapped_loads(wrapped, instance, args, kwargs):
 
     obj = wrapped(*args, **kwargs)
     if asm_config._iast_enabled:
-        try:
-            from .._taint_tracking import get_tainted_ranges
-            from .._taint_tracking import is_pyobject_tainted
-            from .._taint_tracking import taint_pyobject
-            from ..processor import AppSecIastSpanProcessor
+        from .._taint_tracking import get_tainted_ranges
+        from .._taint_tracking import taint_pyobject
+        from ..processor import AppSecIastSpanProcessor
 
-            if not AppSecIastSpanProcessor.is_span_analyzed():
-                return obj
+        if not AppSecIastSpanProcessor.is_span_analyzed():
+            return obj
 
-            if is_pyobject_tainted(args[0]) and obj:
-                # tainting object
-                ranges = get_tainted_ranges(args[0])
-                if not ranges:
-                    return obj
+        ranges = get_tainted_ranges(args[0])
+
+        if ranges and obj:
+            try:
                 # take the first source as main source
                 source = ranges[0].source
                 if isinstance(obj, dict):
@@ -65,10 +62,9 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                     obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, (str, bytes, bytearray)):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)
-                pass
-        except Exception:
-            log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
-            raise
+            except Exception:
+                log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+                raise
     return obj
 
 
