@@ -65,31 +65,7 @@ def inject_trace_data_to_message_attributes(
         entry["MessageAttributes"]["_datadog"] = {"DataType": data_type, f"{data_type}Value": _encode_data(trace_data)}
 
 
-def inject_trace_to_sqs_or_sns_batch_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :endpoint_service: endpoint of message, "sqs" or "sns"
-    Inject trace headers info into MessageAttributes for all SQS or SNS records inside a batch
-    """
-    return inject_trace_to_sqs_or_sns_message(ctx, params, span, endpoint_service=endpoint_service)
-    entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
-    if len(entries) == 0:
-        log.warning("Skipping injecting Datadog attributes to records, no records available")
-        return
-    trace_data = {}
-    for entry in entries:
-        core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params, entry])
-        inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
-
-
-def inject_trace_to_sqs_or_sns_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :endpoint_service: endpoint of message, "sqs" or "sns"
-    Inject trace headers info into MessageAttributes for the SQS or SNS record
-    """
+def update_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
     if "Entries" in params or "PublishBatchRequestEntries" in params:
         entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
         if len(entries) == 0:
@@ -157,9 +133,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         and endpoint_name == "sqs"
         and operation in ("SendMessage", "SendMessageBatch")
     )
-    message_update_function = inject_trace_to_sqs_or_sns_message
-    if operation == "SendMessageBatch":
-        message_update_function = inject_trace_to_sqs_or_sns_batch_message
     if endpoint_name == "sqs" and operation in ("SendMessage", "SendMessageBatch", "ReceiveMessage"):
         span_name = schematize_cloud_messaging_operation(
             trace_operation,
@@ -190,7 +163,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             if should_update_messages:
-                message_update_function(
+                update_message(
                     ctx,
                     params,
                     None,
