@@ -1523,7 +1523,7 @@ class TestLLMObsLangchain:
         chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
         self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: chain.batch(["chickens", "cows", "pigs"]),
+            generate_trace=lambda inputs: chain.batch(["chickens", "pigs"]),
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
@@ -1532,11 +1532,10 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"input.0": "chickens", "input.1": "cows", "input.2": "pigs"}),
+                        "input_value": str(["chickens", "pigs"]),
                         "output_value": mock.ANY,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
                 ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
             ],
