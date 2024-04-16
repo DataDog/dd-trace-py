@@ -11,14 +11,12 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
-from ...propagation._database_monitoring import _DBM_Propagator
 
 
 config._add(
     "aiopg",
     dict(
         _default_service=schematize_service_name("postgres"),
-        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 

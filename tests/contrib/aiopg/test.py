@@ -1,7 +1,6 @@
 import time
 
 import aiopg
-import mock
 from psycopg2 import extras
 import pytest
 
@@ -11,7 +10,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiopg.patch import patch
 from ddtrace.contrib.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.contrib import shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -20,7 +18,6 @@ from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
-POSTGRES_CONFIG["db"] = POSTGRES_CONFIG["dbname"]
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -126,7 +123,6 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_async_generator(self):
-        assert 1 == 0
         conn, tracer = await self._get_conn_and_tracer()
         cursor = await conn.cursor()
         q = "select 'foobarblah'"
@@ -302,7 +298,6 @@ class AiopgTestCase(AsyncioTestCase):
         env_overrides=dict(DD_AIOPG_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     async def test_user_specified_service_integration_v0(self):
-        assert 1 == 0
         conn = await aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
@@ -394,99 +389,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "postgresql.query"
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    async def test_aiopg_dbm_propagation_enabled(self):
-        conn, tracer = await self._get_conn_tracer()
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        cursor = await conn.cursor()
-
-        await shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgresql")
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-        )
-    )
-    async def test_aiopg_dbm_propagation_comment_with_global_service_name_configured(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
-
-        await shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
-            config=POSTGRES_CONFIG, db_system="test", cursor=cursor, wrapped_instance=cursor
-        )
-        assert 1 == 0
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
-        )
-    )
-    async def test_aiopg_dbm_propagation_comment_integration_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
-
-        await shared_tests._test_dbm_propagation_comment_integration_service_name_override(
-            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-        )
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
-        )
-    )
-    async def test_aiopg_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
-
-        await shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=POSTGRES_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
-        )
-
-    @pytest.mark.asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
-        )
-    )
-    async def test_aiopg_dbm_propagation_comment_peer_service_enabled(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
-
-        await shared_tests._test_dbm_propagation_comment_peer_service_enabled(
-            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-        )
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

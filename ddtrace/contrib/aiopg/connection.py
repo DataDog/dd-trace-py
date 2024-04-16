@@ -9,7 +9,6 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -22,8 +21,6 @@ from .. import trace_utils
 
 AIOPG_VERSION = parse_version(__version__)
 
-# this should cause tests to run
-
 
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
@@ -35,7 +32,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
-        raise TypeError
         if not pin or not pin.enabled():
             result = await method(*args, **kwargs)
             return result
@@ -58,11 +54,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiopg.get_analytics_sample_rate())
-
-            # dispatch DBM
-            result = core.dispatch_with_results("aiopg.execute", (config.aiopg, s, args, kwargs)).result
-            if result:
-                s, args, kwargs = result.value
 
             try:
                 result = await method(*args, **kwargs)
