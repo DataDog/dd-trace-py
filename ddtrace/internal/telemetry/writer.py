@@ -386,6 +386,12 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "_trace_sample_rate":
             name = "trace_sample_rate"
             value = str(item.value())
+        elif cfg_name == "_trace_sampling_rules":
+            name = "_trace_sampling_rules"
+            if item.value() is None:
+                value = ""
+            else:
+                value = "true" if item.value() else "false"
         elif cfg_name == "logs_injection":
             name = "logs_injection_enabled"
             value = "true" if item.value() else "false"
@@ -428,6 +434,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("_sca_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
+                self._telemetry_entry("_trace_sampling_rules"),
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
