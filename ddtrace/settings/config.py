@@ -284,7 +284,7 @@ def _default_config():
         ),
         "_trace_sampling_rules": _ConfigItem(
             name="trace_sampling_rules",
-            default=lambda: {},
+            default=None,
             envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
         "logs_injection": _ConfigItem(
@@ -389,7 +389,6 @@ class Config(object):
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
@@ -567,7 +566,6 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
 
