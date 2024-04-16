@@ -238,10 +238,13 @@ def test_llmobs_annotate_finished_span_does_nothing(LLMObs, mock_logs):
     mock_logs.warning.assert_called_once_with("Cannot annotate a finished span.")
 
 
-def test_llmobs_annotate_parameters(LLMObs):
+def test_llmobs_annotate_parameters(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
         assert json.loads(span.get_tag(INPUT_PARAMETERS)) == {"temperature": 0.9, "max_tokens": 50}
+        mock_logs.warning.assert_called_once_with(
+            "Setting parameters is deprecated, please set parameters and other metadata as tags instead."
+        )
 
 
 def test_llmobs_annotate_tag(LLMObs):
@@ -265,19 +268,13 @@ def test_llmobs_annotate_input_string(LLMObs):
         assert workflow_span.get_tag(INPUT_VALUE) == "test_input"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
-        assert json.loads(agent_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input"}]
+        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
 
 
 def test_llmobs_annotate_input_llm_message(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, input_data=[{"content": "test_input", "role": "human"}])
         assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
-
-
-def test_llmobs_annotate_non_llm_span_message_input_logs_warning(LLMObs, mock_logs):
-    with LLMObs.task() as span:
-        LLMObs.annotate(span=span, input_data=[{"content": "test_input"}])
-        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
 
 
 def test_llmobs_annotate_output_string(LLMObs):
@@ -295,19 +292,13 @@ def test_llmobs_annotate_output_string(LLMObs):
         assert workflow_span.get_tag(OUTPUT_VALUE) == "test_output"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
-        assert json.loads(agent_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output"}]
+        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
 
 
 def test_llmobs_annotate_output_llm_message(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data=[{"content": "test_output", "role": "human"}])
         assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output", "role": "human"}]
-
-
-def test_llmobs_annotate_non_llm_span_message_output_logs_warning(LLMObs, mock_logs):
-    with LLMObs.task() as span:
-        LLMObs.annotate(span=span, output_data=[{"content": "test_input"}])
-        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
 
 
 def test_llmobs_annotate_metrics(LLMObs):
