@@ -13,7 +13,6 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.settings.config import Config
@@ -22,7 +21,7 @@ from ddtrace.vendor import wrapt
 from ...constants import SPAN_KIND
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...ext import http
+from ...internal import core
 from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.schema import schematize_cloud_api_operation
@@ -54,6 +53,11 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+PATCHING_FUNCTIONS = {
+    "kinesis": patched_kinesis_api_call,
+    "sqs": patched_sqs_api_call,
+    "states": patched_stepfunction_api_call,
+}
 
 log = get_logger(__name__)
 
@@ -119,9 +123,11 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
-    with pin.tracer.trace("{}.{}".format(original_func.__module__, original_func.__name__)) as span:
-        span.set_tag_str(COMPONENT, config.botocore.integration_name)
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    with core.context_with_data(
+        "botocore.instrumented_lib_function",
+        span_name="{}.{}".format(original_func.__module__, original_func.__name__),
+        tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
+    ) as ctx, ctx.get_item(ctx.get_item("call_key")):
         return original_func(*args, **kwargs)
 
 
@@ -151,43 +157,46 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    if endpoint_name == "kinesis":
-        return patched_kinesis_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "sqs":
-        return patched_sqs_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
-        return patched_bedrock_api_call(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
-    elif endpoint_name == "states":
-        return patched_stepfunction_api_call(
-            original_func=original_func, instance=instance, args=args, kwargs=kwargs, function_vars=function_vars
-        )
+    if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
+        patching_fn = patched_bedrock_api_call
     else:
-        # this is the default patched api call
-        return patched_api_call_fallback(
-            original_func=original_func,
-            instance=instance,
-            args=args,
-            kwargs=kwargs,
-            function_vars=function_vars,
-        )
+        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
+
+    return patching_fn(
+        original_func=original_func,
+        instance=instance,
+        args=args,
+        kwargs=kwargs,
+        function_vars=function_vars,
+    )
+
+
+def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
+    cloud_service = None
+    injection_function = None
+    schematization_function = schematize_cloud_messaging_operation
+
+    if endpoint_name == "lambda" and operation == "Invoke":
+        injection_function = inject_trace_to_client_context
+        schematization_function = schematize_cloud_faas_operation
+        cloud_service = "lambda"
+    if endpoint_name == "events" and operation == "PutEvents":
+        injection_function = inject_trace_to_eventbridge_detail
+        cloud_service = "events"
+    if endpoint_name == "sns" and operation == "Publish":
+        injection_function = inject_trace_to_sqs_or_sns_message
+        cloud_service = "sns"
+    if endpoint_name == "sns" and operation == "PublishBatch":
+        injection_function = inject_trace_to_sqs_or_sns_batch_message
+        cloud_service = "sns"
+    if endpoint_name == "states" and (operation == "StartExecution" or operation == "StartSyncExecution"):
+        injection_function = inject_trace_to_stepfunction_input
+        cloud_service = "stepfunctions"
+
+    core.dispatch(
+        "botocore.prep_context_injection.post",
+        [ctx, cloud_service, schematization_function, injection_function, trace_operation],
+    )
 
 
 def patched_api_call_fallback(original_func, instance, args, kwargs, function_vars):
@@ -198,78 +207,32 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
+    with core.context_with_data(
+        "botocore.instrumented_api_call",
+        instance=instance,
+        args=args,
+        params=params,
+        endpoint_name=endpoint_name,
+        operation=operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+        context_started_callback=set_patched_api_call_span_tags,
+        pin=pin,
+        span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
-    ) as span:
-        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
-
-        if args:
-            if config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "lambda" and operation == "Invoke":
-                        inject_trace_to_client_context(params, span)
-                        span.name = schematize_cloud_faas_operation(
-                            trace_operation, cloud_provider="aws", cloud_service="lambda"
-                        )
-                    if endpoint_name == "events" and operation == "PutEvents":
-                        inject_trace_to_eventbridge_detail(params, span)
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="events",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sns",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(
-                            params,
-                            span,
-                            endpoint_service=endpoint_name,
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="sns",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                    if endpoint_name == "states" and (
-                        operation == "StartExecution" or operation == "StartSyncExecution"
-                    ):
-                        inject_trace_to_stepfunction_input(params, span)
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="stepfunctions",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+        call_key="instrumented_api_call",
+    ) as ctx, ctx.get_item("instrumented_api_call"):
+        core.dispatch("botocore.patched_api_call.started", [ctx])
+        if args and config.botocore["distributed_tracing"]:
+            prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:
             result = original_func(*args, **kwargs)
-            set_response_metadata_tags(span, result)
-            return result
-
         except botocore.exceptions.ClientError as e:
-            # `ClientError.response` contains the result, so we can still grab response metadata
-            set_response_metadata_tags(span, e.response)
-
-            # If we have a status code, and the status code is not an error,
-            #   then ignore the exception being raised
-            status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                span._ignore_exception(botocore.exceptions.ClientError)
+            core.dispatch(
+                "botocore.patched_api_call.exception",
+                [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+            )
             raise
+        else:
+            core.dispatch("botocore.patched_api_call.success", [ctx, result, set_response_metadata_tags])
+            return result
