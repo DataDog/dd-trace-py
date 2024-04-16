@@ -1511,6 +1511,7 @@ class TestLLMObsLangchain:
             different_py39_cassette=True,
         )
 
+    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
         template = """Paraphrase this text:
 
