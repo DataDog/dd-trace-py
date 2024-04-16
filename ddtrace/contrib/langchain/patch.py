@@ -728,12 +728,12 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
         interface_type="chain",
     )
-    raw_inputs, inputs = None, None
+    inputs = None
     final_output = None
     try:
-        raw_inputs = inputs = get_argument_value(args, kwargs, 0, "input")
+        inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
-            if not isinstance(raw_inputs, list):
+            if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
                 if isinstance(inp, str):
@@ -754,7 +754,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, raw_inputs, final_output)
+            integration.llmobs_set_tags("chain", span, inputs, final_output)
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -772,12 +772,12 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         submit_to_llmobs=True,
         interface_type="chain",
     )
-    raw_inputs, inputs = None, None
+    inputs = None
     final_output = None
     try:
-        raw_inputs = inputs = get_argument_value(args, kwargs, 0, "input")
+        inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
-            if not isinstance(raw_inputs, list):
+            if not isinstance(inputs, list):
                 inputs = [inputs]
             for idx, inp in enumerate(inputs):
                 if isinstance(inp, str):
@@ -798,7 +798,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags("chain", span, raw_inputs, final_output)
+            integration.llmobs_set_tags("chain", span, inputs, final_output)
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output

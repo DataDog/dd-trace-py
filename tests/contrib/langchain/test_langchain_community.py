@@ -1263,7 +1263,7 @@ class TestLLMObsLangchain:
             if kind == "chain":
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
             else:
-                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_calls(span, **kwargs)
+                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_call(span, **kwargs)
 
             expected_llmobs_writer_calls += [mock.call.enqueue(expected_span_event)]
 
@@ -1283,7 +1283,7 @@ class TestLLMObsLangchain:
         )
 
     @staticmethod
-    def _expected_llmobs_llm_calls(span, provider="openai", input_role=None, output_role=None):
+    def _expected_llmobs_llm_call(span, provider="openai", input_role=None, output_role=None):
         input_meta = {"content": mock.ANY}
         if input_role is not None:
             input_meta["role"] = input_role
@@ -1344,7 +1344,7 @@ class TestLLMObsLangchain:
         expected_llmons_writer_calls = [
             mock.call.start(),
             mock.call.enqueue(
-                cls._expected_llmobs_llm_calls(
+                cls._expected_llmobs_llm_call(
                     span,
                     provider=provider,
                     input_role=input_role,
@@ -1456,6 +1456,17 @@ class TestLLMObsLangchain:
 
         chain = prompt | llm
 
+        expected_output = (
+            "\nSystem: Langsmith can help with testing in several ways. "
+            "First, it can generate automated tests based on your technical documentation, "
+            "ensuring that your code matches the documented specifications. "
+            "This can save you time and effort in testing your code manually. "
+            "Additionally, Langsmith can also analyze your technical documentation for completeness and accuracy, "
+            "helping you identify any potential gaps or errors before testing begins. "
+            "Finally, Langsmith can assist with creating test cases and scenarios based on your documentation, "
+            "making the testing process more efficient and effective."
+        )
+
         self._test_llmobs_chain_invoke(
             generate_trace=lambda prompt: chain.invoke({"input": prompt}),
             request_vcr=request_vcr,
@@ -1466,8 +1477,8 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"input": "Can you explain what an LLM chain is?"}),
-                        "output_value": mock.ANY,
+                        "input_value": str([{"input": "Can you explain what an LLM chain is?"}]),
+                        "output_value": expected_output,
                     },
                 ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
@@ -1499,14 +1510,14 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"person": "Spongebob Squarepants", "language": "Spanish"}),
+                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": str({"person": "Spongebob Squarepants", "language": "Spanish"}),
+                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),

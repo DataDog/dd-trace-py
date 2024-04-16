@@ -59,7 +59,7 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            self._llmobs_set_meta_tags_from_chain(span, inputs, response)
+            self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
 
         span.set_tag_str(METRICS, json.dumps({}))
 
@@ -67,7 +67,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self,
         span: Span,
         model_provider: Optional[str] = None,
-    ):
+    ) -> None:
         if not model_provider:
             return
 
@@ -147,12 +147,13 @@ class LangChainIntegration(BaseLLMIntegration):
         span: Span,
         inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
         outputs: Any,
+        error: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
             span.set_tag_str(INPUT_VALUE, str(inputs))
-        if outputs is not None:
+        if not error and outputs is not None:
             span.set_tag_str(OUTPUT_VALUE, str(outputs))
 
     def _set_base_span_tags(  # type: ignore[override]

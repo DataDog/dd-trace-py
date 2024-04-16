@@ -3,6 +3,8 @@ import os
 import vcr
 
 import ddtrace
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 
 
 logs_vcr = vcr.VCR(
@@ -147,7 +149,7 @@ def _llmobs_base_span_event(
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": str(span.parent_id or "undefined"),
+        "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
@@ -162,3 +164,13 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
+
+
+def _get_llmobs_parent_id(span: Span):
+    if not span._parent:
+        return "undefined"
+    parent = span._parent
+    while parent is not None:
+        if parent.span_type == SpanTypes.LLM:
+            return str(parent.span_id)
+        parent = parent._parent

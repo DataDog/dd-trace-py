@@ -1275,7 +1275,7 @@ class TestLLMObsLangchain:
             if kind == "chain":
                 expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
             else:
-                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_calls(span, **kwargs)
+                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_call(span, **kwargs)
 
             expected_llmobs_writer_calls += [mock.call.enqueue(expected_span_event)]
 
@@ -1295,7 +1295,7 @@ class TestLLMObsLangchain:
         )
 
     @staticmethod
-    def _expected_llmobs_llm_calls(span, provider="openai", input_role=None, output_role=None):
+    def _expected_llmobs_llm_call(span, provider="openai", input_role=None, output_role=None):
         input_meta = {"content": mock.ANY}
         if input_role is not None:
             input_meta["role"] = input_role
@@ -1359,7 +1359,7 @@ class TestLLMObsLangchain:
         expected_llmons_writer_calls = [
             mock.call.start(),
             mock.call.enqueue(
-                cls._expected_llmobs_llm_calls(
+                cls._expected_llmobs_llm_call(
                     span,
                     provider=provider,
                     input_role=input_role,
@@ -1496,14 +1496,30 @@ class TestLLMObsLangchain:
                     "chain",
                     {
                         "input_value": str({"question": "what is two raised to the fifty-fourth power?"}),
-                        "output_value": mock.ANY,
+                        "output_value": str(
+                            {
+                                "question": "what is two raised to the fifty-fourth power?",
+                                "answer": "Answer: 18014398509481984",
+                            }
+                        ),
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": mock.ANY,
-                        "output_value": mock.ANY,
+                        "input_value": str(
+                            {
+                                "question": "what is two raised to the fifty-fourth power?",
+                                "stop": ["```output"],
+                            }
+                        ),
+                        "output_value": str(
+                            {
+                                "question": "what is two raised to the fifty-fourth power?",
+                                "stop": ["```output"],
+                                "text": '\n```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
+                            }
+                        ),
                     },
                 ),
                 ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
