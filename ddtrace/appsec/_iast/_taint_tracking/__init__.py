@@ -1,12 +1,19 @@
+import os
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.logger import get_logger
+
+from ..._constants import IAST
+from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
+
+log = get_logger(__name__)
 
 if _is_python_version_supported():
     from ._native import ops
@@ -77,7 +84,21 @@ __all__ = [
     "parse_params",
     "num_objects_tainted",
     "debug_taint_map",
+    "iast_taint_log_error",
 ]
+
+
+def iast_taint_log_error(msg):
+    if os.environ.get(IAST.ENV_DEBUG, False):
+        import inspect
+
+        stack = inspect.stack()
+        frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
+        log_message = "%s:\n%s", msg, frame_info
+        log.warning(log_message)
+        _set_iast_error_metric("IAST propagation error. {}".format(msg))
+    else:
+        log.debug(msg)
 
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
@@ -95,17 +116,29 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
-    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+    try:
+        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+    except ValueError as e:
+        iast_taint_log_error(("Tainting object error (pyobject type %s): %s", (type(pyobject), e)))
+        return pyobject
+
     _set_metric_iast_executed_source(source_origin)
     return pyobject_newid
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
-    set_ranges(pyobject, tuple(ranges))
+    try:
+        set_ranges(pyobject, tuple(ranges))
+    except ValueError as e:
+        iast_taint_log_error(("Tainting object with ranges error (pyobject type %s): %s", (type(pyobject), e)))
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    return get_ranges(pyobject)
+    try:
+        return get_ranges(pyobject)
+    except ValueError as e:
+        iast_taint_log_error(("Get ranges error (pyobject type %s): %s", (type(pyobject), e)))
+    return tuple()
 
 
 def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:
