@@ -1520,7 +1520,7 @@ class TestLLMObsLangchain:
             Paraphrase: """
         prompt = langchain.PromptTemplate(input_variables=["input_text"], template=template)
         style_paraphrase_chain = langchain.chains.LLMChain(
-            llm=langchain.llms.OpenAI(), prompt=prompt, output_key="paraphrased_output"
+            llm=langchain.llms.OpenAI(model="gpt-3.5-turbo-instruct"), prompt=prompt, output_key="paraphrased_output"
         )
         rhyme_template = """Make this text rhyme:
 
@@ -1529,7 +1529,7 @@ class TestLLMObsLangchain:
             Rhyme: """
         rhyme_prompt = langchain.PromptTemplate(input_variables=["paraphrased_output"], template=rhyme_template)
         rhyme_chain = langchain.chains.LLMChain(
-            llm=langchain.llms.OpenAI(), prompt=rhyme_prompt, output_key="final_output"
+            llm=langchain.llms.OpenAI(model="gpt-3.5-turbo-instruct"), prompt=rhyme_prompt, output_key="final_output"
         )
         sequential_chain = langchain.chains.SequentialChain(
             chains=[style_paraphrase_chain, rhyme_chain],
@@ -1552,7 +1552,7 @@ class TestLLMObsLangchain:
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
-            cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
+            cassette_name="openai_sequential_chain.yaml",
             expected_spans_data=[
                 (
                     "chain",

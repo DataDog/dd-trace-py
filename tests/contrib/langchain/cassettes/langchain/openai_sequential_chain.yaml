@@ -1,0 +1,209 @@
+interactions:
+- request:
+    body: '{"prompt": ["Paraphrase this text:\n\n            \n            I have
+      convinced myself that there is absolutely nothing in the world, no sky, no earth,
+      no minds, no\n            bodies. Does it now follow that I too do not exist?
+      No: if I convinced myself of something then I certainly\n            existed.
+      But there is a deceiver of supreme power and cunning who is deliberately and
+      constantly deceiving\n            me. In that case I too undoubtedly exist,
+      if he is deceiving me; and let him deceive me as much as he can,\n            he
+      will never bring it about that I am nothing so long as I think that I am something.
+      So after considering\n            everything very thoroughly, I must finally
+      conclude that this proposition, I am, I exist, is necessarily\n            true
+      whenever it is put forward by me or conceived in my mind.\n            \n\n            Paraphrase:
+      "], "model": "gpt-3.5-turbo-instruct", "temperature": 0.7, "max_tokens": 256,
+      "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
+      {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1045'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.13", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-9EeaaJsTiPFNok3jXBZ582Q4yVzw8\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1713279644,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\nI have convinced myself that
+        nothing in the world truly exists - not the sky, the earth, or even our thoughts
+        and physical bodies. However, this does not mean that I do not exist. In fact,
+        my very act of convincing myself of this demonstrates my existence. Yet, I
+        am constantly deceived by a powerful and cunning deceiver, which only further
+        proves my existence. No matter how much this deceiver may try to convince
+        me otherwise, I will always believe that I am something. After careful consideration,
+        I can confidently say that the statement \\\"I am, I exist\\\" is always true,
+        whether I express it verbally or simply think it in my mind.\",\n      \"index\":
+        0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 178,\n    \"completion_tokens\":
+        134,\n    \"total_tokens\": 312\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 87550bf28f481986-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 16 Apr 2024 15:00:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=byzee1v3ElvmaA5QXN38gLTCNeUc_JfDpUKhsiplhb4-1713279646-1.0.1.1-2s52nonI5NUgnRSxqs9y1kExsqNJFQzfA2qOLXwR654fytUNTUngnyFWCtNu6mXrG.dTl39q3247cfrxValHSw;
+        path=/; expires=Tue, 16-Apr-24 15:30:46 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=tPEidA5Z9u5MrHLJR9rFmVTWIPAXm.XmWTP.NXYM.r8-1713279646640-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '1971'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '197'
+      x-ratelimit-remaining-tokens:
+      - '89530'
+      x-ratelimit-reset-requests:
+      - 18m24.603s
+      x-ratelimit-reset-tokens:
+      - 313ms
+      x-request-id:
+      - req_5217657852b915173fcea0d30d35c29c
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"prompt": ["Make this text rhyme:\n\n            \nI have convinced myself
+      that nothing in the world truly exists - not the sky, the earth, or even our
+      thoughts and physical bodies. However, this does not mean that I do not exist.
+      In fact, my very act of convincing myself of this demonstrates my existence.
+      Yet, I am constantly deceived by a powerful and cunning deceiver, which only
+      further proves my existence. No matter how much this deceiver may try to convince
+      me otherwise, I will always believe that I am something. After careful consideration,
+      I can confidently say that the statement \"I am, I exist\" is always true, whether
+      I express it verbally or simply think it in my mind.\n\n            Rhyme: "],
+      "model": "gpt-3.5-turbo-instruct", "temperature": 0.7, "max_tokens": 256, "top_p":
+      1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias": {}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '874'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=byzee1v3ElvmaA5QXN38gLTCNeUc_JfDpUKhsiplhb4-1713279646-1.0.1.1-2s52nonI5NUgnRSxqs9y1kExsqNJFQzfA2qOLXwR654fytUNTUngnyFWCtNu6mXrG.dTl39q3247cfrxValHSw;
+        _cfuvid=tPEidA5Z9u5MrHLJR9rFmVTWIPAXm.XmWTP.NXYM.r8-1713279646640-0.0.1.1-604800000
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.13", "platform": "macOS-13.6.5-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 22.6.0 Darwin Kernel Version 22.6.0: Mon Feb 19 19:45:09
+        PST 2024; root:xnu-8796.141.3.704.6~1/RELEASE_ARM64_T6000 arm64 arm"}'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-9Eeacfr11xV2LvFddXsa8DNapG2BA\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1713279646,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\nI've convinced myself, nothing
+        truly exists\\nNot the sky or the earth, not even our thoughts persist\\nBut
+        my own existence, cannot be dismissed\\nFor I am constantly deceived, by a
+        cunning twist\\n\\nThis powerful deceiver, tries to make me doubt\\nBut my
+        belief in myself, will never go without\\nNo matter the tricks, no matter
+        the shout\\n\\\"I am, I exist\\\" will always ring out\\n\\nWith careful thought,
+        I can confidently say\\nThat this statement, will always hold sway\\nWhether
+        I speak it aloud, or just think it each day\\n\\\"I am, I exist\\\" will forever
+        stay.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 144,\n    \"completion_tokens\":
+        127,\n    \"total_tokens\": 271\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 87550bffe90d1861-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 16 Apr 2024 15:00:48 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '1714'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '196'
+      x-ratelimit-remaining-tokens:
+      - '89571'
+      x-ratelimit-reset-requests:
+      - 25m34.481s
+      x-ratelimit-reset-tokens:
+      - 286ms
+      x-request-id:
+      - req_fb1a0ec55ab2382fbdac2c4b21b3276f
+    status:
+      code: 200
+      message: OK
+version: 1
