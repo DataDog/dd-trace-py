@@ -72,7 +72,7 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        from .plugin_v1 import _PytestDDTracePluginV1
+        from ._plugin_v1 import _PytestDDTracePluginV1
 
         config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
         # _PytestDDTracePluginV1.pytest_configure(config)
@@ -94,7 +94,7 @@ def ddspan(request):
     """Return the :class:`ddtrace._trace.span.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
-    from ddtrace.contrib.pytest.plugin_v1 import _extract_span
+    from ddtrace.contrib.pytest._plugin_v1 import _extract_span
     from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 
     if _CIVisibility.enabled:
