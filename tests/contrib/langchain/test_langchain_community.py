@@ -83,6 +83,7 @@ def test_global_tags(
         )
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
@@ -126,6 +127,7 @@ async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr)
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
@@ -351,6 +353,7 @@ def test_chat_model_metrics(langchain, langchain_openai, request_vcr, mock_metri
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1127,6 +1130,7 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
         chain.invoke({"input": "how can langsmith help with testing?"})
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
@@ -1443,6 +1447,7 @@ class TestLLMObsLangchain:
             output_role="assistant",
         )
 
+    @flaky(1735812000)
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_writer, mock_tracer, request_vcr):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
             [("system", "You are world class technical documentation writer."), ("user", "{input}")]
