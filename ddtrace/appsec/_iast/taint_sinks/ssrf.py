@@ -130,36 +130,37 @@ class SSRF(VulnerabilityBase):
                 idx = 0
                 new_value_parts = []
                 for part in vuln.evidence.valueParts:
-                    value = part["value"]
-                    part_len = len(value)
-                    part_start = idx
-                    part_end = idx + part_len
-                    pattern_list = []
+                    value = part.get("value", "")
+                    if value:
+                        part_len = len(value)
+                        part_start = idx
+                        part_end = idx + part_len
+                        pattern_list = []
 
-                    for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
-                        if _check_positions_contained(positions, (part_start, part_end)):
-                            part_scrub_start = max(positions[0] - idx, 0)
-                            part_scrub_end = positions[1] - idx
-                            pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
-                            if part.get("source", False) is not False:
-                                source = report.sources[part["source"]]
-                                if source.redacted:
-                                    part["redacted"] = source.redacted
-                                    part["pattern"] = source.pattern
-                                    del part["value"]
-                                new_value_parts.append(part)
-                                break
+                        for positions in vulns_to_tokens[vuln_hash]["token_positions"]:
+                            if _check_positions_contained(positions, (part_start, part_end)):
+                                part_scrub_start = max(positions[0] - idx, 0)
+                                part_scrub_end = positions[1] - idx
+                                pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
+                                if part.get("source", False) is not False:
+                                    source = report.sources[part["source"]]
+                                    if source.redacted:
+                                        part["redacted"] = source.redacted
+                                        part["pattern"] = source.pattern
+                                        del part["value"]
+                                    new_value_parts.append(part)
+                                    break
+                                else:
+                                    part["value"] = "".join(pattern_list)
+                                    new_value_parts.append(part)
+                                    new_value_parts.append({"redacted": True})
+                                    break
                             else:
-                                part["value"] = "".join(pattern_list)
                                 new_value_parts.append(part)
-                                new_value_parts.append({"redacted": True})
+                                pattern_list.append(value[part_start:part_end])
                                 break
-                        else:
-                            new_value_parts.append(part)
-                            pattern_list.append(value[part_start:part_end])
-                            break
 
-                    idx += part_len
+                        idx += part_len
                 vuln.evidence.valueParts = new_value_parts
         return report
 
