@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
+from ddtrace.contrib.pytest.plugin_v1 import _extract_span as _extract_feature_span
 from ddtrace.contrib.pytest_bdd import get_version
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
@@ -75,7 +75,7 @@ def pytest_configure(config):
         config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
 
-class _PytestBdd_PytestBddPluginPlugin:
+class _PytestBddPlugin:
     def __init__(self):
         self.framework_version = get_version()
 

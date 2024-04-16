@@ -1,12 +1,9 @@
-# breakpoint()
 import sys
 import warnings
-
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
 from ddtrace.internal.module import ModuleWatchdog
-
 
 ModuleWatchdog.install()
 
@@ -15,15 +12,15 @@ ModuleWatchdog.install()
 # getting a reference to the tracee's threading module. By storing a reference
 # to the threading module used by ddtrace here, we make it easy for those parts
 # to get a reference to the right threading module.
+import threading as _threading
 
-# from ._logger import configure_ddtrace_logger
+from ._logger import configure_ddtrace_logger
 
 
 # configure ddtrace logger before other modules log
-# configure_ddtrace_logger()  # noqa: E402
+configure_ddtrace_logger()  # noqa: E402
 
 from .settings import _config as config
-
 
 if config._telemetry_enabled:
     from ddtrace.internal import telemetry
@@ -35,17 +32,15 @@ if config._telemetry_enabled:
     # This will occur when the agent writer starts.
     telemetry.telemetry_writer.enable()
 
-from ddtrace._trace.span import Span  # noqa: E402
-from ddtrace._trace.tracer import Tracer  # noqa: E402
-from ddtrace.vendor import debtcollector
-
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
+from ddtrace._trace.span import Span  # noqa: E402
+from ddtrace._trace.tracer import Tracer  # noqa: E402
+from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
-
 
 # DEV: Import deprecated tracer module in order to retain side-effect of package
 # initialization, which added this module to sys.modules. We catch deprecation
@@ -53,6 +48,7 @@ from .version import get_version  # noqa: E402
 # initialization.
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
+    from .tracer import Tracer as _
 
 
 __version__ = get_version()

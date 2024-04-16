@@ -62,8 +62,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 
 
-PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
-
 log = get_logger(__name__)
 
 _global_skipped_elements = 0
@@ -400,34 +398,6 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     return test_suite_span
 
 
-@pytest.fixture(scope="function")
-def ddspan(request):
-    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
-    current test when Datadog CI Visibility is enabled.
-    """
-    if _CIVisibility.enabled:
-        return _extract_span(request.node)
-
-
-@pytest.fixture(scope="session")
-def ddtracer():
-    """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
-    visibility if it is enabled, otherwise return the default Datadog tracer.
-    """
-    if _CIVisibility.enabled:
-        return _CIVisibility._instance.tracer
-    return ddtrace.tracer
-
-
-@pytest.fixture(scope="session", autouse=True)
-def patch_all(request):
-    """Patch all available modules for Datadog tracing when ddtrace-patch-all
-    is specified in command or .ini.
-    """
-    if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
-        ddtrace.patch_all()
-
-
 def _find_pytest_item(item, pytest_item_type):
     """
     Given a `pytest.Item`, traverse upwards until we find a specified `pytest.Package` or `pytest.Module` item,
@@ -471,7 +441,6 @@ class _PytestDDTracePluginV1:
     @staticmethod
     def pytest_sessionstart(session):
         if _CIVisibility.enabled:
-            breakpoint()
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0

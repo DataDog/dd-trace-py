@@ -70,18 +70,16 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    # unpatch_unittest()
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
         from .plugin_v1 import _PytestDDTracePluginV1
 
         config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
-        _PytestDDTracePluginV1.pytest_configure(config)
+        # _PytestDDTracePluginV1.pytest_configure(config)
         # take_over_logger_stream_handler()
         # _CIVisibility.enable(config=ddtrace.config.pytest)
     # if _is_pytest_cov_enabled(config):
     #     patch_coverage()
-
 
 
 @pytest.hookimpl
@@ -89,3 +87,39 @@ def pytest_addhooks(pluginmanager):
     from ddtrace.contrib.pytest import newhooks
 
     pluginmanager.add_hookspecs(newhooks)
+
+
+@pytest.fixture(scope="function")
+def ddspan(request):
+    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
+    current test when Datadog CI Visibility is enabled.
+    """
+    from ddtrace.contrib.pytest.plugin_v1 import _extract_span
+    from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+
+    if _CIVisibility.enabled:
+        return _extract_span(request.node)
+
+
+@pytest.fixture(scope="session")
+def ddtracer():
+    """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
+    visibility if it is enabled, otherwise return the default Datadog tracer.
+    """
+    import ddtrace
+    from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+
+    if _CIVisibility.enabled:
+        return _CIVisibility._instance.tracer
+    return ddtrace.tracer
+
+
+@pytest.fixture(scope="session", autouse=True)
+def patch_all(request):
+    """Patch all available modules for Datadog tracing when ddtrace-patch-all
+    is specified in command or .ini.
+    """
+    import ddtrace
+
+    if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
+        ddtrace.patch_all()
