@@ -401,7 +401,9 @@ def filter_heartbeat_events():
 
 @pytest.fixture
 def telemetry_writer():
-    telemetry_writer = TelemetryWriter(is_periodic=False)
+    # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
+    # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
+    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
     telemetry_writer.enable()
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
@@ -413,7 +415,7 @@ def telemetry_writer():
     finally:
         if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
             telemetry_writer.disable()
-        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
 class TelemetryTestSession(object):
@@ -424,7 +426,7 @@ class TelemetryTestSession(object):
         self.gotten_events = dict()
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
+        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
