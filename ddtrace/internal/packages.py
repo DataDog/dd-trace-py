@@ -8,6 +8,7 @@ from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
@@ -140,7 +141,10 @@ def _third_party_packages() -> set:
     from gzip import decompress
     from importlib.resources import read_binary
 
-    return set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
+    return (
+        set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
+        | tp_config.excludes
+    ) - tp_config.includes
 
 
 def filename_to_package(filename):
