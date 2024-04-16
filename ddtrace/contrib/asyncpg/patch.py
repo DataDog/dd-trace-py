@@ -120,9 +120,8 @@ async def _traced_query(pin, method, query, args, kwargs):
         span.set_tags(pin.tags)
 
         # dispatch DBM
-        result = core.dispatch_with_results("asyncpg.execute", (config.asyncpg, method, span, args, kwargs)).result
-        if result:
-            span, args, kwargs = result.value
+        core.dispatch("asyncpg.execute", (config.asyncpg, method, span, args, kwargs))
+
         return await method(*args, **kwargs)
 
 

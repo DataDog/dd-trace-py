@@ -92,9 +92,7 @@ class TracedAsyncCursor(TracedCursor):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results("dbapi.execute", (self._self_config, s, args, kwargs)).result
-                if result:
-                    s, args, kwargs = result.value
+                core.dispatch("dbapi.execute", (self._self_config, s, args, kwargs))
 
             try:
                 return await method(*args, **kwargs)
