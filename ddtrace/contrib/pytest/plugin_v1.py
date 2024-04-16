@@ -400,48 +400,6 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     return test_suite_span
 
 
-# def pytest_addoption(parser):
-#     """Add ddtrace options."""
-#     group = parser.getgroup("ddtrace")
-#
-#     group._addoption(
-#         "--ddtrace",
-#         action="store_true",
-#         dest="ddtrace",
-#         default=False,
-#         help=DDTRACE_HELP_MSG,
-#     )
-#
-#     group._addoption(
-#         "--no-ddtrace",
-#         action="store_true",
-#         dest="no-ddtrace",
-#         default=False,
-#         help=NO_DDTRACE_HELP_MSG,
-#     )
-#
-#     group._addoption(
-#         "--ddtrace-patch-all",
-#         action="store_true",
-#         dest="ddtrace-patch-all",
-#         default=False,
-#         help=PATCH_ALL_HELP_MSG,
-#     )
-#
-#     group._addoption(
-#         "--ddtrace-include-class-name",
-#         action="store_true",
-#         dest="ddtrace-include-class-name",
-#         default=False,
-#         help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
-#     )
-#
-#     parser.addini("ddtrace", DDTRACE_HELP_MSG, type="bool")
-#     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
-#     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
-#     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
-
-
 @pytest.fixture(scope="function")
 def ddspan(request):
     """Return the :class:`ddtrace._trace.span.Span` instance associated with the
@@ -513,6 +471,7 @@ class _PytestDDTracePluginV1:
     @staticmethod
     def pytest_sessionstart(session):
         if _CIVisibility.enabled:
+            breakpoint()
             log.debug("CI Visibility enabled - starting test session")
             global _global_skipped_elements
             _global_skipped_elements = 0
@@ -593,8 +552,8 @@ class _PytestDDTracePluginV1:
                     )
                     item._dd_itr_test_unskippable = True
 
-                # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has been
-                # fully resolved because Pytest markers cannot be dynamically removed
+                # Due to suite skipping mode, defer adding ITR skip marker until unskippable status of the suite has
+                # been fully resolved because Pytest markers cannot be dynamically removed
                 if _CIVisibility._instance._suite_skipping_mode:
                     if item.module not in items_to_skip_by_module:
                         items_to_skip_by_module[item.module] = []
@@ -883,12 +842,6 @@ class _PytestDDTracePluginV1:
             if call.excinfo:
                 span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
 
-    # @pytest.hookimpl
-    # def pytest_addhooks(pluginmanager):
-    #     from ddtrace.contrib.pytest import newhooks
-    #
-    #     pluginmanager.add_hookspecs(newhooks)
-
     @staticmethod
     @pytest.hookimpl(trylast=True)
     def pytest_ddtrace_get_item_module_name(item):
@@ -897,8 +850,8 @@ class _PytestDDTracePluginV1:
 
         if _module_is_package(pytest_package_item, pytest_module_item):
             if _is_pytest_8_or_later():
-                # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by concatenating
-                # parent package names in reverse until we hit a non-Package-type item
+                # pytest 8.0.0 no longer treats Packages as Module/File, so we replicate legacy behavior by
+                # concatenating parent package names in reverse until we hit a non-Package-type item
                 # https://github.com/pytest-dev/pytest/issues/11137
                 package_names = []
                 current_package = pytest_package_item
