@@ -597,7 +597,10 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = get_argument_value(args, kwargs, 0, "inputs")
+        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        else:
+            inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -645,7 +648,10 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
     final_outputs = {}
     try:
-        inputs = get_argument_value(args, kwargs, 0, "inputs")
+        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        else:
+            inputs = get_argument_value(args, kwargs, 0, "inputs")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
