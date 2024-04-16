@@ -96,7 +96,7 @@ api_get_ranges(py::object& string_input)
     bool ranges_error;
     TaintRangeRefs ranges;
     std::tie(ranges, ranges_error) = get_ranges(string_input.ptr());
-    if(ranges_error){
+    if (ranges_error) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
     }
     return ranges;
