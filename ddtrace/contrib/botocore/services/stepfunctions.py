@@ -21,7 +21,6 @@ log = get_logger(__name__)
 
 def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
     if "input" not in params or params["input"] is None:
-        log.warning("Unable to inject context. The StepFunction input had no input.")
         return
 
     input_obj = params["input"]
