@@ -992,15 +992,23 @@
             "@molten",
             "tests/contrib/molten/*"
         ],
-        "mysqldb": [
+        "mysqlconnector": [
             "@bootstrap",
             "@core",
             "@tracing",
             "@contrib",
             "@dbapi",
             "@mysql",
-            "tests/contrib/mysqldb/*",
             "tests/contrib/mysql/*"
+        ],
+        "mysqlpython": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@dbapi",
+            "@mysql",
+            "tests/contrib/mysqldb/*"
         ],
         "pymysql": [
             "@bootstrap",
