@@ -10,14 +10,14 @@ from typing import Tuple  # noqa:F401
 
 from ddtrace import Span  # noqa:F401
 from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.ext import SpanKind
+from ddtrace.internal.constants import COMPONENT
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
 from ...ext import aws
 from ...ext import http
-from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils.formats import deep_getattr
 from ...propagation.http import HTTPPropagator
