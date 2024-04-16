@@ -96,7 +96,7 @@ def iast_taint_log_error(msg):
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
         log_message = "%s:\n%s", msg, frame_info
         log.warning(log_message)
-        _set_iast_error_metric("IAST propagation error. {}".format(msg))
+        _set_iast_error_metric("IAST propagation error. %s" % msg)
     else:
         log.debug(msg)
 
@@ -119,7 +119,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     try:
         pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
     except ValueError as e:
-        iast_taint_log_error(("Tainting object error (pyobject type %s): %s", (type(pyobject), e)))
+        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
         return pyobject
 
     _set_metric_iast_executed_source(source_origin)
@@ -130,14 +130,14 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
     try:
         set_ranges(pyobject, tuple(ranges))
     except ValueError as e:
-        iast_taint_log_error(("Tainting object with ranges error (pyobject type %s): %s", (type(pyobject), e)))
+        iast_taint_log_error("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     try:
         return get_ranges(pyobject)
     except ValueError as e:
-        iast_taint_log_error(("Get ranges error (pyobject type %s): %s", (type(pyobject), e)))
+        iast_taint_log_error("Get ranges error (pyobject type %s): %s" % (type(pyobject), e))
     return tuple()
 
 
