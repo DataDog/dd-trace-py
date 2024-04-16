@@ -24,6 +24,7 @@ AIOPG_VERSION = parse_version(__version__)
 
 # this should cause tests to run
 
+
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
