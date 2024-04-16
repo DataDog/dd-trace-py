@@ -118,20 +118,34 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
     """
     message = {}
     content = ""
+    formatted_content = ""
+    idx = None
     for chunk in streamed_chunks:
         chunk_content = getattr(chunk.delta, "content", "")
         if chunk_content:
             content += chunk_content
         elif getattr(chunk.delta, "function_call", None):
-            content += chunk.delta.function_call.arguments
+            if idx is None:
+                formatted_content += "\n\n[function: {}]\n\n".format(getattr(chunk.delta.function_call, "name", ""))
+                idx = chunk.index
+            function_args = getattr(chunk.delta.function_call, "arguments", "")
+            content += "{}".format(function_args)
+            formatted_content += "{}".format(function_args)
         elif getattr(chunk.delta, "tool_calls", None):
             for tool_call in chunk.delta.tool_calls:
-                content += tool_call.function.arguments
+                if tool_call.index != idx:
+                    formatted_content += "\n\n[tool: {}]\n\n".format(getattr(tool_call.function, "name", ""))
+                    idx = tool_call.index
+                function_args = getattr(tool_call.function, "arguments", "")
+                content += "{}".format(function_args)
+                formatted_content += "{}".format(function_args)
 
     message["role"] = streamed_chunks[0].delta.role or "assistant"
     if streamed_chunks[-1].finish_reason is not None:
         message["finish_reason"] = streamed_chunks[-1].finish_reason
-    message["content"] = content
+    message["content"] = content.strip()
+    if formatted_content:
+        message["formatted_content"] = formatted_content.strip()
     return message
 
 
