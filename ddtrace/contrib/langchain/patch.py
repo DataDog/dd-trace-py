@@ -145,6 +145,30 @@ def _tag_openai_token_usage(
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
 
 
+def _is_openai_llm_instance(instance):
+    """Safely check if a traced instance is an OpenAI LLM.
+    langchain_community does not automatically import submodules which may result in AttributeErrors.
+    """
+    try:
+        if langchain_openai:
+            return isinstance(instance, langchain_openai.OpenAI)
+        return isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
+    except (AttributeError, ModuleNotFoundError, ImportError):
+        return False
+
+
+def _is_openai_chat_instance(instance):
+    """Safely check if a traced instance is an OpenAI Chat Model.
+    langchain_community does not automatically import submodules which may result in AttributeErrors.
+    """
+    try:
+        if langchain_openai:
+            return isinstance(instance, langchain_openai.ChatOpenAI)
+        return isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
+    except (AttributeError, ModuleNotFoundError, ImportError):
+        return False
+
+
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
@@ -173,9 +197,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
-        ):
+        if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -253,9 +275,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
-        ):
+        if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -346,9 +366,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
-        ):
+        if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
@@ -453,9 +471,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
-        ):
+        if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
