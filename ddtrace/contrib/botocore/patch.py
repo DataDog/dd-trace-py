@@ -36,7 +36,7 @@ from ..trace_utils import unwrap
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import patched_sqs_api_call
-from .services.sqs import update_message as inject_trace_to_sqs_or_sns_message
+from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import inject_trace_to_stepfunction_input
 from .services.stepfunctions import patched_stepfunction_api_call
 from .utils import inject_trace_to_client_context
@@ -183,7 +183,11 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
         injection_function = inject_trace_to_eventbridge_detail
         cloud_service = "events"
     if endpoint_name == "sns" and "Publish" in operation:
-        injection_function = inject_trace_to_sqs_or_sns_message
+        injection_function = (  # noqa: E731
+            lambda ctx, params, span, endpoint_service: inject_trace_to_sqs_or_sns_message(
+                ctx, params, endpoint_service
+            )
+        )
         cloud_service = "sns"
     if endpoint_name == "states" and (operation == "StartExecution" or operation == "StartSyncExecution"):
         injection_function = inject_trace_to_stepfunction_input
