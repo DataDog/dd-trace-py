@@ -94,7 +94,7 @@ def iast_taint_log_error(msg):
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log_message = "%s:\n%s", msg, frame_info
+        log_message = "%s:\n%s" % (msg, frame_info)
         log.warning(log_message)
         _set_iast_error_metric("IAST propagation error. %s" % msg)
     else:
