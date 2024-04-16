@@ -647,6 +647,8 @@ def listen():
     core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.patched_sqs_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.sqs_sns.update_messages", _on_botocore_sqs_update_messages)
+    core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
 
     for context_name in (
         "flask.call",
@@ -662,6 +664,7 @@ def listen():
         "botocore.instrumented_lib_function",
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
+        "botocore.patched_stepfunctions_api_call",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

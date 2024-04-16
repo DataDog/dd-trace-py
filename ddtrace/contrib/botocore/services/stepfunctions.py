@@ -1,12 +1,12 @@
 import json
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
+from typing import Any
+from typing import Dict
 
 import botocore.exceptions
 
-from ddtrace import Span  # noqa:F401
+from ddtrace import Span
 from ddtrace import config
-from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.propagation.http import HTTPPropagator
 
 from ....ext import SpanTypes
@@ -21,8 +21,7 @@ from ..utils import set_response_metadata_tags
 log = get_logger(__name__)
 
 
-def inject_trace_to_stepfunction_input(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_stepfunction_input(params: Any, span: Span) -> None:
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -71,12 +70,21 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
+    with core.context_with_data(
+        "botocore.patched_stepfunctions_api_call",
+        span_name=trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
-    ) as span:
-        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+        call_key="patched_stepfunctions_api_call",
+        instance=instance,
+        args=args,
+        params=params,
+        endpoint_name=endpoint_name,
+        operation=operation,
+        context_started_callback=set_patched_api_call_span_tags,
+        pin=pin,
+    ) as ctx, ctx.get_item(ctx["call_key"]) as span:
+        core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
 
         if args:
             if config.botocore["distributed_tracing"]:
@@ -95,11 +103,8 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         try:
             return original_func(*args, **kwargs)
         except botocore.exceptions.ClientError as e:
-            set_response_metadata_tags(span, e.response)
-
-            # If we have a status code, and the status code is not an error,
-            #   then ignore the exception being raised
-            status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                span._ignore_exception(botocore.exceptions.ClientError)
+            core.dispatch(
+                "botocore.patched_stepfunctions_api_call.exception",
+                [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+            )
             raise
