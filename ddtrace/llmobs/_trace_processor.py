@@ -12,6 +12,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -24,6 +25,9 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
+
+
+log = get_logger(__name__)
 
 
 class LLMObsTraceProcessor(TraceProcessor):
@@ -44,8 +48,11 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
-        span_event = self._llmobs_span_event(span)
-        self._writer.enqueue(span_event)
+        try:
+            span_event = self._llmobs_span_event(span)
+            self._writer.enqueue(span_event)
+        except (KeyError, TypeError):
+            log.error("Error generating LLMObs span event for span %s, likely due to malformed span", span)
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
@@ -85,7 +92,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "tags": tags,
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
-            "error": span.error,
+            "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
         }
