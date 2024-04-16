@@ -386,6 +386,9 @@
         "django": [
             "ddtrace/contrib/django/*"
         ],
+        "aiopg": [
+            "ddtrace/contrib/aiopg/*"
+        ],
         "pytest": [
             "ddtrace/contrib/pytest/*",
             "ddtrace/contrib/pytest_bdd/*",
@@ -1213,6 +1216,7 @@
             "@tracing",
             "@dbapi",
             "@pg",
+            "@aiopg",
             "tests/contrib/aiopg/*",
             "tests/contrib/shared_tests.py"
         ],
