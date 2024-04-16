@@ -35,6 +35,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
+        raise TypeError
         if not pin or not pin.enabled():
             result = await method(*args, **kwargs)
             return result
