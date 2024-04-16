@@ -90,7 +90,7 @@ def inject_trace_to_sqs_or_sns_message(ctx, params: Any, span, endpoint_service:
     :endpoint_service: endpoint of message, "sqs" or "sns"
     Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
-    if "Entries" in params:
+    if "Entries" in params or "PublishBatchRequestEntries" in params:
         entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
         if len(entries) == 0:
             log.warning("Skipping injecting Datadog attributes to records, no records available")
