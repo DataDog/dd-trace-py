@@ -12,7 +12,6 @@ from ddtrace.contrib.botocore.utils import set_patched_api_call_span_tags
 from ddtrace.contrib.botocore.utils import set_response_metadata_tags
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -73,19 +72,15 @@ def inject_trace_to_sqs_or_sns_batch_message(ctx, params: Any, span, endpoint_se
     :endpoint_service: endpoint of message, "sqs" or "sns"
     Inject trace headers info into MessageAttributes for all SQS or SNS records inside a batch
     """
-
-    trace_data = {}
-
-    # An entry here is an SNS or SQS record, and depending on how it was published,
-    # it could either show up under Entries (in case of PutRecords),
-    # or PublishBatchRequestEntries (in case of PublishBatch).
+    return inject_trace_to_sqs_or_sns_message(ctx, params, span, endpoint_service=endpoint_service)
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
-    if len(entries) != 0:
-        for entry in entries:
-            core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params, entry])
-            inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
-    else:
+    if len(entries) == 0:
         log.warning("Skipping injecting Datadog attributes to records, no records available")
+        return
+    trace_data = {}
+    for entry in entries:
+        core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params, entry])
+        inject_trace_data_to_message_attributes(trace_data, entry, endpoint_service)
 
 
 def inject_trace_to_sqs_or_sns_message(ctx, params: Any, span, endpoint_service: Optional[str] = None) -> None:
@@ -95,9 +90,23 @@ def inject_trace_to_sqs_or_sns_message(ctx, params: Any, span, endpoint_service:
     :endpoint_service: endpoint of message, "sqs" or "sns"
     Inject trace headers info into MessageAttributes for the SQS or SNS record
     """
+    if "Entries" in params:
+        entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
+        if len(entries) == 0:
+            log.warning("Skipping injecting Datadog attributes to records, no records available")
+            return
+    else:
+        entries = [None]
     trace_data = {}
-    core.dispatch("botocore.sqs_sns.update_messages", [ctx, span, endpoint_service, trace_data, params])
-    inject_trace_data_to_message_attributes(trace_data, params, endpoint_service)
+    for entry in entries:
+        dispatch_args = [ctx, span, endpoint_service, trace_data, params]
+        if entry is not None:
+            dispatch_args.append(entry)
+            inject_args = [trace_data, entry, endpoint_service]
+        else:
+            inject_args = [trace_data, params, endpoint_service]
+        core.dispatch("botocore.sqs_sns.update_messages", dispatch_args)
+        inject_trace_data_to_message_attributes(*inject_args)
 
 
 def _ensure_datadog_messageattribute_enabled(params):
@@ -118,14 +127,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     func_run = False
     func_run_err = None
     child_of = None
-    start_ns = None
     result = None
 
     if operation == "ReceiveMessage":
         _ensure_datadog_messageattribute_enabled(params)
 
         try:
-            start_ns = time_ns()
             func_run = True
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             # run the function to extract possible parent context before starting span
@@ -179,13 +186,8 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             call_trace=False,
             call_key="instrumented_sqs_call",
             pin=pin,
-        ) as ctx, ctx.get_item(ctx.get_item("call_key")) as span:
+        ) as ctx, ctx.get_item(ctx.get_item("call_key")):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
-
-            # we need this since we may have ran the wrapped operation before starting the span
-            # we need to ensure the span start time is correct
-            if start_ns is not None and func_run:
-                span.start_ns = start_ns
 
             if should_update_messages:
                 message_update_function(
