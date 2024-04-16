@@ -4,10 +4,8 @@ from typing import Dict
 
 import botocore.exceptions
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.propagation.http import HTTPPropagator
 
 from ....ext import SpanTypes
 from ....internal.logger import get_logger
@@ -21,43 +19,26 @@ from ..utils import set_response_metadata_tags
 log = get_logger(__name__)
 
 
-def update_stepfunction_input(params: Any, span: Span) -> None:
-    try:
-        if "input" not in params:
-            log.warning("Unable to inject context. The StepFunction input had no input.")
+def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
+    if "input" not in params or params["input"] is None:
+        log.warning("Unable to inject context. The StepFunction input had no input.")
+        return
+
+    input_obj = params["input"]
+
+    if isinstance(input_obj, str):
+        try:
+            input_obj = json.loads(params["input"])
+        except ValueError:
+            log.warning("Input is not a valid JSON string")
             return
 
-        if params["input"] is None:
-            log.warning("Unable to inject context. The StepFunction input was None.")
-            return
+    if not isinstance(input_obj, dict) or "_datadog" in input_obj:
+        return
 
-        elif isinstance(params["input"], dict):
-            if "_datadog" in params["input"]:
-                log.warning("Input already has trace context.")
-                return
-            params["input"]["_datadog"] = {}
-            HTTPPropagator.inject(span.context, params["input"]["_datadog"])
-            return
+    input_obj["_datadog"] = {}
 
-        elif isinstance(params["input"], str):
-            try:
-                input_obj = json.loads(params["input"])
-            except ValueError:
-                log.warning("Input is not a valid JSON string")
-                return
-
-            if isinstance(input_obj, dict):
-                input_obj["_datadog"] = {}
-                HTTPPropagator.inject(span.context, input_obj["_datadog"])
-                return
-            else:
-                log.warning("Unable to inject context. The StepFunction input was not a dict.")
-                return
-
-        else:
-            log.warning("Unable to inject context. The StepFunction input was not a dict or a JSON string.")
-    except Exception:
-        log.warning("Unable to inject trace context", exc_info=True)
+    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj["_datadog"], None])
 
 
 def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, function_vars: Dict):
@@ -92,11 +73,11 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         operation=operation,
         context_started_callback=set_patched_api_call_span_tags,
         pin=pin,
-    ) as ctx, ctx.get_item(ctx["call_key"]) as span:
+    ) as ctx, ctx.get_item(ctx["call_key"]):
         core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
 
         if should_update_input:
-            update_stepfunction_input(params, span)
+            update_stepfunction_input(ctx, params)
 
         try:
             return original_func(*args, **kwargs)

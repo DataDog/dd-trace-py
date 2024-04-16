@@ -65,7 +65,7 @@ def update_messages(ctx, params: Any, endpoint_service: Optional[str] = None) ->
         entries = [None]
     data_to_add = {}
     for entry in entries:
-        dispatch_args = [ctx, None, endpoint_service, data_to_add, params]
+        dispatch_args = [ctx, None, None, data_to_add, None]
         if entry is not None:
             dispatch_args.append(entry)
             inject_args = [data_to_add, entry, endpoint_service]
