@@ -4,8 +4,12 @@ PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map)
 {
     auto idx_long = PyLong_AsLong(idx);
-    TaintRangeRefs ranges_to_set;
-    auto ranges = get_ranges(candidate_text);
+    bool ranges_error;
+    TaintRangeRefs ranges_to_set, ranges;
+    std::tie(ranges, ranges_error) = get_ranges(candidate_text, tx_taint_map);
+    if (ranges_error) {
+        return result_o;
+    }
     for (const auto& current_range : ranges) {
         if (current_range->start <= idx_long and idx_long < (current_range->start + current_range->length)) {
             ranges_to_set.emplace_back(initializer->allocate_taint_range(0l, 1l, current_range->source));
