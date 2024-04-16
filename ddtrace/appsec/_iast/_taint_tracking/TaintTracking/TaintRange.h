@@ -81,17 +81,25 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset
 TaintRangeRefs
 api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH new_length);
 
-TaintRangeRefs
+std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map);
-inline TaintRangeRefs
+
+inline std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input)
 {
     return get_ranges(string_input, nullptr);
 }
+
 inline TaintRangeRefs
 api_get_ranges(py::object& string_input)
 {
-    return get_ranges(string_input.ptr());
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr());
+    if(ranges_error){
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+    return ranges;
 }
 
 bool

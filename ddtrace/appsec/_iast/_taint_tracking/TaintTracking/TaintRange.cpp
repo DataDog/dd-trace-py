@@ -130,33 +130,33 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
     return pyobject_n;
 }
 
-TaintRangeRefs
+std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 {
+    TaintRangeRefs result;
     if (not is_text(string_input))
-        return {};
+        return std::make_pair(result, false);
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-            return {};
+            return std::make_pair(result, true);
         }
     }
     if (tx_map->empty()) {
-        return {};
+        return std::make_pair(result, false);
     }
     const auto it = tx_map->find(get_unique_id(string_input));
     if (it == tx_map->end()) {
-        return {};
+        return std::make_pair(result, false);
     }
 
     if (get_internal_hash(string_input) != it->second.first) {
         tx_map->erase(it);
-        return {};
+        return std::make_pair(result, false);
     }
 
-    return it->second.second->get_ranges();
+    return std::make_pair(it->second.second->get_ranges(), false);
 }
 
 bool
@@ -203,20 +203,23 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
         return {};
 
     auto tx_map = initializer->get_tainting_map();
-    TaintRangeRefs candidate_text_ranges{ get_ranges(candidate_text, tx_map) };
-    TaintRangeRefs all_ranges;
+    bool ranges_error;
+    TaintRangeRefs candidate_text_ranges, all_ranges;
+    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text, tx_map);
+    if (not ranges_error) {
+        for (const auto& param_handler : parameter_list) {
+            auto param = param_handler.cast<py::object>().ptr();
 
-    for (const auto& param_handler : parameter_list) {
-        auto param = param_handler.cast<py::object>().ptr();
-
-        if (is_text(param)) {
-            // TODO: OPT
-            TaintRangeRefs ranges{ get_ranges(param, tx_map) };
-            all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
+            if (is_text(param)) {
+                TaintRangeRefs ranges;
+                std::tie(ranges, ranges_error) = get_ranges(param, tx_map);
+                if (not ranges_error) {
+                    all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
+                }
+            }
         }
+        all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
     }
-
-    all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
     return { all_ranges, candidate_text_ranges };
 }
 
@@ -242,8 +245,14 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
 
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_1.ptr(), tx_map);
-    bool result = set_ranges(str_2.ptr(), ranges, tx_map);
+    bool ranges_error, result;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
+    if (ranges_error) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
+        return;
+    }
+    result = set_ranges(str_2.ptr(), ranges, tx_map);
     if (not result) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
@@ -252,16 +261,17 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 inline void
 api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset, int new_length = -1)
 {
-    const char* result_error_msg = MSG_ERROR_SET_RANGES;
-    bool result = false;
+    bool ranges_error, result;
     TaintRangeRefs ranges;
     auto tx_map = initializer->get_tainting_map();
-
-    ranges = get_ranges(str_1.ptr(), tx_map);
-
+    std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
+    if (ranges_error) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
+        return;
+    }
     result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
     if (not result) {
-        py::set_error(PyExc_TypeError, result_error_msg);
+        py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
 
