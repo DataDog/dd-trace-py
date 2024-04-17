@@ -28,6 +28,7 @@ SNAPSHOT_IGNORES = [
     "duration",
     "start",
 ]
+SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["http.useragent"]
 
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
@@ -119,7 +120,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             ):
                 subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
     def test_pytest_with_ddtrace_patch_all(self):
         call_httpx = """
                 import httpx
