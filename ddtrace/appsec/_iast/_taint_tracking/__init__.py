@@ -6,6 +6,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 
 from ..._constants import IAST
 from .._metrics import _set_iast_error_metric
@@ -89,13 +90,12 @@ __all__ = [
 
 
 def iast_taint_log_error(msg):
-    if os.environ.get(IAST.ENV_DEBUG, False):
+    if asbool(os.environ.get(IAST.ENV_DEBUG, "false")):
         import inspect
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log_message = "%s:\n%s", msg, frame_info
-        log.warning(log_message)
+        log.warning("%s:\n%s", msg, frame_info)
         _set_iast_error_metric("IAST propagation error. %s" % msg)
     else:
         log.debug(msg)
