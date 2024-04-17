@@ -152,12 +152,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_completions:
+            return
+        if streamed_completions:
             span.set_tag_str(
                 OUTPUT_MESSAGES, json.dumps([{"content": choice["text"]} for choice in streamed_completions])
             )
-        else:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
+            return
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": choice.text} for choice in resp.choices]))
 
     @staticmethod
     def _llmobs_set_meta_tags_from_chat(
@@ -168,8 +169,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         for m in kwargs.get("messages", []):
             if isinstance(m, dict):
                 input_messages.append({"content": str(m.get("content", "")), "role": str(m.get("role", ""))})
-            else:
-                input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
+                continue
+            input_messages.append({"content": str(getattr(m, "content", "")), "role": str(getattr(m, "role", ""))})
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
@@ -177,24 +178,33 @@ class OpenAIIntegration(BaseLLMIntegration):
         span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        elif streamed_messages:
-            span.set_tag_str(
-                OUTPUT_MESSAGES, json.dumps([{"content": m["content"], "role": m["role"]} for m in streamed_messages])
-            )
-        else:
-            output_messages = []
-            for idx, choice in enumerate(resp.choices):
-                content = getattr(choice.message, "content", "")
-                if getattr(choice.message, "function_call", None):
-                    content = choice.message.function_call.arguments
-                elif getattr(choice.message, "tool_calls", None):
-                    content = ""
-                    for tool_call in choice.message.tool_calls:
-                        content += "\n[tool: {}]\n\n{}\n".format(
-                            getattr(tool_call.function, "name", ""), tool_call.function.arguments
-                        )
-                output_messages.append({"content": str(content).strip(), "role": choice.message.role})
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+            return
+        if streamed_messages:
+            messages = []
+            for message in streamed_messages:
+                if "formatted_content" in message:
+                    messages.append({"content": message["formatted_content"], "role": message["role"]})
+                    continue
+                messages.append({"content": message["content"], "role": message["role"]})
+            span.set_tag_str(OUTPUT_MESSAGES, json.dumps(messages))
+            return
+        output_messages = []
+        for idx, choice in enumerate(resp.choices):
+            content = getattr(choice.message, "content", "")
+            if getattr(choice.message, "function_call", None):
+                content = "[function: {}]\n\n{}".format(
+                    getattr(choice.message.function_call, "name", ""),
+                    getattr(choice.message.function_call, "arguments", ""),
+                )
+            elif getattr(choice.message, "tool_calls", None):
+                content = ""
+                for tool_call in choice.message.tool_calls:
+                    content += "\n[tool: {}]\n\n{}\n".format(
+                        getattr(tool_call.function, "name", ""),
+                        getattr(tool_call.function, "arguments", ""),
+                    )
+            output_messages.append({"content": str(content).strip(), "role": choice.message.role})
+        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
     @staticmethod
     def _set_llmobs_metrics_tags(span: Span, resp: Any, streamed: bool = False) -> Dict[str, Any]:
