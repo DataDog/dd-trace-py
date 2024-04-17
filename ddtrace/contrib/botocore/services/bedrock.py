@@ -7,7 +7,6 @@ from typing import List
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt
 
 from ....internal.schema import schematize_service_name
@@ -248,23 +247,19 @@ def _extract_streamed_response_metadata(
     }
 
 
-def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockIntegration, params: Dict[str, Any]) -> None:
+def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
-    request_params = _extract_request_params(params, ctx["model_provider"])
-    core.dispatch(
-        "botocore.patched_bedrock_api_call.started",
-        [ctx, ctx["model_provider"], ctx["model_name"], request_params, integration],
-    )
+    request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
+    core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and integration.is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
+        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
             prompt = v
     ctx.set_item("prompt", prompt)
 
 
 def handle_bedrock_response(
     ctx: core.ExecutionContext,
-    integration: BedrockIntegration,
     result: Dict[str, Any],
 ) -> Dict[str, Any]:
     metadata = result["ResponseMetadata"]
@@ -285,30 +280,26 @@ def handle_bedrock_response(
 
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
-    trace_operation = function_vars.get("trace_operation")
-    operation = function_vars.get("operation")
     pin = function_vars.get("pin")
-    endpoint_name = function_vars.get("endpoint_name")
-    integration = function_vars.get("integration")
     model_provider, model_name = params.get("modelId").split(".")
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
-        span_name=trace_operation,
-        service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        resource=operation,
+        span_name=function_vars.get("trace_operation"),
+        service=schematize_service_name("{}.{}".format(pin.service, function_vars.get("endpoint_name"))),
+        resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM,
         call_key="instrumented_bedrock_call",
         call_trace=True,
-        bedrock_integration=integration,
+        bedrock_integration=function_vars.get("integration"),
         params=params,
         model_provider=model_provider,
         model_name=model_name,
     ) as ctx:
         try:
-            handle_bedrock_request(ctx, integration, params)
+            handle_bedrock_request(ctx)
             result = original_func(*args, **kwargs)
-            result = handle_bedrock_response(ctx, integration, result)
+            result = handle_bedrock_response(ctx, result)
             return result
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, sys.exc_info()])

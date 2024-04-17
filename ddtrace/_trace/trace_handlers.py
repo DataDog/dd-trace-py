@@ -610,10 +610,11 @@ def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
     HTTPPropagator.inject(context, trace_data)
 
 
-def _on_botocore_patched_bedrock_api_call_started(ctx, model_provider, model_name, request_params, integration):
+def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx[ctx["call_key"]]
-    span.set_tag_str("bedrock.request.model_provider", model_provider)
-    span.set_tag_str("bedrock.request.model", model_name)
+    integration = ctx["bedrock_integration"]
+    span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
+    span.set_tag_str("bedrock.request.model", ctx["model_name"])
     for k, v in request_params.items():
         if k == "prompt":
             if integration.is_pc_sampled_span(span):
