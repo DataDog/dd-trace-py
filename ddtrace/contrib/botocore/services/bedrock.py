@@ -7,6 +7,7 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.vendor import wrapt
@@ -334,19 +335,23 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     integration = function_vars.get("integration")
-    # This span will be finished once the user fully consumes the stream body, or on error.
-    bedrock_span = pin.tracer.trace(
-        trace_operation,
+    with core.context_with_data(
+        "botocore.patched_bedrock_api_call",
+        pin=pin,
+        span_name=trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         resource=operation,
         span_type=SpanTypes.LLM,
-    )
-    prompt = None
-    try:
-        prompt = handle_bedrock_request(bedrock_span, integration, params)
-        result = original_func(*args, **kwargs)
-        result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
-        return result
-    except Exception:
-        _handle_exception(bedrock_span, integration, prompt, sys.exc_info())
-        raise
+        call_key="instrumented_bedrock_call",
+        call_trace=True,
+    ) as ctx:
+        bedrock_span = ctx[ctx["call_key"]]
+        prompt = None
+        try:
+            prompt = handle_bedrock_request(bedrock_span, integration, params)
+            result = original_func(*args, **kwargs)
+            result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
+            return result
+        except Exception:
+            _handle_exception(bedrock_span, integration, prompt, sys.exc_info())
+            raise
