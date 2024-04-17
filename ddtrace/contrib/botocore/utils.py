@@ -74,8 +74,8 @@ def get_kinesis_data_object(data):
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_eventbridge_detail(ctx, params, span):
+    # type: (Any, Any, Span) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -118,7 +118,7 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def inject_trace_to_client_context(params, span):
+def inject_trace_to_client_context(ctx, params, span):
     trace_headers = {}
     HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
