@@ -75,11 +75,6 @@ def pytest_configure(config):
         from ._plugin_v1 import _PytestDDTracePluginV1
 
         config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
-        # _PytestDDTracePluginV1.pytest_configure(config)
-        # take_over_logger_stream_handler()
-        # _CIVisibility.enable(config=ddtrace.config.pytest)
-    # if _is_pytest_cov_enabled(config):
-    #     patch_coverage()
 
 
 @pytest.hookimpl
