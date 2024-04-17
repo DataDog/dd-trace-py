@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import itertools
 import json
 from typing import Dict
 from typing import List
@@ -1148,20 +1149,31 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
-        ["endpoint", "parameters", "rule", "top_function"],
-        [
-            ("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", "rasp"),
-            ("ssrf", "url1=169.254.169.254&url2=169.254.169.253", "rasp-934-100", "urlopen"),
+        ["endpoint", "parameters", "rule", "top_functions"],
+        [("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", ("rasp",))]
+        + [
+            ("ssrf", f"url_{p1}_1=169.254.169.254&url_{p2}_2=169.254.169.253", "rasp-934-100", (f1, f2))
+            for (p1, f1), (p2, f2) in itertools.product(
+                [
+                    ("urlopen_string", "urlopen"),
+                    ("urlopen_request", "urlopen"),
+                    ("requests", "request"),
+                ],
+                repeat=2,
+            )
         ],
     )
     def test_exploit_prevention(
-        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_function
+        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_functions
     ):
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
+        from ddtrace.contrib.requests import patch as patch_requests
+        from ddtrace.contrib.requests import unpatch as unpatch_requests
         from ddtrace.ext import http
 
         try:
+            patch_requests()
             with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
                 dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
             ):
@@ -1176,12 +1188,16 @@ class Contrib_TestClass_For_Threats:
                     assert self.check_for_stack_trace(root_span)
                     for trace in self.check_for_stack_trace(root_span):
                         assert "frames" in trace
-                        assert trace["frames"][0]["function"].endswith(top_function)
+                        function = trace["frames"][0]["function"]
+                        assert any(
+                            function.endswith(top_function) for top_function in top_functions
+                        ), f"unknown top function {function}"
                 else:
                     assert get_triggers(root_span()) is None
                     assert self.check_for_stack_trace(root_span) == []
         finally:
             unpatch_common_modules()
+            unpatch_requests()
 
     @pytest.mark.skip(reason="iast integration not working yet")
     def test_iast(self, iast, interface, root_span, get_tag):
