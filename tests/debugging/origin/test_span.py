@@ -49,8 +49,11 @@ class SpanProbeTestCase(TracerTestCase):
 
         # Check that we don't have span location tags on the middle span
         assert middle.get_tag("_dd.entry_location.file") is None
-        assert middle.get_tag("_dd.exit_location.file") is None
+        assert middle.get_tag("_dd.exit_location.1.file") is None
 
         # Check for the expected tags on the exit span
-        assert _exit.get_tag("_dd.exit_location.file") is not None  # TODO: Fix
-        assert _exit.get_tag("_dd.exit_location.line") is not None  # TODO: Fix
+        assert _exit.get_tag("_dd.exit_location.1.file") == str(Path(__file__).resolve())
+        assert _exit.get_tag("_dd.exit_location.1.line") == "35"
+
+        # The rest is all third party
+        assert _exit.get_tag("_dd.exit_location.2.file") is None

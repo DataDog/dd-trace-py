@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from functools import partial as λ
+from itertools import count
 from pathlib import Path
 import sys
 from threading import current_thread
@@ -11,6 +12,7 @@ import uuid
 import attr
 
 import ddtrace
+from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -20,9 +22,17 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
 from ddtrace.internal.injection import inject_hook
+from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.span import Span
+
+
+def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
+    _frame: t.Optional[FrameType] = frame
+    while _frame is not None:
+        yield _frame
+        _frame = _frame.f_back
 
 
 @attr.s
@@ -93,22 +103,23 @@ def add_entry_location_info(location: EntrySpanLocation) -> None:
     root.set_tag_str("_dd.entry_location.type", location.module)
     root.set_tag_str("_dd.entry_location.method", location.name)
 
-    # Create a snapshot
-    snapshot = Snapshot(
-        probe=location.probe,
-        frame=sys._getframe(1),
-        thread=current_thread(),
-        trace_context=root,
-    )
+    if config._trace_span_origin_enriched:
+        # Create a snapshot
+        snapshot = Snapshot(
+            probe=location.probe,
+            frame=sys._getframe(1),
+            thread=current_thread(),
+            trace_context=root,
+        )
 
-    # Capture on entry
-    snapshot.line()
+        # Capture on entry
+        snapshot.line()
 
-    # Collect
-    Debugger.get_collector().push(snapshot)
+        # Collect
+        Debugger.get_collector().push(snapshot)
 
-    # Correlate the snapshot with the span
-    root.set_tag_str("_dd.entry_location.snapshot_id", snapshot.uuid)
+        # Correlate the snapshot with the span
+        root.set_tag_str("_dd.entry_location.snapshot_id", snapshot.uuid)
 
 
 @attr.s
@@ -119,29 +130,35 @@ class SpanOriginProcessor(SpanProcessor):
         if span.span_type not in EXIT_SPAN_TYPES:
             return
 
-        # Get the user frame
-        frame = sys._getframe(9)  # TODO: Pick the first user frame
+        # Add call stack information to the exit span. Report only the part of
+        # the stack that belongs to user code.
+        # TODO: Add a limit to the number of frames to capture
+        seq = count(1)
+        for frame in frame_stack(sys._getframe(1)):
+            frame_origin = Path(frame.f_code.co_filename)
 
-        # Add location information to the exit span
-        span.set_tag_str("_dd.exit_location.file", str(Path(frame.f_code.co_filename).resolve()))
-        span.set_tag_str("_dd.exit_location.line", str(frame.f_lineno))
+            if is_user_code(frame_origin):
+                n = next(seq)
+                span.set_tag_str(f"_dd.exit_location.{n}.file", str(frame_origin.resolve()))
+                span.set_tag_str(f"_dd.exit_location.{n}.line", str(frame.f_lineno))
 
-        # Create a snapshot
-        snapshot = Snapshot(
-            probe=ExitSpanProbe.from_frame(frame),
-            frame=frame,
-            thread=current_thread(),
-            trace_context=span,
-        )
+                if config._trace_span_origin_enriched:
+                    # Create a snapshot
+                    snapshot = Snapshot(
+                        probe=ExitSpanProbe.from_frame(frame),
+                        frame=frame,
+                        thread=current_thread(),
+                        trace_context=span,
+                    )
 
-        # Capture on entry
-        snapshot.line()
+                    # Capture on entry
+                    snapshot.line()
 
-        # Collect
-        Debugger.get_collector().push(snapshot)
+                    # Collect
+                    Debugger.get_collector().push(snapshot)
 
-        # Correlate the snapshot with the span
-        span.set_tag_str("_dd.exit_location.snapshot_id", snapshot.uuid)
+                    # Correlate the snapshot with the span
+                    span.set_tag_str("_dd.exit_location.snapshot_id", snapshot.uuid)
 
     def on_span_finish(self, span: Span) -> None:
         pass
