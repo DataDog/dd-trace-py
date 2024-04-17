@@ -3,7 +3,6 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Optional
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -29,23 +28,12 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
     """
     This class wraps the StreamingBody object returned by botocore api calls, specifically for Bedrock invocations.
     Since the response body is in the form of a stream object, we need to wrap it in order to tag the response data
-    and finish the span as the user consumes the streamed response.
-    Currently, the corresponding span finishes only if:
-     1) the user fully consumes the stream body
-     2) error during reading
-    This means that if the stream is not consumed, there is a small risk of memory leak due to unfinished spans.
+    and fire completion events as the user consumes the streamed response.
     """
 
-    def __init__(self, wrapped, span, integration, prompt=None, ctx: core.ExecutionContext = None):
-        """
-        The TracedBotocoreStreamingBody wrapper stores a reference to the
-        underlying Span object, BedrockIntegration object, and the response body that will saved and tagged.
-        """
+    def __init__(self, wrapped, ctx: core.ExecutionContext):
         super().__init__(wrapped)
-        self._datadog_span = span
-        self._datadog_integration = integration
         self._body = []
-        self._prompt = prompt
         self._execution_ctx = ctx
 
     def read(self, amt=None):
@@ -54,12 +42,11 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             body = self.__wrapped__.read(amt=amt)
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
-                formatted_response = _extract_response(self._execution_ctx, self._body[0])
-                self._process_response(formatted_response)
-                self._datadog_span.finish()
+                formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
+                core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, None])
             return body
         except Exception:
-            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
             raise
 
     def readlines(self):
@@ -68,12 +55,11 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             lines = self.__wrapped__.readlines()
             for line in lines:
                 self._body.append(json.loads(line))
-            formatted_response = _extract_response(self._execution_ctx, self._body[0])
-            self._process_response(formatted_response)
-            self._datadog_span.finish()
+            formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
+            core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, None])
             return lines
         except Exception:
-            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
             raise
 
     def __iter__(self):
@@ -84,18 +70,10 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 yield line
             metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
-            self._process_response(formatted_response, metadata=metadata)
-            self._datadog_span.finish()
+            core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, metadata])
         except Exception:
-            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
             raise
-
-    def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
-        core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, metadata])
-
-
-def _handle_exception(integration, prompt, exc_info, ctx: core.ExecutionContext = None):
-    core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, integration, prompt, exc_info])
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -155,7 +133,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     return {}
 
 
-def _extract_response(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
+def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
     """
     Extracts text and finish_reason from the response body, which has different formats for different providers.
     """
@@ -270,7 +248,7 @@ def _extract_streamed_response_metadata(
     }
 
 
-def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockIntegration, params: Dict[str, Any]) -> Any:
+def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockIntegration, params: Dict[str, Any]) -> None:
     """Perform request param extraction and tagging."""
     request_params = _extract_request_params(params, ctx["model_provider"])
     core.dispatch(
@@ -282,14 +260,12 @@ def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockInteg
         if k == "prompt" and integration.is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
             prompt = v
     ctx.set_item("prompt", prompt)
-    return prompt
 
 
 def handle_bedrock_response(
     ctx: core.ExecutionContext,
     integration: BedrockIntegration,
     result: Dict[str, Any],
-    prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
@@ -302,10 +278,8 @@ def handle_bedrock_response(
         "botocore.patched_bedrock_api_call.success", [ctx, reqid, latency, input_token_count, output_token_count]
     )
 
-    # Wrap the StreamingResponse in an instrumented object so that we can
-    # annotate response data as the user consumes it.
     body = result["body"]
-    result["body"] = TracedBotocoreStreamingBody(body, ctx[ctx["call_key"]], integration, prompt=prompt, ctx=ctx)
+    result["body"] = TracedBotocoreStreamingBody(body, ctx)
     return result
 
 
@@ -331,12 +305,11 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         model_provider=model_provider,
         model_name=model_name,
     ) as ctx:
-        prompt = None
         try:
-            prompt = handle_bedrock_request(ctx, integration, params)
+            handle_bedrock_request(ctx, integration, params)
             result = original_func(*args, **kwargs)
-            result = handle_bedrock_response(ctx, integration, result, prompt=prompt)
+            result = handle_bedrock_response(ctx, integration, result)
             return result
         except Exception:
-            _handle_exception(integration, prompt, sys.exc_info(), ctx=ctx)
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, sys.exc_info()])
             raise

@@ -623,9 +623,11 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, model_provider, model_nam
             ctx.set_item("num_generations", str(v))
 
 
-def _on_botocore_patched_bedrock_api_call_exception(ctx, integration, prompt, exc_info):
+def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
+    prompt = ctx["prompt"]
+    integration = ctx["bedrock_integration"]
     if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
     span.finish()
@@ -658,6 +660,7 @@ def _on_botocore_bedrock_process_response(
         )
     if datadog_integration.is_pc_sampled_llmobs(dd_span):
         datadog_integration.llmobs_set_tags(dd_span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    dd_span.finish()
 
 
 def listen():
