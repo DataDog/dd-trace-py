@@ -621,12 +621,20 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, model_provider, model_nam
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
 
 
-def _on_botocore_patched_bedrock_api_call_exception(ctx):
-    pass
+def _on_botocore_patched_bedrock_api_call_exception(ctx, integration, prompt, exc_info):
+    span = ctx[ctx["call_key"]]
+    span.set_exc_info(*exc_info)
+    if integration.is_pc_sampled_llmobs(span):
+        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    span.finish()
 
 
-def _on_botocore_patched_bedrock_api_call_success(ctx):
-    pass
+def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
+    span = ctx[ctx["call_key"]]
+    span.set_tag_str("bedrock.response.id", reqid)
+    span.set_tag_str("bedrock.response.duration", latency)
+    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
+    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
 def listen():

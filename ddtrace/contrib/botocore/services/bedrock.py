@@ -37,7 +37,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
     This means that if the stream is not consumed, there is a small risk of memory leak due to unfinished spans.
     """
 
-    def __init__(self, wrapped, span, integration, prompt=None):
+    def __init__(self, wrapped, span, integration, prompt=None, ctx: core.ExecutionContext = None):
         """
         The TracedBotocoreStreamingBody wrapper stores a reference to the
         underlying Span object, BedrockIntegration object, and the response body that will saved and tagged.
@@ -47,6 +47,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         self._datadog_integration = integration
         self._body = []
         self._prompt = prompt
+        self._execution_ctx = ctx
 
     def read(self, amt=None):
         """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
@@ -59,7 +60,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 self._datadog_span.finish()
             return body
         except Exception:
-            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
+            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
             raise
 
     def readlines(self):
@@ -73,7 +74,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._datadog_span.finish()
             return lines
         except Exception:
-            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
+            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
             raise
 
     def __iter__(self):
@@ -87,7 +88,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._process_response(formatted_response, metadata=metadata)
             self._datadog_span.finish()
         except Exception:
-            _handle_exception(self._datadog_span, self._datadog_integration, self._prompt, sys.exc_info())
+            _handle_exception(self._datadog_integration, self._prompt, sys.exc_info(), ctx=self._execution_ctx)
             raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
@@ -113,12 +114,8 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _handle_exception(span, integration, prompt, exc_info):
-    """Helper method to finish the span on stream read error."""
-    span.set_exc_info(*exc_info)
-    if integration.is_pc_sampled_llmobs(span):
-        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
-    span.finish()
+def _handle_exception(integration, prompt, exc_info, ctx: core.ExecutionContext = None):
+    core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, integration, prompt, exc_info])
 
 
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -293,9 +290,7 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     }
 
 
-def handle_bedrock_request(
-    ctx: core.ExecutionContext, span: Span, integration: BedrockIntegration, params: Dict[str, Any]
-) -> Any:
+def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockIntegration, params: Dict[str, Any]) -> Any:
     """Perform request param extraction and tagging."""
     model_provider, model_name = params.get("modelId").split(".")
     request_params = _extract_request_params(params, model_provider)
@@ -304,25 +299,32 @@ def handle_bedrock_request(
     )
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt" and integration.is_pc_sampled_llmobs(span):
+        if k == "prompt" and integration.is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
             prompt = v
     return prompt
 
 
 def handle_bedrock_response(
-    span: Span, integration: BedrockIntegration, result: Dict[str, Any], prompt: Optional[str] = None
+    ctx: core.ExecutionContext,
+    integration: BedrockIntegration,
+    result: Dict[str, Any],
+    prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Perform response param extraction and tagging."""
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
-    span.set_tag_str("bedrock.response.id", str(metadata.get("RequestId", "")))
-    span.set_tag_str("bedrock.response.duration", str(http_headers.get("x-amzn-bedrock-invocation-latency", "")))
-    span.set_tag_str("bedrock.usage.prompt_tokens", str(http_headers.get("x-amzn-bedrock-input-token-count", "")))
-    span.set_tag_str("bedrock.usage.completion_tokens", str(http_headers.get("x-amzn-bedrock-output-token-count", "")))
+    reqid = str(metadata.get("RequestId", ""))
+    latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
+    input_token_count = str(http_headers.get("x-amzn-bedrock-input-token-count", ""))
+    output_token_count = str(http_headers.get("x-amzn-bedrock-output-token-count", ""))
 
-    # Wrap the StreamingResponse in a traced object so that we can tag response data as the user consumes it.
+    core.dispatch(
+        "botocore.patched_bedrock_api_call.success", [ctx, reqid, latency, input_token_count, output_token_count]
+    )
+
+    # Wrap the StreamingResponse in an instrumented object so that we can
+    # annotate response data as the user consumes it.
     body = result["body"]
-    result["body"] = TracedBotocoreStreamingBody(body, span, integration, prompt=prompt)
+    result["body"] = TracedBotocoreStreamingBody(body, ctx[ctx["call_key"]], integration, prompt=prompt, ctx=ctx)
     return result
 
 
@@ -345,13 +347,12 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         bedrock_integration=integration,
         params=params,
     ) as ctx:
-        bedrock_span = ctx[ctx["call_key"]]
         prompt = None
         try:
-            prompt = handle_bedrock_request(ctx, bedrock_span, integration, params)
+            prompt = handle_bedrock_request(ctx, integration, params)
             result = original_func(*args, **kwargs)
-            result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
+            result = handle_bedrock_response(ctx, integration, result, prompt=prompt)
             return result
         except Exception:
-            _handle_exception(bedrock_span, integration, prompt, sys.exc_info())
+            _handle_exception(integration, prompt, sys.exc_info(), ctx=ctx)
             raise
