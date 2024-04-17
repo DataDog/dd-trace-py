@@ -1159,6 +1159,8 @@ class Tracer(object):
 
                 elif cfg._get_source("_trace_sample_rate") != "default":
                     sampling_rules = cfg._trace_sampling_rules
+                else:
+                    sampling_rules = None
             else:
                 try:
                     # if there's no new sampling_rules in the payload, we'll
