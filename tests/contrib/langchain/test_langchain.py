@@ -1568,7 +1568,7 @@ class TestLLMObsLangchain:
             request_vcr=request_vcr,
             mock_llmobs_writer=mock_llmobs_writer,
             mock_tracer=mock_tracer,
-            cassette_name="openai_sequential_chain.yaml",
+            cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
             expected_spans_data=[
                 (
                     "chain",

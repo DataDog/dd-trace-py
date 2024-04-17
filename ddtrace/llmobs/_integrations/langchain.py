@@ -153,7 +153,10 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if inputs is not None:
             span.set_tag_str(INPUT_VALUE, str(inputs))
-        if not error and outputs is not None:
+
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif outputs is not None:
             span.set_tag_str(OUTPUT_VALUE, str(outputs))
 
     def _set_base_span_tags(  # type: ignore[override]
