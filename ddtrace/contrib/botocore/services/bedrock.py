@@ -91,26 +91,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             raise
 
     def _process_response(self, formatted_response: Dict[str, Any], metadata: Dict[str, Any] = None) -> None:
-        """
-        Sets the response tags on the span given the formatted response body and any metadata.
-        Also generates an LLM record if enabled.
-        """
-        if metadata is not None:
-            for k, v in metadata.items():
-                self._datadog_span.set_tag_str("bedrock.{}".format(k), str(v))
-        for i in range(len(formatted_response["text"])):
-            if self._datadog_integration.is_pc_sampled_span(self._datadog_span):
-                self._datadog_span.set_tag_str(
-                    "bedrock.response.choices.{}.text".format(i),
-                    self._datadog_integration.trunc(str(formatted_response["text"][i])),
-                )
-            self._datadog_span.set_tag_str(
-                "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
-            )
-        if self._datadog_integration.is_pc_sampled_llmobs(self._datadog_span):
-            self._datadog_integration.llmobs_set_tags(
-                self._datadog_span, formatted_response=formatted_response, prompt=self._prompt
-            )
+        core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, metadata])
 
 
 def _handle_exception(integration, prompt, exc_info, ctx: core.ExecutionContext = None):
@@ -300,6 +281,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockInteg
     for k, v in request_params.items():
         if k == "prompt" and integration.is_pc_sampled_llmobs(ctx[ctx["call_key"]]):
             prompt = v
+    ctx.set_item("prompt", prompt)
     return prompt
 
 

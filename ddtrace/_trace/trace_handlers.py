@@ -1,9 +1,9 @@
 import functools
 import sys
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
@@ -639,6 +639,27 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
+def _on_botocore_bedrock_process_response(
+    ctx: core.ExecutionContext, formatted_response: Dict[str, Any], metadata: Dict[str, Any]
+) -> None:
+    dd_span = ctx[ctx["call_key"]]
+    datadog_integration = ctx["bedrock_integration"]
+    if metadata is not None:
+        for k, v in metadata.items():
+            dd_span.set_tag_str("bedrock.{}".format(k), str(v))
+    for i in range(len(formatted_response["text"])):
+        if datadog_integration.is_pc_sampled_span(dd_span):
+            dd_span.set_tag_str(
+                "bedrock.response.choices.{}.text".format(i),
+                datadog_integration.trunc(str(formatted_response["text"][i])),
+            )
+        dd_span.set_tag_str(
+            "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
+        )
+    if datadog_integration.is_pc_sampled_llmobs(dd_span):
+        datadog_integration.llmobs_set_tags(dd_span, formatted_response=formatted_response, prompt=ctx["prompt"])
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -682,6 +703,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
+    core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
 
     for context_name in (
         "flask.call",
