@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
+from ddtrace import tracer as dd_global_tracer
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -161,7 +162,7 @@ class CIVisibility(Service):
                 # Create a new CI tracer
                 self.tracer = Tracer(context_provider=CIContextProvider())
             else:
-                self.tracer = Tracer()
+                self.tracer = dd_global_tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
