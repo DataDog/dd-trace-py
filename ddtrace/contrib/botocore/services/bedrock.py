@@ -264,13 +264,16 @@ def handle_bedrock_response(
 ) -> Dict[str, Any]:
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
-    reqid = str(metadata.get("RequestId", ""))
-    latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
-    input_token_count = str(http_headers.get("x-amzn-bedrock-input-token-count", ""))
-    output_token_count = str(http_headers.get("x-amzn-bedrock-output-token-count", ""))
 
     core.dispatch(
-        "botocore.patched_bedrock_api_call.success", [ctx, reqid, latency, input_token_count, output_token_count]
+        "botocore.patched_bedrock_api_call.success",
+        [
+            ctx,
+            str(metadata.get("RequestId", "")),
+            str(http_headers.get("x-amzn-bedrock-invocation-latency", "")),
+            str(http_headers.get("x-amzn-bedrock-input-token-count", "")),
+            str(http_headers.get("x-amzn-bedrock-output-token-count", "")),
+        ],
     )
 
     body = result["body"]
