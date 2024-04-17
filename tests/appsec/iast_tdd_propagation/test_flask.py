@@ -93,8 +93,7 @@ def test_iast_flask_headers():
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        # app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
-        app="flask_propagation_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
     ) as context:
         server_process, client, pid = context
         tainted_response = client.get("/check-headers", headers={"Accept-Encoding": "gzip, deflate, br"})
