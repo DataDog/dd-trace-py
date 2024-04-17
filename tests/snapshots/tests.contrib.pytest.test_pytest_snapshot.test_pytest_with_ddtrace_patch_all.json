@@ -197,7 +197,7 @@
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://localhost:9126/bad_path.cgi",
-      "http.useragent": "python-httpx/0.27.0",
+      "http.useragent": "this_should_never_match",
       "language": "python",
       "out.host": "localhost",
       "runtime-id": "0a9eec171fca451babccd0136aa32c67",

@@ -28,7 +28,7 @@ SNAPSHOT_IGNORES = [
     "duration",
     "start",
 ]
-SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["http.useragent"]
+SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["meta.http.useragent"]
 
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
