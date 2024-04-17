@@ -42,7 +42,16 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
                 formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-                core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, None])
+                core.dispatch(
+                    "botocore.bedrock.process_response",
+                    [
+                        self._execution_ctx,
+                        formatted_response,
+                        None,
+                        self._body[0],
+                        self._execution_ctx["model_provider"] == _COHERE,
+                    ],
+                )
             return body
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
@@ -55,10 +64,19 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             for line in lines:
                 self._body.append(json.loads(line))
             formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-            core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, None])
+            core.dispatch(
+                "botocore.bedrock.process_response",
+                [
+                    self._execution_ctx,
+                    formatted_response,
+                    None,
+                    self._body[0],
+                    self._execution_ctx["model_provider"] == _COHERE,
+                ],
+            )
             return lines
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
             raise
 
     def __iter__(self):
@@ -69,9 +87,18 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 yield line
             metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
-            core.dispatch("botocore.bedrock.process_response", [self._execution_ctx, formatted_response, metadata])
+            core.dispatch(
+                "botocore.bedrock.process_response",
+                [
+                    self._execution_ctx,
+                    formatted_response,
+                    metadata,
+                    self._body,
+                    self._execution_ctx["model_provider"] == _COHERE and "is_finished" not in self._body[0],
+                ],
+            )
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
             raise
 
 
@@ -133,9 +160,6 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
 
 
 def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
-    """
-    Extracts text and finish_reason from the response body, which has different formats for different providers.
-    """
     text, finish_reason = "", ""
     provider = ctx["model_provider"]
     try:
@@ -151,10 +175,6 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
         elif provider == _COHERE:
             text = [generation["text"] for generation in body.get("generations")]
             finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
-            for i in range(len(text)):
-                ctx[ctx["call_key"]].set_tag_str(
-                    "bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"])
-                )
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
@@ -206,11 +226,6 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
             else:
                 text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
                 finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
-                for i in range(len(text)):
-                    ctx[ctx["call_key"]].set_tag_str(
-                        "bedrock.response.choices.{}.id".format(i),
-                        str(streamed_body[0]["generations"][i].get("id", None)),
-                    )
         elif provider == _META:
             text = "".join([chunk["generation"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["stop_reason"]

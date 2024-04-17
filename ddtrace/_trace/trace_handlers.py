@@ -643,9 +643,17 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
 
 
 def _on_botocore_bedrock_process_response(
-    ctx: core.ExecutionContext, formatted_response: Dict[str, Any], metadata: Dict[str, Any]
+    ctx: core.ExecutionContext,
+    formatted_response: Dict[str, Any],
+    metadata: Dict[str, Any],
+    body: Dict[str, Any],
+    should_set_choice_ids: bool,
 ) -> None:
+    text = formatted_response["text"]
     dd_span = ctx[ctx["call_key"]]
+    if should_set_choice_ids:
+        for i in range(len(text)):
+            dd_span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"]))
     datadog_integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
