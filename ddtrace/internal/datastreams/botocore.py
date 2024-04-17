@@ -115,7 +115,7 @@ def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
             inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
-def handle_sqs_sns_produce(endpoint_service, trace_data, params, message=None):
+def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
     # if a message wasn't included, that means that the message is in the params object
     if not message:
         message = params
@@ -215,7 +215,7 @@ def handle_kinesis_receive(params, time_estimate, context_json, record):
 
 if config._data_streams_enabled:
     core.on("botocore.kinesis.update_record", handle_kinesis_produce)
-    core.on("botocore.sqs_sns.start", handle_sqs_sns_produce)
+    core.on("botocore.sqs_sns.update_messages", handle_sqs_sns_produce)
     core.on("botocore.sqs.ReceiveMessage.pre", handle_sqs_prepare)
     core.on("botocore.sqs.ReceiveMessage.post", handle_sqs_receive)
     core.on("botocore.kinesis.GetRecords.post", handle_kinesis_receive)
