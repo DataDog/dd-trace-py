@@ -194,8 +194,7 @@ commands:
                 path: /tmp/core_dumps
       - when:
           condition:
-            and:
-              - << parameters.store_coverage >>
+            - << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -298,8 +297,7 @@ commands:
                   hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n 1 -I {} hatch run {}:test
       - when:
           condition:
-            and:
-              - << parameters.store_coverage >>
+            - << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
