@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a ``FileNotFoundError``.
