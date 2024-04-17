@@ -3,4 +3,4 @@
 #define RANGE_START long
 #define RANGE_LENGTH long
 #define MSG_ERROR_SET_RANGES "[IAST] Set ranges error: Empty ranges or Tainted Map isn't initialized"
-#define MSG_ERROR_TAINT_MAP "[IAST] Tainted Map is isn't initialized"
+#define MSG_ERROR_TAINT_MAP "[IAST] Tainted Map isn't initialized"
