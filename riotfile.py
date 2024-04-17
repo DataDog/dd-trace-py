@@ -1570,6 +1570,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1597,6 +1598,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],
