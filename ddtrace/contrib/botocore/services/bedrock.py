@@ -293,21 +293,19 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
     }
 
 
-def handle_bedrock_request(span: Span, integration: BedrockIntegration, params: Dict[str, Any]) -> Any:
+def handle_bedrock_request(
+    ctx: core.ExecutionContext, span: Span, integration: BedrockIntegration, params: Dict[str, Any]
+) -> Any:
     """Perform request param extraction and tagging."""
     model_provider, model_name = params.get("modelId").split(".")
     request_params = _extract_request_params(params, model_provider)
-
-    span.set_tag_str("bedrock.request.model_provider", model_provider)
-    span.set_tag_str("bedrock.request.model", model_name)
+    core.dispatch(
+        "botocore.patched_bedrock_api_call.started", [ctx, model_provider, model_name, request_params, integration]
+    )
     prompt = None
     for k, v in request_params.items():
-        if k == "prompt":
-            if integration.is_pc_sampled_llmobs(span):
-                prompt = v
-            if integration.is_pc_sampled_span(span):
-                v = integration.trunc(str(v))
-        span.set_tag_str("bedrock.request.{}".format(k), str(v))
+        if k == "prompt" and integration.is_pc_sampled_llmobs(span):
+            prompt = v
     return prompt
 
 
@@ -344,11 +342,13 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         span_type=SpanTypes.LLM,
         call_key="instrumented_bedrock_call",
         call_trace=True,
+        bedrock_integration=integration,
+        params=params,
     ) as ctx:
         bedrock_span = ctx[ctx["call_key"]]
         prompt = None
         try:
-            prompt = handle_bedrock_request(bedrock_span, integration, params)
+            prompt = handle_bedrock_request(ctx, bedrock_span, integration, params)
             result = original_func(*args, **kwargs)
             result = handle_bedrock_response(bedrock_span, integration, result, prompt=prompt)
             return result
