@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    internal: This fix resolves an issue regarding the remote config module where a payload missing the ``lib_config`` entry would crash the application due to an unhandled ``KeyError`` exception.
+    internal: This fix resolves an error regarding the remote config module with payloads missing a ``lib_config`` entry
