@@ -314,6 +314,8 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     [
         (logging.DEBUG, "", "[IAST] Tainted Map"),
         (logging.WARNING, "", ""),
+        (logging.DEBUG, "false", "[IAST] Tainted Map"),
+        (logging.WARNING, "false", ""),
         (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
         (logging.WARNING, "true", "_iast/_taint_tracking/__init__.py"),
     ],
