@@ -195,7 +195,6 @@ commands:
       - when:
           condition:
             and:
-              - << pipeline.parameters.coverage >>
               - << parameters.store_coverage >>
           steps:
             - save_coverage
@@ -300,7 +299,6 @@ commands:
       - when:
           condition:
             and:
-              - << pipeline.parameters.coverage >>
               - << parameters.store_coverage >>
           steps:
             - save_coverage
@@ -415,8 +413,6 @@ jobs:
     executor: python310
     steps:
       - when:
-          condition:
-            << pipeline.parameters.coverage >>
           steps:
             - checkout
             - attach_workspace:
@@ -446,11 +442,6 @@ jobs:
             - run: coverage report --ignore-errors --omit=ddtrace/
             # Print diff-cover report to stdout (compares against origin/1.x)
             - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
-      - unless:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
 
 
   build_base_venvs:
