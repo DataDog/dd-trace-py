@@ -187,6 +187,11 @@ def is_third_party(path: Path) -> bool:
 
 
 @cached()
+def is_user_code(path: Path) -> bool:
+    return not (is_stdlib(path) or is_third_party(path))
+
+
+@cached()
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
