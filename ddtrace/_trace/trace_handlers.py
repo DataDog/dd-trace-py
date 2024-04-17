@@ -619,6 +619,8 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, model_provider, model_nam
             if integration.is_pc_sampled_span(span):
                 v = integration.trunc(str(v))
         span.set_tag_str("bedrock.request.{}".format(k), str(v))
+        if k == "n":
+            ctx.set_item("num_generations", str(v))
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, integration, prompt, exc_info):

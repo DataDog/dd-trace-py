@@ -5,7 +5,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -55,7 +54,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             body = self.__wrapped__.read(amt=amt)
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
-                formatted_response = _extract_response(self._datadog_span, self._body[0])
+                formatted_response = _extract_response(self._execution_ctx, self._body[0])
                 self._process_response(formatted_response)
                 self._datadog_span.finish()
             return body
@@ -69,7 +68,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             lines = self.__wrapped__.readlines()
             for line in lines:
                 self._body.append(json.loads(line))
-            formatted_response = _extract_response(self._datadog_span, self._body[0])
+            formatted_response = _extract_response(self._execution_ctx, self._body[0])
             self._process_response(formatted_response)
             self._datadog_span.finish()
             return lines
@@ -83,8 +82,8 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             for line in self.__wrapped__:
                 self._body.append(json.loads(line["chunk"]["bytes"]))
                 yield line
-            metadata = _extract_streamed_response_metadata(self._datadog_span, self._body)
-            formatted_response = _extract_streamed_response(self._datadog_span, self._body)
+            metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
+            formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
             self._process_response(formatted_response, metadata=metadata)
             self._datadog_span.finish()
         except Exception:
@@ -175,12 +174,12 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     return {}
 
 
-def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
+def _extract_response(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
     """
     Extracts text and finish_reason from the response body, which has different formats for different providers.
     """
     text, finish_reason = "", ""
-    provider = span.get_tag("bedrock.request.model_provider")
+    provider = ctx["model_provider"]
     try:
         if provider == _AI21:
             text = body.get("completions")[0].get("data").get("text")
@@ -195,7 +194,9 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
             text = [generation["text"] for generation in body.get("generations")]
             finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
             for i in range(len(text)):
-                span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"]))
+                ctx[ctx["call_key"]].set_tag_str(
+                    "bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"])
+                )
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
@@ -213,12 +214,9 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
-    """
-    Extracts text,finish_reason from the streamed response body, which has different formats for different providers.
-    """
+def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
-    provider = span.get_tag("bedrock.request.model_provider")
+    provider = ctx["model_provider"]
     try:
         if provider == _AI21:
             pass  # note: ai21 does not support streamed responses
@@ -238,12 +236,12 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
         elif provider == _COHERE and streamed_body:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    n = int(span.get_tag("bedrock.request.n") or 0)
+                    num_generations = int(ctx.get_item("num_generations") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
-                        for i in range(n)
+                        for i in range(num_generations)
                     ]
-                    finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(n)]
+                    finish_reason = [streamed_body[-1]["finish_reason"] for _ in range(num_generations)]
                 else:
                     text = "".join([chunk["text"] for chunk in streamed_body[:-1]])
                     finish_reason = streamed_body[-1]["finish_reason"]
@@ -251,7 +249,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                 text = [chunk["text"] for chunk in streamed_body[0]["generations"]]
                 finish_reason = [chunk["finish_reason"] for chunk in streamed_body[0]["generations"]]
                 for i in range(len(text)):
-                    span.set_tag_str(
+                    ctx[ctx["call_key"]].set_tag_str(
                         "bedrock.response.choices.{}.id".format(i),
                         str(streamed_body[0]["generations"][i].get("id", None)),
                     )
@@ -272,9 +270,10 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extracts metadata from the streamed response body."""
-    provider = span.get_tag("bedrock.request.model_provider")
+def _extract_streamed_response_metadata(
+    ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    provider = ctx["model_provider"]
     metadata = {}
     if provider == _AI21:
         pass  # ai21 does not support streamed responses
@@ -292,10 +291,10 @@ def _extract_streamed_response_metadata(span: Span, streamed_body: List[Dict[str
 
 def handle_bedrock_request(ctx: core.ExecutionContext, integration: BedrockIntegration, params: Dict[str, Any]) -> Any:
     """Perform request param extraction and tagging."""
-    model_provider, model_name = params.get("modelId").split(".")
-    request_params = _extract_request_params(params, model_provider)
+    request_params = _extract_request_params(params, ctx["model_provider"])
     core.dispatch(
-        "botocore.patched_bedrock_api_call.started", [ctx, model_provider, model_name, request_params, integration]
+        "botocore.patched_bedrock_api_call.started",
+        [ctx, ctx["model_provider"], ctx["model_name"], request_params, integration],
     )
     prompt = None
     for k, v in request_params.items():
@@ -335,6 +334,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     integration = function_vars.get("integration")
+    model_provider, model_name = params.get("modelId").split(".")
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
@@ -346,6 +346,8 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         call_trace=True,
         bedrock_integration=integration,
         params=params,
+        model_provider=model_provider,
+        model_name=model_name,
     ) as ctx:
         prompt = None
         try:
