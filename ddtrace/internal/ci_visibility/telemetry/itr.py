@@ -6,7 +6,6 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.telemetry.constants import CIVISIBILITY_TELEMETRY_NAMESPACE as _NAMESPACE
 from ddtrace.internal.ci_visibility.telemetry.constants import ERROR_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
-from ddtrace.internal.ci_visibility.telemetry.utils import skip_if_agentless
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 
@@ -40,27 +39,23 @@ def _enforce_event_is_test_or_suite(func):
     return wrapper
 
 
-@skip_if_agentless
 @_enforce_event_is_test_or_suite
 def record_itr_skipped(event_type: EVENT_TYPES):
     log.debug("Recording itr skipped telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.SKIPPED, 1, (("event_type", event_type.value),))
 
 
-@skip_if_agentless
 @_enforce_event_is_test_or_suite
 def record_itr_unskippable(event_type: EVENT_TYPES):
     log.debug("Recording itr unskippable telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.UNSKIPPABLE, 1, (("event_type", event_type.value),))
 
 
-@skip_if_agentless
 def record_itr_forced_run(event_type: EVENT_TYPES):
     log.debug("Recording itr forced run telemetry for %s", event_type)
     telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),))
 
 
-@skip_if_agentless
 def record_itr_skippable_request(
     duration: float,
     response_bytes: int,
