@@ -417,7 +417,6 @@ pyexport_taintrange(py::module& m)
           "offset"_a,
           "new_length"_a = -1);
 
-    m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
 
     m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
