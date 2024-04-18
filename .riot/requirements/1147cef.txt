@@ -45,7 +45,7 @@ pluggy==1.4.0
 psycopg2-binary==2.9.9
 pydantic==2.6.4
 pydantic-core==2.16.3
-pytest==8.1.1
+pytest==8.0.2
 pytest-cov==5.0.0
 pytest-mock==3.14.0
 pyyaml==6.0.1
