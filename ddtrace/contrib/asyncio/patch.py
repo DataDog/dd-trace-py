@@ -49,5 +49,9 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
             pin.tracer.context_provider.activate(dd_active)
         return await coro
 
-    args, kwargs = set_argument_value(args, kwargs, 1, "coro", traced_coro())
+    tc = traced_coro()
+    # Ensure coroutine name is preserved, this is required for profiling
+    tc.__qualname__ = coro.__qualname__
+    tc.__name__ = coro.__name__
+    args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
     return wrapped(*args, **kwargs)
