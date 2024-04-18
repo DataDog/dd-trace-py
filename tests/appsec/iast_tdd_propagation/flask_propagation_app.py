@@ -1,4 +1,4 @@
-from flask_taint_sinks_views import create_app
+from flask_propagation_views import create_app
 
 from ddtrace import auto  # noqa: F401
 
