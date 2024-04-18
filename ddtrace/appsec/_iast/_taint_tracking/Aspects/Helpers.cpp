@@ -8,14 +8,18 @@ namespace py = pybind11;
 
 template<class StrType>
 StrType
-common_replace(const py::str& string_method,
-               const StrType& candidate_text,
-               const py::args& args,
-               const py::kwargs& kwargs)
+api_common_replace(const py::str& string_method,
+                   const StrType& candidate_text,
+                   const py::args& args,
+                   const py::kwargs& kwargs)
 {
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges;
-    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr());
+    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr(), tx_map);
 
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
     if (ranges_error or candidate_text_ranges.empty()) {
@@ -328,9 +332,9 @@ parse_params(size_t position,
 void
 pyexport_aspect_helpers(py::module& m)
 {
-    m.def("common_replace", &common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("api_common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
+    m.def("api_common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
+    m.def("api_common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
     m.def("_all_as_formatted_evidence",
           &_all_as_formatted_evidence<py::str>,
           "text"_a,

@@ -8,6 +8,7 @@
 #include "structmember.h"
 
 #include "Constants.h"
+#include "Initializer/Initializer.h"
 #include "TaintTracking/Source.h"
 #include "Utils/StringUtils.h"
 
@@ -84,24 +85,6 @@ api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH n
 std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map);
 
-inline std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input)
-{
-    return get_ranges(string_input, nullptr);
-}
-
-inline TaintRangeRefs
-api_get_ranges(py::object& string_input)
-{
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr());
-    if (ranges_error) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-    return ranges;
-}
-
 bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
@@ -114,6 +97,24 @@ inline void
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
 {
     set_ranges(str.ptr(), ranges);
+}
+
+inline TaintRangeRefs
+api_get_ranges(py::object& string_input)
+{
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr(), tx_map);
+    if (ranges_error) {
+        throw py::value_error(MSG_ERROR_GET_RANGES_TYPE);
+    }
+    return ranges;
 }
 
 inline void

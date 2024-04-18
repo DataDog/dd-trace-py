@@ -22,12 +22,15 @@ bool
 api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
-        auto ctx_map = initializer->get_tainting_map();
-        if (not ctx_map or ctx_map->empty()) {
+        TaintRangeMapType* tx_map = initializer->get_tainting_map();
+        if (not tx_map) {
+            throw py::value_error(MSG_ERROR_TAINT_MAP);
+        }
+        if (tx_map->empty()) {
             return false;
         }
 
-        if (is_tainted(tainted_object.ptr(), ctx_map)) {
+        if (is_tainted(tainted_object.ptr(), tx_map)) {
             return true;
         }
     }
