@@ -3,6 +3,7 @@ Generic dbapi tracing code.
 """
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec._constants import IAST_SPAN_TAGS
@@ -118,8 +119,14 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
+            # dispatch DBM
             if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+                # this check is necessary to prevent fetch methods from trying to add dbm propagation
+                result = core.dispatch_with_results(
+                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
+                ).result
+                if result:
+                    s, args, kwargs = result.value
 
             try:
                 return method(*args, **kwargs)
