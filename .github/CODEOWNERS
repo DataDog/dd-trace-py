@@ -6,7 +6,7 @@
 # Framework Integrations
 ddtrace/ext/                        @DataDog/python-guild @DataDog/apm-framework-integrations
 ddtrace/contrib/                    @DataDog/python-guild @DataDog/apm-framework-integrations
-ddtrace/internal/schema/            @DataDog/python-guild @DataDog/apm-framework-integrations
+ddtrace/internal/schema/            @DataDog/apm-framework-integrations
 tests/contrib/                      @DataDog/python-guild @DataDog/apm-framework-integrations
 tests/internal/peer_service         @DataDog/python-guild @DataDog/apm-framework-integrations
 tests/internal/service_name         @DataDog/python-guild @DataDog/apm-framework-integrations
@@ -20,11 +20,11 @@ riotfile.py                         @DataDog/apm-python
 
 # Core
 tests/internal                      @DataDog/python-guild
-tests/lib-injection                 @DataDog/python-guild
+tests/lib-injection                 @DataDog/apm-core-python
 tests/opentelemetry                 @DataDog/python-guild
-tests/opentracer                    @DataDog/python-guild
+tests/opentracer                    @DataDog/apm-python
 tests/runtime                       @DataDog/python-guild
-tests/tracer                        @DataDog/python-guild
+tests/tracer                        @DataDog/apm-core-python
 
 # CI App and related
 ddtrace/contrib/coverage            @DataDog/ci-app-libraries
@@ -48,14 +48,14 @@ ddtrace/ext/git.py                  @DataDog/ci-app-libraries @DataDog/apm-core-
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
 ddtrace/settings/dynamic_instrumentation.py     @DataDog/debugger-python
-ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/python-guild
-ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/python-guild
-ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/python-guild
+ddtrace/internal/injection.py       @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/wrapping.py        @DataDog/debugger-python @DataDog/apm-core-python
+ddtrace/internal/module.py          @DataDog/debugger-python @DataDog/apm-core-python
 ddtrace/internal/symbol_db/         @DataDog/debugger-python
 tests/debugging/                    @DataDog/debugger-python
-tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/python-guild
-tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/python-guild
-tests/internal/test_module.py       @DataDog/debugger-python @DataDog/python-guild
+tests/internal/test_injection.py    @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_wrapping.py     @DataDog/debugger-python @DataDog/apm-core-python
+tests/internal/test_module.py       @DataDog/debugger-python @DataDog/apm-core-python
 tests/internal/symbol_db/           @DataDog/debugger-python
 
 # ASM
@@ -103,4 +103,4 @@ mypy.ini                            @DataDog/apm-core-python
 .github/ISSUE_TEMPLATE.md           @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/apm-core-python
 .github/workflows/system-tests.yml  @DataDog/apm-core-python
-ddtrace/internal/compat.py          @DataDog/python-guild
+ddtrace/internal/compat.py          @DataDog/apm-core-python @DataDog/python-guild
