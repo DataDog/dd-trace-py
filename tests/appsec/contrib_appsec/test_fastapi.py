@@ -46,7 +46,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                 # httpx does not accept unicode headers and is now used in the TestClient
                 if "headers" in kwargs and FASTAPI_VERSION >= (0, 87, 0):
                     kwargs["headers"] = {k.encode(): v.encode() for k, v in kwargs["headers"].items()}
-                if HTTPX_VERSION >= (0, 18, 0):
+                if HTTPX_VERSION >= (0, 18, 0) and STARLETTE_VERSION >= (0, 21, 0):
                     if "cookies" in kwargs:
                         client.cookies = kwargs["cookies"]
                         del kwargs["cookies"]
@@ -72,7 +72,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
                 # httpx does not accept unicode headers and is now used in the TestClient
                 if "headers" in kwargs and FASTAPI_VERSION >= (0, 87, 0):
                     kwargs["headers"] = {k.encode(): v.encode() for k, v in kwargs["headers"].items()}
-                if HTTPX_VERSION >= (0, 18, 0):
+                if HTTPX_VERSION >= (0, 18, 0) and STARLETTE_VERSION >= (0, 21, 0):
                     if "cookies" in kwargs:
                         client.cookies = kwargs["cookies"]
                         del kwargs["cookies"]
