@@ -332,9 +332,9 @@ parse_params(size_t position,
 void
 pyexport_aspect_helpers(py::module& m)
 {
-    m.def("api_common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("api_common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("api_common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
     m.def("_all_as_formatted_evidence",
           &_all_as_formatted_evidence<py::str>,
           "text"_a,

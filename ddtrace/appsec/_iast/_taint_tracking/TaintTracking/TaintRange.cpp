@@ -1,4 +1,5 @@
 #include "TaintRange.h"
+#include "Initializer/Initializer.h"
 #include "Utils/StringUtils.h"
 
 namespace py = pybind11;
@@ -229,6 +230,25 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
     return null_range;
 }
 
+TaintRangeRefs
+api_get_ranges(py::object& string_input)
+{
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+
+    if (not tx_map) {
+        // throw py::value_error(MSG_ERROR_TAINT_MAP);
+        return ranges;
+    }
+
+    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr(), tx_map);
+    if (ranges_error) {
+        throw py::value_error(MSG_ERROR_GET_RANGES_TYPE);
+    }
+    return ranges;
+}
+
 inline void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
@@ -408,10 +428,6 @@ pyexport_taintrange(py::module& m)
           "offset"_a,
           "new_length"_a = -1);
 
-    m.def("get_ranges",
-          py::overload_cast<PyObject*>(&api_get_ranges),
-          "string_input"_a,
-          py::return_value_policy::take_ownership);
     m.def("get_ranges", &api_get_ranges, "string_input"_a, py::return_value_policy::take_ownership);
 
     m.def("get_range_by_hash", &get_range_by_hash, "range_hash"_a, "taint_ranges"_a);

@@ -8,7 +8,6 @@
 #include "structmember.h"
 
 #include "Constants.h"
-#include "Initializer/Initializer.h"
 #include "TaintTracking/Source.h"
 #include "Utils/StringUtils.h"
 
@@ -99,23 +98,8 @@ api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
     set_ranges(str.ptr(), ranges);
 }
 
-inline TaintRangeRefs
-api_get_ranges(py::object& string_input)
-{
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
-
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
-    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr(), tx_map);
-    if (ranges_error) {
-        throw py::value_error(MSG_ERROR_GET_RANGES_TYPE);
-    }
-    return ranges;
-}
+TaintRangeRefs
+api_get_ranges(py::object& string_input);
 
 inline void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2);
