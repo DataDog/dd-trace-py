@@ -742,7 +742,7 @@ class Config(object):
         config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
-        if config:
+        if config and "lib_config" in config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
