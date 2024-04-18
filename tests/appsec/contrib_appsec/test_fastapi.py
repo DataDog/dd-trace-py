@@ -12,7 +12,7 @@ from tests.appsec.contrib_appsec.fastapi_app.app import get_app
 
 FASTAPI_VERSION = tuple(int(v) for v in fastapi.__version__.split("."))
 STARLETTE_VERSION = tuple(int(v) for v in starlette.__version__.split("."))
-redirect_key = "allow_redirects" if STARLETTE_VERSION <= (0, 21, 0) else "follow_redirects"
+redirect_key = "allow_redirects" if STARLETTE_VERSION < (0, 21, 0) else "follow_redirects"
 HTTPX_VERSION = tuple(int(v) for v in httpx.__version__.split("."))
 
 
