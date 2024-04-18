@@ -140,9 +140,9 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
     return span, args, kwargs
 
 
-if dbm_config.propagation_mode in ["full", "service"]:    
-    core.on("aiomysql.execute", handle_dbm_injection)
-    core.on("asyncpg.execute", handle_dbm_injection_asyncpg)
-    core.on("mysql.execute", handle_dbm_injection)
-    core.on("mysqldb.execute", handle_dbm_injection)
-    core.on("pymysql.execute", handle_dbm_injection)
+if dbm_config.propagation_mode in ["full", "service"]:
+    core.on("aiomysql.execute", handle_dbm_injection, "result")
+    core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
+    core.on("mysql.execute", handle_dbm_injection, "result")
+    core.on("mysqldb.execute", handle_dbm_injection, "result")
+    core.on("pymysql.execute", handle_dbm_injection, "result")
