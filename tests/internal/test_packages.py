@@ -5,6 +5,7 @@ import mock
 import pytest
 
 from ddtrace.internal import packages
+from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import get_distributions
 
 
@@ -86,3 +87,10 @@ def test_filename_to_package():
     assert package is None or package.name == "protobuf"
 
     del packages._package_file_mapping.__closure__[0].cell_contents.__callonce_result__
+
+
+def test_third_party_packages():
+    assert 4000 < len(_third_party_packages()) < 5000
+
+    assert "requests" in _third_party_packages()
+    assert "nota3rdparty" not in _third_party_packages()

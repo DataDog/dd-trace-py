@@ -6,6 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.utils.wrappers import unwrap
@@ -16,11 +17,16 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.schema import schematize_service_name
+from ...propagation._database_monitoring import _DBM_Propagator
+from .. import trace_utils
 
 
 config._add(
     "aiomysql",
-    dict(_default_service=schematize_service_name("mysql")),
+    dict(
+        _default_service=schematize_service_name("mysql"),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
+    ),
 )
 
 
@@ -42,7 +48,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     tags = {}
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
-            tags[tag] = getattr(conn, attr)
+            tags[tag] = trace_utils._convert_to_string(getattr(conn, attr, None))
     tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
@@ -63,10 +69,12 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             result = await method(*args, **kwargs)
             return result
-        service = pin.service
 
         with pin.tracer.trace(
-            self._self_datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL
+            self._self_datadog_name,
+            service=trace_utils.ext_service(pin, config.aiomysql),
+            resource=resource,
+            span_type=SpanTypes.SQL,
         ) as s:
             s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
 
@@ -79,6 +87,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
+
+            # dispatch DBM
+            result = core.dispatch_with_results("aiomysql.execute", (config.aiomysql, s, args, kwargs)).result
+            if result:
+                s, args, kwargs = result.value
 
             try:
                 result = await method(*args, **kwargs)

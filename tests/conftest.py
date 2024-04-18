@@ -401,7 +401,9 @@ def filter_heartbeat_events():
 
 @pytest.fixture
 def telemetry_writer():
-    telemetry_writer = TelemetryWriter(is_periodic=False)
+    # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
+    # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
+    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
     telemetry_writer.enable()
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
@@ -413,7 +415,7 @@ def telemetry_writer():
     finally:
         if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
             telemetry_writer.disable()
-        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
 class TelemetryTestSession(object):
@@ -421,9 +423,10 @@ class TelemetryTestSession(object):
         self.token = token
         self.telemetry_writer = telemetry_writer
         self.filter_heartbeats = filter_heartbeats
+        self.gotten_events = dict()
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
+        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
@@ -447,6 +450,7 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
+        self.gotten_events = dict()
         return True
 
     def get_requests(self, request_type=None):
@@ -479,14 +483,15 @@ class TelemetryTestSession(object):
         if status != 200:
             pytest.fail("Failed to fetch session events: %s" % self.token)
 
-        requests = []
         for req in json.loads(body.decode("utf-8")):
             # filter heartbeat events to reduce noise
             if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
                 continue
+            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
+                continue
             if event_type is None or req["request_type"] == event_type:
-                requests.append(req)
-        return sorted(requests, key=lambda e: e["seq_id"], reverse=True)
+                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
+        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
 
 
 @pytest.fixture

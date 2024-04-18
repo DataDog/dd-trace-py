@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix removes unrequired API security metrics.

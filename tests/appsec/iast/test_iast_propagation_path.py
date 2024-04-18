@@ -27,6 +27,18 @@ def _assert_vulnerability(span_report, value_parts, file_line_label):
     assert vulnerability.hash == hash_value
 
 
+def test_propagation_no_path(iast_span_defaults):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
+    origin1 = "taintsource"
+    tainted_string = taint_pyobject(origin1, source_name="path", source_value=origin1, source_origin=OriginType.PATH)
+    for i in range(100):
+        mod.propagation_no_path(tainted_string)
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+    assert span_report is None
+
+
 @pytest.mark.parametrize(
     "origin1",
     [

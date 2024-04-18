@@ -1,0 +1,202 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Tell me a short joke about pigs"}],
+      "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature": 0.7}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '149'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.8
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1SQX0vDMBTF3/sprnneZG2to3sRURH1ZYKg4KSk6V0bl+bG5A4dY99d2u6PvgRy
+        fjkn595tBCB0JWYgVCNZtc6M89ub52yzfsjuLh+Nmj99y/umXH29za9lm4tR56DyExUfXOeKWmeQ
+        NdkBK4+SsUuNp3GSp+kkTXvQUoWms9WOx+l5Nua1L2k8iZNs72xIKwxiBu8RAMC2P7uOtsIfMYPJ
+        6KC0GIKsUcyOjwCEJ9MpQoagA0vLYnSCiiyj7Wu/NhuodAXcIDhdQ03A1N+UDNrS1cIu7AtB6bWt
+        oaEWe1hKRfZM7CN3xy6Gauep7HrbtTFHfamtDk3hUQay3b+ByQ32XQTw0c+8/jeGcJ5axwXTCm0X
+        GF8MceK05T8w20MmluakJ3m07yfCJjC2xVLbGr3zeljA0hUqSfIMp6msRLSLfgEAAP//AwDKnR6f
+        CgIAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8733fdc4bd0f42e9-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 12 Apr 2024 14:43:54 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ADA173pgrWCUnErn6Nn9fcZPUu4ggnLJ2GAH9tOQjfc-1712933034-1.0.1.1-wdLyf7mkKheYRJn_TQ9kltMx0n_i_wR74v9qT3RJPYvL0P1NbPtJaQVcDXxsmb4KsIM.rSJ65PIvIUNLtCW8ag;
+        path=/; expires=Fri, 12-Apr-24 15:13:54 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=nqqIE109ENdYFwg0rn6lUdkWC2wpzLjN5CliI8sJYdQ-1712933034372-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '542'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '189'
+      x-ratelimit-remaining-tokens:
+      - '39975'
+      x-ratelimit-reset-requests:
+      - 1h18m1.363s
+      x-ratelimit-reset-tokens:
+      - 37ms
+      x-request-id:
+      - req_8a57c8c7de24d814183c5c20f52a4f7f
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": "Tell me a short joke about chickens"}],
+      "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature": 0.7}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '153'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.8
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1SQzWrDMBCE736Krc5xiO38+lJI0ltzKBQCLcXI8tpWLEtCWkNDyLsX22nSXnSY
+        b2c0u5cAgMmCpcBEzUm0VoWb/e5tufURnrvdIVm9vjRFsvp4r/YHtTyySe8w+QkF/bqmwrRWIUmj
+        RywccsI+NVpF8SZJZsl8AK0pUPW2ylKYTBchdS434SyKFzdnbaRAz1L4DAAALsPbd9QFfrMUZpNf
+        pUXveYUsvQ8BMGdUrzDuvfTENbHJAwqjCfVQ+1ifoZAFUI0gaika1HAyUgOHnOviGbYoeOcRJEHN
+        x7nCda0nKRr/xG6h13sbZSrrTN43151Sd72UWvo6c8i90f3Pnowd7dcA4GvYuvu3CLPOtJYyMg3q
+        PjCaj3Hscec/cHGDZIirhx5vgls/5s+esM1KqSt01snxBKXN8nidJ5uy5GsWXIMfAAAA//8DALyT
+        J6UMAgAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8733fdc4bca20ce9-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 12 Apr 2024 14:43:54 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=FGYmqA7J1o1vt2DQqJlKPQP7Xh80jc4D0Rr1t4kbt8s-1712933034-1.0.1.1-T6hmZ8h2vP1NzELCaZb7nRe3aQjj3ZXztMKS9XnlN4Hk.H__t43f0Dclp4kBXjveNOU0dKfUjb.t0Bz.ARiPSA;
+        path=/; expires=Fri, 12-Apr-24 15:13:54 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=I_s236wqqWBO.Ysk06fQeRMl5lubBSH1pDSnZv_YkT0-1712933034481-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-0125
+      openai-organization:
+      - user-vgqng3jybrjkfe7a1gf2l5ch
+      openai-processing-ms:
+      - '565'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '200'
+      x-ratelimit-limit-tokens:
+      - '40000'
+      x-ratelimit-remaining-requests:
+      - '188'
+      x-ratelimit-remaining-tokens:
+      - '39961'
+      x-ratelimit-reset-requests:
+      - 1h25m13.345s
+      x-ratelimit-reset-tokens:
+      - 58ms
+      x-request-id:
+      - req_cab59b7b0ef4294eb7db8a22b34c5d93
+    status:
+      code: 200
+      message: OK
+version: 1

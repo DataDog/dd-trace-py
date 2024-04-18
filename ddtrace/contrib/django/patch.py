@@ -37,6 +37,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
@@ -817,8 +818,8 @@ def _patch(django):
     def _(m):
         import channels
 
-        channels_version = tuple(int(x) for x in channels.__version__.split("."))
-        if channels_version >= (3, 0):
+        channels_version = parse_version(channels.__version__)
+        if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
 

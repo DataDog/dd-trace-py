@@ -1,6 +1,9 @@
 from enum import Enum
+from pathlib import Path
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
@@ -11,6 +14,7 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.logger import get_logger
 
 
@@ -25,6 +29,7 @@ class CIVisibilityModule(
     CIVisibilityChildItem[CIModuleId], CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite]
 ):
     event_type = MODULE_TYPE
+    event_type_metric_name = EVENT_TYPES.MODULE
 
     def __init__(
         self,
@@ -48,3 +53,11 @@ class CIVisibilityModule(
             MODULE_ID: str(self.get_span_id()),
             test.MODULE: self.name,
         }
+
+    def _set_itr_tags(self):
+        """Module (and session) items get a tag for skipping type"""
+        super()._set_itr_tags()
+        self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        raise NotImplementedError("Coverage data cannot be added to modules.")

@@ -12,13 +12,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -32,9 +33,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -42,12 +43,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 122541,
-    "start": 1710862317779343293
+    "duration": 81333,
+    "start": 1711549044658655712
   }],
 [
   {
@@ -63,13 +64,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -82,9 +84,9 @@
       "test.skipped_by_itr": "true",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -92,10 +94,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498
     },
-    "duration": 91250,
-    "start": 1710862317780004918
+    "duration": 43208,
+    "start": 1711549044659195837
   }],
 [
   {
@@ -111,13 +113,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -132,9 +135,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -142,12 +145,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 75625,
-    "start": 1710862317780176959
+    "duration": 65500,
+    "start": 1711549044659284212
   }],
 [
   {
@@ -163,13 +166,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -184,9 +188,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -194,12 +198,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 98834,
-    "start": 1710862317780318959
+    "duration": 46084,
+    "start": 1711549044659389545
   }],
 [
   {
@@ -215,13 +219,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -236,9 +241,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -246,12 +251,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 66541,
-    "start": 1710862317780477918
+    "duration": 42917,
+    "start": 1711549044659470670
   }],
 [
   {
@@ -267,13 +272,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -288,9 +294,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test"
     },
     "metrics": {
@@ -298,12 +304,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 64917,
-    "start": 1710862317780603751
+    "duration": 39208,
+    "start": 1711549044659547337
   }],
 [
   {
@@ -319,26 +325,26 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_itr_skip",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_1",
       "test.status": "skip",
       "test.suite": "suite_1",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "1745924476276790587",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "17667896922545332797",
       "type": "test_suite_end"
     },
     "metrics": {
@@ -346,10 +352,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498,
+      "test.itr.tests_skipping.count": 6
     },
-    "duration": 1515250,
-    "start": 1710862317779280459
+    "duration": 1071375,
+    "start": 1711549044658628420
   }],
 [
   {
@@ -365,24 +372,25 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_itr_skip",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
+      "test.itr.tests_skipping.type": "test",
       "test.module": "module_1",
       "test.status": "skip",
-      "test_module_id": "8855118322443636824",
-      "test_session_id": "3867798134164062886",
+      "test_module_id": "10438975775204862230",
+      "test_session_id": "3905667904014407621",
       "type": "test_module_end"
     },
     "metrics": {
@@ -390,10 +398,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498,
+      "test.itr.tests_skipping.count": 6
     },
-    "duration": 1702291,
-    "start": 1710862317779200543
+    "duration": 1169875,
+    "start": 1711549044658591254
   }],
 [
   {
@@ -409,13 +418,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -429,9 +439,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -439,12 +449,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 2,
       "test.source.start": 1
     },
-    "duration": 55417,
-    "start": 1710862317781037126
+    "duration": 38500,
+    "start": 1711549044659843879
   }],
 [
   {
@@ -460,13 +470,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -479,9 +490,9 @@
       "test.skipped_by_itr": "true",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -489,10 +500,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498
     },
-    "duration": 54333,
-    "start": 1710862317781148001
+    "duration": 30708,
+    "start": 1711549044659915962
   }],
 [
   {
@@ -508,13 +519,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -529,9 +541,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -539,12 +551,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 64750,
-    "start": 1710862317781253209
+    "duration": 42083,
+    "start": 1711549044660001212
   }],
 [
   {
@@ -560,13 +572,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -581,9 +594,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -591,12 +604,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 61583,
-    "start": 1710862317781382793
+    "duration": 40167,
+    "start": 1711549044660076587
   }],
 [
   {
@@ -612,13 +625,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -633,9 +647,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -643,12 +657,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 60291,
-    "start": 1710862317781498668
+    "duration": 41250,
+    "start": 1711549044660149087
   }],
 [
   {
@@ -664,13 +678,14 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
@@ -685,9 +700,9 @@
       "test.source.file": "my_file_1.py",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test"
     },
     "metrics": {
@@ -695,12 +710,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702,
+      "process_id": 8498,
       "test.source.end": 12,
       "test.source.start": 4
     },
-    "duration": 59500,
-    "start": 1710862317781612168
+    "duration": 37875,
+    "start": 1711549044660223129
   }],
 [
   {
@@ -716,26 +731,26 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_itr_skip",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
       "test.module": "module_2",
       "test.status": "skip",
       "test.suite": "suite_2",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
-      "test_suite_id": "4365490478324227908",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
+      "test_suite_id": "1652017087352442444",
       "type": "test_suite_end"
     },
     "metrics": {
@@ -743,10 +758,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498,
+      "test.itr.tests_skipping.count": 6
     },
-    "duration": 744542,
-    "start": 1710862317780999501
+    "duration": 492208,
+    "start": 1711549044659817379
   }],
 [
   {
@@ -762,24 +778,25 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_itr_skip",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
+      "test.itr.tests_skipping.type": "test",
       "test.module": "module_2",
       "test.status": "skip",
-      "test_module_id": "10963504468781103428",
-      "test_session_id": "3867798134164062886",
+      "test_module_id": "13176209157315020854",
+      "test_session_id": "3905667904014407621",
       "type": "test_module_end"
     },
     "metrics": {
@@ -787,10 +804,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498,
+      "test.itr.tests_skipping.count": 6
     },
-    "duration": 856875,
-    "start": 1710862317780955501
+    "duration": 561375,
+    "start": 1711549044659794212
   }],
 [
   {
@@ -806,22 +824,23 @@
       "_dd.base_service": "",
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65f9afed00000000",
+      "_dd.p.tid": "66042a7400000000",
+      "ci.workspace_path": "/tmp/pytest-of-root/pytest-9/test_manual_api_fake_runner_all_itr_skip_test_level0",
       "language": "python",
-      "library_version": "2.8.0.dev103+g96ca61a6c.d20240319",
+      "library_version": "2.8.0.dev103+ga9c036c7e.d20240327",
       "os.architecture": "aarch64",
       "os.platform": "Linux",
       "os.version": "5.15.49-linuxkit-pr",
-      "runtime-id": "1557435fa35d404abcbe354d2c893ead",
+      "runtime-id": "9cbd81bcd07a4d4eb4f758b38391f44f",
       "runtime.name": "CPython",
       "runtime.version": "3.10.11",
       "span.kind": "test",
-      "test.codeowners": "[]",
       "test.command": "manual_test_all_itr_skip",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
+      "test.itr.tests_skipping.type": "test",
       "test.status": "skip",
-      "test_session_id": "3867798134164062886",
+      "test_session_id": "3905667904014407621",
       "type": "test_session_end"
     },
     "metrics": {
@@ -829,8 +848,9 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 25702
+      "process_id": 8498,
+      "test.itr.tests_skipping.count": 12
     },
-    "duration": 2839708,
-    "start": 1710862317779109501
+    "duration": 1895500,
+    "start": 1711549044658515837
   }]]

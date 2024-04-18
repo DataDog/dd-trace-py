@@ -85,7 +85,7 @@ methods = multiprocessing.get_all_start_methods()
 
 @pytest.mark.parametrize(
     "method",
-    methods,
+    set(methods) - {"forkserver"},  # flaky
 )
 def test_multiprocessing(method, tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")

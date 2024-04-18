@@ -1,0 +1,127 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6615ac1200000000",
+      "langchain.request.inputs.0.language": "Spanish",
+      "langchain.request.inputs.0.person": "Spongebob Squarepants",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "SpongeBob SquarePants es de la ciudad submarina ficticia de Fondo de Bikini.",
+      "language": "python",
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 38,
+      "langchain.tokens.prompt_tokens": 51,
+      "langchain.tokens.total_cost": 0.00015250000000000002,
+      "langchain.tokens.total_tokens": 89,
+      "process_id": 74685
+    },
+    "duration": 18728000,
+    "start": 1712696338901623000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_core.runnables.base.RunnableSequence",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "langchain.request.inputs.0.language": "Spanish",
+         "langchain.request.inputs.0.person": "Spongebob Squarepants",
+         "langchain.request.type": "chain",
+         "langchain.response.outputs.0": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 17,
+         "langchain.tokens.prompt_tokens": 18,
+         "langchain.tokens.total_cost": 6.1000000000000005e-05,
+         "langchain.tokens.total_tokens": 35
+       },
+       "duration": 6422000,
+       "start": 1712696338909138000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "langchain.request.api_key": "...key>",
+            "langchain.request.messages.0.0.content": "what is the city Spongebob Squarepants is from?",
+            "langchain.request.messages.0.0.message_type": "HumanMessage",
+            "langchain.request.model": "gpt-3.5-turbo",
+            "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+            "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+            "langchain.request.openai.parameters.n": "1",
+            "langchain.request.openai.parameters.stream": "False",
+            "langchain.request.openai.parameters.temperature": "0.7",
+            "langchain.request.provider": "openai",
+            "langchain.request.type": "chat_model",
+            "langchain.response.completions.0.0.content": "SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom.",
+            "langchain.response.completions.0.0.message_type": "AIMessage"
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.tokens.completion_tokens": 17,
+            "langchain.tokens.prompt_tokens": 18,
+            "langchain.tokens.total_cost": 6.1000000000000005e-05,
+            "langchain.tokens.total_tokens": 35
+          },
+          "duration": 4536000,
+          "start": 1712696338910646000
+        },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.0.content": "what country is the city SpongeBob SquarePants is from the fictional underwater city of Bikini Bottom. in? respond in Spanish",
+         "langchain.request.messages.0.0.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.n": "1",
+         "langchain.request.openai.parameters.stream": "False",
+         "langchain.request.openai.parameters.temperature": "0.7",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "SpongeBob SquarePants es de la ciudad submarina ficticia de Fondo de Bikini.",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 21,
+         "langchain.tokens.prompt_tokens": 33,
+         "langchain.tokens.total_cost": 9.15e-05,
+         "langchain.tokens.total_tokens": 54
+       },
+       "duration": 3532000,
+       "start": 1712696338916531000
+     }]]

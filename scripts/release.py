@@ -261,12 +261,23 @@ def add_release_to_changelog(name: str, release_notes: str):
 
 def commit_and_push(dd_repo, branch_name: str, release_name: str):
     subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
-    subprocess.check_output("git add -A", shell=True, cwd=os.pardir)
+    try:
+        subprocess.check_output("git add CHANGELOG.md", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError:
+        try:
+            subprocess.check_output("git add ../CHANGELOG.md", shell=True, cwd=os.pardir)
+        except subprocess.CalledProcessError:
+            raise ValueError(
+                "Couldn't find the CHANGELOG.md file when trying to modify and create pr for it."
+                "You may need to run this script from the root of the repository."
+            )
     print(f"Committing changes to {CHANGELOG_FILENAME} on branch {branch_name}")
     pr_body = f"update changelog for version {release_name}"
     subprocess.check_output(f"git commit -m '{pr_body} via release script'", shell=True, cwd=os.pardir)
     subprocess.check_output(f"git push origin {branch_name}", shell=True, cwd=os.pardir)
-    dd_repo.create_pull(DEFAULT_BRANCH, branch_name, title=f"chore: {pr_body}", body=f"- [x] {pr_body}", draft=False)
+    dd_repo.create_pull(
+        title=f"chore: {pr_body}", body=f"- [x] {pr_body}", base=DEFAULT_BRANCH, head=branch_name, draft=False
+    )
 
 
 def create_changelog_pull_request(dd_repo, name: str, release_notes: str):

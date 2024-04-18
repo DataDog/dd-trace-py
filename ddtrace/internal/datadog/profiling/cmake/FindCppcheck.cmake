@@ -3,16 +3,21 @@ if (TARGET cppcheck_project)
     return()
 endif()
 
+# Set the default value for the cppcheck option
+option(DO_CPPCHECK "Enable cppcheck" OFF)
+
 include(ExternalProject)
 
 # Build cppcheck from sources
 if (DO_CPPCHECK)
-  ExternalProject_Add(cppcheck_project
-    GIT_REPOSITORY https://github.com/danmar/cppcheck.git
-    GIT_TAG "2.13.3"
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
-  )
-  set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
+  if (NOT CPPCHECK_EXECUTABLE OR NOT EXISTS "${CPPCHECK_EXECUTABLE}")
+    ExternalProject_Add(cppcheck_project
+      GIT_REPOSITORY https://github.com/danmar/cppcheck.git
+      GIT_TAG "2.13.3"
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/cppcheck
+    )
+    set(CPPCHECK_EXECUTABLE ${CMAKE_BINARY_DIR}/cppcheck/bin/cppcheck)
+  endif()
 
   # The function we use to register targets for cppcheck would require us to run separate
   # commands for each target, which is annoying.  Instead we'll consolidate all the targets
@@ -30,7 +35,7 @@ function(add_cppcheck_target)
   cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
 
   # Automatically generate the cppcheck target name
-  set(NAME "cppcheck_dd_${ARGV0}")
+  set(NAME "cppcheck_${ARGV0}")
 
   if (DO_CPPCHECK)
     # Initialize command variable
@@ -50,6 +55,7 @@ function(add_cppcheck_target)
 
     # Append include directories to the command
     foreach(INCLUDE_DIR ${ARG_INCLUDE})
+      message(STATUS "Adding include directory to cppcheck: ${INCLUDE_DIR}")
       list(APPEND cppcheck_cmd -I ${INCLUDE_DIR})
     endforeach()
 
@@ -72,5 +78,14 @@ function(add_cppcheck_target)
       COMMAND echo "Cppcheck target ${NAME} is disabled."
       COMMENT "cppcheck is disabled for ${ARGV0}"
     )
+  endif()
+
+  # Create a standard target to run everything
+  if (NOT TARGET cppcheck)
+    add_custom_target(cppcheck COMMENT "Runs cppcheck on all projects")
+  endif()
+
+  if (DO_CPPCHECK)
+    add_dependencies(cppcheck ${NAME})
   endif()
 endfunction()
