@@ -3,6 +3,8 @@ import os
 import vcr
 
 import ddtrace
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 
 
 logs_vcr = vcr.VCR(
@@ -124,7 +126,7 @@ def _expected_llmobs_non_llm_span_event(
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     if output_value is not None:
-        meta_dict["output"].update({"messages": output_value})
+        meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
         meta_dict.pop("input")
     if not meta_dict["output"]:
@@ -147,7 +149,7 @@ def _llmobs_base_span_event(
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": "undefined",
+        "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
@@ -162,3 +164,13 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
+
+
+def _get_llmobs_parent_id(span: Span):
+    if not span._parent:
+        return "undefined"
+    parent = span._parent
+    while parent is not None:
+        if parent.span_type == SpanTypes.LLM:
+            return str(parent.span_id)
+        parent = parent._parent
