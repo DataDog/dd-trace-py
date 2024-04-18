@@ -1,4 +1,5 @@
 import mock
+import pytest
 
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
@@ -9,6 +10,12 @@ from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
+
+
+@pytest.fixture
+def mock_logs():
+    with mock.patch("ddtrace.llmobs._trace_processor.log") as mock_logs:
+        yield mock_logs
 
 
 def test_processor_returns_all_traces():
@@ -42,26 +49,14 @@ def test_processor_only_creates_llmobs_span_event():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
                 grandchild_span.set_tag_str(SPAN_KIND, "llm")
     trace = [root_span, child_span, grandchild_span]
+    expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
+    expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
     trace_filter.process_trace(trace)
     assert mock_llmobs_writer.enqueue.call_count == 2
     mock_llmobs_writer.assert_has_calls(
         [
             mock.call.enqueue(_expected_llmobs_llm_span_event(root_span, "llm")),
-            mock.call.enqueue(
-                {
-                    "span_id": str(grandchild_span.span_id),
-                    "trace_id": "{:x}".format(grandchild_span.trace_id),
-                    "parent_id": str(root_span.span_id),
-                    "session_id": "{:x}".format(grandchild_span.trace_id),
-                    "name": grandchild_span.name,
-                    "tags": mock.ANY,
-                    "start_ns": grandchild_span.start_ns,
-                    "duration": grandchild_span.duration_ns,
-                    "error": 0,
-                    "meta": mock.ANY,
-                    "metrics": mock.ANY,
-                },
-            ),
+            mock.call.enqueue(expected_grandchild_llmobs_span),
         ]
     )
 
@@ -139,3 +134,20 @@ def test_ml_app_tag_overrides_env_var():
             llm_span.set_tag(ML_APP, "test-ml-app")
         tp = LLMObsTraceProcessor(dummy_tracer._writer)
         assert "ml_app:test-ml-app" in tp._llmobs_tags(llm_span)
+
+
+def test_malformed_span_logs_error_instead_of_raising(mock_logs):
+    """
+    Test that a trying to create a span event from a malformed span will log an error instead of crashing.
+    """
+    dummy_tracer = DummyTracer()
+    mock_llmobs_writer = mock.MagicMock()
+    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+        # span does not have SPAN_KIND tag
+        pass
+    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+    tp.process_trace([llm_span])
+    mock_logs.error.assert_called_once_with(
+        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span
+    )
+    mock_llmobs_writer.enqueue.assert_not_called()

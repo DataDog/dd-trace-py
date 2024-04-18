@@ -10,6 +10,7 @@ ddtrace/internal/schema/            @DataDog/apm-framework-integrations
 tests/contrib/                      @DataDog/python-guild @DataDog/apm-framework-integrations
 tests/internal/peer_service         @DataDog/python-guild @DataDog/apm-framework-integrations
 tests/internal/service_name         @DataDog/python-guild @DataDog/apm-framework-integrations
+tests/contrib/grpc                  @DataDog/apm-framework-integrations @DataDog/asm-python
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
@@ -33,7 +34,6 @@ ddtrace/contrib/pytest_bdd          @DataDog/ci-app-libraries
 ddtrace/contrib/unittest            @DataDog/ci-app-libraries
 tests/contrib/pytest                @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd            @DataDog/ci-app-libraries
-tests/contrib/grpc                  @DataDog/ci-app-libraries @DataDog/asm-python
 tests/contrib/unittest_plugin       @DataDog/ci-app-libraries
 ddtrace/ext/ci.py                   @DataDog/ci-app-libraries
 ddtrace/ext/ci_visibility           @DataDog/ci-app-libraries

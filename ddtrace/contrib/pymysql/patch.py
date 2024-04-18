@@ -12,6 +12,8 @@ from ...ext import net
 from ...internal.schema import schematize_database_operation
 from ...internal.schema import schematize_service_name
 from ...internal.utils.formats import asbool
+from ...propagation._database_monitoring import _DBM_Propagator
+from ..trace_utils import _convert_to_string
 
 
 config._add(
@@ -21,6 +23,7 @@ config._add(
         _dbapi_span_name_prefix="pymysql",
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
         trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
+        _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
 
@@ -53,7 +56,7 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    tags = {t: getattr(conn, a, "") for t, a in CONN_ATTR_BY_TAG.items()}
+    tags = {t: _convert_to_string(getattr(conn, a)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
     pin = Pin(tags=tags)
 
