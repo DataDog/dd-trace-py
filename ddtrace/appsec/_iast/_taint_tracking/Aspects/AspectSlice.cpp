@@ -81,8 +81,14 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
 PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
-    auto ranges = get_ranges(candidate_text);
-    if (ranges.empty()) {
+    auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
+        return result_o;
+    }
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(candidate_text, ctx_map);
+    if (ranges_error or ranges.empty()) {
         return result_o;
     }
     set_ranges(result_o,

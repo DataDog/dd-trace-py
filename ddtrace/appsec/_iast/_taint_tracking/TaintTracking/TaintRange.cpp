@@ -2,6 +2,8 @@
 #include "Initializer/Initializer.h"
 #include "Utils/StringUtils.h"
 
+namespace py = pybind11;
+
 void
 TaintRange::reset()
 {
@@ -89,77 +91,90 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
 PyObject*
 api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
+    bool result = false;
+    const char* result_error_msg =
+      "[IAST] Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin";
+    PyObject* pyobject_n = nullptr;
 
-    if (nargs != 5) {
-        PyErr_SetString(
-          PyExc_TypeError,
-          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin");
-        throw std::runtime_error(
-          "Invalid number of params: pyobject_newid, len(pyobject), source_name, source_value, source_origin");
-    }
-    PyObject* tainted_object = args[0];
-    if (!PyUnicode_Check(tainted_object) and !PyByteArray_Check(tainted_object) and !PyBytes_Check(tainted_object)) {
-        return tainted_object;
-    }
-    auto ctx_map = initializer->get_tainting_map();
-    PyObject* pyobject_n = new_pyobject_id(tainted_object);
-    PyObject* len_pyobject_py = args[1];
+    if (nargs == 5) {
+        PyObject* tainted_object = args[0];
+        auto ctx_map = initializer->get_tainting_map();
+        pyobject_n = new_pyobject_id(tainted_object);
+        PyObject* len_pyobject_py = args[1];
 
-    long len_pyobject = PyLong_AsLong(len_pyobject_py);
-    string source_name = PyObjectToString(args[2]);
-    string source_value = PyObjectToString(args[3]);
-    auto source_origin = OriginType(PyLong_AsLong(args[4]));
-    auto source = Source(source_name, source_value, source_origin);
-    auto range = initializer->allocate_taint_range(0, len_pyobject, source);
-    TaintRangeRefs ranges = vector{ range };
-    set_ranges(pyobject_n, ranges, ctx_map);
+        long len_pyobject = PyLong_AsLong(len_pyobject_py);
+        string source_name = PyObjectToString(args[2]);
+        if (not source_name.empty()) {
+            string source_value = PyObjectToString(args[3]);
+            if (not source_value.empty()) {
+                auto source_origin = OriginType(PyLong_AsLong(args[4]));
+                auto source = Source(source_name, source_value, source_origin);
+                auto range = initializer->allocate_taint_range(0, len_pyobject, source);
+                TaintRangeRefs ranges = vector{ range };
+                result = set_ranges(pyobject_n, ranges, ctx_map);
+                if (not result) {
+                    result_error_msg = MSG_ERROR_SET_RANGES;
+                }
+            } else {
+                result_error_msg = "[IAST] Invalid or empty source_value";
+            }
+        } else {
+            result_error_msg = "[IAST] Invalid or empty source_name";
+        }
+    }
+    if (not result) {
+        py::set_error(PyExc_ValueError, result_error_msg);
+        return nullptr;
+    }
+
     return pyobject_n;
 }
 
-TaintRangeRefs
+std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 {
+    TaintRangeRefs result;
     if (not is_text(string_input))
-        return {};
-
-    if (not tx_map) {
-        tx_map = initializer->get_tainting_map();
-    }
-    if (!tx_map or tx_map->empty()) {
-        // TODO: log something here: "no tx_map, maybe call create_context()?"
-        return {};
-    }
-
-    const auto it = tx_map->find(get_unique_id(string_input));
-    if (it == tx_map->end()) {
-        return {};
-    }
-
-    if (get_internal_hash(string_input) != it->second.first) {
-        tx_map->erase(it);
-        return {};
-    }
-
-    return it->second.second->get_ranges();
-}
-
-void
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map)
-{
-    if (not is_text(str) or ranges.empty())
-        return;
+        return std::make_pair(result, false);
 
     if (not tx_map) {
         tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
-            return;
+            return std::make_pair(result, true);
+        }
+    }
+    if (tx_map->empty()) {
+        return std::make_pair(result, false);
+    }
+    const auto it = tx_map->find(get_unique_id(string_input));
+    if (it == tx_map->end()) {
+        return std::make_pair(result, false);
+    }
+
+    if (get_internal_hash(string_input) != it->second.first) {
+        tx_map->erase(it);
+        return std::make_pair(result, false);
+    }
+
+    return std::make_pair(it->second.second->get_ranges(), false);
+}
+
+bool
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map)
+{
+    if (ranges.empty())
+        return false;
+
+    if (not tx_map) {
+        tx_map = initializer->get_tainting_map();
+        if (not tx_map) {
+            return false;
         }
     }
 
     auto tx_id = initializer->context_id();
     if (tx_id == 0) {
-        return;
+        return true;
     }
 
     auto obj_id = get_unique_id(str);
@@ -171,14 +186,14 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
     if (it != tx_map->end()) {
         it->second.second->decref();
         it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
-        return;
+        return true;
     }
 
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+    return true;
 }
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
-// FIXME: add check that candidate_text is really some kind of string
 // FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the
 // result)
 std::tuple<TaintRangeRefs, TaintRangeRefs>
@@ -186,29 +201,32 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
 {
     if (not is_text(candidate_text))
         return {};
-    // TODO: pass tx_map to the function
+
     auto tx_map = initializer->get_tainting_map();
-    TaintRangeRefs candidate_text_ranges{ get_ranges(candidate_text, tx_map) };
-    TaintRangeRefs all_ranges;
+    bool ranges_error;
+    TaintRangeRefs candidate_text_ranges, all_ranges;
+    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text, tx_map);
+    if (not ranges_error) {
+        for (const auto& param_handler : parameter_list) {
+            auto param = param_handler.cast<py::object>().ptr();
 
-    for (const auto& param_handler : parameter_list) {
-        auto param = param_handler.cast<py::object>().ptr();
-
-        if (is_text(param)) {
-            // TODO: OPT
-            TaintRangeRefs ranges{ get_ranges(param, tx_map) };
-            all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
+            if (is_text(param)) {
+                TaintRangeRefs ranges;
+                std::tie(ranges, ranges_error) = get_ranges(param, tx_map);
+                if (not ranges_error) {
+                    all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
+                }
+            }
         }
+        all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
     }
-
-    all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
     return { all_ranges, candidate_text_ranges };
 }
 
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 {
-    if (!taint_ranges or taint_ranges->empty()) {
+    if (not taint_ranges or taint_ranges->empty()) {
         return nullptr;
     }
     // TODO: Replace this loop with a efficient function, vector.find() is O(n)
@@ -225,17 +243,36 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 inline void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
+
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_1.ptr(), tx_map);
-    set_ranges(str_2.ptr(), ranges, tx_map);
+    bool ranges_error, result;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
+    if (ranges_error) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
+        return;
+    }
+    result = set_ranges(str_2.ptr(), ranges, tx_map);
+    if (not result) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
+    }
 }
 
 inline void
 api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int offset, int new_length = -1)
 {
+    bool ranges_error, result;
+    TaintRangeRefs ranges;
     auto tx_map = initializer->get_tainting_map();
-    auto ranges = get_ranges(str_1.ptr(), tx_map);
-    set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
+    std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
+    if (ranges_error) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
+        return;
+    }
+    result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
+    if (not result) {
+        py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
+    }
 }
 
 TaintedObjectPtr
