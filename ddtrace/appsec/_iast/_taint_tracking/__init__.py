@@ -128,7 +128,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
     try:
-        set_ranges(pyobject, tuple(ranges))
+        set_ranges(pyobject, ranges)
     except ValueError as e:
         iast_taint_log_error("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
 

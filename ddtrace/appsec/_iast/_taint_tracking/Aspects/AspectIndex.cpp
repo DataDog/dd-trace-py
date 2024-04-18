@@ -23,7 +23,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintR
     if (ranges_to_set.empty()) {
         return res_new_id;
     }
-    set_ranges(res_new_id, ranges_to_set);
+    set_ranges(res_new_id, ranges_to_set, tx_taint_map);
 
     return res_new_id;
 }

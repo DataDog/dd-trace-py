@@ -67,6 +67,18 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
     return shift_taint_ranges(source_taint_ranges, offset);
 }
 
+void
+api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
+{
+    auto tx_map = initializer->get_tainting_map();
+
+    if (not tx_map) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        return;
+    }
+    set_ranges(str.ptr(), ranges, tx_map);
+}
+
 /**
  * set_ranges_from_values.
  *
@@ -99,7 +111,8 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
         PyObject* tainted_object = args[0];
         TaintRangeMapType* tx_map = initializer->get_tainting_map();
         if (not tx_map) {
-            throw py::value_error(MSG_ERROR_TAINT_MAP);
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+            return nullptr;
         }
 
         pyobject_n = new_pyobject_id(tainted_object);
@@ -162,7 +175,6 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_ma
     if (ranges.empty()) {
         return false;
     }
-
     auto obj_id = get_unique_id(str);
     auto it = tx_map->find(obj_id);
     auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
@@ -238,8 +250,7 @@ api_get_ranges(py::object& string_input)
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
-        // throw py::value_error(MSG_ERROR_TAINT_MAP);
-        return ranges;
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
     }
 
     std::tie(ranges, ranges_error) = get_ranges(string_input.ptr(), tx_map);
@@ -249,7 +260,7 @@ api_get_ranges(py::object& string_input)
     return ranges;
 }
 
-inline void
+void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
 
@@ -258,7 +269,8 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        return;
     }
 
     std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
@@ -279,7 +291,8 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int
     TaintRangeRefs ranges;
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
     if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        return;
     }
     std::tie(ranges, ranges_error) = get_ranges(str_1.ptr(), tx_map);
     if (ranges_error) {
@@ -417,8 +430,8 @@ pyexport_taintrange(py::module& m)
           "offset"_a,
           "new_length"_a = -1);
 
+    // m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&api_set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
-
     m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
     m.def("copy_and_shift_ranges_from_strings",
           &api_copy_and_shift_ranges_from_strings,
