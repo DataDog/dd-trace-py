@@ -158,7 +158,7 @@ get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map)
 {
-    if (ranges.empty()){
+    if (ranges.empty()) {
         return false;
     }
 
