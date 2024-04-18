@@ -51,7 +51,10 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
 
     tc = traced_coro()
     # Ensure coroutine name is preserved, this is required for profiling
-    tc.__qualname__ = coro.__qualname__
-    tc.__name__ = coro.__name__
+    # Some coroutine's do not define __name__ or __qualname__ (e.g. async_generator_asend)
+    if hasattr(coro, "__name__"):
+        tc.__name__ = coro.__name__
+    if hasattr(coro, "__qualname__"):
+        tc.__qualname__ = coro.__qualname__
     args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
     return wrapped(*args, **kwargs)
