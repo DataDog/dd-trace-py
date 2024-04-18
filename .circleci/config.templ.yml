@@ -152,7 +152,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -187,7 +187,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -282,7 +282,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -652,7 +652,7 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/core_dumps
-            cp core.* /tmp/core_dumps
+            cp core.* /tmp/core_dumps || true
             ./scripts/bt
           when: on_fail
       - store_artifacts:
