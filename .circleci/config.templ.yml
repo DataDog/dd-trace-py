@@ -141,12 +141,12 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
-            - run: ulimit -c unlimited
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
             - run:
                 command: |
@@ -177,11 +177,11 @@ commands:
                       command: |
                         echo 'export DD_TRACE_AGENT_URL=<< parameters.trace_agent_url >>' >> "$BASH_ENV"
                         source "$BASH_ENV"
-            - run: ulimit -c unlimited
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
             - run:
                 command: |
@@ -273,12 +273,12 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
-            - run: ulimit -c unlimited
             - run:
                 name: Run tests
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite-hatch '<<parameters.env>>' 1
             - run:
                 command: |
@@ -657,11 +657,11 @@ jobs:
       - setup_riot
       - start_docker_services:
           services: ddagent
-      - run: ulimit -c unlimited
       - run:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
+            ulimit -c unlimited
             ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
       - run:
           command: |
