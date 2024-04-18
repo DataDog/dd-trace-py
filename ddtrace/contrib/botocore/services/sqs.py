@@ -8,7 +8,6 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.botocore.utils import extract_DD_context
-from ddtrace.contrib.botocore.utils import set_patched_api_call_span_tags
 from ddtrace.contrib.botocore.utils import set_response_metadata_tags
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -141,7 +140,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             span_type=SpanTypes.HTTP,
             child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
-            context_started_callback=set_patched_api_call_span_tags,
             instance=instance,
             args=args,
             params=params,

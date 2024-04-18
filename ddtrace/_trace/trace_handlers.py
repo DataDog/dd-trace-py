@@ -8,6 +8,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -547,9 +548,8 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
-    callback = ctx.get_item("context_started_callback")
     span = ctx.get_item(ctx.get_item("call_key"))
-    callback(
+    set_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
         ctx.get_item("args"),

@@ -41,7 +41,6 @@ from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
 from .utils import inject_trace_to_client_context
 from .utils import inject_trace_to_eventbridge_detail
-from .utils import set_patched_api_call_span_tags
 from .utils import set_response_metadata_tags
 
 
@@ -215,7 +214,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         endpoint_name=endpoint_name,
         operation=operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        context_started_callback=set_patched_api_call_span_tags,
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
