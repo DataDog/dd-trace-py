@@ -16,9 +16,9 @@ from typing import Dict  # noqa:F401
 import pytest
 
 
-DDTRACE_HELP_MSG = "HELP DDTRACE"
-DDTRACE_INCLUDE_CLASS_HELP_MSG = "HELP INCLUDE DDTRACE"
-NO_DDTRACE_HELP_MSG = "NO HELP"
+DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
+NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
+DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
