@@ -6,7 +6,6 @@ from typing import Tuple
 from ddtrace.internal.ci_visibility.telemetry.constants import CIVISIBILITY_TELEMETRY_NAMESPACE as _NAMESPACE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from ddtrace.internal.ci_visibility.telemetry.utils import skip_if_agentless
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 
@@ -21,7 +20,6 @@ class EVENTS_TELEMETRY(str, Enum):
     ENQUEUED_FOR_SERIALIZATION = "events_enqueued_for_serialization"
 
 
-@skip_if_agentless
 def _record_event(
     event: EVENTS_TELEMETRY,
     event_type: EVENT_TYPES,
@@ -54,9 +52,9 @@ def _record_event(
 def record_event_created(
     event_type: EVENT_TYPES,
     test_framework: TEST_FRAMEWORKS,
-    has_codeowners: Optional[bool] = None,
-    unsupported_ci: Optional[bool] = None,
-    is_benchmark: Optional[bool] = None,
+    has_codeowners: bool = False,
+    unsupported_ci: bool = False,
+    is_benchmark: bool = False,
 ):
     if test_framework == TEST_FRAMEWORKS.MANUAL:
         # manual API usage is tracked only by way of tracking created events
@@ -74,9 +72,9 @@ def record_event_created(
 def record_event_finished(
     event_type: EVENT_TYPES,
     test_framework: Optional[TEST_FRAMEWORKS],
-    has_codeowners: Optional[bool] = None,
-    unsupported_ci: Optional[bool] = None,
-    is_benchmark: Optional[bool] = None,
+    has_codeowners: bool = False,
+    unsupported_ci: bool = False,
+    is_benchmark: bool = False,
 ):
     _record_event(
         event=EVENTS_TELEMETRY.FINISHED,
@@ -88,13 +86,11 @@ def record_event_finished(
     )
 
 
-@skip_if_agentless
 def record_manual_api_event_created(event_type: EVENT_TYPES):
     # Note: _created suffix is added in cases we were to change the metric name in the future.
     # The current metric applies to event creation even though it does not specify it
     telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.MANUAL_API_EVENT, 1, (("event_type", event_type),))
 
 
-@skip_if_agentless
 def record_events_enqueued_for_serialization(events_count: int):
     telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count)

@@ -25,7 +25,6 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
-from tests.utils import flaky
 from tests.utils import override_config
 
 
@@ -773,7 +772,6 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 
 
 # Propagation should work when enabled
-@flaky(1717428664)
 def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import pytest
