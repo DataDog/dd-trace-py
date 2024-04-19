@@ -230,7 +230,8 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
-        self._user_sampler: Optional[BaseSampler] = None
+        # _user_sampler is the backup in case we need to revert from remote config to local
+        self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -286,8 +287,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        config._subscribe(["_trace_sample_rate"], self._on_global_config_update)
-        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
+        config._subscribe(["_trace_sample_rate", "_trace_sampling_rules"], self._on_global_config_update)
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
@@ -1123,54 +1123,44 @@ class Tracer(object):
 
     def _on_global_config_update(self, cfg, items):
         # type: (Config, List) -> None
-        if "_trace_sample_rate" in items or "_trace_sampling_rules" in items:
-            if "_trace_sample_rate" in items:
-                # If not coming from remote_config,
-                # we want to revert to the old sample_rate used, so pull it from the old sampler
-                if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-                    try:
-                        sample_rate = self._user_sampler.sample_rate  # type: ignore
-                    except AttributeError:
-                        log.debug("Custom sampler in use, cannot determine sample rate")
-                        sample_rate = None
 
-                elif cfg._get_source("_trace_sample_rate") != "default":
-                    sample_rate = cfg._trace_sample_rate
-                else:
-                    sample_rate = None
-            else:
+        # sampling configs always come as a pair
+        if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
+            if (
+                cfg._get_source("_trace_sample_rate") != "remote_config"
+                and cfg._get_source("_trace_sampling_rules") != "remote_config"
+                and self._user_sampler
+            ):
+                # if we get empty configs from rc for both sample rate and rules, we should revert to the user sampler
+                self.sampler = self._user_sampler
+                return
+
+            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
                 try:
-                    # if there's no new sample_rate in the payload, we'll
-                    # try to grab the sample_rate off of the old sampler for the
-                    # new sampler we'll initialize with the new trace sampling rules
-                    sample_rate = self._sampler.sample_rate
+                    sample_rate = self._user_sampler.default_sample_rate  # type: ignore[attr-defined]
                 except AttributeError:
-                    log.debug("Custom sampler in use, cannot determine sample rate")
+                    log.debug("Custom non-DatadogSampler is being used, cannot pull default sample rate")
                     sample_rate = None
-
-            if "_trace_sampling_rules" in items:
-                # Reset the user sampler if one exists
-                if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
-                    try:
-                        sampling_rules = self._user_sampler.rules  # type: ignore
-                    except AttributeError:
-                        log.debug("Custom non DatadogSampler sampler in use, cannot determine sampling rules")
-                        sampling_rules = None
-
-                elif cfg._get_source("_trace_sample_rate") != "default":
-                    sampling_rules = cfg._trace_sampling_rules
-                else:
-                    sampling_rules = None
+            elif cfg._get_source("_trace_sample_rate") != "default":
+                sample_rate = cfg._trace_sample_rate
             else:
+                sample_rate = None
+
+            if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
                 try:
-                    # if there's no new sampling_rules in the payload, we'll
-                    # grab rules off of the current sampler
-                    sampling_rules = self._sampler.rules
+                    sampling_rules = self._user_sampler.rules  # type: ignore[attr-defined]
+                    # we need to chop off the default_sample_rate rule so the new sample_rate can be applied
+                    sampling_rules = sampling_rules[:-1]
                 except AttributeError:
-                    log.debug("Custom non DatadogSampler sampler in use, cannot determine sampling rules")
+                    log.debug("Custom non-DatadogSampler is being used, cannot pull sampling rules")
                     sampling_rules = None
+            elif cfg._get_source("_trace_sampling_rules") != "default":
+                sampling_rules = cfg._trace_sampling_rules
+            else:
+                sampling_rules = None
 
             sampler = DatadogSampler(rules=sampling_rules, default_sample_rate=sample_rate)
+
             self._sampler = sampler
 
         if "tags" in items:
