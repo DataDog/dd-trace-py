@@ -19,9 +19,9 @@ class Crashtracker {
     std::string service;
     std::string version;
     std::string runtime;
-    std::string runtime_version;
+    std::string runtime_version{"0.0.0"};
     const std::string library_name{"dd-trace-py"};
-    const std::string family{"CPython"}; // This duplicates "language" from ddup?
+    const std::string family{"python"};
     std::string library_version;
     std::string url;
     std::string runtime_id;
