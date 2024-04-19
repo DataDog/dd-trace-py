@@ -85,7 +85,7 @@ slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyOb
 
     if (not ctx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        Py_RETURN_NONE;
+        return nullptr;
     }
 
     if (ctx_map->empty()) {

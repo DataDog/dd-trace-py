@@ -33,7 +33,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-        Py_RETURN_NONE;
+        return nullptr;
     }
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
@@ -44,7 +44,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        Py_RETURN_NONE;
+        return nullptr;
     }
 
     if (ctx_map->empty()) {

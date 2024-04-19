@@ -5,7 +5,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2 or !args) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
-        Py_RETURN_NONE;
+        return nullptr;
     }
 
     PyObject* candidate_text = args[0];
@@ -30,12 +30,12 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     Py_DecRef(method_name);
 
     if (not ctx_map or ctx_map->empty() or to_result == nullptr) {
-        Py_RETURN_NONE;
+        return nullptr;
     }
 
     if (to_toadd) {
         to_result->add_ranges_shifted(to_toadd, (long)len_candidate_text);
     }
     set_tainted_object(candidate_text, to_result, ctx_map);
-    Py_RETURN_NONE;
+    return nullptr;
 }
