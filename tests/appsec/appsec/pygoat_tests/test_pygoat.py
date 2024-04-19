@@ -21,7 +21,7 @@ def build_docker():
     os.chdir(os.path.dirname(__file__))
     try:
         subprocess.run(["docker", "rmi", "-f", IMAGE_NAME])
-    except:
+    except:  # noqa: E722
         pass
 
     subprocess.run(["docker", "build", ".", "-f", "Dockerfile.pygoat.2.0.1", "-t", IMAGE_NAME])
