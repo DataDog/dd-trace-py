@@ -134,6 +134,8 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
+    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+        return None
     try:
         set_ranges(pyobject, ranges)
     except ValueError as e:
@@ -141,6 +143,8 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
+    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+        return tuple()
     try:
         return get_ranges(pyobject)
     except ValueError as e:
