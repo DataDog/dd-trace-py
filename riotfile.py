@@ -127,6 +127,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/appsec/",
             pkgs={
                 "requests": latest,
+                "docker": latest,
             },
         ),
         Venv(
