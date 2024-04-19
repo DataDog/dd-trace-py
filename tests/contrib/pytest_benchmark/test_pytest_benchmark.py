@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 import pytest
 
@@ -25,6 +26,7 @@ from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIER
 from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_TOTAL
 from ddtrace.ext.test import TEST_TYPE
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from tests.ci_visibility.test_encoder import _patch_dummy_writer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -36,6 +38,18 @@ class PytestTestCase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+
+    @pytest.fixture(autouse=True)
+    def _dummy_check_enabled_features(self):
+        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
+
+        Tests that need a different response should re-patch the CIVisibility object.
+        """
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
+            yield
 
     def inline_run(self, *args):
         """Execute test script with test tracer."""

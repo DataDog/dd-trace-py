@@ -158,7 +158,12 @@ def finallystuff():
     return a
 
 
+class SensitiveData:
+    def __init__(self):
+        self.password = "foobar"
+
+
 def sensitive_stuff(pwd):
-    token, answer = "deadbeef", 42  # noqa:F841
+    token, answer, data = "deadbeef", 42, SensitiveData()  # noqa:F841
     pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
     return pwd

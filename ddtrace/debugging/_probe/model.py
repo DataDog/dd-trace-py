@@ -64,6 +64,8 @@ DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 @attr.s
 class Probe(abc.ABC):
+    __context_creator__ = False
+
     probe_id = attr.ib(type=str)
     version = attr.ib(type=int)
     tags = attr.ib(type=dict, eq=False)
@@ -241,7 +243,7 @@ class SpanProbeMixin(object):
 
 @attr.s
 class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
-    pass
+    __context_creator__ = True
 
 
 class SpanDecorationTargetSpan(object):

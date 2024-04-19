@@ -1,5 +1,5 @@
 """
-Trace queries and data streams monitoring to aws api done via botocore client
+Trace queries monitoring to aws api done via botocore client
 """
 import base64
 import json
@@ -10,15 +10,14 @@ from typing import Tuple  # noqa:F401
 
 from ddtrace import Span  # noqa:F401
 from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.ext import SpanKind
+from ddtrace.internal.constants import COMPONENT
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
 from ...ext import aws
 from ...ext import http
-from ...internal.compat import parse
-from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
 from ...internal.utils.formats import deep_getattr
 from ...propagation.http import HTTPPropagator
@@ -38,35 +37,6 @@ def get_json_from_str(data_str):
     if data_str.endswith(LINE_BREAK):
         return LINE_BREAK, data_obj
     return None, data_obj
-
-
-def get_queue_name(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-    Return the name of the queue given the params
-    """
-    queue_url = params["QueueUrl"]
-    url = parse.urlparse(queue_url)
-    return url.path.rsplit("/", 1)[-1]
-
-
-def get_pathway(pin, endpoint_service, dsm_identifier, span=None):
-    # type: (Pin, str, str, Span) -> str
-    """
-    :pin: patch info for the botocore client
-    :endpoint_service: the name  of the service (i.e. 'sns', 'sqs', 'kinesis')
-    :dsm_identifier: the identifier for the topic/queue/stream/etc
-    Set the data streams monitoring checkpoint and return the encoded pathway
-    """
-    path_type = "type:{}".format(endpoint_service)
-    if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
-
-    pathway = pin.tracer.data_streams_processor.set_checkpoint(
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type], span=span
-    )
-    return pathway.encode_b64()
 
 
 def get_kinesis_data_object(data):
@@ -104,8 +74,8 @@ def get_kinesis_data_object(data):
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_eventbridge_detail(ctx, params, span):
+    # type: (Any, Any, Span) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -148,7 +118,7 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def inject_trace_to_client_context(params, span):
+def inject_trace_to_client_context(ctx, params, span):
     trace_headers = {}
     HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
@@ -223,23 +193,13 @@ def set_response_metadata_tags(span, result):
 
 def extract_DD_context(messages):
     ctx = None
-    if len(messages) == 1:
+    if len(messages) >= 1:
         message = messages[0]
         context_json = extract_trace_context_json(message)
         if context_json is not None:
-            ctx = HTTPPropagator.extract(context_json)
-    elif len(messages) > 1:
-        prev_ctx = None
-        for message in messages:
-            prev_ctx = ctx
-            context_json = extract_trace_context_json(message)
-            if context_json is not None:
-                ctx = HTTPPropagator.extract(context_json)
-
-            # only want parenting for batches if all contexts are the same
-            if prev_ctx is not None and prev_ctx != ctx:
-                ctx = None
-                break
+            child_of = HTTPPropagator.extract(context_json)
+            if child_of.trace_id is not None:
+                ctx = child_of
     return ctx
 
 

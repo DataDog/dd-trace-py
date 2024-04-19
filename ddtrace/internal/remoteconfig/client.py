@@ -25,6 +25,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.runtime import container
 from ddtrace.internal.service import ServiceStatus
@@ -39,17 +40,30 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import MutableMapping  # noqa:F401
     from typing import Tuple  # noqa:F401
-    from typing import Union  # noqa:F401
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
 
 
+REQUIRE_SKIP_SHUTDOWN = frozenset({"django-q"})
+
+
+def derive_skip_shutdown(c: "RemoteConfigClientConfig") -> bool:
+    return (
+        c._skip_shutdown
+        if c._skip_shutdown is not None
+        else any(is_distribution_available(_) for _ in REQUIRE_SKIP_SHUTDOWN)
+    )
+
+
 class RemoteConfigClientConfig(En):
     __prefix__ = "_dd.remote_configuration"
 
     log_payloads = En.v(bool, "log_payloads", default=False)
+
+    _skip_shutdown = En.v(Optional[bool], "skip_shutdown", default=None)
+    skip_shutdown = En.d(bool, derive_skip_shutdown)
 
 
 config = RemoteConfigClientConfig()
@@ -58,7 +72,9 @@ config = RemoteConfigClientConfig()
 class Capabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RATE = 1 << 12
     APM_TRACING_LOGS_INJECTION = 1 << 13
+    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
     APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
 
 
 class RemoteConfigError(Exception):
@@ -179,11 +195,7 @@ class RemoteConfigClient(object):
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
-        container_info = container.get_container_info()
-        if container_info is not None:
-            container_id = container_info.container_id
-            if container_id is not None:
-                self._headers["Datadog-Container-Id"] = container_id
+        container.update_headers_with_container_info(self._headers, container.get_container_info())
 
         tags = ddtrace.config.tags.copy()
 
@@ -293,6 +305,10 @@ class RemoteConfigClient(object):
             conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
+            data_length = resp.headers.get("Content-Length")
+            if data_length is not None and int(data_length) == 0:
+                log.debug("[%s][P: %s] RC response payload empty", os.getpid(), os.getppid())
+                return None
             data = resp.read()
 
             if config.log_payloads:
@@ -363,7 +379,9 @@ class RemoteConfigClient(object):
             appsec_rc_capabilities()
             | Capabilities.APM_TRACING_SAMPLE_RATE
             | Capabilities.APM_TRACING_LOGS_INJECTION
+            | Capabilities.APM_TRACING_HTTP_HEADER_TAGS
             | Capabilities.APM_TRACING_CUSTOM_TAGS
+            | Capabilities.APM_TRACING_ENABLED
         )
         return dict(
             client=dict(
@@ -384,19 +402,21 @@ class RemoteConfigClient(object):
             root_version=1,
             targets_version=self._last_targets_version,
             config_states=[
-                dict(
-                    id=config.id,
-                    version=config.tuf_version,
-                    product=config.product_name,
-                    apply_state=config.apply_state,
-                    apply_error=config.apply_error,
-                )
-                if config.apply_error
-                else dict(
-                    id=config.id,
-                    version=config.tuf_version,
-                    product=config.product_name,
-                    apply_state=config.apply_state,
+                (
+                    dict(
+                        id=config.id,
+                        version=config.tuf_version,
+                        product=config.product_name,
+                        apply_state=config.apply_state,
+                        apply_error=config.apply_error,
+                    )
+                    if config.apply_error
+                    else dict(
+                        id=config.id,
+                        version=config.tuf_version,
+                        product=config.product_name,
+                        apply_state=config.apply_state,
+                    )
                 )
                 for config in self._applied_configs.values()
             ],
@@ -439,7 +459,7 @@ class RemoteConfigClient(object):
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
-            elif target not in client_configs:
+            elif target not in targets:
                 callback_action = False
             else:
                 continue

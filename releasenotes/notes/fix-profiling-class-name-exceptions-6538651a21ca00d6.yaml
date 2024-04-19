@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue that could have caused the profiler to stop if
+    unable to determine the class name of a profiled function with CPython 3.11
+    and newer.

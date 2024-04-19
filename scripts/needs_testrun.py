@@ -59,13 +59,12 @@ def get_merge_base(pr_number: int) -> str:
 
 
 @cache
-def get_commit_message(sha: str) -> str:
-    """Get the commit message of a commit."""
-    if sha:
-        try:
-            return check_output(["git", "log", "-1", "--pretty=%B", sha]).decode("utf-8").strip()
-        except Exception:
-            pass
+def get_latest_commit_message() -> str:
+    """Get the commit message of the last commit."""
+    try:
+        return check_output(["git", "log", "-1", "--pretty=%B"]).decode("utf-8").strip()
+    except Exception:
+        pass
     return ""
 
 
@@ -111,7 +110,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     >>> needs_testrun("foobar", 6412)
     True
     """
-    if "itr:noskip" in get_commit_message(sha).lower():
+    if "itr:noskip" in get_latest_commit_message().lower():
         return True
     try:
         patterns = get_patterns(suite)

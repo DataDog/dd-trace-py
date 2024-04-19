@@ -1,0 +1,4 @@
+features:
+  - |
+    datastreams: this change adds kombu auto-instrumentation for datastreams monitoring.
+    tracing: this change adds the ``DD_KOMBU_DISTRIBUTED_TRACING`` flag (default ``True``)

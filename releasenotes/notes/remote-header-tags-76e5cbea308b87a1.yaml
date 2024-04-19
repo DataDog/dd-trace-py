@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Adds support for remote configuration of ``DD_TRACE_HEADER_TAGS``

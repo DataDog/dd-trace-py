@@ -95,4 +95,12 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "django_q",
 ]
+
+Q_CLUSTER = {
+    "name": "DjangORM",
+    "timeout": 60 * 30,
+    "retry": 10000000000,
+    "max_attempts": 1,  # Dont re-attempt tasks
+}

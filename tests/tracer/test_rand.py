@@ -11,8 +11,8 @@ import os
 import threading
 import time
 
-from ddtrace import Span
 from ddtrace import tracer
+from ddtrace._trace.span import Span
 from ddtrace.internal import _rand
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import Queue

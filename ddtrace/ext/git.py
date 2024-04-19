@@ -56,6 +56,9 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+# Python main package
+MAIN_PACKAGE = "python_main_package"
+
 _RE_REFS = re.compile(r"^refs/(heads/)?")
 _RE_ORIGIN = re.compile(r"^origin/")
 _RE_TAGS = re.compile(r"^tags/")
@@ -125,7 +128,7 @@ def _set_safe_directory():
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
-        log.error("Error setting safe directory", exc_info=True)
+        log.error("Error setting safe directory")
 
 
 def _extract_clone_defaultremotename_with_details(cwd):
@@ -179,8 +182,10 @@ def extract_user_info(cwd=None):
     # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    stdout = _git_subprocess_cmd("show -s --format=%an,%ae,%ad,%cn,%ce,%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd)
-    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split(",")
+    stdout = _git_subprocess_cmd(
+        "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd
+    )
+    author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("|||")
     return {
         "author": (author_name, author_email, author_date),
         "committer": (committer_name, committer_email, committer_date),

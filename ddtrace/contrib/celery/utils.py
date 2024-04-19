@@ -2,8 +2,8 @@ from typing import Any
 from typing import Dict
 from weakref import WeakValueDictionary
 
+from ddtrace._trace.span import Span
 from ddtrace.contrib.trace_utils import set_flattened_tags
-from ddtrace.span import Span
 
 from .constants import CTX_KEY
 

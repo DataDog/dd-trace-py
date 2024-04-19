@@ -68,7 +68,13 @@ class ElasticsearchPatchTest(TracerTestCase):
         super(ElasticsearchPatchTest, self).setUp()
 
         es = self._get_es()
-        Pin(tracer=self.tracer).onto(es.transport)
+        tags = {
+            # `component` is a reserved tag. Setting it via `Pin` should have no effect.
+            "component": "foo",
+            # `custom_tag` is a custom tag that can be set via `Pin`.
+            "custom_tag": "bar",
+        }
+        Pin(tracer=self.tracer, tags=tags).onto(es.transport)
         self.create_index(es)
 
         patch()
@@ -101,6 +107,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.get_tag("out.host") == "localhost"
+        assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
         args = self._get_index_args()

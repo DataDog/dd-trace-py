@@ -19,6 +19,8 @@ REDACTED_IDENTIFIERS = (
             "apikey",
             "apisecret",
             "apisignature",
+            "appkey",
+            "applicationkey",
             "auth",
             "authorization",
             "authtoken",

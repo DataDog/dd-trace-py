@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fixes an issue where an atexit handler could lead to a segmentation fault.

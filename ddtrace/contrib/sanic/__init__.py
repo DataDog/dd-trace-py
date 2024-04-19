@@ -23,12 +23,6 @@ Sanic tracing can also be enabled explicitly::
     if __name__ == '__main__':
         app.run()
 
-On Python 3.6 and below, you must enable the legacy ``AsyncioContextProvider`` before using the middleware::
-
-    from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-    from ddtrace import tracer  # Or whichever tracer instance you plan to use
-    tracer.configure(context_provider=AsyncioContextProvider())
-
 
 Configuration
 ~~~~~~~~~~~~~

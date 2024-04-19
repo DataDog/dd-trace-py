@@ -1,0 +1,176 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.31.0
+    method: GET
+    uri: https://controller.us-west1-gcp-free.pinecone.io/actions/whoami
+  response:
+    body:
+      string: '{"project_name":"74ce8fe","user_name":"","user_label":""}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '57'
+      Date:
+      - Mon, 11 Mar 2024 19:03:34 GMT
+      Server:
+      - Google Frontend
+      Via:
+      - 1.1 google
+      X-Cloud-Trace-Context:
+      - c0647d71ba097bc4b5b3c1bcc43b1d2c
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - '*'
+      content-type:
+      - application/json
+      vary:
+      - origin,access-control-request-method,access-control-request-headers
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"input": ["Who was Alan Turing?"], "encoding_format": "base64"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '64'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.10.3", "platform": "Linux-5.15.49-linuxkit-aarch64-with-glibc2.28", "publisher":
+        "openai", "uname": "Linux 5.15.49-linuxkit #1 SMP PREEMPT Tue Sep 13 07:51:32
+        UTC 2022 aarch64"}'
+    method: POST
+    uri: https://api.openai.com/v1/engines/text-embedding-ada-002/embeddings
+  response:
+    body:
+      string: "{\n  \"object\": \"list\",\n  \"data\": [\n    {\n      \"object\":
+        \"embedding\",\n      \"index\": 0,\n      \"embedding\": \"S8aaO5bA+bxskw+8NEWvvL6BmTvH5Ek8vbIiveHSGTxYS8S82KXOvPKtAD29M/M8RtUqPElCD7zVtxk84gj/O84OWjyt9nk8ytJ+PG4XGzsRqcO8tyYAPFPZg7mBXCu84ws6vBrWDrtMMMQ8IrWzvI/KrTzuvBC9Qv6cPDKnwbvEd+W8GldfvIHd+7w/qxo8bPp9PE60zzwyjV88/klRvAw3Az3KHeo85nieO/GQY7wDVSO8njgwPOo1Sjur8R27rMAUvO9AHDxDzRM8atu/PDKnQTyORqK89BcqvRNHMbzXVYe8ghFAPAjHYzn6csM8vcwEu4uO0rtsX0u77aKuOydBVjytdSm85/luvP6unjwZosq7aD3SOydBVjy2PSc8+1ucu0UgFrxsRek8Ge01u9Zsrrx+Cam7jKi0vPvc7Dpjy5E874sHvGhXtDsw73G8Ru8Mu4CnFjueUpK8cFA7PEQ3vbxdVpY7eX0GvDeYMTxoop88T4PGPAd3HLzNik48h9Gmu5IdsDz0/ce8NzNkvZ+iWTy06iS8L58qvElCj7z8EDE6oaUUvIFCSTzR4Iu7m7HpPFtT27tVxH08lvS9PAsa5ju+gRm9U9kDusdJl7wdKRE9hhwSvZBlYDwsTKi8CMfjPG/MrzsD1vM6bWKGvHfFNjxl6s88RJyKu7cmALyH0SY8HFoavBulhTtVQy281LTePB3epTtS8Cq7DAO/PAJsyrwWZu+5gXYNvEnD37wUFig8VUOtPGH537rr6t676pqXOkhZNj3CWKe6oFduuTEMj7sSw6U80ko1PIFCSTz8ELE8PvYFPAMh3zxJKK06kh0wvJzOBju38ru84gh/vGz6/buv39K76cugPKzAlLz0mPo8qm0SPW+BxDxzids8zYpOOwACobxi/Bq8QeQ6PI5GIr2RNNc80Xs+PFu4qLseX/Y5N01Gu1yhgbwVsVo8I4SqvLsulzvA1Js8f/IBPT+RuLzrBEE8a6q2u3BQuzjhuDc8uuBwvIHdezut9nk8ghFAO4UZV7xMSia/3zQsvYIRwLyFfiS7GrwsPDTgYTzkpuw7JO7Tu5cOoLsJfHg5Nsk6PJlHwDxy1MY7wB8HvDeyk7x8hZ28bUgku4yoNDz0mHo8qZ6bPH4JqbwrlxM9QrOxvCCy+LzAoNc8OTafO7EyVTxMMES8O9QMvOcT0bu3DJ68kGXgPI0SXjwiUGa8aw8EPQNvBbxxap28HcTDPC6FSLvuV8M8OOh4vIoKx7yUux09sudpPFX4QTz+L288aw+EO+nLoLpqp3u7ViwGulyHn7pwULs7qM+kuEKZTztoPVK8Ksgcu48VmTmFmAa9OobmOpFomztQhoE6o0MCPXuC4ryY3Ra8rY8Lu/NIMzxJ3UG85fSSPH7vRrvraY684W3MPGny5jtBSQi8AYPxul/0g7yPsEs8yWjVPK+U57zOjQk955KAvBwPrztTv6G7rMAUvIe3xLtcbT09ir/bujNcVryT0sS7NODhuwaOQzyL8588iTvQPHuC4rtHvgO9Gwz0uxa0FTyApxa8+nLDvF6mXbvjViW8ExPtO6L127zmwwk9kJkkPPQXKjoJFYq8JSIYvFdiazzsOAU9x+TJvOjiRzs9jv273n+Xu4YCMDqVcDK8DAO/vCXXrDuO+7Y8RezRutIW8bzFLPo8oIuyu+494TxWrda7K30xO7p5Aj2yZhk762mOvK11qbxLe688YflfvCKb0byctCQ8rVvHvP9jszwBg3G8GtYOuwzPerlUD+m85/nuO1O/Ib0MHSG8wiRjvIiGuzzeS9O8xNyyvDAJVDsWZm88G4sjOiLPFTxKEYY7oFduuwYp9rvyrYA8OIGKO2x5Lbz5iWo7K2PPvLU6bLpewL+72AocOidbuDz15iA7Is+VOiaMwTu7Lpc7w0EAPFat1jxzvZ+8RSCWvL/R4DzpZtM6QOF/u6ZLGTzyrYC8n6LZPDnRUTy8/Q27zNU5PO5xpTug1h287nElO9ARlbtewD+87NO3PMAfBzy7yck7DAM/PO5xpTw0K006ftXkO0HKWDx80Ig8llmLOuADozvKHWo8M3a4PFG8ZrxPg8Y8rXUpPYq/Wzti4jg8zaSwPNZsrjzXOyW6+yfYvJFomzrOc6e7mF7nPJB/Qrs8o4M75amnvPNIs7wBg3G87ya6uiir/zw71Ay8NEWvPBtAOLx/8oG8GFKDu7sUNbuvE5e71bcZO1SOmLq7Lhc96UxxvLsUNTxeCys8oVopvdMzDrwe+Ae8MkJ0O3TXgTxDgqi6J0HWPHaRcjxCszG8eWMkPXYQIrx/2J+84gj/uqStKzxcoYG7SvcjPDE9mDwBnVM9MkL0PD3zyrxcbb08WQDZu16mXTwjnoy84J7VvCXXrLs6hua7nlKSPArkALzE9pS7iTtQPCdB1jyRs4Y8VuEaPPSY+jtPHnm7d8U2vIV+JDwlo2g6O4mhO4oKRzwh5jw7yBgOvKruYjy3JgC8ehi5PNW3GTxf9AO63zSsO5lhIjwPcKO7MkL0vAACIb2sprI89eYgPY+wyztept281gfhOyxmijxNGR284J7VvEwW4jsDO8G7OBy9u5coAjxzvZ+86eUCvYvzHz08Pra8DodKODxYmLzhuLe7TRmdPKBXbjtQhoG8eeT0PLsUtbufvDu8H3yTvDDvcTy0hde8kWgbvK5egrwPC1a7hRlXvNMZrDuvlOc8j8otPP5JUbzuPeE8hTO5uy2cb7wXT0i8lygCvFtT2zq06qQ9QOF/PEclcrx8N3e6L1S/uJNt9zp7ARK9qM8kvEhZNj3C2Xe8ZGZEuiXXrDxfjzY8yH98u3EfsjtgqRg8306OOjvUDLz3hA46wtn3vK11Kbz7QTo8YfnfO/T9xzsgMai8CuQAvc2KTjxdPLQ7wiTjO2kmq7yXqVI7sgHMO6jpBrzYChw7EXV/O7cMHj1OtM+81AIFPZK4YrxMFuK8v9FgPPc5I7vjcIc8Yq70vGETwjzxRXi8lLudupjdFj1YZSa8UnF7vEUGNDsXT0g8sufpvNe8dbxvzK+8dVsNPfDbTjuCRYS8JFOhvFPZgzu/60K8+T5/vA+KhbzZdEW8tASHPOj8qbtCmU+7LTWBvNS0Xrw6BZY72b+wPN80LLxi4ji937X8OYUzObsYUoM7tW4wPCCyeLxAFUS8SSitPCgqrzu8/Q29e7YmvIokKbwoRJE7Mo3fuxMtz7t2KgS7uaoLu+f5bjxW4Zo7lsB5PF4Lq7vl9JK8b4HEuwkVijwDVaO7O4khPdQChbtNy3a82XRFusAfB71HpKE7waMSvG79uLxZNB08GLlxPIvznzxRIbQ76WbTvAzPejrMcGy84AOjPA6HSrvc+4s8LGaKPJcogjxZANm6yyClvL/rQryo6YY7VA/pvHsBkjwdqmE8AyFfvAjhxTyGTZs7zHDsu5ShO7tPHvm6IRqBvAwDPzyhWqm8DqGsvOo1yrwJFYq8qyInvPmjTDw0XxG8vjYuvEa7yLwlIhi8EXV/vOyf87vbErO8bEXpvFkaO7wJfPi737X8uyEagTz/GMi87wxYPJowmbwRdX+8ZAH3u55SEr3Aurm8Et0HOjCIAz1K96M8zaQwPVkau7tlNTs8/q4ePQPW8zsBg3G6cWodPDJCdDw7b7+8wlinO5ux6Tybsek8NzPkO3EFUDxHJfI61zslPLyYwDsbJtY7YS2ku8T2FL1zo728JQg2vCAxKLzP9zK8cDbZO8aUAjtqp/s8R4q/PP4v7zuJbxQ8PfPKPLOc/rv0MQw8vcyEO6V8Ijybsem7Bil2vNTOwLrNpDA8PY59POFT6jvmXjw7wnKJPPQxjLusCwC8ylEuPEScCr0yp0E8ehg5PD7CQbx014G8wB+HvHljpLoTkhy7g/qYutJKtbsbpYU80WFcPKhqV7z89s687yY6vBLdB7xrqrY8T7cKus2+Ej2iKaA8Gldfuuyf87vefxc8AyFfu40SXjv0/cc8CRWKOzBuITyRNFe83mW1uXgv4LvR4Au92VpjvA24U7zODto7SpLWOT3ZaLvLOge9aD1SvH7vxjypOc68KEQRvMXFC73yrQC9bphrPMs6B7s6oEi6F09IO70zc7yRswY7ymsQO34jC72Jb5Q8t9jZO1yhgbq6XyA86OJHvCOejLyRaBu71Z23O1yHn7w4Z6g76oC1u+f57jzaD3i8NEUvvBpX3zs1Lgg7Z+2KPF4ljTwcD6864AOju8zVObzKa5A83OGpPHYqhDt5SUI8qM+kuzAJ1LvyrQC9Ws/Pu5yaQrpb0oo7uuDwvJtm/rwrfbG8vP2NPJ1pOTx1QSs8x8rnuuTAzrz2Nug85NqwvL1ntzvpyyC67J9zO30gULy1bjA71AIFPMxw7Lw92eg8sxuuvDTgYbyb/4+85y2zu1hLRLwMaIy7zYrOvCAxqLxLxho8HA8vOw3sl7yzNRC8FbFaPFhLRDwQwOo77DgFOuNWpbx0PvC8+ydYPLIBTLwgsni8M1zWvGJHhrynGpC7W7ioO980rDwc9Uw8lLudvADovjyMXcm7XIcfvD8sazv36/y7RB1bvMzvmzyH6wg8rl6CO36K+Tt55HS8JO7Tu/mJaroSXti80//JvA3StbxFawE9CRUKugKgDru6+lK8CfunPPUAA70GQ9i8AyFfu40swDx23N08NOBhPPwqEzyEZMI8mnsEvEvGGjuBdg27QBXEutla4zzw2867uvrSN2U1u7uRaJu8r5TnOwYpdjzlj8W7t43uvGhXNLxrkFS850eVOz9GzbwffBM8PD62uwV0YboqSW08OGcovIUzOTyCxtS8ftVkvGBES7y4wbK6t/I7PGETQruXwzQ8oFduus2kMDyZrI089+v8vMNBgDxFa4E8bWIGPGqn+ztch5+6vH5ePKBXbjsvOl285/nuvCkTCLwdqmE8B3ecvERRHz1gXi28fSBQPNCsx7xvzK+8304OvOADozzFxYu8wlinPNCsR7l+1WQ7W9KKO6vXu7s7iSE7k9JEO0clcrxPHnk8qM8kPL0zc7ytQeU8i9m9vGOxr7yIIW47RexRPJI3kjsdxMO7DM96PtaGkLyctKQ8aqf7uh2q4bzTGSw8OGcoPChEkbw50dG655KAPIvzH7zC2fc8xnqgvGSAJjz73Gy7RJyKu/T9x7x2KgS9KBBNvPPj5bwLNMg7XqbdOkFJCLwOIv28DewXPVtTWzwYHr+85KZsvG79uDtMMES8UbxmvNt3gDoavKy6onSLPABNjDxS1ki7xcULuzN2ODrUtF48QcrYubU67DpEnIq8jSxAvLLn6bznE1G8Q2jGPKIPvrvuvBC97DgFvdYHYTyXDqC8PtwjvAV04TxO6BM9w8JQO0qS1juIIe67vH7eu2x5rTxsea08AYPxuzxYGDy8/Y28ARyDOzUuCLpxHzI9gHNSvYvZvTxwm6Y88cSnvLY9Jzt9VBQ7HarhvFrPzzwtGx+9MAnUu8YVUz3WUsw8RJwKuo13qzwgsng7KkltvA3StTykk8k6Is+VvL0zc7w92eg7Snj0vMJYpzx7guI7iGzZulVdD73CWCe7lFbQOz3ZaDzRYdw7PdnoO3/yATwIx2M8IRoBvNZsLr0Db4W6GB6/PCUimDyq7mK7q6P3PJ4ezrlrxJi6z8NuOwXZLr1x6+28WQBZur1N1TzR4Is7RDc9uxgevzyNkQ28aSYrvI5GojyGzuu7qFD1O+eSAL01Loi8W1NbPFu4qLyEMP689mosvUthTbyMwha9VHS2vHn+1jx5SUK8uZApvBLdBzxcIlK8xJHHvLaIkjyFM7m6bHmtu0g/1LstGx+8iIY7vDqgyLzsudU5E0cxvN2woLyJVbI855KAOhaaMzwMz/q8s9BCOgzP+rtG1aq64oeuO1d8TTyoUPW7pf3yvBF1f7yctKS8USE0PJcOIL1HJfI7X9ohPb42rryL85+7pwCuO6siJ76D4La6Ws9PPFyHn7zP97I8/CqTO+gWDDwu6pW7uuDwOl1WljzX1lc8KkntO40S3rwp38O8aQzJOmXqTzsILDE8T2nkuTTg4TzFLPo7phfVPPGqRbwBg/E78PWwOhb/gDxAYK+7F4MMuw+KBTz6poc8Zp9kvBpX37ttYga94/HXPKwLgLwOIv08rkSgu5yawjuWwPm8qm0SvPKtADufolk8W1NbPYIRQDz1gVO5ExNtvGvEGDyFGVc8+deQvHzQCDvWhhA7hZgGPROSHL21Omw8l8O0OtwsFT3BoxI7cDbZu14LKzy9M3M70mQXvDKnwbydabm7oFfuPF3xyLobDPQ7njiwOgzP+rxHJXK8SUIPvUbVKrtvzC86bHktvHgv4DwNbWi8t43uu52DGzyj+Ba9Eni6O+qalzu9TdU8z/cyvAZD2Dw1Loi7IwV7u6IpoDs2ybq83K3lOkFJiDxmn2S8gHPSvNytZTwWZu+8r5TnvPjut7nioRA8iw2Cu/6UvDv363w8PKMDutc7Jb1JQo+6NRQmO6uj97thLSQ8b+YRPZ1P1zzioZC8bv24un/YnzxRvGY8xPYUvbJMNzwJfHg8PfPKPKWWhLyAc9I8o6rwOyOeDL050VE7GLlxvDiBij3cYvo7RFEfO6NDgjxrD4S8Ge01ul08tL0tAb287j3hO/wqkzwFdOE7yzoHPT+rGjol16w6s5z+vEe+Az0wiIO8BAo4vTZ+z7wkU6G8CCwxvIWYhrwXgwy8QGCvvL2yIr1pcRY9sZcivHbc3bvcLJU8ZrlGvFdia7wOh8q7rAsAvRxaGjwOu448fu9GPEL+nLgCoA69a6o2u/fr/Lx0jJY8zHBsOha0lbxsX0u7ylEuPNS0XjwATYy70ZUgvNFh3Dz6poe7XqZduw67jrtDzZO8nJrCPEdwXTx2KoS8mayNvBgeP7plNbu8tTrsO306MjzaD3i8wj7FPMR35Tz363w7wlgnu+HSmTxjyxE89+v8vAjHYzyEZEI8mRP8Ovk+/7vDQYC8hk2bPA8L1ryMXUk8jZGNPOyfc7wVMAo8i47SOueSgDoRdf+7OrqqPOZ4njw1+kO8eC9gOqFAx7swIza7onQLvGRmxDwSXtg6lSXHvE7Osbv+L+877ryQu2SaCDwVsdo8qZ6bPG6yzbx5ScK8njgwPHyFnbvFLHo7G0A4PBH0rjyf7US6RWuBO8XFi71kAfc8kH/CO+ADo7xbnsY81Gnzu7SF1zsJ+ye8rAuAu61B5TwWZu+8t1eJu/tbHLykxw28YflfvMzvm7uFGdc8Z1T5OWeIvTtPt4o7R6ShPDCIg7u1Ouw7Tf+6PCkTiDy3JoC8uZApvNl0xTscDy+9U9mDOt3KAryJO1C8KKt/vCK1Mzwp+aW6jZENPKptkjyO4dS7PndWO3OJWz2+gRm80hbxvF9b8jwMaAy63mW1vN80LLsx8qw6bEXpOrsUNTxKklY8PY59uxMT7TwWtJW8OqDIu0qS1rsrfbG7/i9vOwbChzvDJ548PKMDvM2ksDwLmZU8R76DvOj8qTtFIJY8jsdyPCpJbbxRB1I8/XraPEwW4ryuKr453zSsvAn7JzyWWYs82xIzuSJQZjzraQ48waMSO8nnBL0mWH08dUGrPFu4KLzt7Zm7D3Aju4zCFj2q7mK6HarhPNIW8TtvgcQ8diqEPKIpoDw8WBg8IDGoO3erVLwgsng7zo2JO8GJMDs1Log6OqDIPLY9pzy3je48K30xvLx+3jxnVPm8wiTjvH/yAT3iPMO8F2kqvTeYsTty7qg89jboPFxtvTyT0kS8zb6SPAXZLr2gi7I8e4JiPFoDlLx0WNK8Et0HPQpl0bs245w5YkcGOb/rQrybsWk8hTM5POiX3Dyb/w+9QcpYvPQxjLyOYIS81gdhvAEcA7wgF0a8znOnOk+3irwmpqO8jkYiPKzAlLxRvGY9hMkPPCbxjrw/q5o7RyVyuyTu07pJDss8zb4SPAaopbwd3qW89Zu1PAn7J7u1Ouy7A9bzvIbO6zrdsCA8pWLAOygQzTub5a28Ts4xvFu4qDyozyQ6GaJKu7pFPrtZAFk7U1pUuyQ5vzxseS27iW+Uuxg4Ib25K9y6KEQROxmiyrzgHYW8v1AQPFVdD70MHSG7AYNxuWz6/TyNd6s5giuiu88ovDzol9y7yh1qvH++PTy5dsc6mF5nvDk2n7sbpYW8\"\n
+        \   }\n  ],\n  \"model\": \"text-embedding-ada-002\",\n  \"usage\": {\n    \"prompt_tokens\":
+        5,\n    \"total_tokens\": 5\n  }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 862dce278950c404-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 11 Mar 2024 19:03:34 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=K1LJyywwczX14VXDQC1.r8Uf7R_QJanDPmA0CdWBj54-1710183814-1.0.1.1-PifG.eX_K2tX0EuVnLBr7_LGVaZ0xNcE95pRppeKoNKNBIwM9VY4LRaysXQ2.Q9i6Zrke2dNmMAp_Rz80qSRYQ;
+        path=/; expires=Mon, 11-Mar-24 19:33:34 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=lNs1LKgcDwyfq5gp9AHvm_0pEEhs0jptufoRKHXat3w-1710183814449-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - text-embedding-ada-002
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '15'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '10000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '9999994'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_7a982465208e3204b2f9f27e5fea39a3
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-client-2.2.4 (requests:2.31.0, urllib3:2.2.1)
+    method: POST
+    uri: https://langchain-retrieval-74ce8fe.svc.us-west1-gcp-free.pinecone.io/query
+  response:
+    body:
+      string: "{\"results\":[],\"matches\":[{\"id\":\"35391d1d-0466-4d92-b457-35f673e516eb\",\"score\":0.901149213,\"values\":[],\"metadata\":{\"chunk\":1,\"source\":\"https://simple.wikipedia.org/wiki/Alan%20Turing\",\"text\":\"A
+        brilliant mathematician and cryptographer Alan was to become the founder of
+        modern-day computer science and artificial intelligence; designing a machine
+        at Bletchley Park to break secret Enigma encrypted messages used by the Nazi
+        German war machine to protect sensitive commercial, diplomatic and military
+        communications during World War 2. Thus, Turing made the single biggest contribution
+        to the Allied victory in the war against Nazi Germany, possibly saving the
+        lives of an estimated 2 million people, through his effort in shortening World
+        War II.\\n\\nIn 2013, almost 60 years later, Turing received a posthumous
+        Royal Pardon from Queen Elizabeth II. Today, the \u201CTuring law\u201D grants
+        an automatic pardon to men who died before the law came into force, making
+        it possible for living convicted gay men to seek pardons for offences now
+        no longer on the statute book.\\n\\nAlas, Turing accidentally or otherwise
+        lost his life in 1954, having been subjected by a British court to chemical
+        castration, thus avoiding a custodial sentence. He is known to have ended
+        his life at the age of 41 years, by eating an apple laced with cyanide.\\n\\nCareer
+        \\nTuring was one of the people who worked on the first computers. He created
+        the theoretical  Turing machine in 1936. The machine was imaginary, but it
+        included the idea of a computer program.\\n\\nTuring was interested in artificial
+        intelligence. He proposed the Turing test, to say when a machine could be
+        called \\\"intelligent\\\". A computer could be said to \\\"think\\\" if a
+        human talking with it could not tell it was a machine.\",\"title\":\"Alan
+        Turing\",\"wiki-id\":\"13\"}}],\"namespace\":\"\"}"
+    headers:
+      content-length:
+      - '1821'
+      content-type:
+      - application/json
+      date:
+      - Mon, 11 Mar 2024 19:03:35 GMT
+      grpc-status:
+      - '0'
+      server:
+      - envoy
+      x-envoy-upstream-service-time:
+      - '1'
+    status:
+      code: 200
+      message: OK
+version: 1

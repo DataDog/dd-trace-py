@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed an incompatible version requirements for one of the internal
+    dependencies that could have caused an exception to be raised at runtime
+    with Python 3.12.

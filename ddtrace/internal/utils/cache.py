@@ -29,6 +29,7 @@ class LFUCache(dict):
         # type: (int) -> None
         self.maxsize = maxsize
         self.lock = RLock()
+        self.count_lock = RLock()
 
     def get(self, key, f):  # type: ignore[override]
         # type: (T, F) -> Any
@@ -38,22 +39,27 @@ class LFUCache(dict):
         function ``f`` is called on the key to generate it. The return value is
         then stored in the cache and returned to the caller.
         """
-        if len(self) >= self.maxsize:
-            for _, h in zip(range(self.maxsize >> 1), sorted(self, key=lambda h: self[h][1])):
-                del self[h]
 
         _ = super(LFUCache, self).get(key, miss)
         if _ is not miss:
-            value, count = _
-            self[key] = (value, count + 1)
+            with self.count_lock:
+                value, count = _
+                self[key] = (value, count + 1)
             return value
 
         with self.lock:
             _ = super(LFUCache, self).get(key, miss)
             if _ is not miss:
-                value, count = _
-                self[key] = (value, count + 1)
+                with self.count_lock:
+                    value, count = _
+                    self[key] = (value, count + 1)
                 return value
+
+            # Cache miss: ensure that we have enough space in the cache
+            # by evicting half of the entries when we go over the threshold
+            while len(self) >= self.maxsize:
+                for h in sorted(self, key=lambda h: self[h][1])[: self.maxsize >> 1]:
+                    del self[h]
 
             value = f(key)
 

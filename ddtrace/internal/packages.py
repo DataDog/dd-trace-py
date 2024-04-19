@@ -1,18 +1,19 @@
 import logging
 import os
+import sysconfig
+from types import ModuleType
 import typing as t
 
+from ddtrace.internal.compat import Path
+from ddtrace.internal.module import origin
+from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
-
-
-try:
-    import pathlib  # noqa: F401
-except ImportError:
-    import pathlib2 as pathlib  # type: ignore[no-redef]  # noqa: F401
 
 
 LOG = logging.getLogger(__name__)
 
+if t.TYPE_CHECKING:
+    import pathlib  # noqa
 
 try:
     fspath = os.fspath
@@ -43,11 +44,10 @@ except AttributeError:
                 raise TypeError("expected str, bytes or os.PathLike object, not " + path_type.__name__)
         if isinstance(path_repr, (str, bytes)):
             return path_repr
-        else:
-            raise TypeError(
-                "expected {}.__fspath__() to return str or bytes, "
-                "not {}".format(path_type.__name__, type(path_repr).__name__)
-            )
+        raise TypeError(
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
+        )
 
 
 # We don't store every file of every package but filter commonly used extensions
@@ -76,9 +76,24 @@ def get_distributions():
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name, version=version))
+            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
+
+
+@cached()
+def get_version_for_package(name):
+    # type: (str) -> str
+    """returns the version of a package"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return importlib_metadata.version(name)
+    except Exception:
+        return ""
 
 
 def _is_python_source_file(path):
@@ -112,12 +127,20 @@ def _package_file_mapping():
         return mapping
 
     except Exception:
-        LOG.error(
+        LOG.warning(
             "Unable to build package file mapping, "
             "please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,
         )
         return None
+
+
+@callonce
+def _third_party_packages() -> set:
+    from gzip import decompress
+    from importlib.resources import read_binary
+
+    return set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
 
 
 def filename_to_package(filename):
@@ -132,3 +155,48 @@ def filename_to_package(filename):
         filename = filename[:-1]
 
     return mapping.get(filename)
+
+
+def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
+    """Returns the package distribution for a module"""
+    return filename_to_package(str(origin(module)))
+
+
+stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
+platstdlib_path = Path(sysconfig.get_path("platstdlib")).resolve()
+purelib_path = Path(sysconfig.get_path("purelib")).resolve()
+platlib_path = Path(sysconfig.get_path("platlib")).resolve()
+
+
+@cached()
+def is_stdlib(path: Path) -> bool:
+    rpath = path.resolve()
+
+    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
+        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    )
+
+
+@cached()
+def is_third_party(path: Path) -> bool:
+    package = filename_to_package(str(path))
+    if package is None:
+        return False
+
+    return package.name in _third_party_packages()
+
+
+@cached()
+def is_distribution_available(name: str) -> bool:
+    """Determine if a distribution is available in the current environment."""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        importlib_metadata.distribution(name)
+    except importlib_metadata.PackageNotFoundError:
+        return False
+
+    return True

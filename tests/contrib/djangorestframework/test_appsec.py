@@ -1,6 +1,7 @@
 import django
 import pytest
 
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
@@ -19,7 +20,7 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
         assert_span_http_status_code(root_span, 500)
         query = dict(core.get_item("http.request.body", span=root_span))
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert get_triggers(root_span) is None
         assert root_span.get_tag("component") == "django"
         assert root_span.get_tag("span.kind") == "server"
         assert query == {"mytestingbody_key": "mytestingbody_value"}
@@ -45,7 +46,7 @@ def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
         root_span = test_spans.get_root_span()
         assert_span_http_status_code(root_span, 200)
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert get_triggers(root_span) is None
         assert root_span.get_tag("component") == "django"
         assert root_span.get_tag("span.kind") == "server"
         # check that the custom parser was used to parse the body

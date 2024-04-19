@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
@@ -33,7 +33,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 59,
       "langchain.tokens.prompt_tokens": 21,

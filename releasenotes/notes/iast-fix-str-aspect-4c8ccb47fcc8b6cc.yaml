@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fixes a bug in the ``str`` aspect where encoding and errors arguments were not honored correctly.

@@ -19,6 +19,8 @@ Usage:
 import argparse
 import itertools
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -38,15 +40,15 @@ if pip_version < MIN_PIP_VERSION:
         % (pip_version, MIN_PIP_VERSION)
     )
 
-
-supported_pythons = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+# Supported Python versions lists all python versions that can install at least one version of the ddtrace library.
+supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_1", "manylinux2014"]
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "--python-version",
-    choices=supported_pythons,
+    choices=supported_versions,
     action="append",
     required=True,
 )
@@ -122,3 +124,16 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         )
         # Remove the wheel as it has been unpacked
         os.remove(wheel_file)
+
+    sitepackages_root = Path(dl_dir) / f"site-packages-ddtrace-py{python_version}-{platform}"
+    directories_to_remove = [
+        sitepackages_root / "google" / "protobuf",
+        sitepackages_root / "google" / "_upb",
+    ]
+    directories_to_remove.extend(sitepackages_root.glob("protobuf-*"))  # dist-info directories
+
+    for directory in directories_to_remove:
+        try:
+            shutil.rmtree(directory)
+        except Exception:
+            pass

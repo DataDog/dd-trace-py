@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    tracing: Using ``[]`` for DD_TRACE_METHODS (``mymod.mysubmod.myclass[myfunc,otherfunc];...``) is deprecated and will be removed in 3.0.0.
+features:
+  - |
+    tracing: Updates DD_TRACE_METHODS to use a new notation with ``:`` to differentiate between the base module and the method name
+    (``mymod.mysubmod:myclass.myfunc,myclass.otherfunc;...``)

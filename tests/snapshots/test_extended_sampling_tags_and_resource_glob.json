@@ -1,0 +1,105 @@
+[[
+  {
+    "name": "should_send3",
+    "service": "",
+    "resource": "mycoolre$ource",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
+      "banana": "True",
+      "language": "python",
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 70612
+    },
+    "duration": 47000,
+    "start": 1707776518730636000
+  }],
+[
+  {
+    "name": "should_send1",
+    "service": "",
+    "resource": "should_send1",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
+      "banana": "True",
+      "language": "python",
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 70612
+    },
+    "duration": 48000,
+    "start": 1707776518728822000
+  }],
+[
+  {
+    "name": "should_send2",
+    "service": "",
+    "resource": "banana",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
+      "language": "python",
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
+      "tag1": "mycooltag"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 70612
+    },
+    "duration": 64000,
+    "start": 1707776518727081000
+  }],
+[
+  {
+    "name": "should_not_send",
+    "service": "",
+    "resource": "mycoolre$ource",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65ca9a0600000000",
+      "language": "python",
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
+      "tag1": "mycooltag"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 70612
+    },
+    "duration": 238000,
+    "start": 1707776518725139000
+  }]]

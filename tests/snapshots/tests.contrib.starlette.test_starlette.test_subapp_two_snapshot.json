@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /sub-app-two/hello/{name}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e89a3b00000000",
+      "component": "starlette",
+      "http.method": "GET",
+      "http.route": "/sub-app-two/hello/{name}",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app-two/hello/name",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "f9228007af6a45638fb2fbbcae0cd24c",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 43770
+    },
+    "duration": 627000,
+    "start": 1709742651453632000
+  },
+     {
+       "name": "starlette.request",
+       "service": "starlette",
+       "resource": "GET /hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "component": "starlette",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app-two/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1",
+         "span.kind": "server"
+       },
+       "duration": 366000,
+       "start": 1709742651453909000
+     }]]

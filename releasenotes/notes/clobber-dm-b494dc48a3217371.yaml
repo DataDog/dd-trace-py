@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    propagation: This fix resolves an issue where the sampling decision-maker tag in tracestate propagation headers
+    was clobbered by a default value.

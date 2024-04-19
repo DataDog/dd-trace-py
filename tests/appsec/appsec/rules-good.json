@@ -183,6 +183,36 @@
       ]
     },
     {
+      "id": "tst-421-002",
+      "name": "monitor value",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "421002",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              }
+            ],
+            "list": [
+              "monitor_that_value"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ],
+      "on_match": [
+        "monitor"
+      ]
+    },
+    {
       "id": "crs-942-100",
       "name": "SQL Injection Attack Detected via libinjection",
       "tags": {

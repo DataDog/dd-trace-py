@@ -1,7 +1,7 @@
 import requests
 import six
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.utils.retry import retry
 from ddtrace.propagation.http import HTTPPropagator

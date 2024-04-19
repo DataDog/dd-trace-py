@@ -4,7 +4,7 @@
 #
 #    pip-compile --config=pyproject.toml --no-annotate --resolver=backtracking .riot/requirements/135c565.in
 #
-attrs==23.1.0
+attrs==23.2.0
 coverage[toml]==7.2.7
 exceptiongroup==1.2.0
 hypothesis==6.45.0
@@ -16,7 +16,7 @@ opentracing==2.4.0
 packaging==23.2
 pluggy==1.2.0
 py-cpuinfo==9.0.0
-pytest==7.4.3
+pytest==7.4.4
 pytest-benchmark==4.0.0
 pytest-cov==4.1.0
 pytest-mock==3.11.1

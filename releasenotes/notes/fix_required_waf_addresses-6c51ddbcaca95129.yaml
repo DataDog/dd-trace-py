@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where rules updated through remote config were not
+    properly updating required waf addresses. This could lead to custom rules being ignored.

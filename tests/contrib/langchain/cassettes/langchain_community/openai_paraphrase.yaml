@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Paraphrase this text:\n\n        \n
+      Chains allow us to combine multiple\n components together to create a single,
+      coherent application.\n For example, we can create a chain that takes user input,
+      format it with a PromptTemplate,\n and then passes the formatted response to
+      an LLM. We can build more complex chains by combining\n multiple chains together,
+      or by\n combining chains with other components.\n \n\n        In the style of
+      a a 90s rapper.\n\n        Paraphrase: "], "frequency_penalty": 0, "logit_bias":
+      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
+      1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '647'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0RSy27bMBC8+ysGuvQiF3Fjx49rb0UM9GAgjavCoKW1yJjaZclV7CbIvxdUnPhC
+        gDs7s7NDvo6AwjXFCkXdBT9evMRaJtv17HH79GMTH6abc1w+Ny9p++svF2Xulv0T1ZoZSmfd1dIF
+        T+rkAteRjFJWnMxvlvPZdHE7HYBOGvKZ1gYd336djbWPexk7Thr7Wi9sK66mVKzwewQAr8OJ91mZ
+        XPGjlDg5taitcZxwItSG4R0f0Qc07nCgSKwIJmqqeG2OBMMwIUCt0S8J6lqrMNyA6ZkiDsb7BJMJ
+        FW9yf58ownHotUSXC06ROhG18O5ISM4fK37INn5G6YJuqAveKJX4J+XHHCunbG/fO99UvLHE+RpM
+        SllPBff36xIutxrvB8OQA9QSgjdc8Xfp9o7pY9XsWNRSRE5dmFhTmSVbURi0MTckb7ohzCE3xw2d
+        ixVuPite2hBlnzPm3vvP+sGxS3YXySThHHVSCcWAvo2AP8P79Mm0VKwu71KEYfedypE4Cy7v3uWK
+        66+4gvNvF1BFjb/WJ3eLUZ7xNvoPAAD//wMA+PxhFI4CAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e500492642f8-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:54 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=q8eSpW.28M4_iiwESFAuFnt.M8nOpz48m9W1fNH4WO0-1709754834-1.0.1.1-05sNRXXe2jnVnEXoLsQif9Jf438lDl_d7P9bCorGSdbS6kEHM9iEZkHLTY62v3pNSM4yQL7.SeiqqJUdlWea1g;
+        path=/; expires=Wed, 06-Mar-24 20:23:54 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=QByLxV1tozipc2W8zrOdCHZEr.flKCHFfYPvPLnnLNU-1709754834834-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '763'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249629'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 88ms
+      x-request-id:
+      - req_150f9633dbe9276064683489a08d680a
+    status:
+      code: 200
+      message: OK
+version: 1

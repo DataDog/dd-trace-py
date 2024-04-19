@@ -12,9 +12,10 @@ from ddtrace.appsec._iast._taint_tracking import set_ranges
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def get_parametrize(vuln_type):
+def get_parametrize(vuln_type, ignore_list=None):
     fixtures_filename = os.path.join(ROOT_DIR, "redaction_fixtures", "evidence-redaction-suite.json")
     data = json.loads(open(fixtures_filename).read())
+    idx = -1
     for element in data["suite"]:
         if element["type"] == "VULNERABILITIES":
             evidence_parameters = [
@@ -24,6 +25,7 @@ def get_parametrize(vuln_type):
                 evidence_input = [ev["evidence"] for ev in element["input"]]
             else:
                 evidence_input = [ev["evidence"] for ev in element["input"] if ev["type"] == vuln_type]
+
             if evidence_input:
                 sources_expected = element["expected"]["sources"][0]
                 vulnerabilities_expected = element["expected"]["vulnerabilities"][0]
@@ -31,6 +33,10 @@ def get_parametrize(vuln_type):
                 if parameters:
                     for replace, values in parameters.items():
                         for value in values:
+                            idx += 1
+                            if ignore_list and idx in ignore_list:
+                                continue
+
                             evidence_input_copy = {}
                             if evidence_input:
                                 evidence_input_copy = copy.deepcopy(evidence_input[0])
@@ -42,6 +48,10 @@ def get_parametrize(vuln_type):
 
                             yield evidence_input_copy, sources_expected, vulnerabilities_expected_copy
                 else:
+                    idx += 1
+                    if ignore_list and idx in ignore_list:
+                        continue
+
                     yield evidence_input[0], sources_expected, vulnerabilities_expected
 
 

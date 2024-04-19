@@ -5,13 +5,13 @@ make some changes
 import os
 
 
-def parametrized_week_hash(hash_func, method):
+def parametrized_weak_hash(hash_func, method):
     import hashlib
 
     m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
-    # label parametrized_week_hash
+    # label parametrized_weak_hash
     getattr(m, method)()
 
 
@@ -89,3 +89,13 @@ def cryptography_algorithm(algorithm):
     ct = encryptor.update(data)
 
     return ct
+
+
+def cipher_secure():
+    from Crypto.Cipher import AES
+
+    key = b"Sixteen byte key"
+    data = b"abcdefgh"
+    crypt_obj = AES.new(key, AES.MODE_EAX)
+    result = crypt_obj.encrypt(data)
+    return result

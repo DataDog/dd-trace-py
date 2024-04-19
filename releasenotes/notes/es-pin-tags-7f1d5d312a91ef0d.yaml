@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    elasticsearch: This allows custom tags to be set on Elasticsearch spans via the Pin interface.

@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    tracing: This introduces Glob matching support for ``service``, ``name``, and ``resource`` passed in with envar ``DD_TRACE_SAMPLE_RULES``.
+    Previously, the service, name, and resource were matched using exact string matching.
+deprecations:
+  - |
+    This deprecates the passing in of methods or regex patterns for ``service``, ``name``, and ``resource`` for sampling rules.
+    Please use the new Glob matching support instead.

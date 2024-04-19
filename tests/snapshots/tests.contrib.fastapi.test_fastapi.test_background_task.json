@@ -1,0 +1,75 @@
+[[
+  {
+    "name": "fastapi.background_task",
+    "service": "",
+    "resource": "custom_task",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e2cd8b00000000",
+      "_dd.span_links": "[{\"trace_id\": \"65e2cd8b00000000d6cd08732611cf82\", \"span_id\": \"d6c7de946de016bb\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
+      "language": "python",
+      "runtime-id": "a89de0282259441ba89e19dca313cc1f"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 73182
+    },
+    "duration": 2001762000,
+    "start": 1709362571921517000
+  }],
+[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "GET /asynctask",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65e2cd8b00000000",
+      "component": "fastapi",
+      "http.method": "GET",
+      "http.route": "/asynctask",
+      "http.status_code": "200",
+      "http.url": "http://testserver/asynctask",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "language": "python",
+      "runtime-id": "a89de0282259441ba89e19dca313cc1f",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 73182
+    },
+    "duration": 470000,
+    "start": 1709362571920822000
+  },
+     {
+       "name": "fastapi.serialize_response",
+       "service": "fastapi",
+       "resource": "fastapi.serialize_response",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": ""
+       },
+       "duration": 22000,
+       "start": 1709362571921182000
+     }]]

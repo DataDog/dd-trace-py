@@ -73,17 +73,18 @@ How do I run only the tests I care about?
    these are the "suite services".
 4. Start the suite services, if applicable, with ``$ docker-compose up -d service1 service2``.
 5. Start the test-runner Docker container with ``$ scripts/ddtest``.
-6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
+6. In the test-runner shell, run the tests with ``$ riot -v run --pass-env -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'``.
 
 Anatomy of a Riot Command
 -------------------------
 
 .. code-block:: bash
 
-    $ riot -v run -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
+    $ riot -v run --pass-env -s -p 3.10 <suite_name> -- -s -vv -k 'test_name1 or test_name2'
 
 * ``-v``: Print verbose output
 * ``--pass-env``: Pass all environment variables in the current shell to the pytest invocation
+* ``-s``: Skips base install. Ensure you have already generated the base virtual environment(s) before using this flag.
 * ``-p 3.10``: Run the tests using Python 3.10. You can change the version string if you want.
 * ``<suite_name>``: A regex matching the names of the Riot ``Venv`` instances to run
 * ``--``: Everything after this gets treated as a ``pytest`` argument
@@ -189,3 +190,24 @@ environment object.
 3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
    ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
 4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+
+What do I do when my pull request has failing tests unrelated to my changes?
+----------------------------------------------------------------------------
+
+The test suite is not completely reliable. There are usually some tests that can fail without any of their code paths being
+changed. This slows down development because most tests are required to pass for pull requests to be merged.
+
+The ``tests/utils`` module provides the ``@flaky`` decorator (`link <https://github.com/DataDog/dd-trace-py/blob/623f2df4de802563a463acc4d3c000dbc742e3d3/tests/utils.py#L1285>`_) to enable contributors to handle this situation. As a contributor,
+when you notice a test failure that is unrelated to the changes you've made, you can add the ``@flaky`` decorator to that test.
+This will cause the test's result not to count as a failure during pre-merge checks.
+
+The decorator requires as a parameter a UNIX timestamp specifying the time at which the decorator will stop skipping the test.
+A timestamp a few months in the future is a fine default to use.
+
+``@flaky`` is intended to be used liberally by contributors to unblock their work. Add it whenever you notice an apparently flaky
+test. It is, however, a short-term fix that you should not consider to be a permanent resolution.
+
+Using ``@flaky`` comes with the responsibility of maintaining the test suite's coverage over the library. If you're in the habit
+of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
+finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
+suite's coverage meaningfully broad while skipping tests.

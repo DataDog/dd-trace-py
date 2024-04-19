@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix for the declaration of dependencies for the package.

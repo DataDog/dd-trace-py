@@ -31,7 +31,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
       "process_id": 10515
@@ -58,7 +57,6 @@
        },
        "metrics": {
          "_dd.measured": 1,
-         "_sample_rate": 1.0,
          "langchain.request.input_count": 1,
          "langchain.response.outputs.embedding_length": 1536
        },

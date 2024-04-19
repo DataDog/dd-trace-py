@@ -17,9 +17,9 @@ logging.basicConfig(level=logging.DEBUG)
 def index(request):
     import ddtrace
 
-    if ddtrace.__version__ != "1.16.1":
+    if ddtrace.__version__ != "2.6.3":
         print(
-            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '1.16.1'"
+            "Assertion failure: unexpected ddtrace version received. Got %r when expecting '2.6.3'"
             % ddtrace.__version__
         )
         # Hard exit so traces aren't flushed.

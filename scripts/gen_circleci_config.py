@@ -81,6 +81,11 @@ def gen_pre_checks(template: dict) -> None:
         command="python -m tests.suitespec",
         paths={"docker", "tests/.suitespec.json", "tests/suitespec.py"},
     )
+    check(
+        name="Check suitespec coverage",
+        command="hatch run lint:suitespec-check",
+        paths={"*"},
+    )
 
 
 def gen_build_docs(template: dict) -> None:

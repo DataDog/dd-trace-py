@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Removes ``allow_false`` argument from ddtrace samplers. ``allow_false`` allows datadog
+    samplers to return a value that differs from the sampling decision, this behavior is not supported.

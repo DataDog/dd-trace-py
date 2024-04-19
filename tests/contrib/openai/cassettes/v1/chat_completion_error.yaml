@@ -1,0 +1,73 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Who won the world series in 2020?"}, {"role": "assistant",
+      "content": "The Los Angeles Dodgers won the World Series in 2020."}, {"role":
+      "user", "content": "Where was it played?"}], "model": "gpt-3.5-turbo", "n":
+      2, "top_p": 0.9, "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '359'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.1.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.1.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    content: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+      \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+      \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+      \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 84dcfc2aee564283-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '276'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 30 Jan 2024 21:59:57 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=4LB1nixpSGfc.IbOUI7F16zENNxDeaptSnFdgytdcfA-1706651997-1-Ab8oyARKK3XBV7YoPD7mbWYVPp0S+2sH/5OwwjcJobhHvQFdpFIwP5kx1NVwZ2CzHv3G7nKQ0CMoacWoHsFbKgI=;
+        path=/; expires=Tue, 30-Jan-24 22:29:57 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=YzecBXLXq7mmFB2pApKXAC4vFdkOT_Ku6p078hQzeoE-1706651997972-0-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      alt-svc:
+      - h3=":443"; ma=86400
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      vary:
+      - Origin
+      x-request-id:
+      - 55f4f12fef392b7fbc0c647e97a8e6b2
+    http_version: HTTP/1.1
+    status_code: 401
+version: 1

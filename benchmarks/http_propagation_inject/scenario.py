@@ -2,7 +2,7 @@ import json
 
 import bm
 
-from ddtrace.context import Context
+from ddtrace._trace.context import Context
 from ddtrace.propagation import http
 
 

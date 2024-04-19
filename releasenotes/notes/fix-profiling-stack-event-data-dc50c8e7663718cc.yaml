@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: handle unexpected stack data to prevent the profiler from
+    stopping.

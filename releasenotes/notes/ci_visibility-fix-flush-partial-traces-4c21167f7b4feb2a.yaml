@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where coverage data for suites could be lost for long-running test sessions,
+    reducing the possibility of skipping tests when using the Intelligent Test Runner.

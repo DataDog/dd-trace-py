@@ -40,9 +40,11 @@ from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import patch_submodules
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -1185,7 +1187,9 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1245,6 +1249,16 @@ class BotocoreTest(TracerTestCase):
             )
             assert (
                 first[
+                    (
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        3337976778666780987,
+                        0,
+                    )
+                ].payload_size.count
+                == 1
+            )
+            assert (
+                first[
                     ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].full_pathway_latency._count
                 >= 1
@@ -1255,12 +1269,20 @@ class BotocoreTest(TracerTestCase):
                 ].edge_latency._count
                 >= 1
             )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                ].payload_size.count
+                == 1
+            )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1295,6 +1317,7 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
@@ -1307,12 +1330,20 @@ class BotocoreTest(TracerTestCase):
                 ].edge_latency._count
                 >= 1
             )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].payload_size.count
+                == 1
+            )
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1352,6 +1383,7 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 3
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 3
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
             assert (
                 first[
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
@@ -1363,6 +1395,12 @@ class BotocoreTest(TracerTestCase):
                     ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
                 ].edge_latency._count
                 >= 3
+            )
+            assert (
+                first[
+                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
+                ].payload_size.count
+                == 3
             )
 
     @mock_sqs
@@ -1383,7 +1421,9 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt:
+        with mock.patch("time.time") as mt, mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
             mt.return_value = 1642544540
 
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
@@ -1419,8 +1459,10 @@ class BotocoreTest(TracerTestCase):
                 first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency._count >= 1
             )
             assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency._count >= 1
+            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency._count >= 1
             assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency._count >= 1
+            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
 
     @mock_lambda
     def test_lambda_client(self):
@@ -2664,6 +2706,98 @@ class BotocoreTest(TracerTestCase):
 
         return decoded_record_data
 
+    @mock_kinesis
+    def test_kinesis_get_records_empty_poll_disabled(self):
+        # Tests that no span is created when empty poll is disabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=False)):
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+
+            stream_name = "kinesis_get_records_empty_poll_disabled"
+            shard_id, _ = self._kinesis_create_stream(client, stream_name)
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            response = None
+            response = client.get_records(ShardIterator=shard_iterator)
+            records = response["Records"]
+
+            assert len(records) == 0
+
+            spans = self.get_spans()
+            assert len(spans) == 0
+
+    @mock_kinesis
+    def test_kinesis_get_records_empty_poll_enabled(self):
+        # Tests that a span is created when empty poll is enabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=True)):
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+
+            stream_name = "kinesis_get_records_empty_poll_enabled"
+            shard_id, _ = self._kinesis_create_stream(client, stream_name)
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            response = None
+            response = client.get_records(ShardIterator=shard_iterator)
+            records = response["Records"]
+
+            assert len(records) == 0
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+
+    @mock_sqs
+    def test_sqs_get_records_empty_poll_disabled(self):
+        # Tests that no span is created when empty poll is disabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=False)):
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            response = None
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            assert "Messages" not in response
+
+            spans = self.get_spans()
+            assert len(spans) == 0
+
+    @mock_sqs
+    def test_sqs_get_records_empty_poll_enabled(self):
+        # Tests that a span is created when empty poll is enabled and we received no records.
+        with self.override_config("botocore", dict(empty_poll_enabled=True)):
+            # pop any spans created from previous operations
+            spans = self.pop_spans()
+
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(self.sqs_client)
+
+            response = None
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+
+            assert "Messages" not in response
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+
     def _test_kinesis_put_record_trace_injection(self, test_name, data, client=None, enable_stream_arn=False):
         if not client:
             client = self.session.create_client("kinesis", region_name="us-east-1")
@@ -2740,7 +2874,14 @@ class BotocoreTest(TracerTestCase):
             # fails, it must be base64, since it should be untouched
             next_decoded_record = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
 
-        assert "_datadog" not in next_decoded_record
+        # if datastreams is enabled, we will have dd-pathway-ctx or dd-pathway-ctx-base64 in each record
+        # we should NOT have dd trace context in each record though!
+        if config._data_streams_enabled:
+            assert "_datadog" in next_decoded_record
+            assert HTTP_HEADER_TRACE_ID not in next_decoded_record["_datadog"]
+            assert PROPAGATION_KEY_BASE_64 in next_decoded_record["_datadog"]
+        else:
+            assert "_datadog" not in next_decoded_record
 
         client.delete_stream(StreamName=stream_name)
 
@@ -2795,141 +2936,276 @@ class BotocoreTest(TracerTestCase):
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
-        # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
-        records = self._kinesis_generate_records(data, 2)
-        client = self.session.create_client("kinesis", region_name="us-east-1")
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            # (dict -> json string)[]
+            data = json.dumps({"json": "string"})
+            records = self._kinesis_generate_records(data, 2)
+            client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_records_trace_injection("data_streams", records, client=client, enable_stream_arn=True)
+            self._test_kinesis_put_records_trace_injection(
+                "data_streams", records, client=client, enable_stream_arn=True
+            )
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
 
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                "type:kinesis",
-            ]
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    1711768390031028072,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].edge_latency._count
-            >= 2
-        )
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7250761453654470644,
+                        17012262583645342129,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7250761453654470644,
+                        17012262583645342129,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7250761453654470644,
+                        17012262583645342129,
+                    )
+                ].payload_size.count
+                == 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 2
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        17012262583645342129,
+                        0,
+                    )
+                ].payload_size.count
+                == 2
+            )
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
+    @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
-        data = json.dumps({"json": "string"})
+        with mock.patch(
+            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        ):
+            data = json.dumps({"json": "string"})
+            client = self.session.create_client("kinesis", region_name="us-east-1")
+
+            self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
+
+            pin = Pin.get_from(client)
+            buckets = pin.tracer.data_streams_processor._buckets
+            assert len(buckets) == 1
+            first = list(buckets.values())[0].pathway_stats
+            in_tags = ",".join(
+                [
+                    "direction:in",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            out_tags = ",".join(
+                [
+                    "direction:out",
+                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                    "type:kinesis",
+                ]
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7186383338881463054,
+                        14715769790627487616,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7186383338881463054,
+                        14715769790627487616,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        in_tags,
+                        7186383338881463054,
+                        14715769790627487616,
+                    )
+                ].payload_size.count
+                == 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].full_pathway_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].edge_latency._count
+                >= 1
+            )
+            assert (
+                first[
+                    (
+                        out_tags,
+                        14715769790627487616,
+                        0,
+                    )
+                ].payload_size.count
+                == 1
+            )
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+            DD_BOTOCORE_PROPAGATION_ENABLED="False",
+        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_disabled(self):
         client = self.session.create_client("kinesis", region_name="us-east-1")
 
-        self._test_kinesis_put_record_trace_injection("data_streams", data, client=client, enable_stream_arn=True)
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_context_prop_disabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
-        pin = Pin.get_from(client)
-        buckets = pin.tracer.data_streams_processor._buckets
-        assert len(buckets) == 1
-        first = list(buckets.values())[0].pathway_stats
-        in_tags = ",".join(
-            [
-                "direction:in",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="True",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="True",
+            DD_BOTOCORE_PROPAGATION_ENABLED="True",
         )
-        out_tags = ",".join(
-            [
-                "direction:out",
-                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                "type:kinesis",
-            ]
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_propagation_enabled(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_prop_enabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" in data
+            assert PROPAGATION_KEY_BASE_64 in data["_datadog"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DATA_STREAMS_ENABLED="False",
+            DD_BOTOCORE_DISTRIBUTED_TRACING="False",
+            DD_BOTOCORE_PROPAGATION_ENABLED="False",
         )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    614755353881974019,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].full_pathway_latency._count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].edge_latency._count
-            >= 1
-        )
+    )
+    @mock_kinesis
+    def test_kinesis_put_records_inject_data_streams_to_every_record_disable_all_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "kinesis_put_records_inject_data_streams_to_every_record_all_injection_disabled"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 5)
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+
+        response = client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+
+        for record in response["Records"]:
+            data = json.loads(record["Data"])
+            assert "_datadog" not in data
 
     @mock_kinesis
     def test_kinesis_put_records_bytes_trace_injection(self):

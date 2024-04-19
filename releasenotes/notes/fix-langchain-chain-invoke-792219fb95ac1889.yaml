@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where tracing ``Chain.invoke()`` instead of ``Chain.__call__()`` resulted in
+    the an ``ArgumentError`` due to an argument name change for inputs between the two methods.

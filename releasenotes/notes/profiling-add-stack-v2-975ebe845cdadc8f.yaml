@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    profiling: implement an experimental stack sampling feature, which can be enabled by setting
+    ``DD_PROFILING_STACK_V2_ENABLED=true``. This new sampler should resolve segfault issues on Python
+    3.11 and later, while also decreasing the latency contribution of the profiler in many
+    situations, and also improving the accuracy of stack-sampling data. This feature is currently
+    only available on Linux using CPython 3.8 or greater. Requires
+    ``DD_PROFILING_EXPORT_LIBDD_ENABLED=true`` to be set.

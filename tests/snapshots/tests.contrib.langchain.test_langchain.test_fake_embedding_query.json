@@ -22,7 +22,6 @@
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sample_rate": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.request.input_count": 1,
       "langchain.response.outputs.embedding_length": 99,

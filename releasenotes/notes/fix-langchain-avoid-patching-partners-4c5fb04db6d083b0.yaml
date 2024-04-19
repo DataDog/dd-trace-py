@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner
+     libraries, even if they were not available.

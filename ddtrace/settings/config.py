@@ -1,5 +1,4 @@
 from copy import deepcopy
-import multiprocessing
 import os
 import re
 import sys
@@ -11,6 +10,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal.compat import get_mp_context
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -111,7 +111,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"tracecontext,datadog"``.
+    The default value is ``"datadog,tracecontext"``.
 
 
     Examples::
@@ -272,6 +272,11 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
+        "_trace_enabled": _ConfigItem(
+            name="trace_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
@@ -292,6 +297,31 @@ def _default_config():
             default=lambda: {},
             envs=[("DD_TAGS", _parse_global_tags)],
         ),
+        "_tracing_enabled": _ConfigItem(
+            name="tracing_enabled",
+            default=True,
+            envs=[("DD_TRACE_ENABLED", asbool)],
+        ),
+        "_profiling_enabled": _ConfigItem(
+            name="profiling_enabled",
+            default=False,
+            envs=[("DD_PROFILING_ENABLED", asbool)],
+        ),
+        "_asm_enabled": _ConfigItem(
+            name="asm_enabled",
+            default=False,
+            envs=[("DD_APPSEC_ENABLED", asbool)],
+        ),
+        "_sca_enabled": _ConfigItem(
+            name="sca_enabled",
+            default=None,
+            envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
+        ),
+        "_dsm_enabled": _ConfigItem(
+            name="dsm_enabled",
+            default=False,
+            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
+        ),
     }
 
 
@@ -302,11 +332,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = (
-        None
-        if in_aws_lambda()
-        else multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn").Queue(512)
-    )  # type: multiprocessing.Queue | None
+    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -364,7 +390,6 @@ class Config(object):
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
 
         self.http = HttpConfig(header_tags=self.trace_http_header_tags)
-        self._tracing_enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self._remote_config_enabled = asbool(os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default=True))
         self._remote_config_poll_interval = float(
             os.getenv(
@@ -527,6 +552,13 @@ class Config(object):
         self._telemetry_install_type = os.getenv("DD_INSTRUMENTATION_INSTALL_TYPE", None)
         self._telemetry_install_time = os.getenv("DD_INSTRUMENTATION_INSTALL_TIME", None)
 
+        self._dd_api_key = os.getenv("DD_API_KEY")
+        self._dd_site = os.getenv("DD_SITE", "datadoghq.com")
+
+        self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
+        self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
@@ -542,7 +574,7 @@ class Config(object):
         if self._remote_config_enabled and service_name != self.service:
             try:
                 self._extra_services_queue.put_nowait(service_name)
-            except BaseException:  # nosec
+            except Exception:  # nosec
                 pass
 
     def _get_extra_services(self):
@@ -554,7 +586,7 @@ class Config(object):
                 self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
                 if len(self._extra_services) > 64:
                     self._extra_services.pop()
-        except BaseException:  # nosec
+        except Exception:  # nosec
             pass
         return self._extra_services
 
@@ -716,7 +748,7 @@ class Config(object):
         config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
-        if config:
+        if config and "lib_config" in config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
@@ -727,14 +759,46 @@ class Config(object):
             if "tracing_tags" in lib_config:
                 tags = lib_config["tracing_tags"]
                 if tags:
-                    tags = {k: v for k, v in [t.split(":") for t in lib_config["tracing_tags"]]}
+                    tags = self._format_tags(lib_config["tracing_tags"])
                 base_rc_config["tags"] = tags
 
+            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
+                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
+
+            if "tracing_header_tags" in lib_config:
+                tags = lib_config["tracing_header_tags"]
+                if tags:
+                    tags = self._format_tags(lib_config["tracing_header_tags"])
+                base_rc_config["trace_http_header_tags"] = tags
+
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+        # called unconditionally to handle the case where header tags have been unset
+        self._handle_remoteconfig_header_tags(base_rc_config)
+
+    def _handle_remoteconfig_header_tags(self, base_rc_config):
+        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
+        header_tags_conf = self._config["trace_http_header_tags"]
+        env_headers = header_tags_conf._env_value or {}
+        code_headers = header_tags_conf._code_value or {}
+        non_rc_header_tags = {**code_headers, **env_headers}
+        selected_header_tags = base_rc_config.get("trace_http_header_tags") or non_rc_header_tags
+        self.http = HttpConfig(header_tags=selected_header_tags)
+
+    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
+        if not tags:
+            return {}
+        if isinstance(tags[0], Dict):
+            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        else:
+            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register("APM_TRACING", self._remoteconfigPubSub()(self._handle_remoteconfig))
+        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)

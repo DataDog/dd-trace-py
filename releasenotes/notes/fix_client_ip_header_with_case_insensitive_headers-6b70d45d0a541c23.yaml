@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where IP Headers configured by the user in the environment could
+    not work for frameworks handling requests with case insensitive headers like FastAPI.

@@ -1,0 +1,157 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "",
+    "resource": "langchain.chains.sequential.SequentialChain",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6615ac0c00000000",
+      "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.final_output": "\\n\\nI've convinced myself that all is a blur\\nThe sky, the earth, even minds and bodies, I'm sure\\nBut if they don't exist, what...",
+      "langchain.response.outputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+      "language": "python",
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 275,
+      "langchain.tokens.prompt_tokens": 320,
+      "langchain.tokens.total_cost": 0.0010299999999999999,
+      "langchain.tokens.total_tokens": 595,
+      "process_id": 74685
+    },
+    "duration": 154086000,
+    "start": 1712696332178889000
+  },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain.chains.llm.LLMChain",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+         "langchain.request.prompt": "Paraphrase this text:\\n\\n        {input_text}\\n\\n        Paraphrase: ",
+         "langchain.request.type": "chain",
+         "langchain.response.outputs.paraphrased_output": "\\nI have convinced myself that everything in the world - the sky, the earth, minds, and bodies - do not exist. But does this mea..."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 132,
+         "langchain.tokens.prompt_tokens": 178,
+         "langchain.tokens.total_cost": 0.000531,
+         "langchain.tokens.total_tokens": 310
+       },
+       "duration": 32796000,
+       "start": 1712696332296095000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain_openai.llms.base.OpenAI",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "langchain.request.api_key": "...key>",
+            "langchain.request.model": "gpt-3.5-turbo-instruct",
+            "langchain.request.openai.parameters.frequency_penalty": "0",
+            "langchain.request.openai.parameters.max_tokens": "256",
+            "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
+            "langchain.request.openai.parameters.n": "1",
+            "langchain.request.openai.parameters.presence_penalty": "0",
+            "langchain.request.openai.parameters.temperature": "0.7",
+            "langchain.request.openai.parameters.top_p": "1",
+            "langchain.request.prompts.0": "Paraphrase this text:\\n\\n        \\n            I have convinced myself that there is absolutely nothing in the world, no sky, no...",
+            "langchain.request.provider": "openai",
+            "langchain.request.type": "llm",
+            "langchain.response.completions.0.finish_reason": "stop",
+            "langchain.response.completions.0.logprobs": "None",
+            "langchain.response.completions.0.text": "\\nI have convinced myself that everything in the world - the sky, the earth, minds, and bodies - do not exist. But does this mea..."
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.tokens.completion_tokens": 132,
+            "langchain.tokens.prompt_tokens": 178,
+            "langchain.tokens.total_cost": 0.000531,
+            "langchain.tokens.total_tokens": 310
+          },
+          "duration": 27457000,
+          "start": 1712696332301288000
+        },
+     {
+       "name": "langchain.request",
+       "service": "",
+       "resource": "langchain.chains.llm.LLMChain",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+         "langchain.request.inputs.paraphrased_output": "\\nI have convinced myself that everything in the world - the sky, the earth, minds, and bodies - do not exist. But does this mea...",
+         "langchain.request.prompt": "Make this text rhyme:\\n\\n        {paraphrased_output}\\n\\n        Rhyme: ",
+         "langchain.request.type": "chain",
+         "langchain.response.outputs.final_output": "\\n\\nI've convinced myself that all is a blur\\nThe sky, the earth, even minds and bodies, I'm sure\\nBut if they don't exist, what..."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 143,
+         "langchain.tokens.prompt_tokens": 142,
+         "langchain.tokens.total_cost": 0.0004989999999999999,
+         "langchain.tokens.total_tokens": 285
+       },
+       "duration": 3909000,
+       "start": 1712696332329027000
+     },
+        {
+          "name": "langchain.request",
+          "service": "",
+          "resource": "langchain_openai.llms.base.OpenAI",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 3,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "langchain.request.api_key": "...key>",
+            "langchain.request.model": "gpt-3.5-turbo-instruct",
+            "langchain.request.openai.parameters.frequency_penalty": "0",
+            "langchain.request.openai.parameters.max_tokens": "256",
+            "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
+            "langchain.request.openai.parameters.n": "1",
+            "langchain.request.openai.parameters.presence_penalty": "0",
+            "langchain.request.openai.parameters.temperature": "0.7",
+            "langchain.request.openai.parameters.top_p": "1",
+            "langchain.request.prompts.0": "Make this text rhyme:\\n\\n        \\nI have convinced myself that everything in the world - the sky, the earth, minds, and bodies ...",
+            "langchain.request.provider": "openai",
+            "langchain.request.type": "llm",
+            "langchain.response.completions.0.finish_reason": "stop",
+            "langchain.response.completions.0.logprobs": "None",
+            "langchain.response.completions.0.text": "\\n\\nI've convinced myself that all is a blur\\nThe sky, the earth, even minds and bodies, I'm sure\\nBut if they don't exist, what..."
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "langchain.tokens.completion_tokens": 143,
+            "langchain.tokens.prompt_tokens": 142,
+            "langchain.tokens.total_cost": 0.0004989999999999999,
+            "langchain.tokens.total_tokens": 285
+          },
+          "duration": 2560000,
+          "start": 1712696332330339000
+        }]]

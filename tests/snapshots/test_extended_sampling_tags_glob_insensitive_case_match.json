@@ -1,0 +1,53 @@
+[[
+  {
+    "name": "should_not_send",
+    "service": "",
+    "resource": "bananA",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65cbe3ad00000000",
+      "language": "python",
+      "runtime-id": "4ef91661e8454c5e9b76221f1d77592e",
+      "tag1": "mycooltag"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 8075
+    },
+    "duration": 78000,
+    "start": 1707860909015745000
+  }],
+[
+  {
+    "name": "should_send2",
+    "service": "",
+    "resource": "ban",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65cbe3ad00000000",
+      "language": "python",
+      "runtime-id": "4ef91661e8454c5e9b76221f1d77592e",
+      "tag1": "mycooltag"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 8075
+    },
+    "duration": 49000,
+    "start": 1707860909016000000
+  }]]

@@ -4,6 +4,7 @@ from sqlalchemy import Column
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import create_engine
+from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -147,7 +148,7 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
     def test_engine_connect_execute(self):
         # ensures that engine.connect() is properly traced
         with self.connection() as conn:
-            rows = conn.execute("SELECT * FROM players").fetchall()
+            rows = conn.execute(text("SELECT * FROM players")).fetchall()
             assert len(rows) == 0
 
         traces = self.pop_traces()
@@ -173,7 +174,7 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
 
         with ot_tracer.start_active_span("sqlalch_op"):
             with self.connection() as conn:
-                rows = conn.execute("SELECT * FROM players").fetchall()
+                rows = conn.execute(text("SELECT * FROM players")).fetchall()
                 assert len(rows) == 0
 
         traces = self.pop_traces()

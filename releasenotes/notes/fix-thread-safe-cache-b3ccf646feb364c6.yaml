@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed an issue that could have caused an exception as a result of a
+    concurrent access to some internal value cache.

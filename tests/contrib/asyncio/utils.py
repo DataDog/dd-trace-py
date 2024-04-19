@@ -2,7 +2,6 @@ import asyncio
 from functools import wraps
 import sys
 
-from ddtrace.contrib.asyncio import context_provider
 from tests.utils import TracerTestCase
 
 
@@ -15,9 +14,6 @@ class AsyncioTestCase(TracerTestCase):
 
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
-
-        self.tracer.configure(context_provider=context_provider)
-
         # each test must have its own event loop
         self._main_loop = asyncio.get_event_loop()
         self.loop = asyncio.new_event_loop()

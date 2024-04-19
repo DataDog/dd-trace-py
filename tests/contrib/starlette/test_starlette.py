@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 
 import httpx
 import pytest
@@ -15,7 +14,6 @@ from ddtrace.contrib.sqlalchemy import patch as sql_patch
 from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
 from ddtrace.contrib.starlette import patch as starlette_patch
 from ddtrace.contrib.starlette import unpatch as starlette_unpatch
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.utils import DummyTracer
@@ -78,6 +76,20 @@ def snapshot_app(engine):
 @pytest.fixture
 def snapshot_client(snapshot_app):
     with TestClient(snapshot_app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def snapshot_app_with_tracer(tracer, engine):
+    starlette_patch()
+    app = get_app(engine)
+    yield app
+    starlette_unpatch()
+
+
+@pytest.fixture
+def snapshot_client_with_tracer(snapshot_app_with_tracer):
+    with TestClient(snapshot_app_with_tracer) as test_client:
         yield test_client
 
 
@@ -436,6 +448,27 @@ def test_subapp_snapshot(snapshot_client):
 
 
 @snapshot()
+def test_subapp_two_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-two/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
+def test_subapp_nested_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-nested/nested-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
+def test_subapp_nested_call_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app-nested/hello")
+    assert response.status_code == 200
+    assert response.text == "Success"
+
+
+@snapshot()
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
 
@@ -488,9 +521,12 @@ with TestClient(app) as test_client:
     assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
 
 
-def test_background_task(client, tracer, test_spans):
+# Ignoring span link attributes until values are
+# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
+@snapshot(ignores=["meta._dd.span_links"])
+def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
-    r = client.get("/backgroundtask")
+    r = snapshot_client_with_tracer.get("/backgroundtask")
     assert r.status_code == 200
     assert r.text == '{"result":"Background task added"}'
 
@@ -500,6 +536,16 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+    # Background task shound not be a child of the request span
+    background_span = next(test_spans.filter_spans(name="starlette.background_task"))
+    # background task should link to the request span
+    assert background_span
+    assert background_span.parent_id is None
+    assert background_span._links[request_span.span_id].trace_id == request_span.trace_id
+    assert background_span._links[request_span.span_id].span_id == request_span.span_id
+    assert background_span.name == "starlette.background_task"
+    assert background_span.resource == "custom_task"
 
 
 @pytest.mark.parametrize(
@@ -512,12 +558,6 @@ def test_background_task(client, tracer, test_spans):
         ("mysvc", "v0"),
         ("mysvc", "v1"),
     ],
-)
-@pytest.mark.snapshot(
-    variants={
-        "36": parse_version(sys.version) < (3, 7),  # 3.6 has an extra request
-        "rest": parse_version(sys.version) >= (3, 7),
-    }
 )
 def test_schematization(ddtrace_run_python_code_in_subprocess, service_schema):
     service, schema = service_schema
@@ -550,6 +590,7 @@ if __name__ == "__main__":
     env["DD_TRACE_SQLALCHEMY_ENABLED"] = "false"
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     env["DD_TRACE_HTTPX_ENABLED"] = "false"
+    env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()

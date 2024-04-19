@@ -1,28 +1,24 @@
 from datetime import datetime
 import json
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Tuple
 
 import botocore.client
 import botocore.exceptions
 
-from ddtrace import Span  # noqa:F401
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 from ....ext import SpanTypes
-from ....ext import http
 from ....internal.compat import time_ns
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
-from ....pin import Pin  # noqa:F401
-from ....propagation.http import HTTPPropagator
 from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
-from ..utils import get_pathway
 from ..utils import set_patched_api_call_span_tags
 from ..utils import set_response_metadata_tags
 
@@ -30,103 +26,46 @@ from ..utils import set_response_metadata_tags
 log = get_logger(__name__)
 
 
-MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
+ONE_MB = 1 << 20
+MAX_KINESIS_DATA_SIZE = ONE_MB
 
 
 class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def get_stream_arn(params):
-    # type: (str) -> str
-    """
-    :params: contains the params for the current botocore action
-    Return the name of the stream given the params
-    """
-    stream_arn = params.get("StreamARN", "")
-    return stream_arn
-
-
-def inject_trace_to_kinesis_stream_data(record, span):
-    # type: (Dict[str, Any], Span) -> None
-    """
-    :record: contains args for the current botocore action, Kinesis record is at index 1
-    :span: the span which provides the trace context to be propagated
-    Inject trace headers into the Kinesis record's Data field in addition to the existing
-    data. Only possible if the existing data is JSON string or base64 encoded JSON string
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-    """
-    if "Data" not in record:
-        log.warning("Unable to inject context. The kinesis stream has no data")
-        return
-
-    data = record["Data"]
-    line_break, data_obj = get_kinesis_data_object(data)
+def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
+    line_break, data_obj = get_kinesis_data_object(record["Data"])
     if data_obj is not None:
-        data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"])
-        data_json = json.dumps(data_obj)
+        core.dispatch(
+            "botocore.kinesis.update_record",
+            [ctx, stream, data_obj, record, inject_trace_context],
+        )
 
-        # if original string had a line break, add it back
+        try:
+            data_json = json.dumps(data_obj)
+        except Exception:
+            log.warning("Unable to update kinesis record", exc_info=True)
+
         if line_break is not None:
             data_json += line_break
 
-        # check if data size will exceed max size with headers
         data_size = len(data_json)
         if data_size >= MAX_KINESIS_DATA_SIZE:
-            raise TraceInjectionSizeExceed(
-                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-            )
+            log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
 
         record["Data"] = data_json
 
 
-def record_data_streams_path_for_kinesis_stream(pin, params, results, span):
-    stream_arn = params.get("StreamARN")
-
-    if not stream_arn:
-        log.debug("Unable to determine StreamARN for request with params: ", params)
-        return
-
-    processor = pin.tracer.data_streams_processor
-    pathway = processor.new_pathway()
-    for record in results.get("Records", []):
-        time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
-        pathway.set_checkpoint(
-            ["direction:in", "topic:" + stream_arn, "type:kinesis"],
-            edge_start_sec_override=time_estimate,
-            pathway_start_sec_override=time_estimate,
-            span=span,
-        )
-
-
-def inject_trace_to_kinesis_stream(params, span, pin=None, data_streams_enabled=False):
-    # type: (List[Any], Span, Optional[Pin], Optional[bool]) -> None
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-    :pin: patch info for the botocore client
-    :data_streams_enabled: boolean for whether data streams monitoring is enabled
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
-    """
-    if data_streams_enabled:
-        stream_arn = get_stream_arn(params)
-        if stream_arn:  # If stream ARN isn't specified, we give up (it is not a required param)
-            # put_records has a "Records" entry but put_record does not, so we fake a record to
-            # collapse the logic for the two cases
-            for _ in params.get("Records", ["fake_record"]):
-                # In other DSM code, you'll see the pathway + context injection but not here.
-                # Kinesis DSM doesn't inject any data, so we only need to generate checkpoints.
-                get_pathway(pin, "kinesis", stream_arn, span)
-
-    if "Records" in params:
-        records = params["Records"]
-
-        if records:
-            record = records[0]
-            inject_trace_to_kinesis_stream_data(record, span)
+def select_records_for_injection(params: List[Any], inject_trace_context: bool) -> List[Tuple[Any, bool]]:
+    records_to_inject_into = []
+    if "Records" in params and params["Records"]:
+        for i, record in enumerate(params["Records"]):
+            if "Data" in record:
+                records_to_inject_into.append((record, inject_trace_context and i == 0))
     elif "Data" in params:
-        inject_trace_to_kinesis_stream_data(params, span)
+        records_to_inject_into.append((params, inject_trace_context))
+    return records_to_inject_into
 
 
 def patched_kinesis_api_call(original_func, instance, args, kwargs, function_vars):
@@ -137,8 +76,8 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     operation = function_vars.get("operation")
 
     message_received = False
-    func_run = False
-    func_run_err = None
+    is_getrecords_call = False
+    getrecords_error = None
     child_of = None
     start_ns = None
     result = None
@@ -146,75 +85,91 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     if operation == "GetRecords":
         try:
             start_ns = time_ns()
-            func_run = True
+            is_getrecords_call = True
+            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             result = original_func(*args, **kwargs)
+
+            records = result["Records"]
+
+            for record in records:
+                _, data_obj = get_kinesis_data_object(record["Data"])
+                time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
+                core.dispatch(
+                    f"botocore.{endpoint_name}.{operation}.post",
+                    [params, time_estimate, data_obj.get("_datadog"), record],
+                )
+
         except Exception as e:
-            func_run_err = e
+            getrecords_error = e
         if result is not None and "Records" in result and len(result["Records"]) >= 1:
             message_received = True
             if config.botocore.propagation_enabled:
                 child_of = extract_DD_context(result["Records"])
 
-    """
-    We only want to create a span for the following cases:
-        - not func_run: The function is not `getRecords` and we need to run it
-        - func_run and message_received: Received a message when polling
-        - config.empty_poll_enabled: We want to trace empty poll operations
-    """
-    if (func_run and message_received) or config.empty_poll_enabled or not func_run:
-        with pin.tracer.start_span(
+    if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
+        span_name = schematize_cloud_messaging_operation(
             trace_operation,
+            cloud_provider="aws",
+            cloud_service="kinesis",
+            direction=SpanDirection.OUTBOUND,
+        )
+    else:
+        span_name = trace_operation
+    stream_arn = params.get("StreamARN", params.get("StreamName", ""))
+    function_is_not_getrecords = not is_getrecords_call
+    received_message_when_polling = is_getrecords_call and message_received
+    instrument_empty_poll_calls = config.botocore.empty_poll_enabled
+    should_instrument = (
+        received_message_when_polling or instrument_empty_poll_calls or function_is_not_getrecords or getrecords_error
+    )
+    is_kinesis_put_operation = endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}
+
+    if should_instrument:
+        with core.context_with_data(
+            "botocore.patched_kinesis_api_call",
+            instance=instance,
+            args=args,
+            params=params,
+            endpoint_name=endpoint_name,
+            operation=operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+            call_trace=False,
+            context_started_callback=set_patched_api_call_span_tags,
+            pin=pin,
+            span_name=span_name,
             span_type=SpanTypes.HTTP,
             child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
-        ) as span:
-            set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+            func_run=is_getrecords_call,
+            start_ns=start_ns,
+            call_key="patched_kinesis_api_call",
+        ) as ctx, ctx.get_item(ctx.get_item("call_key")):
+            core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
 
-            # we need this since we may have ran the wrapped operation before starting the span
-            # we need to ensure the span start time is correct
-            if start_ns is not None and func_run:
-                span.start_ns = start_ns
-
-            if args and config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
-                        inject_trace_to_kinesis_stream(
-                            params, span, pin=pin, data_streams_enabled=config._data_streams_enabled
-                        )
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="kinesis",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+            if is_kinesis_put_operation:
+                records_to_process = select_records_for_injection(params, bool(config.botocore["distributed_tracing"]))
+                for record, should_inject_trace_context in records_to_process:
+                    update_record(ctx, record, stream_arn, inject_trace_context=should_inject_trace_context)
 
             try:
-                if not func_run:
+                if not is_getrecords_call:
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
                     result = original_func(*args, **kwargs)
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                if endpoint_name == "kinesis" and operation == "GetRecords" and config._data_streams_enabled:
-                    try:
-                        record_data_streams_path_for_kinesis_stream(pin, params, result, span)
-                    except Exception:
-                        log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
+                if getrecords_error:
+                    raise getrecords_error
 
-                # raise error if it was encountered before the span was started
-                if func_run_err:
-                    raise func_run_err
-
-                set_response_metadata_tags(span, result)
+                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result, set_response_metadata_tags])
                 return result
 
             except botocore.exceptions.ClientError as e:
-                # `ClientError.response` contains the result, so we can still grab response metadata
-                set_response_metadata_tags(span, e.response)
-
-                # If we have a status code, and the status code is not an error,
-                #   then ignore the exception being raised
-                status_code = span.get_tag(http.STATUS_CODE)
-                if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                    span._ignore_exception(botocore.exceptions.ClientError)
+                core.dispatch(
+                    "botocore.patched_kinesis_api_call.exception",
+                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                )
                 raise
+    elif is_getrecords_call:
+        if getrecords_error:
+            raise getrecords_error
+        return result

@@ -345,3 +345,108 @@ def test_no_configured_processor():
 
     cf.logger.calls.clear()
     unpatch()
+
+
+@pytest.mark.subprocess()
+def test_two_loggers_no_duplicates():
+    """
+    Check if patching two loggers does not duplicate processors
+    """
+    import structlog
+
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+
+    patch()
+
+    logger1 = structlog.getLogger()
+    num_log1_processors = len(logger1.bind()._processors)
+
+    logger2 = structlog.getLogger()
+    num_log2_processors = len(logger2.bind()._processors)
+
+    assert (
+        num_log1_processors
+        == num_log2_processors
+        == len(logger1.bind()._processors)
+        == len(structlog._config._BUILTIN_DEFAULT_PROCESSORS) + 1
+    )
+
+    unpatch()
+
+
+@pytest.mark.subprocess()
+def test_configure_processor():
+    """
+    Check if calling configure() after get_logger() does not duplicate/remove injected processors
+    """
+    import structlog
+
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+
+    patch()
+
+    structlog.configure()
+    logger1 = structlog.getLogger()
+    num_log1_processors = len(logger1.bind()._processors)
+
+    cf = structlog.testing.CapturingLoggerFactory()
+    structlog.configure(
+        logger_factory=cf,
+    )
+
+    assert (
+        num_log1_processors == len(logger1.bind()._processors) == len(structlog._config._BUILTIN_DEFAULT_PROCESSORS) + 1
+    )
+
+    cf.logger.calls.clear()
+    unpatch()
+
+
+@pytest.mark.subprocess()
+def test_consistent_empty_config():
+    """
+    Check if calling configure() with an empty processor list stays empty
+    """
+    import structlog
+
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+
+    patch()
+
+    logger1 = structlog.getLogger()
+    structlog.configure(processors=[])
+    num_log1_processors = len(logger1.bind()._processors)
+
+    logger1 = structlog.getLogger()
+
+    assert num_log1_processors == len(logger1.bind()._processors) == 0
+
+    unpatch()
+
+
+@pytest.mark.subprocess()
+def test_reset_defaults():
+    """
+    Check if injected processor still exists after resetting to default
+    """
+    import structlog
+
+    from ddtrace.contrib.structlog import patch
+    from ddtrace.contrib.structlog import unpatch
+
+    patch()
+
+    structlog.configure()
+    logger1 = structlog.getLogger()
+    num_log1_processors = len(logger1.bind()._processors)
+
+    structlog.reset_defaults()
+
+    assert (
+        num_log1_processors == len(logger1.bind()._processors) == len(structlog._config._BUILTIN_DEFAULT_PROCESSORS) + 1
+    )
+
+    unpatch()

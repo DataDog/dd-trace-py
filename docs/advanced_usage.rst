@@ -81,7 +81,12 @@ context::
     Span objects are owned by the execution in which they are created and must
     be finished in the same execution. The span context can be used to continue
     a trace in a different execution by passing it and activating it on the other
-    end. See the sections below for how to propagate traces across task, thread or
+    end. Note that in all instances of crossing into another 
+    execution, sampling should be run manually before entering the new execution 
+    to ensure that the sampling decision is the same across the trace.
+    This can be done using `tracer.sample(tracer.current_root_span())`
+    
+    See the sections below for how to propagate traces across task, thread or
     process boundaries.
 
 
@@ -100,7 +105,9 @@ threads::
             # `second_thread`s parent will be the `main_thread` span
             time.sleep(1)
 
-    with tracer.trace("main_thread"):
+    with tracer.trace("main_thread") as root_span:
+        # sample so the sampling_priority is the same across the trace
+        tracer.sample(tracer.current_root_span())
         thread = threading.Thread(target=_target, args=(tracer.current_trace_context(),))
         thread.start()
         thread.join()
@@ -118,6 +125,8 @@ to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
 
     @tracer.wrap()
     def eat_all_the_things():
+        # sample so the sampling_priority is the same across the trace
+        tracer.sample(tracer.current_root_span())
         with ThreadPoolExecutor() as e:
             e.submit(eat, "cookie")
             e.map(eat, ("panna cotta", "tiramisu", "gelato"))
@@ -140,6 +149,8 @@ span has to be propagated as a context::
         tracer.shutdown()
 
     with tracer.trace("work"):
+        # sample so the sampling_priority is the same across the trace
+        tracer.sample(tracer.current_root_span())
         proc = Process(target=_target, args=(tracer.current_trace_context(),))
         proc.start()
         time.sleep(1)
@@ -226,7 +237,11 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 - On the server side, it means to read propagated attributes and set them to the active tracing context.
 - On the client side, it means to propagate the attributes, commonly as a header/metadata.
 
-`ddtrace` already provides default propagators but you can also implement your own.
+`ddtrace` already provides default propagators but you can also implement your own. Note that `ddtrace` makes
+use of lazy sampling, essentially making the sampling decision for a trace at the latest possible moment. This 
+includes before making an outgoing request via HTTP, gRPC, or a DB call for any automatically instrumented 
+integration. If utilizing your own propagator make sure to run `tracer.sample(tracer.current_root_span())` 
+before propagating downstream, to ensure that the sampling decision is the same across the trace.
 
 Web Frameworks
 ^^^^^^^^^^^^^^
@@ -404,7 +419,8 @@ For a selected set of integrations, it is possible to store http headers from bo
 
 The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
 
-Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
+This configuration can be provided both at the global level and at the integration level in your application code, or it
+can be set via the Datadog UI (UI functionality in beta as of version 2.5.0).
 
 Examples::
 
@@ -661,7 +677,7 @@ uWSGI
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
-- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>` option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
+- Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
 Example with CLI arguments:
 
@@ -707,3 +723,18 @@ in use at the root level:
 
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+Duplicate Log Entries
+---------------------
+
+The ``ddtrace`` logger object is preconfigured with some log handlers that manage printing the logger's output to the console.
+If your app sets up its own log handling code on the root logger instance, you may observe duplicate log entries from the ``ddtrace``
+logger. This happens because the ``ddtrace`` logger is a child of the root logger and can inherit handlers set up for it.
+
+To avoid such duplicate log entries from ``ddtrace``, you can remove the automatically-configured log handlers from it:
+
+.. code-block:: python
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        ddtrace_logger.removeHandler(handler)

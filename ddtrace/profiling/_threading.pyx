@@ -31,24 +31,21 @@ IF UNAME_SYSNAME == "Linux":
         int __NR_gettid
         long syscall(long number, ...)
 
-    @ModuleWatchdog.after_module_imported("threading")
-    def native_id_hook(threading):
-        def bootstrap_wrapper(f, args, kwargs):
-            try:
-                return f(*args, **kwargs)
-            finally:
-                (self,) = args
-                if not hasattr(self, "native_id"):
-                    self.native_id = PyLong_FromLong(syscall(__NR_gettid))
-        IF PY_MAJOR_VERSION == 2:
-            wrap(threading.Thread._Thread__bootstrap.__func__, bootstrap_wrapper)
-        ELSE:
+    IF PY_VERSION_HEX < 0x03080000:
+        # The native_id attribute is available in Python >= 3.8.
+        @ModuleWatchdog.after_module_imported("threading")
+        def native_id_hook(threading):
+            def bootstrap_wrapper(f, args, kwargs):
+                try:
+                    return f(*args, **kwargs)
+                finally:
+                    # DEV: args[0] == self
+                    args[0].native_id = PyLong_FromLong(syscall(__NR_gettid))
+
             wrap(threading.Thread._bootstrap, bootstrap_wrapper)
 
-        # Assign the native thread to the main thread as well
-        current_thread = threading.current_thread()
-        if not hasattr(current_thread, "native_id"):
-            current_thread.native_id = PyLong_FromLong(syscall(__NR_gettid))
+            # Assign the native thread ID to the main thread as well
+            threading.current_thread().native_id = PyLong_FromLong(syscall(__NR_gettid))
 
 
 cpdef get_thread_by_id(thread_id):

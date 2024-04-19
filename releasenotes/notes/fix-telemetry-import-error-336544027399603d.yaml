@@ -1,0 +1,5 @@
+---
+
+fixes:
+  - |
+    tracing: Resolves telemetry import error raised when ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` is set to ``False``.

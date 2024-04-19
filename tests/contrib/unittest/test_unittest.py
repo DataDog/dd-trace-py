@@ -1,5 +1,6 @@
 import sys
 import unittest
+from unittest import mock
 
 import pytest
 
@@ -22,6 +23,7 @@ from ddtrace.ext.ci import _get_runtime_and_os_metadata
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
+from ddtrace.internal.ci_visibility.recorder import _CIVisibilitySettings
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
 from tests.utils import override_env
@@ -38,6 +40,18 @@ class UnittestTestCase(TracerTestCase):
     def _patch_and_override_env(self):
         with override_env(dict(DD_API_KEY="notanapikey")):
             patch()
+            yield
+
+    @pytest.fixture(autouse=True)
+    def _dummy_check_enabled_features(self):
+        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
+
+        Tests that need a different response should re-patch the CIVisibility object.
+        """
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=_CIVisibilitySettings(False, False, False, False),
+        ):
             yield
 
     def test_unittest_pass_single(self):

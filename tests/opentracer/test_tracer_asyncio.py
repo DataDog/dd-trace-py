@@ -1,13 +1,9 @@
 import asyncio
 
-from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
-import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asyncio import context_provider
-from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
-from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 
 @pytest.mark.asyncio
@@ -148,19 +144,3 @@ async def test_trace_multiple_coroutines_dd_ot(ot_tracer):
     # the parenting is correct
     assert traces[0][0] == traces[0][1]._parent
     assert traces[0][0].trace_id == traces[0][1].trace_id
-
-
-@pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
-def test_get_context_provider_for_scope_manager_asyncio():
-    scope_manager = AsyncioScopeManager()
-    ctx_prov = get_context_provider_for_scope_manager(scope_manager)
-    assert isinstance(ctx_prov, ddtrace.contrib.asyncio.provider.AsyncioContextProvider)
-
-
-@pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio provider")
-def test_tracer_context_provider_config():
-    tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=AsyncioScopeManager())
-    assert isinstance(
-        tracer._dd_tracer.context_provider,
-        ddtrace.contrib.asyncio.provider.AsyncioContextProvider,
-    )

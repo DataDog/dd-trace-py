@@ -1,0 +1,58 @@
+name: Prune Lib Injection images
+on:
+  schedule:
+    - cron: '15 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  prune-init-images:
+    name: Prune dd-lib-python-init docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - name: Prune registry
+      uses: vlaurin/action-ghcr-prune@0a539594d122b915e71c59733a5b115bfaaf5d52 #v0.5.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        organization: Datadog
+        container: dd-trace-py/dd-lib-python-init
+        keep-younger-than: 7 # days
+        keep-last: 10
+        keep-tags: |
+          latest_snapshot
+        prune-tags-regexes: |
+          ^[a-z0-9]{40}$
+        prune-untagged: true
+
+  prune-init-test-app-images:
+    name: Prune test app docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [
+          'dd-lib-python-init-test-django',
+          'dd-lib-python-init-test-django-gunicorn',
+          'dd-lib-python-init-test-django-uvicorn',
+          'dd-lib-python-init-test-django-uwsgi',
+          'dd-lib-python-init-test-app',
+          'dd-python-agent-init',
+        ]
+    steps:
+    - name: Prune registry
+      uses: vlaurin/action-ghcr-prune@0a539594d122b915e71c59733a5b115bfaaf5d52 #v0.5.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        organization: Datadog
+        container: dd-trace-py/{{ matrix.image }}
+        keep-younger-than: 15 # days
+        keep-last: 5
+        keep-tags: |
+          latest_snapshot
+        prune-tags-regexes: |
+          ^[a-z0-9]{40}$
+        prune-untagged: true

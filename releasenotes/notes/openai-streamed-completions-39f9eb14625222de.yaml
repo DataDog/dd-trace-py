@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    openai: Adds support for tagging streamed responses for completion and chat completion endpoints.

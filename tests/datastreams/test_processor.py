@@ -1,13 +1,21 @@
 import os
 import time
 
+import mock
+
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
+from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
 
 
+processor = DataStreamsProcessor("http://localhost:8126")
+mocked_time = 1642544540
+
+
 def test_data_streams_processor():
-    processor = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 1)
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 2)
@@ -30,7 +38,6 @@ def test_data_streams_processor():
 
 
 def test_data_streams_loop_protection():
-    processor = DataStreamsProcessor("http://localhost:8126")
     ctx = processor.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
     parent_hash = ctx.hash
     processor.set_checkpoint(["direction:out", "topic:topicB", "type:kafka"])
@@ -42,7 +49,6 @@ def test_data_streams_loop_protection():
 
 
 def test_kafka_offset_monitoring():
-    processor = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
     processor.track_kafka_commit("group1", "topic1", 1, 10, now)
     processor.track_kafka_commit("group1", "topic1", 1, 14, now)
@@ -123,3 +129,68 @@ t.join()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
     assert err.decode().strip() == ""
+
+
+@mock.patch("time.time", mock.MagicMock(return_value=mocked_time))
+def test_dsm_pathway_codec_encode_base64():
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
+
+    ctx = processor.new_pathway()
+    ctx.hash = 9235368231858162135
+
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
+
+    carrier = {}
+    DsmPathwayCodec.encode(ctx, carrier)
+
+    assert PROPAGATION_KEY_BASE_64 in carrier
+    assert carrier[PROPAGATION_KEY_BASE_64] == encoded_string
+
+
+def test_dsm_pathway_codec_decode_base64():
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
+    decoded_hash = 9235368231858162135
+
+    carrier = {PROPAGATION_KEY_BASE_64: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
+
+
+def test_dsm_pathway_codec_decode_base64_deprecated_context_key():
+    encoded_string = "10nVzXmeKoDApcX0zV/ApcX0zV8="  # pathway hash is: 9235368231858162135
+    decoded_hash = 9235368231858162135
+
+    carrier = {PROPAGATION_KEY: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
+
+
+def test_dsm_pathway_codec_decode_byte_encoding():
+    encoded_string = (
+        b"\xd7I\xd5\xcdy\x9e*\x80\xc0\xa5\xc5\xf4\xcd_\xc0\xa5\xc5\xf4\xcd_"  # pathway hash is: 9235368231858162135
+    )
+    decoded_hash = 9235368231858162135
+
+    carrier = {PROPAGATION_KEY: encoded_string}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == decoded_hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time
+
+
+@mock.patch("time.time", mock.MagicMock(return_value=mocked_time))
+def test_dsm_pathway_codec_decode_no_context():
+    carrier = {}
+    ctx = DsmPathwayCodec.decode(carrier, processor)
+
+    assert ctx.hash == processor.new_pathway().hash
+    assert ctx.pathway_start_sec == mocked_time
+    assert ctx.current_edge_start_sec == mocked_time

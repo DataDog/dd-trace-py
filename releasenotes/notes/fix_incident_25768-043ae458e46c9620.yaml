@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue with Flask instrumentation causing CPU leak with ASM, 
+    API Security and Telemetry enabled.

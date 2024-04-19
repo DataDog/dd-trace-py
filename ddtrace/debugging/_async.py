@@ -1,12 +1,12 @@
 import sys
 from types import CoroutineType
-from typing import List
+from typing import Iterable
 
 from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.internal import compat
 
 
-async def dd_coroutine_wrapper(coro: CoroutineType, contexts: List[SignalContext]) -> CoroutineType:
+async def dd_coroutine_wrapper(coro: CoroutineType, contexts: Iterable[SignalContext]) -> CoroutineType:
     start_time = compat.monotonic_ns()
     try:
         retval = await coro

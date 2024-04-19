@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    grpc/grpc_aio: reports the available target host in client spans as ``network.destination.ip`` if only an IP is
+    available, ``peer.hostname`` otherwise.

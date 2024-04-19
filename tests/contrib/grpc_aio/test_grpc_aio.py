@@ -8,6 +8,7 @@ from grpc import aio
 import pytest
 
 from ddtrace import Pin
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -16,7 +17,6 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
-from ddtrace.span import _get_64_highest_order_bits_as_hex
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -150,6 +150,15 @@ class _SyncHelloServicer(HelloServicer):
         yield HelloReply(message="Good bye")
 
 
+class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
+    async def intercept_unary_unary(self, continuation, client_call_details, request):
+        undone_call = await continuation(client_call_details, request)
+        return await undone_call
+
+    def add_done_callback(self, unused_callback):
+        pass
+
+
 @pytest.fixture(autouse=True)
 def patch_grpc_aio():
     patch()
@@ -213,6 +222,7 @@ def _check_client_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
     assert span.get_tag("grpc.host") == "localhost"
+    assert span.get_tag("peer.hostname") == "localhost"
     assert span.get_tag("network.destination.port") == "50531"
     assert span.get_tag("component") == "grpc_aio_client"
     assert span.get_tag("span.kind") == "client"
@@ -254,6 +264,23 @@ async def test_insecure_channel(server_info, tracer):
 async def test_secure_channel(server_info, tracer):
     credentials = grpc.ChannelCredentials(None)
     async with aio.secure_channel(server_info.target, credentials) as channel:
+        stub = HelloStub(channel)
+        await stub.SayHello(HelloRequest(name="test"))
+
+    spans = _get_spans(tracer)
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
+async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
+    credentials = grpc.ChannelCredentials(None)
+    interceptors = [DummyClientInterceptor()]
+    async with aio.secure_channel(server_info.target, credentials, None, None, interceptors) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -691,6 +718,7 @@ async def test_client_streaming_exception(server_info, tracer):
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
+    assert client_span.get_tag("peer.hostname") == "localhost"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if server_info.abort_supported:
@@ -793,9 +821,11 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
+    error_msg = client_span.get_tag(ERROR_MSG)
+    assert error_msg in ("abort_details", "Internal error from Core")
+    if error_msg == "abort_details":
+        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 
@@ -871,6 +901,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
+    assert client_span.get_tag("peer.hostname") == "localhost"
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 

@@ -1,0 +1,43 @@
+interactions:
+- request:
+    body: '{"ml_obs": {"stage": "raw", "type": "span", "spans": [{"span_id":
+      "12345678901", "trace_id": "98765432101", "parent_id": "", "session_id": "98765432101",
+      "name": "completion_span", "tags": ["version:", "env:", "service:", "source:integration"],
+      "start_ns": 1707763310981223236, "duration": 12345678900, "error": 0, "meta":
+      {"span.kind": "llm", "model_name": "ada", "model_provider": "openai", "input": {"messages":
+      [{"content": "who broke enigma?"}], "parameters": {"temperature": 0, "max_tokens":
+      256}}, "output": {"messages": [{"content": "\n\nThe Enigma code was broken by
+      a team of codebreakers at Bletchley Park, led by mathematician Alan Turing."}]}},
+      "metrics": {"prompt_tokens": 64, "completion_tokens": 128, "total_tokens": 192}}]}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
+  response:
+    body:
+      string: '{"errors":[{"status":"403","title":"Forbidden","detail":"API key is
+        invalid"}]}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '79'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 12 Feb 2024 20:41:13 GMT
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      cross-origin-resource-policy:
+      - cross-origin
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+version: 1

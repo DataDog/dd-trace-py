@@ -4,13 +4,17 @@ from ddtrace.internal import agent
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["confluent_kafka"]
+required_modules = ["confluent_kafka", "botocore", "kombu"]
 _processor = None
 
 if config._data_streams_enabled:
     with require_modules(required_modules) as missing_modules:
-        if not missing_modules:
+        if "confluent_kafka" not in missing_modules:
             from . import kafka  # noqa:F401
+        if "botocore" not in missing_modules:
+            from . import botocore  # noqa:F401
+        if "kombu" not in missing_modules:
+            from . import kombu  # noqa:F401
 
 
 def data_streams_processor():

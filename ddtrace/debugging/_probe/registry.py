@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import cast
 
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeLocationMixin
@@ -15,16 +16,26 @@ logger = get_logger(__name__)
 
 
 class ProbeRegistryEntry(object):
-    __slots__ = ("probe", "installed", "error_type", "message")
+    __slots__ = (
+        "probe",
+        "installed",
+        "emitting",
+        "error_type",
+        "message",
+    )
 
     def __init__(self, probe: Probe) -> None:
         self.probe = probe
         self.installed = False
+        self.emitting = False
         self.error_type: Optional[str] = None
         self.message: Optional[str] = None
 
     def set_installed(self) -> None:
         self.installed = True
+
+    def set_emitting(self) -> None:
+        self.emitting = True
 
     def set_error(self, error_type: str, message: str) -> None:
         self.error_type = error_type
@@ -102,6 +113,14 @@ class ProbeRegistry(dict):
 
             self.logger.installed(probe)
 
+    def set_emitting(self, probe: Probe) -> None:
+        """Set the emitting flag for a probe."""
+        with self._lock:
+            entry = cast(ProbeRegistryEntry, self[probe.probe_id])
+            if not entry.emitting:
+                entry.set_emitting()
+                self.logger.emitting(probe)
+
     def set_error(self, probe: Probe, error_type: str, message: str) -> None:
         """Set the error message for a probe."""
         with self._lock:
@@ -109,7 +128,9 @@ class ProbeRegistry(dict):
             self.logger.error(probe, (error_type, message))
 
     def _log_probe_status_unlocked(self, entry: ProbeRegistryEntry) -> None:
-        if entry.installed:
+        if entry.emitting:
+            self.logger.emitting(entry.probe)
+        elif entry.installed:
             self.logger.installed(entry.probe)
         elif entry.error_type:
             assert entry.message is not None, entry  # nosec

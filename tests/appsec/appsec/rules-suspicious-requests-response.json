@@ -26,6 +26,33 @@
       "on_match": [
         "block"
       ]
+    },
+    {
+      "id": "tst-037-216",
+      "name": "Test block on response code",
+      "tags": {
+        "type": "lfi",
+        "crs_id": "000005",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.response.status"
+              }
+            ],
+            "regex": "216"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
     }
+
   ]
 }

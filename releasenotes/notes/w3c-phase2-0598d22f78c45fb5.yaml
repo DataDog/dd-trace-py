@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    tracing: Updates the default value of ``DD_TRACE_PROPAGATION_STYLE`` from ``tracecontext,datadog`` to ``datadog,tracecontext``. With this change
+    w3c tracecontext headers will be parsed before datadog headers. This change is backwards compatible and should not affect existing users.

@@ -567,14 +567,21 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        for link in span_links:
+        for _, link in span_links.items():
             # SpanLink.to_dict() returns all serializable span link fields
+            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimizied for the v0.5 format.
             d = link.to_dict()
             # Encode 128 bit trace ids usings two 64bit integers
-            d["trace_id_high"] = int(d["trace_id"][:16], 16)
+            tid = int(d["trace_id"][:16], 16)
+            if tid > 0:
+                d["trace_id_high"] = tid
             d["trace_id"] = int(d["trace_id"][16:], 16)
             # span id should be uint64 in v0.4 (it is hex in v0.5)
             d["span_id"] = int(d["span_id"], 16)
+            if "flags" in d:
+                # If traceflags set, the high bit (bit 31) should be set to 1 (uint32).
+                # This helps us distinguish between when the sample decision is zero or not set
+                d["flags"] = d["flags"] | (1 << 31)
 
             ret = msgpack_pack_map(&self.pk, len(d))
             if ret != 0:
@@ -675,8 +682,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
+        has_meta_struct = <bint> (len(span._meta_struct) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -770,6 +778,25 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0:
                     return ret
+
+            if has_meta_struct:
+                ret = pack_bytes(&self.pk, <char *> b"meta_struct", 11)
+                if ret != 0:
+                    return ret
+
+                ret = msgpack_pack_map(&self.pk, len(span._meta_struct))
+                if ret != 0:
+                    return ret
+                for k, v in span._meta_struct.items():
+                    ret = pack_text(&self.pk, k)
+                    if ret != 0:
+                        return ret
+                    value_packed = packb(v)
+                    ret = msgpack_pack_bin(&self.pk, len(value_packed))
+                    if ret == 0:
+                        ret = msgpack_pack_raw_body(&self.pk, <char *> value_packed, len(value_packed))
+                    if ret != 0:
+                        return ret
 
             if has_metrics:
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
@@ -869,7 +896,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_links = ""
         if span._links:
-            span_links = json_dumps([link.to_dict() for link in span._links])
+            span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
 
         ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
         if ret != 0:

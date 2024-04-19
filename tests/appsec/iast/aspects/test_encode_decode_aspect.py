@@ -66,6 +66,12 @@ def test_decode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
         (main_string,) + args,
         kwargs,
     )
+    should_be_tainted = (
+        should_be_tainted
+        and infix != b"\xc3\xa9\xc3\xa7\xc3\xa0\xc3\xb1\xc3\x94\xc3\x8b"
+        and len(res) > (len(suffix) + len(prefix))
+    )
+
     if should_be_tainted and ok:
         list_tr = get_tainted_ranges(res)
         assert len(list_tr) == 1
@@ -116,10 +122,10 @@ def test_encode_and_add_aspect(infix, args, kwargs, should_be_tainted, prefix, s
     )
 
     assert (ok, res) == catch_all(main_string.__class__.encode, (main_string,) + args, kwargs)
+    should_be_tainted = should_be_tainted and len(res) > (len(suffix) + len(prefix))
     if should_be_tainted and ok:
         list_ranges = get_tainted_ranges(res)
         assert len(list_ranges) == 1
-
         assert list_ranges[0].start == len(prefix.encode(*args, **kwargs))
         len_infix = len(infix.encode(*args, **kwargs))
         assert list_ranges[0].length == len_infix

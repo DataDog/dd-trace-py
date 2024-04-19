@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): This fix addresses an issue where AST patching would generate code that fails to compile, thereby preventing the application from starting correctly.

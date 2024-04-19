@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix makes the CI Visibility system resilient to RuntimeErrors that can occur
+    between pytest tests with coverage enabled.

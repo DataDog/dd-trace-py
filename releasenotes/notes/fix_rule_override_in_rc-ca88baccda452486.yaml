@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where remote config update in WAF policy 
+    from block attack tools policy to monitoring only policy
+    could be ignored by tracer.

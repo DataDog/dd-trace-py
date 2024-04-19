@@ -1,6 +1,5 @@
 from ctypes import c_char
 import json
-import multiprocessing
 import os
 import sys
 from typing import Any  # noqa:F401
@@ -8,6 +7,7 @@ from typing import Dict  # noqa:F401
 from typing import Mapping  # noqa:F401
 from uuid import UUID
 
+from ddtrace.internal.compat import get_mp_context
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 
@@ -38,7 +38,7 @@ class PublisherSubscriberConnector(object):
     """
 
     def __init__(self):
-        self.data = multiprocessing.Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+        self.data = get_mp_context().Array(c_char, SHARED_MEMORY_SIZE, lock=False)
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data

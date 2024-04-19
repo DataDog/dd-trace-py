@@ -1,4 +1,5 @@
 from collections import deque
+from dis import findlinestarts
 from functools import partial
 from functools import singledispatch
 from pathlib import Path
@@ -7,9 +8,6 @@ from types import FunctionType
 from typing import Set
 from typing import cast
 
-from bytecode import Bytecode
-
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.safety import _isinstance
 
 
@@ -21,12 +19,7 @@ def linenos(_) -> Set[int]:
 @linenos.register
 def _(code: CodeType) -> Set[int]:
     """Get the line numbers of a function."""
-    if PY >= (3, 10):
-        return {_ for _ in (_[2] for _ in code.co_lines()) if _ is not None} - {code.co_firstlineno}
-
-    return {
-        _ for _ in (instr.lineno for instr in Bytecode.from_code(code) if hasattr(instr, "lineno")) if _ is not None
-    }
+    return {ln for _, ln in findlinestarts(code)} - {code.co_firstlineno}
 
 
 @linenos.register

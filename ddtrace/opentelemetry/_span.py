@@ -15,6 +15,7 @@ from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
+from ddtrace.internal.utils.http import w3c_tracestate_add_p
 
 
 if TYPE_CHECKING:
@@ -25,8 +26,8 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes  # noqa:F401
     from opentelemetry.util.types import AttributeValue  # noqa:F401
 
+    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
     from ddtrace.internal.compat import NumericType  # noqa:F401
-    from ddtrace.span import Span as DDSpan  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -137,7 +138,8 @@ class Span(OtelSpan):
         ts = None
         tf = TraceFlags.DEFAULT
         if self._ddspan.context:
-            ts = TraceState.from_header([self._ddspan.context._tracestate])
+            ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
+            ts = TraceState.from_header([ts_str])
             if self._ddspan.context.sampling_priority and self._ddspan.context.sampling_priority > 0:
                 tf = TraceFlags.SAMPLED
 

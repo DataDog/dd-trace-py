@@ -15,14 +15,6 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(fastapi=True)
     app = FastAPI()
 
-
-On Python 3.6 and below, you must enable the legacy ``AsyncioContextProvider`` before using the middleware::
-
-    from ddtrace.contrib.asyncio.provider import AsyncioContextProvider
-    from ddtrace import tracer  # Or whichever tracer instance you plan to use
-    tracer.configure(context_provider=AsyncioContextProvider())
-
-
 When registering your own ASGI middleware using FastAPI's ``add_middleware()`` function,
 keep in mind that Datadog spans close after your middleware's call to ``await self.app()`` returns.
 This means that accesses of span data from within the middleware should be performed

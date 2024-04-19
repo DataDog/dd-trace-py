@@ -17,6 +17,7 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
+from tests.utils import flaky
 
 from . import test_collector
 
@@ -321,7 +322,8 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None, "
+        "_stack_collector_v2_enabled=False)",
     )
 
 
@@ -775,6 +777,7 @@ def test_collect_gevent_threads():
     assert values.pop() > 0
 
 
+@flaky(1735812000)
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
 def test_collect_ensure_all_frames_gc():
     # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+

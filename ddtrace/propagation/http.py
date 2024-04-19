@@ -1,5 +1,6 @@
 import re
 import sys
+from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
@@ -7,6 +8,9 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
+
+import ddtrace
+from ddtrace._trace.span import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):
@@ -16,12 +20,15 @@ else:
 
 
 from ddtrace import config
-from ddtrace.tracing._span_link import SpanLink
+from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
+from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
+from ddtrace._trace.span import _MetaDictType
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
-from ..context import Context
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
@@ -32,6 +39,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
@@ -39,10 +47,10 @@ from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
+from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
+from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
-from ..span import _get_64_highest_order_bits_as_hex
-from ..span import _get_64_lowest_order_bits_as_int
-from ..span import _MetaDictType
+from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
 
 
@@ -293,10 +301,7 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(
-            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
-            headers,
-        )
+        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -320,6 +325,12 @@ class _DatadogMultiHeader:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
+
+        if not meta:
+            meta = {}
+
+        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
@@ -689,7 +700,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -714,30 +725,45 @@ class _TraceContext:
             if origin:
                 # we encode "=" as "~" in tracestate so need to decode here
                 origin = _TraceContext.decode_tag_val(origin)
+
+            # Get last datadog parent id, this field is used to reconnect traces with missing spans
+            lpid = dd.get("p", "0000000000000000")
+
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
                 "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
-            return sampling_priority_ts_int, other_propagated_tags, origin
+            return sampling_priority_ts_int, other_propagated_tags, origin, lpid
         else:
-            return None, {}, None
+            return None, {}, None, None
 
     @staticmethod
-    def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
-        # type: (int, Optional[int]) -> int
+    def _get_sampling_priority(
+        traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str] = None
+    ):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
         1 or a positive value of sampling priority if propagated in tracestate.
 
         When the traceparent sampled flag is not set, the Datadog sampling priority is either
         0 or a negative value of sampling priority if propagated in tracestate.
+
+        When origin is "rum" and there is no sampling priority propagated in tracestate, the above rules do not apply.
         """
+        from_rum_wo_priority = not tracestate_sampling_priority and origin == "rum"
 
-        if traceparent_sampled == 0 and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0):
+        if (
+            not from_rum_wo_priority
+            and traceparent_sampled == 0
+            and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0)
+        ):
             sampling_priority = 0
-
-        elif traceparent_sampled == 1 and (not tracestate_sampling_priority or tracestate_sampling_priority < 0):
+        elif (
+            not from_rum_wo_priority
+            and traceparent_sampled == 1
+            and (not tracestate_sampling_priority or tracestate_sampling_priority < 0)
+        ):
             sampling_priority = 1
         else:
             # The two other options provided for clarity:
@@ -792,10 +818,12 @@ class _TraceContext:
                     tracestate_values = None
 
                 if tracestate_values:
-                    sampling_priority_ts, other_propagated_tags, origin = tracestate_values
+                    sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
+                    if lpid:
+                        meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts)
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
@@ -813,10 +841,17 @@ class _TraceContext:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
-            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
-            ts = span_context._tracestate
-            if ts:
-                headers[_HTTP_HEADER_TRACESTATE] = ts
+            if span_context._is_remote is False:
+                # Datadog Span is active, so the current span_id is the last datadog span_id
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
+                    span_context._tracestate, span_context.span_id or 0
+                )
+            elif LAST_DD_PARENT_ID_KEY in span_context._meta:
+                # Datadog Span is not active, propagate the last datadog span_id
+                span_id = int(span_context._meta[LAST_DD_PARENT_ID_KEY], 16)
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
+            else:
+                headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
 class _NOP_Propagator:
@@ -890,8 +925,8 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def inject(span_context, headers, non_active_span=None):
+        # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -909,7 +944,29 @@ class HTTPPropagator(object):
 
         :param Context span_context: Span context to propagate.
         :param dict headers: HTTP headers to extend with tracing attributes.
+        :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if non_active_span is not None and non_active_span.context is not span_context:
+            log.error(
+                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
+                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
+                span_context,
+                non_active_span.context,
+            )
+
+            span_context = non_active_span.context
+
+        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+            if non_active_span is not None:
+                root_span = non_active_span._local_root
+            else:
+                root_span = ddtrace.tracer.current_root_span()
+
+            if root_span is not None and root_span.context.sampling_priority is None:
+                ddtrace.tracer.sample(root_span)
+        else:
+            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+
         # Not a valid context to propagate
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)

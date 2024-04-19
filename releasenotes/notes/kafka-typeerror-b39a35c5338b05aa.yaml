@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where the use of a Kafka ``DeserializingConsumer`` could result in
+    a crash when the deserializer in use returns a type without a ``__len__`` attribute.

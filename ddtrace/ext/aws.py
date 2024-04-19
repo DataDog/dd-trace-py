@@ -4,7 +4,7 @@ from typing import Dict  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.span import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 def truncate_arg_value(value, max_len=1024):

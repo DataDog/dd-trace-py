@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Vulnerability Management for Code-level (IAST): Fixes an issue where requests stopped being analyzed after some time due.

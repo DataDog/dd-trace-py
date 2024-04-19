@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Pin importlib_metadata to 6.5.0 to avoid its issue 455 (https://github.com/python/importlib_metadata/issues/455).

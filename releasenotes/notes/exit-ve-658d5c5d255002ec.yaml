@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where the tracer could throw an uncaught error during process shutdown.

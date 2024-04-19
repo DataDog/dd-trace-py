@@ -2,6 +2,7 @@
 import os
 import re
 import signal
+from subprocess import TimeoutExpired
 import sys
 import tempfile
 import time
@@ -19,6 +20,10 @@ if sys.version_info[:2] >= (3, 12) or sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
+THREADS_MSG = (
+    b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
+    b"number of threads must be set"
+)
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
@@ -41,7 +46,17 @@ def test_uwsgi_threads_disabled(uwsgi):
     proc = uwsgi()
     stdout, _ = proc.communicate()
     assert proc.wait() != 0
-    assert b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true" in stdout
+    assert THREADS_MSG in stdout
+
+
+def test_uwsgi_threads_number_set(uwsgi):
+    proc = uwsgi("--threads", "1")
+    try:
+        stdout, _ = proc.communicate(timeout=1)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
+    assert THREADS_MSG not in stdout
 
 
 def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
