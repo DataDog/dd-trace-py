@@ -201,7 +201,9 @@ def construct_url(environ):
     url += quote(environ.get("SCRIPT_NAME", ""))
     # we need the raw uri here for reporting, not the computed one
     if environ.get("RAW_URI"):
-        url += environ.get("RAW_URI", "")
+        url += environ["RAW_URI"]
+    elif environ.get("REQUEST_URI"):
+        url += environ["REQUEST_URI"]
     else:
         url += quote(environ.get("PATH_INFO", ""))
         if environ.get("QUERY_STRING"):

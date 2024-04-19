@@ -449,7 +449,7 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
-    @pytest.mark.parametrize("uri", ["/waf/.."])
+    @pytest.mark.parametrize("uri", ["/waf/../"])
     def test_request_suspicious_request_block_match_uri_lfi(
         self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri
     ):
