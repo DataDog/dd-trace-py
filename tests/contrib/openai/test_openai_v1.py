@@ -2025,6 +2025,10 @@ def test_llmobs_chat_completion_function_call(
             function_call="auto",
             user="ddtrace-test",
         )
+    expected_output = "[function: {}]\n\n{}".format(
+        resp.choices[0].message.function_call.name,
+        resp.choices[0].message.function_call.arguments,
+    )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.enqueue.assert_called_with(
@@ -2033,7 +2037,7 @@ def test_llmobs_chat_completion_function_call(
             model_name=resp.model,
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-            output_messages=[{"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}],
+            output_messages=[{"content": expected_output, "role": "assistant"}],
             parameters={"temperature": 0},
             token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
