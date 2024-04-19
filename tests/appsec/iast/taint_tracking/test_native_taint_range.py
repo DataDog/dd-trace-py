@@ -3,6 +3,8 @@ from ast import literal_eval
 import random
 import sys
 
+import pytest
+
 from ddtrace.appsec._iast import oce
 from tests.utils import override_env
 
@@ -314,7 +316,8 @@ def test_set_get_ranges_other():
     s1 = 12345
     s2 = None
     set_ranges(s1, [_RANGE1, _RANGE2])
-    set_ranges(s2, [_RANGE1, _RANGE2])
+    with pytest.raises(ValueError, match="[IAST] Get ranges error: Invalid type of candidate_text variable"):
+        set_ranges(s2, [_RANGE1, _RANGE2])
     assert not get_ranges(s1)
     assert not get_ranges(s2)
 

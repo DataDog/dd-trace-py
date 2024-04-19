@@ -50,7 +50,6 @@ if _is_python_version_supported():
 
     new_pyobject_id = ops.new_pyobject_id
     set_ranges_from_values = ops.set_ranges_from_values
-    is_pyobject_tainted = is_tainted
 
 
 __all__ = [
@@ -99,6 +98,14 @@ def iast_taint_log_error(msg):
         _set_iast_error_metric("IAST propagation error. %s" % msg)
     else:
         log.debug(msg)
+
+
+def is_pyobject_tainted(pyobject: Any) -> bool:
+    try:
+        return is_tainted(pyobject)
+    except ValueError as e:
+        iast_taint_log_error("Checking tainted object error: %s" % e)
+    return False
 
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
