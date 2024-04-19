@@ -204,7 +204,7 @@ class DatadogSampler(RateByServiceSampler):
     per second.
     """
 
-    __slots__ = ("limiter", "rules")
+    __slots__ = ("limiter", "rules", "default_sample_rate")
 
     NO_RATE_LIMIT = -1
     # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
@@ -228,7 +228,7 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
-
+        self.default_sample_rate = default_sample_rate
         if default_sample_rate is None:
             if ddconfig._get_source("_trace_sample_rate") != "default":
                 default_sample_rate = float(ddconfig._trace_sample_rate)
@@ -239,7 +239,7 @@ class DatadogSampler(RateByServiceSampler):
         if rules is None:
             env_sampling_rules = ddconfig._trace_sampling_rules
             if env_sampling_rules:
-                rules = self._parse_rules_from_env_variable(env_sampling_rules)
+                rules = self._parse_rules_from_str(env_sampling_rules)
             else:
                 rules = []
             self.rules = rules
@@ -268,7 +268,8 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _parse_rules_from_env_variable(self, rules):
+    @staticmethod
+    def _parse_rules_from_str(rules):
         # type: (str) -> List[SamplingRule]
         sampling_rules = []
         try:

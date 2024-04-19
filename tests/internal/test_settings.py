@@ -256,6 +256,84 @@ assert span.get_metric("_dd.rule_psr") == 0.3
     assert status == 0, err.decode("utf-8")
 
 
+def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
+
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from ddtrace.sampler import DatadogSampler
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
+
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.1
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
+        {
+            "service": "*",
+            "name": "test",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 0.2,
+        }
+        ]}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.2
+
+config._handle_remoteconfig(_base_rc_config({}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.1
+custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
+tracer.configure(sampler=custom_sampler)
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
+        {
+            "service": "*",
+            "name": "test",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 0.4,
+        }
+        ]}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.4
+
+config._handle_remoteconfig(_base_rc_config({}))
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
+        {
+            "service": "ok",
+            "name": "test",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 0.4,
+        }
+        ]}))
+with tracer.trace(service="ok", name="test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.4
+
+config._handle_remoteconfig(_deleted_rc_config())
+with tracer.trace("test") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
+        """,
+        env=env,
+    )
+    assert status == 0, err.decode("utf-8")
+
+
 def test_remoteconfig_custom_tags(run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update({"DD_TAGS": "team:apm"})

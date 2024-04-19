@@ -11,7 +11,6 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -22,6 +21,7 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.sampler import DatadogSampler
 from ddtrace.sampling_rule import SamplingRule
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
@@ -577,5 +577,5 @@ def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expect
 
     assert trace_sampling_rules == expected_config_rules
     if trace_sampling_rules is not None:
-        parsed_rules = tracer.sampler._parse_rules_from_env_variable(trace_sampling_rules)
+        parsed_rules = DatadogSampler._parse_rules_from_str(trace_sampling_rules)
         assert parsed_rules == expected_sampling_rules
