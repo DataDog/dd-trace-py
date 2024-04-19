@@ -71,7 +71,7 @@ def str_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].str(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
@@ -97,7 +97,7 @@ def bytes_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytes(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
@@ -116,7 +116,7 @@ def bytearray_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytearray(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:

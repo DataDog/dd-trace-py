@@ -101,6 +101,9 @@ def iast_taint_log_error(msg):
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+        return False
+
     try:
         return is_tainted(pyobject)
     except ValueError as e:
@@ -110,7 +113,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
-    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
         return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
@@ -134,7 +137,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
-    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
         return None
     try:
         set_ranges(pyobject, ranges)
@@ -143,7 +146,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
         return tuple()
     try:
         return get_ranges(pyobject)
