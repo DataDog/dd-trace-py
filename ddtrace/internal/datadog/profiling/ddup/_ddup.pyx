@@ -277,7 +277,6 @@ cdef class SampleHandle:
         if not span._local_root:
             return
 
-
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
         if span._local_root.span_type:
