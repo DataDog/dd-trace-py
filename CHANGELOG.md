@@ -4,6 +4,39 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.1
+
+
+### New Features
+
+- Code Security: to enable IAST in the application, you had to start it with the command `ddtrace-run [your-application-run-command]` so far. Now, you can also activate IAST with the `patch_all` function.
+
+### Bug Fixes
+
+- Code Security: fix setting the wrong source on map elements tainted from <span class="title-ref">taint_structure</span>.
+- Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a `FileNotFoundError`.
+- CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
+- Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration. Empty lists from consume can occur when the call times out.
+- ASM: This fix removes unrequired API security metrics.
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
+
+---
+
+## 2.7.8
+
+
+### Bug Fixes
+
+- Code Security: fix setting the wrong source on map elements tainted from <span class="title-ref">taint_structure</span>.
+- Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a `FileNotFoundError`.
+- CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
+- Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- ASM: This fix removes unrequired API security metrics.
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
+
+---
+
 ## 2.6.10
 
 
@@ -21,7 +54,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Some native exceptions were not being caught correctly by the python tracer. This fix remove those exceptions to avoid fatal error executions.
 - ASM: This fix removes unrequired API security metrics.
 - structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection when resetting to defaults.
-
 
 ---
 
