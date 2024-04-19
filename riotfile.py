@@ -125,6 +125,9 @@ venv = Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
+            pkgs={
+                "requests": latest,
+            },
         ),
         Venv(
             name="appsec_iast",

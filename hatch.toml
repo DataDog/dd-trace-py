@@ -158,7 +158,6 @@ extra-dependencies = [
     "pytest-cov==4.0.0",
     "opentracing==2.4.0",
     "hypothesis==6.45.0",
-    "requests>=2.19",
 ]
 
 [[envs.integration_test.matrix]]
