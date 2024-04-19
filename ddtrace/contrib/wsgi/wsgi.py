@@ -202,8 +202,14 @@ def construct_url(environ):
     # we need the raw uri here for reporting, not the computed one
     if environ.get("RAW_URI"):
         url += environ["RAW_URI"]
+        # on old versions of wsgi, the raw uri does not include the query string
+        if environ.get("QUERY_STRING") and "?" not in environ["RAW_URI"]:
+            url += "?" + environ["QUERY_STRING"]
     elif environ.get("REQUEST_URI"):
         url += environ["REQUEST_URI"]
+        # on old versions of wsgi, the raw uri does not include the query string
+        if environ.get("QUERY_STRING") and "?" not in environ["REQUEST_URI"]:
+            url += "?" + environ["QUERY_STRING"]
     else:
         url += quote(environ.get("PATH_INFO", ""))
         if environ.get("QUERY_STRING"):
