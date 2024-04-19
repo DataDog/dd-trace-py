@@ -7,6 +7,7 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
+from ddtrace import ext
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling.ddup.utils import sanitize_string
@@ -264,23 +265,31 @@ cdef class SampleHandle:
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         if self.ptr is NULL:
             return
+
+        # Spans are nested objects, but if we don't have one, we're done here
         if not span:
             return
+
         if span.span_id:
             ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
+
+        # If the span has no local root, we're done here
         if not span._local_root:
             return
+
+
         if span._local_root.span_id:
             ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
         if span._local_root.span_type:
-            span_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
-            ddup_push_trace_type(self.ptr, string_view(<const char*>span_type_bytes, len(span_type_bytes)))
-        if endpoint_collection_enabled:
-            root_service_bytes = ensure_binary_or_empty(span._local_root.service)
-            ddup_push_trace_resource_container(
-                    self.ptr,
-                    string_view(<const char*>root_service_bytes, len(root_service_bytes))
-            )
+            trace_type_bytes = ensure_binary_or_empty(span._local_root.span_type)
+            ddup_push_trace_type(self.ptr, string_view(<const char*>trace_type_bytes, len(trace_type_bytes)))
+            if endpoint_collection_enabled and span._local_root._resource:
+                if span._local_root._span_type == ext.SpanType.WEB and span._local_root._resource:
+                    trace_resource_container_bytes = ensure_binary_or_empty(span._local_root._resource[0])
+                    ddup_push_trace_resource_container(
+                        self.ptr,
+                        string_view(<const char*>trace_resource_container_bytes, len(trace_resource_container_bytes))
+                    )
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
