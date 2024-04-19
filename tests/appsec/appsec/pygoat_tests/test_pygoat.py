@@ -35,10 +35,30 @@ def build_docker():
 def setup():
     curcwd = os.getcwd()
     os.chdir(os.path.dirname(__file__))
-    subprocess.run(["docker", "run", "-d", "--net", "host", "-e", "DD_APPSEC_ENABLED=1", "-e",
-                    "DD_IAST_ENABLED=1", "-e", "DD_IAST_REQUEST_SAMPLING=100", "-e",
-                    "DD_AGENT_PORT=9126", "-e", "DD_IAST_VULNERABILITIES_PER_REQUEST=100",
-                    "-e", "DD_REMOTE_CONFIGURATION_ENABLED=true", "--name", "pygoat", "pygoat:2.0.1"])
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "-d",
+            "--net",
+            "host",
+            "-e",
+            "DD_APPSEC_ENABLED=1",
+            "-e",
+            "DD_IAST_ENABLED=1",
+            "-e",
+            "DD_IAST_REQUEST_SAMPLING=100",
+            "-e",
+            "DD_AGENT_PORT=9126",
+            "-e",
+            "DD_IAST_VULNERABILITIES_PER_REQUEST=100",
+            "-e",
+            "DD_REMOTE_CONFIGURATION_ENABLED=true",
+            "--name",
+            "pygoat",
+            "pygoat:2.0.1",
+        ]
+    )
     time.sleep(5)
     yield
     subprocess.run(["docker", "rm", "-f", "pygoat"])
