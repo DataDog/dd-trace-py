@@ -7,11 +7,12 @@
 #include <string_view>
 
 namespace Datadog {
-class Crashtracker {
+class Crashtracker
+{
   private:
     bool create_alt_stack = false;
-    std::optional<std::string> stderr_filename{std::nullopt};
-    std::optional<std::string> stdout_filename{std::nullopt};
+    std::optional<std::string> stderr_filename{ std::nullopt };
+    std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
     ddog_prof_CrashtrackerResolveFrames resolve_frames;
 
@@ -19,9 +20,9 @@ class Crashtracker {
     std::string service;
     std::string version;
     std::string runtime;
-    std::string runtime_version{"0.0.0"};
-    const std::string library_name{"dd-trace-py"};
-    const std::string family{"python"};
+    std::string runtime_version{ "0.0.0" };
+    const std::string library_name{ "dd-trace-py" };
+    const std::string family{ "python" };
     std::string library_version;
     std::string url;
     std::string runtime_id;
@@ -29,10 +30,9 @@ class Crashtracker {
     // Helpers for initialization/restart
     ddog_Vec_Tag get_tags();
     ddog_prof_CrashtrackerConfiguration get_config();
-    ddog_prof_CrashtrackerMetadata get_metadata(ddog_Vec_Tag &tags);
+    ddog_prof_CrashtrackerMetadata get_metadata(ddog_Vec_Tag& tags);
 
   public:
-
     // Setters
     void set_env(std::string_view _env);
     void set_service(std::string_view _service);

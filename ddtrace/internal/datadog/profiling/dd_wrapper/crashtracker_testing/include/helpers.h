@@ -8,4 +8,3 @@
 #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
 #define PYINIT_NAME(name) CONCATENATE(PyInit_, name)
 #define MOD_STR(name) #name
-

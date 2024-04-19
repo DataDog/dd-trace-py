@@ -4,7 +4,6 @@
 #include <iostream>
 #include <vector>
 
-
 void
 Datadog::Crashtracker::set_create_alt_stack(bool _create_alt_stack)
 {
@@ -171,49 +170,49 @@ Datadog::Crashtracker::get_metadata(ddog_Vec_Tag& tags)
 bool
 Datadog::Crashtracker::start()
 {
-  auto config = get_config();
-  auto tags = get_tags();
-  auto metadata = get_metadata(tags);
+    auto config = get_config();
+    auto tags = get_tags();
+    auto metadata = get_metadata(tags);
 
-  std::cerr << "Starting crash tracker" << std::endl;
+    std::cerr << "Starting crash tracker" << std::endl;
 
-  auto result = ddog_prof_Crashtracker_init(config, metadata);
-  ddog_Vec_Tag_drop(tags);
-  if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-    auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-    std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
-    std::cerr << errmsg << std::endl;
-    ddog_Error_drop(&err);
-    return false;
-  }
+    auto result = ddog_prof_Crashtracker_init(config, metadata);
+    ddog_Vec_Tag_drop(tags);
+    if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;                            // NOLINT (cppcoreguidelines-pro-type-union-access)
+        std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
+        std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        return false;
+    }
 
-  // Set the base state for profiling ops
-  start_not_profiling();
+    // Set the base state for profiling ops
+    start_not_profiling();
 
-  return true;
+    return true;
 }
 
 bool
 Datadog::Crashtracker::atfork_child()
 {
-  auto config = get_config();
-  auto tags = get_tags();
-  auto metadata = get_metadata(tags);
+    auto config = get_config();
+    auto tags = get_tags();
+    auto metadata = get_metadata(tags);
 
-  auto result = ddog_prof_Crashtracker_update_on_fork(config, metadata);
-  ddog_Vec_Tag_drop(tags);
-  if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-    auto err = result.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-    std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
-    std::cerr << errmsg << std::endl;
-    ddog_Error_drop(&err);
-    return false;
-  }
+    auto result = ddog_prof_Crashtracker_update_on_fork(config, metadata);
+    ddog_Vec_Tag_drop(tags);
+    if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;                            // NOLINT (cppcoreguidelines-pro-type-union-access)
+        std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
+        std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        return false;
+    }
 
-  // Set the base state for profiling ops
-  start_not_profiling();
+    // Set the base state for profiling ops
+    start_not_profiling();
 
-  return true;
+    return true;
 }
 
 // Profiling state management

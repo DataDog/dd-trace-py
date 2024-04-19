@@ -1,5 +1,5 @@
-#include "crash_tracker.hpp"
 #include "interface.hpp"
+#include "crash_tracker.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"

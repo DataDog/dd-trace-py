@@ -62,7 +62,8 @@ enum class ExportLabelKey
 
 struct DdogProfExporterDeleter
 {
-    void operator()(ddog_prof_Exporter* ptr) const {
+    void operator()(ddog_prof_Exporter* ptr) const
+    {
         if (ptr) {
             ddog_prof_Exporter_drop(ptr);
         }
