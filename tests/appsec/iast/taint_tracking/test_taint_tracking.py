@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pytest
 
 from ddtrace.appsec._iast import oce
 from tests.utils import override_env
@@ -7,6 +8,7 @@ from tests.utils import override_env
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
+    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -30,6 +32,14 @@ def test_taint_ranges_as_evidence_info_all_tainted():
     value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
     assert value_parts == [{"value": tainted_text, "source": 0}]
     assert sources == [input_info]
+
+
+@pytest.mark.no_iast_context
+def test_taint_object_with_no_context_should_be_noop():
+    arg = "all tainted"
+    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
+    assert tainted_text == arg
+    assert num_objects_tainted() == 0
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():

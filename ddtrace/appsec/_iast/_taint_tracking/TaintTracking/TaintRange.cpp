@@ -98,6 +98,10 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 
     if (nargs == 5) {
         PyObject* tainted_object = args[0];
+        auto tx_id = initializer->context_id();
+        if (tx_id == 0) {
+            return tainted_object;
+        }
         auto ctx_map = initializer->get_tainting_map();
         pyobject_n = new_pyobject_id(tainted_object);
         PyObject* len_pyobject_py = args[1];
@@ -327,6 +331,11 @@ void
 set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map)
 {
     if (not str or not is_text(str)) {
+        return;
+    }
+
+    auto tx_id = initializer->context_id();
+    if (tx_id == 0) {
         return;
     }
 
