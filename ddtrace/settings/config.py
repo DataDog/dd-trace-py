@@ -864,6 +864,8 @@ class Config(object):
                         rule_str += f'"{key}":"{value}",'
                     rule_str = rule_str[:-1]  # Remove the trailing comma
                     rule_str += "}"
+                if "provenance" in rule:
+                    rule_str += f',"provenance":"{rule["provenance"]}"'
                 rule_str += "}"
 
             rule_str += "]"

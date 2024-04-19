@@ -442,12 +442,12 @@ def test_rc_default_products_registered():
                     "service": "my-service",
                     "name": "web.request",
                     "resource": "*",
-                    "provenance": "customer",
+                    "provenance": "dynamic",
                     "sample_rate": 1.0,
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"dynamic"}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -455,6 +455,7 @@ def test_rc_default_products_registered():
                     name="web.request",
                     resource="*",
                     tags={"care_about": "yes", "region": "us-*"},
+                    provenance="dynamic",
                 )
             ],
         ),
@@ -468,7 +469,7 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            '[{"sample_rate":1.0,"resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -476,6 +477,7 @@ def test_rc_default_products_registered():
                     name="web.request",
                     resource="*",
                     tags={"care_about": "yes", "region": "us-*"},
+                    provenance="customer",
                 )
             ],
         ),
@@ -490,7 +492,7 @@ def test_rc_default_products_registered():
                     "sample_rate": 1.0,
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request"}]',
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","provenance":"customer"}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -498,6 +500,7 @@ def test_rc_default_products_registered():
                     name="web.request",
                     resource="*",
                     tags=SamplingRule.NO_RULE,
+                    provenance="customer",
                 )
             ],
         ),
@@ -512,7 +515,7 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]',
+            '[{"sample_rate":1.0,"service":"my-service","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -520,6 +523,7 @@ def test_rc_default_products_registered():
                     name="web.request",
                     resource=SamplingRule.NO_RULE,
                     tags={"care_about": "yes", "region": "us-*"},
+                    provenance="customer",
                 )
             ],
         ),
@@ -534,7 +538,7 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","tags":{"care_about":"yes","region":"us-*"}}]',
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -542,6 +546,7 @@ def test_rc_default_products_registered():
                     name=SamplingRule.NO_RULE,
                     resource="*",
                     tags={"care_about": "yes", "region": "us-*"},
+                    provenance="customer",
                 )
             ],
         ),

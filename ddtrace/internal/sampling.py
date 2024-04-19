@@ -62,6 +62,8 @@ class SamplingMechanism(object):
     REMOTE_RATE_USER = 6
     REMOTE_RATE_DATADOG = 7
     SPAN_SAMPLING_RULE = 8
+    REMOTE_USER_RULE = 10
+    REMOTE_DYNAMIC_RULE = 11
 
 
 # Use regex to validate trace tag value
@@ -278,8 +280,14 @@ def is_single_span_sampled(span):
 def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     # type: (Span, bool, float, str) -> None
     mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
-    if priority_category == "rule":
+    if priority_category == "rule_default":
         span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+    if priority_category == "rule_customer":
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        mechanism = SamplingMechanism.REMOTE_USER_RULE
+    if priority_category == "rule_dynamic":
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        mechanism = SamplingMechanism.REMOTE_DYNAMIC_RULE
     elif priority_category == "default":
         mechanism = SamplingMechanism.DEFAULT
     elif priority_category == "auto":

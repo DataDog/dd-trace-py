@@ -158,7 +158,7 @@ class RateByServiceSampler(BasePrioritySampler):
         elif isinstance(sampler, _AgentRateSampler):
             return _PRIORITY_CATEGORY.AUTO
         else:
-            return _PRIORITY_CATEGORY.RULE
+            return _PRIORITY_CATEGORY.RULE_DEF
 
     def _make_sampling_decision(self, span):
         # type: (Span) -> Tuple[bool, BaseSampler]
@@ -284,9 +284,15 @@ class DatadogSampler(RateByServiceSampler):
             name = rule.get("name", SamplingRule.NO_RULE)
             resource = rule.get("resource", SamplingRule.NO_RULE)
             tags = rule.get("tags", SamplingRule.NO_RULE)
+            provenance = rule.get("provenance", "default")
             try:
                 sampling_rule = SamplingRule(
-                    sample_rate=sample_rate, service=service, name=name, resource=resource, tags=tags
+                    sample_rate=sample_rate,
+                    service=service,
+                    name=name,
+                    resource=resource,
+                    tags=tags,
+                    provenance=provenance,
                 )
             except ValueError as e:
                 raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
@@ -321,7 +327,13 @@ class DatadogSampler(RateByServiceSampler):
     def _choose_priority_category_with_rule(self, rule, sampler):
         # type: (Optional[SamplingRule], BaseSampler) -> str
         if rule:
-            return _PRIORITY_CATEGORY.RULE
+            provenance = rule.provenance
+            if provenance == "customer":
+                return _PRIORITY_CATEGORY.RULE_CUSTOMER
+            if provenance == "dynamic":
+                return _PRIORITY_CATEGORY.RULE_DYNAMIC
+            return _PRIORITY_CATEGORY.RULE_DEF
+
         if self.limiter._has_been_configured:
             return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)
