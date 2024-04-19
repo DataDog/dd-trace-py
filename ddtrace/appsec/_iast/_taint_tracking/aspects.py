@@ -53,7 +53,11 @@ __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect
 def add_aspect(op1, op2):
     if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES) or type(op1) != type(op2):
         return op1 + op2
-    return _add_aspect(op1, op2)
+    try:
+        return _add_aspect(op1, op2)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. add_aspect. {}".format(e))
+    return op1 + op2
 
 
 def str_aspect(orig_function, flag_added_args, *args, **kwargs):

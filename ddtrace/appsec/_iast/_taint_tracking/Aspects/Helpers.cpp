@@ -17,7 +17,12 @@ api_common_replace(const py::str& string_method,
     TaintRangeRefs candidate_text_ranges;
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
-    if (not tx_map or tx_map->empty()) {
+
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    if (tx_map->empty()) {
         return res;
     }
     std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr(), tx_map);

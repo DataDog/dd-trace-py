@@ -82,7 +82,13 @@ PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
     auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
+
+    if (not ctx_map) {
+        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+        Py_RETURN_NONE;
+    }
+
+    if (ctx_map->empty()) {
         return result_o;
     }
     bool ranges_error;
