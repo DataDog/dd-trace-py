@@ -198,9 +198,13 @@ def construct_url(environ):
                 url += ":" + environ["SERVER_PORT"]
 
     url += quote(environ.get("SCRIPT_NAME", ""))
-    url += quote(environ.get("PATH_INFO", ""))
-    if environ.get("QUERY_STRING"):
-        url += "?" + environ["QUERY_STRING"]
+    # we need the raw uri here for reporting, not the computed one
+    if environ.get("RAW_URI"):
+        url += quote(environ.get("RAW_URI", ""))
+    else:
+        url += quote(environ.get("PATH_INFO", ""))
+        if environ.get("QUERY_STRING"):
+            url += "?" + environ["QUERY_STRING"]
 
     return url
 
