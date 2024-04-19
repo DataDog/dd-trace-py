@@ -434,6 +434,7 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
         from ddtrace.profiling.collector import stack_event  # noqa:F401
-#        from ddtrace.profiling.exporter import file  # noqa:F401 (transitive errors)
+
+        #        from ddtrace.profiling.exporter import file  # noqa:F401 (transitive errors)
         from ddtrace.profiling.exporter import http  # noqa:F401
         from ddtrace.profiling.exporter import pprof  # noqa:F401
