@@ -13,6 +13,20 @@ class ERROR_TYPES(str, Enum):
     UNKNOWN = "unknown"
 
 
+class TEST_FRAMEWORKS(str, Enum):
+    PYTEST = "pytest"
+    UNITTEST = "unittest"
+    MANUAL = "unset"
+
+
+class EVENT_TYPES(str, Enum):
+    SESSION = "session"
+    MODULE = "module"
+    SUITE = "suite"
+    TEST = "test"
+    UNSET = "unset"
+
+
 class GIT_TELEMETRY_COMMANDS(str, Enum):
     GET_REPOSITORY = "get_repository"
     GET_BRANCH = "get_branch"

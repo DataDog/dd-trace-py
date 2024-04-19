@@ -262,3 +262,42 @@ def test_string_slice_with_none_params(input_str, start_pos, end_pos, step, expe
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == len(expected_result)
+
+
+def test_string_slice_and_unpack():
+    """This test verify that site-packages/Crypto/Util/number.py:bytes_to_long is correctly instrumented with no
+    errors.
+    """
+    for _ in range(10):
+        input_str = b"\xcch\x08A\x93;\xa9:\xa9*\n\xeaA]\x13\xec"
+        expected_result = 271702677468084275015420463885508744172
+        result = mod.do_slice_complex(input_str)
+        assert result == expected_result
+
+        tainted_input = taint_pyobject(
+            pyobject=input_str,
+            source_name="input_str",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+        result = mod.do_slice_complex(tainted_input)
+        assert result == expected_result
+
+
+def test_string_slice_negative():
+    """This test verify that site-packages/Crypto/Util/number.py:bytes_to_long is correctly instrumented with no
+    errors.
+    """
+    input_str = b"\xc1\xd6/q\x85\n\xd40\xb6\x93\xbd* {\xb3\xaa"
+    expected_result = b"\xc1\xd6/q\x85\n\xd40\xb6\x93\xbd* {\xb3\xaa"
+    result = mod.do_slice_negative(input_str)
+    assert result == expected_result
+
+    tainted_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="input_str",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_slice_negative(tainted_input)
+    assert result == expected_result

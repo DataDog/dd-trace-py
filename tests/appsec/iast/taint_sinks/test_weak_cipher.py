@@ -8,6 +8,7 @@ from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc2
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_arc4
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfish
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
+from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_secure
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
@@ -180,3 +181,18 @@ def test_weak_cipher_deduplication(num_vuln_expected, iast_span_deduplication_en
         assert span_report
 
         assert len(span_report.vulnerabilities) == num_vuln_expected
+
+
+def test_weak_cipher_secure(iast_span_defaults):
+    cipher_secure()
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+    assert span_report is None
+
+
+def test_weak_cipher_secure_multiple_calls_error(iast_span_defaults):
+    for _ in range(50):
+        cipher_secure()
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+
+    assert span_report is None
