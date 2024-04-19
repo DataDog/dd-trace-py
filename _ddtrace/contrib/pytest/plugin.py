@@ -72,14 +72,14 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
-        from ._plugin_v1 import _PytestDDTracePluginV1
+        from ddtrace.contrib.pytest._plugin_v1 import _PytestDDTracePluginV1
 
         config.pluginmanager.register(_PytestDDTracePluginV1(), "_datadog-pytest-v1")
 
 
 @pytest.hookimpl
 def pytest_addhooks(pluginmanager):
-    from ddtrace.contrib.pytest import newhooks
+    from _ddtrace.contrib.pytest import newhooks
 
     pluginmanager.add_hookspecs(newhooks)
 

@@ -57,9 +57,9 @@ ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 ddcontextvars_context = "ddtrace.opentelemetry._context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
+ddtrace = "_ddtrace.contrib.pytest.plugin"
+"ddtrace.pytest_bdd" = "_ddtrace.contrib.pytest_bdd.plugin"
+"ddtrace.pytest_benchmark" = "_ddtrace.contrib.pytest_benchmark.plugin"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
@@ -164,7 +164,7 @@ exclude-modules = '''
 '''
 
 [tool.bandit]
-targets = ["ddtrace/"]
+targets = ["ddtrace/", "_ddtrace/"]
 
 # TODO: Remove excludes
 exclude_dirs = [
@@ -259,7 +259,7 @@ convention = "pep257"
 force-single-line = true
 lines-after-imports = 2
 force-sort-within-sections = true
-known-first-party = [ "ddtrace" ]
+known-first-party = [ "ddtrace", "_ddtrace" ]
 relative-imports-order = "furthest-to-closest"
 
 [tool.ruff.per-file-ignores]
