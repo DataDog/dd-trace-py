@@ -108,6 +108,7 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
             call_key="req_span",
         ) as ctx:
+            ctx.set_item("wsgi.construct_url", construct_url)
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
                 if result:
