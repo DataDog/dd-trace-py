@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
+import logging
+
+import pytest
+
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import override_env
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -415,3 +423,18 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[4].start : (ranges[4].start + ranges[4].length)] == "h"
         assert result[ranges[5].start : (ranges[5].start + ranges[5].length)] == "+abcde-"
         assert result[ranges[6].start : (ranges[6].start + ranges[6].length)] == "i"
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context(caplog):
+    create_context()
+    string_input = taint_pyobject(
+        pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+    )
+    it = ["a", "b", "c"]
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result = mod.do_join(string_input, it)
+        assert result == "a-joiner-b-joiner-c"
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert any("[IAST] " in message for message in log_messages), log_messages
