@@ -152,7 +152,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         tags.update(self.tags)
 
-        return ",".join(tag + ":" + value for tag, value in tags.items())
+        return ",".join(f"{tag}:{value}" for tag, value in tags.items())
 
     def export(
         self,
