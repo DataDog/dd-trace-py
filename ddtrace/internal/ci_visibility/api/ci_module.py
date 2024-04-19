@@ -14,6 +14,7 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
+from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.logger import get_logger
 
 
@@ -28,6 +29,7 @@ class CIVisibilityModule(
     CIVisibilityChildItem[CIModuleId], CIVisibilityParentItem[CIModuleId, CISuiteId, CIVisibilitySuite]
 ):
     event_type = MODULE_TYPE
+    event_type_metric_name = EVENT_TYPES.MODULE
 
     def __init__(
         self,
