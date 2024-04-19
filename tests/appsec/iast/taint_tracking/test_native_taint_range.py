@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from ast import literal_eval
 import random
+import re
 import sys
 
 import pytest
@@ -316,10 +317,12 @@ def test_set_get_ranges_other():
     s1 = 12345
     s2 = None
     set_ranges(s1, [_RANGE1, _RANGE2])
-    with pytest.raises(ValueError, match="[IAST] Get ranges error: Invalid type of candidate_text variable"):
-        set_ranges(s2, [_RANGE1, _RANGE2])
-    assert not get_ranges(s1)
-    assert not get_ranges(s2)
+    set_ranges(s2, [_RANGE1, _RANGE2])
+    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+        get_ranges(s1)
+
+    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+        get_ranges(s2)
 
 
 def test_set_get_ranges_bytes():
