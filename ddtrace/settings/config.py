@@ -866,8 +866,8 @@ class Config(object):
                     rule_str += "}"
                 if "provenance" in rule:
                     rule_str += f',"provenance":"{rule["provenance"]}"'
-                rule_str += "}"
-
+                rule_str += "},"
+            rule_str = rule_str[:-1]  # Remove the trailing comma
             rule_str += "]"
         # We don't want to crash out if rc rules are incorrectly formatted or missing required fields
         except Exception:
