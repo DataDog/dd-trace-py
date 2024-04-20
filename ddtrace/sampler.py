@@ -297,6 +297,10 @@ class DatadogSampler(RateByServiceSampler):
             except ValueError as e:
                 raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
             sampling_rules.append(sampling_rule)
+
+        provenance_order = ["customer", "dynamic", "default"]
+        # Sort the sampling_rules list using a lambda function as the key
+        sampling_rules = sorted(sampling_rules, key=lambda rule: provenance_order.index(rule.provenance))
         return sampling_rules
 
     def sample(self, span):
