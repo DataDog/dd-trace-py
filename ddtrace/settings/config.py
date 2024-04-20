@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 import os
 import re
 import sys
@@ -814,6 +815,9 @@ class Config(object):
         remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
 
+    def _tags_to_dict(self, tags):
+        return {tag["key"]: tag["value_glob"] for tag in tags}
+
     def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:
         [
@@ -839,39 +843,5 @@ class Config(object):
                 Example of a converted rule:
                 '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
         """
-        try:
-            rule_str = "["
-            for rule in rc_rules:
-                if "sample_rate" not in rule:
-                    raise ValueError("sample_rate is required for each rule")
-                if "service" not in rule and "resource" not in rule and "name" not in rule:
-                    raise ValueError("service, resource, or name is required for each rule")
-
-                rule_str += "{"
-
-                rule_str += f'"sample_rate":{rule["sample_rate"]}'
-                if "service" in rule:
-                    rule_str += f',"service":"{rule["service"]}"'
-                if "resource" in rule:
-                    rule_str += f',"resource":"{rule["resource"]}"'
-                if "name" in rule:
-                    rule_str += f',"name":"{rule["name"]}"'
-                if "tags" in rule:
-                    rule_str += ',"tags":{'
-                    for item in rule["tags"]:
-                        key = item["key"]
-                        value = item["value_glob"]
-                        rule_str += f'"{key}":"{value}",'
-                    rule_str = rule_str[:-1]  # Remove the trailing comma
-                    rule_str += "}"
-                if "provenance" in rule:
-                    rule_str += f',"provenance":"{rule["provenance"]}"'
-                rule_str += "},"
-            rule_str = rule_str[:-1]  # Remove the trailing comma
-            rule_str += "]"
-        # We don't want to crash out if rc rules are incorrectly formatted or missing required fields
-        except Exception:
-            log.exception("Error converting remote config sampling rules %s", rc_rules)
-            return None
-
-        return rule_str
+        # Convert JSON to string
+        return json.dumps(rc_rules, default=lambda o: self._tags_to_dict(o) if isinstance(o, list) else o)
