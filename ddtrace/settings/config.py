@@ -816,7 +816,7 @@ class Config(object):
 
     def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:
-                "tracing_sampling_rules":[
+        [
           {
             "service": "my-service",
             "name": "web.request",
@@ -837,7 +837,7 @@ class Config(object):
         ]
 
                 Example of a converted rule:
-                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"}}]'
+                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
         """
         try:
             rule_str = "["
