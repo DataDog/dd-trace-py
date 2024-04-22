@@ -8,12 +8,6 @@ api_format_aspect(StrType& candidate_text,
                   const py::args& args,
                   const py::kwargs& kwargs)
 {
-    auto tx_map = initializer->get_tainting_map();
-
-    if (not tx_map or tx_map->empty()) {
-        return py::getattr(candidate_text, "format")(*args, **kwargs);
-    }
-
     auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
 
     if (!ranges_orig.empty() or !candidate_text_ranges.empty()) {
@@ -46,7 +40,7 @@ api_format_aspect(StrType& candidate_text,
         StrType result_text = get<0>(result);
         TaintRangeRefs result_ranges = get<1>(result);
         PyObject* new_result = new_pyobject_id(result_text.ptr());
-        set_ranges(new_result, result_ranges, tx_map);
+        set_ranges(new_result, result_ranges);
         return py::reinterpret_steal<StrType>(new_result);
     }
     return py::getattr(candidate_text, "format")(*args, **kwargs);
