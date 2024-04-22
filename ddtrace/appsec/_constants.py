@@ -181,13 +181,13 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
-    STACK = "stack_trace"
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
     REDIRECT_ACTION = "redirect_request"
+    STACK_ACTION = "generate_stack"
     DEFAULT_ACTIONS = {
         BLOCK: {
             ID: BLOCK,
