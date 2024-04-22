@@ -16,7 +16,6 @@ ENV PYTHONUNBUFFERED 1
 
 # Download pygoat
 RUN git clone https://github.com/adeyosemanputra/pygoat.git
-RUN git checkout v2.0.1
 
 
 # copy project
@@ -29,6 +28,7 @@ RUN pip install --no-cache-dir ddtrace
 
 WORKDIR /app/pygoat
 # Install dependencies
+RUN git checkout v2.0.1
 RUN python3 -m pip install --no-cache-dir pip==22.0.4
 RUN pip install --no-cache-dir -r requirements.txt
 
