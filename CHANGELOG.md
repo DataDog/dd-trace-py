@@ -4,6 +4,33 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.2
+
+
+### Bug Fixes
+
+- tracing: This fix resolves an issue where sampling rules were not matching correctly on float values that had a 0 decimal value. Sampling rules now evaluate such values as integers.
+
+- langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner  
+  libraries, even if they were not available.
+
+- langchain: This fix resolves an issue where tracing `Chain.invoke()` instead of `Chain.__call__()` resulted in the an `ArgumentError` due to an argument name change for inputs between the two methods.
+
+- langchain: This fix adds error handling for checking if a traced LLM or chat model is an OpenAI instance, as the langchain_community package does not allow automatic submodule importing.
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+
+- profiling: fix a bug that caused the HTTP exporter to crash when attempting to serialize tags.
+
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
+
+---
+
 ## 2.8.1
 
 
