@@ -84,7 +84,6 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
     REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
-    TEXT_TYPES = (str, bytes, bytearray)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
