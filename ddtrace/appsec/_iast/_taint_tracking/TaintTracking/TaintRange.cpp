@@ -203,8 +203,8 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges, all_ranges;
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    if (not tx_map or tx_map->empty()) {
+        return { {}, {} };
     }
 
     std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text, tx_map);
