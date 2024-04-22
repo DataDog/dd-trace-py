@@ -8,7 +8,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -50,7 +50,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, model_provider or "")
 
-        self._llmobs_set_input_parameters(span, model_provider)
+        self._llmobs_set_input_metadata(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
@@ -61,7 +61,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         span.set_tag_str(METRICS, json.dumps({}))
 
-    def _llmobs_set_input_parameters(
+    def _llmobs_set_input_metadata(
         self,
         span: Span,
         model_provider: Optional[str] = None,
@@ -84,7 +84,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens:
             input_parameters["max_tokens"] = int(max_tokens)
         if input_parameters:
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+            span.set_tag_str(METADATA, json.dumps(input_parameters))
 
     def _llmobs_set_meta_tags_from_llm(
         self,
