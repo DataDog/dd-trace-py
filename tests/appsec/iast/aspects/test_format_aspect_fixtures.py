@@ -247,8 +247,8 @@ def test_propagate_ranges_with_no_context(caplog):
     destroy_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
-        ranges_result = get_tainted_ranges(result_2)
 
+    ranges_result = get_tainted_ranges(result_2)
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
