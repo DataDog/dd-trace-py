@@ -82,6 +82,7 @@ PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
     auto ctx_map = initializer->get_tainting_map();
+
     if (not ctx_map or ctx_map->empty()) {
         return result_o;
     }
@@ -92,7 +93,8 @@ slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyOb
         return result_o;
     }
     set_ranges(result_o,
-               reduce_ranges_from_index_range_map(build_index_range_map(candidate_text, ranges, start, stop, step)));
+               reduce_ranges_from_index_range_map(build_index_range_map(candidate_text, ranges, start, stop, step)),
+               ctx_map);
     return result_o;
 }
 
