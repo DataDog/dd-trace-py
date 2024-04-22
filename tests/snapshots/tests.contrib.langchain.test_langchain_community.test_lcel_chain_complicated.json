@@ -6,17 +6,17 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6610032c00000000",
+      "_dd.p.tid": "6615ac1d00000000",
       "langchain.request.inputs.0.style": "a 90s rapper",
       "langchain.request.inputs.0.topic": "chickens",
       "langchain.request.type": "chain",
       "langchain.response.outputs.0": "Why did the chicken join a rap group in the 90s? Because it wanted to lay down some fresh beats!",
       "language": "python",
-      "runtime-id": "2c6643959b9b44d4aaff377a46e8f6cc"
+      "runtime-id": "2304ee41d4dc442c862ba4160e934dcd"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 53,
       "langchain.tokens.total_cost": 0.0001275,
       "langchain.tokens.total_tokens": 77,
-      "process_id": 82647
+      "process_id": 74685
     },
-    "duration": 39326000,
-    "start": 1712325420955063000
+    "duration": 10750000,
+    "start": 1712696349137704000
   },
      {
        "name": "langchain.request",
@@ -63,6 +63,6 @@
          "langchain.tokens.total_cost": 0.0001275,
          "langchain.tokens.total_tokens": 77
        },
-       "duration": 24063000,
-       "start": 1712325420969816000
+       "duration": 3579000,
+       "start": 1712696349144587000
      }]]

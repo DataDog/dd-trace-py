@@ -5,7 +5,18 @@ set -o pipefail
 CHECKPOINT_FILENAME="latest-success-commit"
 RIOT_PATTERN=${1}
 DDTRACE_FLAG=$([ -v _CI_DD_API_KEY ] && echo '--ddtrace')
-COVERAGE_FLAG=$([[ "${2:-false}" == false ]] && echo '--no-cov')
+GIT_MESSAGE_LOWERCASE=$(git log -1 --pretty=%B | tr "[:upper:]" "[:lower:]")
+if [[ $GIT_MESSAGE_LOWERCASE == *"itr:noskip"* ]]; then
+    COLLECT_COVERAGE=true
+else
+    if [[ -v CIRCLE_PULL_REQUEST ]]; then
+        COLLECT_COVERAGE=false
+    else
+        echo "Getting coverage for non-PR branch"
+        COLLECT_COVERAGE=true
+    fi
+fi
+COVERAGE_FLAG=$([[ "${2:-false}" == false && $COLLECT_COVERAGE == false ]] && echo '--no-cov')
 DDTEST_CMD=$([[ ${3} == "1" ]] && echo "./scripts/ddtest")
 
 RIOT_HASHES=( $(riot list --hash-only $RIOT_PATTERN | sort) )
