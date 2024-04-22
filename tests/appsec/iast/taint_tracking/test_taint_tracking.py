@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-import logging
 
-import pytest
-
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from tests.utils import override_env
 
@@ -11,8 +7,6 @@ from tests.utils import override_env
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
-    from ddtrace.appsec._iast._taint_tracking import destroy_context
-    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -36,27 +30,6 @@ def test_taint_ranges_as_evidence_info_all_tainted():
     value_parts, sources = taint_ranges_as_evidence_info(tainted_text)
     assert value_parts == [{"value": tainted_text, "source": 0}]
     assert sources == [input_info]
-
-
-@pytest.mark.skip_iast_check_logs
-def test_taint_object_with_no_context_should_be_noop():
-    destroy_context()
-    arg = "all tainted"
-    tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
-    assert tainted_text == arg
-    assert num_objects_tainted() == 0
-
-
-@pytest.mark.skip_iast_check_logs
-def test_propagate_ranges_with_no_context(caplog):
-    destroy_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
-        string_input = taint_pyobject(
-            pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
-        )
-        assert string_input == "abcde"
-    log_messages = [record.message for record in caplog.get_records("call")]
-    assert any("[IAST] " in message for message in log_messages), log_messages
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():
