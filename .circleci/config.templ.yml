@@ -63,6 +63,7 @@ commands:
       - run: |
           set -ex
           mkdir coverage
+          touch ./coverage/empty.$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
           if [ -f .coverage ];
           then
             cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
@@ -151,7 +152,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -186,7 +187,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -194,9 +195,7 @@ commands:
                 path: /tmp/core_dumps
       - when:
           condition:
-            and:
-              - << pipeline.parameters.coverage >>
-              - << parameters.store_coverage >>
+            << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -283,7 +282,7 @@ commands:
             - run:
                 command: |
                   mkdir -p /tmp/core_dumps
-                  cp core.* /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
                   ./scripts/bt
                 when: on_fail
             - store_artifacts:
@@ -299,9 +298,7 @@ commands:
                   hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n 1 -I {} hatch run {}:test
       - when:
           condition:
-            and:
-              - << pipeline.parameters.coverage >>
-              - << parameters.store_coverage >>
+            << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -414,43 +411,35 @@ jobs:
   coverage_report:
     executor: python310
     steps:
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - checkout
-            - attach_workspace:
-                at: .
-            - run: pip install -r ci/coverage/requirements.txt
-            - run: ls -hal *.coverage 2>/dev/null || true
-            # Combine all job coverage reports into one
-            - run: coverage combine *.coverage
-            # Upload coverage report to Codecov
-            # DEV: Do not use the bash uploader, it cannot be trusted
-            - run: codecov
-            # Generate and save xml report
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage xml --ignore-errors
-            - store_artifacts:
-                path: coverage.xml
-            # Generate and save JSON report
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage json --ignore-errors
-            - store_artifacts:
-                path: coverage.json
-            # Print ddtrace/ report to stdout
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage report --ignore-errors --omit=tests/
-            # Print tests/ report to stdout
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage report --ignore-errors --omit=ddtrace/
-            # Print diff-cover report to stdout (compares against origin/1.x)
-            - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
-      - unless:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: pip install -r ci/coverage/requirements.txt
+      - run: ls -hal *.coverage 2>/dev/null || true
+      - run: rm -f empty.*.coverage
+      # Combine all job coverage reports into one
+      - run: coverage combine *.coverage
+      # Upload coverage report to Codecov
+      # DEV: Do not use the bash uploader, it cannot be trusted
+      - run: codecov
+      # Generate and save xml report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage xml --ignore-errors
+      - store_artifacts:
+          path: coverage.xml
+      # Generate and save JSON report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage json --ignore-errors
+      - store_artifacts:
+          path: coverage.json
+      # Print ddtrace/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=tests/
+      # Print tests/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=ddtrace/
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
 
   build_base_venvs:
@@ -514,6 +503,7 @@ jobs:
           pattern: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
+          docker_services: "pygoat"
 
   appsec_threats_django:
     parallelism: 12
@@ -562,7 +552,6 @@ jobs:
     <<: *contrib_job_small
     steps:
       - run_test:
-          store_coverage: false
           pattern: "datastreams"
 
   tracer:
@@ -605,7 +594,6 @@ jobs:
       - run_test:
           pattern: "telemetry"
           snapshot: true
-          store_coverage: false
 
   debugger:
     <<: *contrib_job
@@ -642,7 +630,6 @@ jobs:
     parallelism: 16
     steps:
       - run_test:
-          store_coverage: false
           # We don't want to run the profile-diff venvs
           pattern: 'profile$'
           trace_agent_url: ""
@@ -666,7 +653,7 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/core_dumps
-            cp core.* /tmp/core_dumps
+            cp core.* /tmp/core_dumps || true
             ./scripts/bt
           when: on_fail
       - store_artifacts:
@@ -678,7 +665,6 @@ jobs:
     steps:
       - run_test:
           snapshot: true
-          store_coverage: false
           pattern: 'integration-snapshot*'
           trace_agent_url: ""
 
@@ -707,7 +693,6 @@ jobs:
       - image: *redis_image
     steps:
       - run_test:
-          store_coverage: false
           pattern: 'ddtracerun'
           trace_agent_url: ""
 
@@ -806,7 +791,6 @@ jobs:
         - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
-          store_coverage: false
           pattern: 'celery'
 
   cherrypy:
@@ -903,7 +887,6 @@ jobs:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
-          store_coverage: false
           snapshot: true
           pattern: "flask"
           docker_services: "memcached redis"
