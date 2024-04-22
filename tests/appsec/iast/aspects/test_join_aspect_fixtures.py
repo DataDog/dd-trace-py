@@ -438,3 +438,40 @@ def test_propagate_ranges_with_no_context(caplog):
         assert result == "a-joiner-b-joiner-c"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context_with_var(caplog):
+    create_context()
+    string_input = taint_pyobject(
+        pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+    )
+    it = [
+        taint_pyobject(pyobject="a", source_name="joined", source_value="a", source_origin=OriginType.PARAMETER),
+        "b",
+        "c",
+    ]
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result = mod.do_join(string_input, it)
+        assert result == "a-joiner-b-joiner-c"
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context_with_equal_var(caplog):
+    create_context()
+    string_input = taint_pyobject(
+        pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+    )
+    a_tainted = taint_pyobject(
+        pyobject="abcdef", source_name="joined", source_value="abcdef", source_origin=OriginType.PARAMETER
+    )
+
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result = mod.do_join(string_input, [a_tainted, a_tainted, a_tainted])
+        assert result == "abcdef-joiner-abcdef-joiner-abcdef"
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages

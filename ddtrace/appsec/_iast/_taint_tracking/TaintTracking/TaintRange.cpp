@@ -311,13 +311,6 @@ get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
     if (not str)
         return nullptr;
 
-    if (not tx_map) {
-        tx_map = initializer->get_tainting_map();
-        if (not tx_map) {
-            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
-            return nullptr;
-        }
-    }
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
     }
@@ -359,15 +352,6 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMap
     if (not str or not is_text(str)) {
         return;
     }
-
-    if (not tx_taint_map) {
-        tx_taint_map = initializer->get_tainting_map();
-        if (not tx_taint_map) {
-            // TODO: Log "Tainted Map isn't initialized. Call create_context() first";
-            return;
-        }
-    }
-
     auto obj_id = get_unique_id(str);
     set_fast_tainted_if_notinterned_unicode(str);
     auto it = tx_taint_map->find(obj_id);
