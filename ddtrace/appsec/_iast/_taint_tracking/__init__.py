@@ -94,10 +94,8 @@ def iast_taint_log_error(msg):
 
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
-        log.warning("%s:\n%s", msg, frame_info)
+        log.debug("%s:\n%s", msg, frame_info)
         _set_iast_error_metric("IAST propagation error. %s" % msg)
-    else:
-        log.debug(msg)
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
@@ -128,12 +126,11 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
     try:
         pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+        return pyobject_newid
     except ValueError as e:
         iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
-        return pyobject
-
-    _set_metric_iast_executed_source(source_origin)
-    return pyobject_newid
+    return pyobject
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:

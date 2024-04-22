@@ -36,10 +36,6 @@ api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
     auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        return nullptr;
-    }
 
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
@@ -48,7 +44,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
     result_o = PyObject_GetItem(candidate_text, idx);
 
-    if (ctx_map->empty()) {
+    if (not ctx_map or ctx_map->empty()) {
         return result_o;
     }
     auto res = index_aspect(result_o, candidate_text, idx, ctx_map);

@@ -59,6 +59,12 @@ Initializer::get_tainting_map()
     return (TaintRangeMapType*)ThreadContextCache.tx_id;
 }
 
+size_t
+Initializer::context_id()
+{
+    return ThreadContextCache.tx_id;
+}
+
 void
 Initializer::clear_tainting_maps()
 {
@@ -229,11 +235,6 @@ Initializer::destroy_context()
     ThreadContextCache.tx_id = 0;
 }
 
-size_t
-Initializer::context_id()
-{
-    return ThreadContextCache.tx_id;
-}
 
 void
 Initializer::reset_context()

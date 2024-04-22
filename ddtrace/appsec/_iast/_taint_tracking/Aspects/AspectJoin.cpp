@@ -151,10 +151,6 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     bool decref_arg0 = false;
 
     auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        return nullptr;
-    }
 
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
@@ -184,15 +180,11 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         result = result_ptr.ptr();
         Py_INCREF(result);
     }
-    if (get_pyobject_size(result) == 0) {
+    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {
             Py_DecRef(arg0);
         }
-        return result;
-    }
-
-    if (ctx_map->empty()) {
         return result;
     }
     auto res = aspect_join(sep, result, arg0, ctx_map);

@@ -96,13 +96,7 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
-
-    if (not tx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        return nullptr;
-    }
-
-    if (tx_map->empty()) {
+    if (not tx_map or tx_map->empty()) {
         return result_o;
     }
     auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);

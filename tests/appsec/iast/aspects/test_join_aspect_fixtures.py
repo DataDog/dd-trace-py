@@ -25,7 +25,7 @@ class TestOperatorJoinReplacement(object):
         )
         it = ["a", "b", "c"]
 
-        result = mod.do_join(string_input, it)
+        result = mod.do(string_input, it)
         assert result == "a-joiner-b-joiner-c"
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
@@ -437,4 +437,4 @@ def test_propagate_ranges_with_no_context(caplog):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("[IAST] " in message for message in log_messages), log_messages
