@@ -129,8 +129,8 @@ def test_slow_imports(monkeypatch):
 
     with mock.patch("sys.meta_path", meta_path):
         import ddtrace
-        import ddtrace.contrib.psycopg  # noqa:F401
         import ddtrace.contrib.aws_lambda  # noqa:F401
+        import ddtrace.contrib.psycopg  # noqa:F401
 
     for name, mod in deleted_modules.items():
         sys.modules[name] = mod

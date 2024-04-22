@@ -477,4 +477,5 @@ else:
 
 def get_mp_context():
     import multiprocessing
+
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")

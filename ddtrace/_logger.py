@@ -76,6 +76,7 @@ def _add_file_handler(
         log_path = os.path.abspath(log_path)
         num_backup = 1
         from logging.handlers import RotatingFileHandler
+
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
