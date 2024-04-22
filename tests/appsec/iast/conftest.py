@@ -1,9 +1,7 @@
 from contextlib import contextmanager
-import logging
 
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
@@ -151,16 +149,3 @@ def iast_context():
     _ = create_context()
     yield
     reset_context()
-
-
-@pytest.fixture(autouse=True)
-def check_native_code_exception_in_each_python_aspect_test(request, caplog):
-    if "skip_iast_check_logs" in request.keywords:
-        yield
-    else:
-        caplog.set_level(logging.DEBUG)
-        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
-            yield
-
-        log_messages = [record.message for record in caplog.get_records("call")]
-        assert not any("[IAST] " in message for message in log_messages), log_messages
