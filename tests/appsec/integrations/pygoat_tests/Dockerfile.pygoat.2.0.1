@@ -33,8 +33,8 @@ RUN python3 -m pip install --no-cache-dir pip==22.0.4
 RUN pip install --no-cache-dir -r requirements.txt
 
 # install pygoat
-EXPOSE 8000
+EXPOSE 8321
 
 RUN python3 manage.py migrate
 RUN python3 manage.py loaddata ../fixtures/*
-CMD ["ddtrace-run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["ddtrace-run", "python", "manage.py", "runserver", "0.0.0.0:8321"]

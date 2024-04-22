@@ -9,7 +9,7 @@ import requests
 # dc up -d pygoat testagent
 
 IMAGE_NAME = "pygoat:2.0.1"
-PYGOAT_URL = "http://0.0.0.0:8000"
+PYGOAT_URL = "http://0.0.0.0:8321"
 TESTAGENT_URL = "http://0.0.0.0:9126/test/session"
 TESTAGENT_TOKEN = "pygoat_test"
 TESTAGENT_HEADERS = {"X-Datadog-Test-Session-Token": TESTAGENT_TOKEN}
