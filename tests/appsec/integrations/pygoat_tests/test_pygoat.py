@@ -1,11 +1,12 @@
 import json
-import os
-import subprocess
 import time
 
 import pytest
 import requests
 
+
+# Note: these tests require the testagent and pygoat images to be up from the docker-compose file
+# dc up -d pygoat testagent
 
 IMAGE_NAME = "pygoat:2.0.1"
 PYGOAT_URL = "http://0.0.0.0:8000"
@@ -13,56 +14,6 @@ TESTAGENT_URL = "http://0.0.0.0:9126/test/session"
 TESTAGENT_TOKEN = "pygoat_test"
 TESTAGENT_HEADERS = {"X-Datadog-Test-Session-Token": TESTAGENT_TOKEN}
 TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN
-
-
-@pytest.fixture(scope="module")
-def build_docker():
-    curcwd = os.getcwd()
-    os.chdir(os.path.dirname(__file__))
-    try:
-        subprocess.run(["docker", "rmi", "-f", IMAGE_NAME])
-    except:  # noqa: E722
-        pass
-
-    subprocess.run(["docker", "build", ".", "-f", "Dockerfile.pygoat.2.0.1", "-t", IMAGE_NAME])
-    yield
-    subprocess.run(["docker", "rm", "-f", "pygoat"])
-    subprocess.run(["docker", "rmi", "-f", IMAGE_NAME])
-    os.chdir(curcwd)
-
-
-@pytest.fixture(autouse=True)
-def setup():
-    curcwd = os.getcwd()
-    os.chdir(os.path.dirname(__file__))
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "-d",
-            "--net",
-            "host",
-            "-e",
-            "DD_APPSEC_ENABLED=1",
-            "-e",
-            "DD_IAST_ENABLED=1",
-            "-e",
-            "DD_IAST_REQUEST_SAMPLING=100",
-            "-e",
-            "DD_AGENT_PORT=9126",
-            "-e",
-            "DD_IAST_VULNERABILITIES_PER_REQUEST=100",
-            "-e",
-            "DD_REMOTE_CONFIGURATION_ENABLED=true",
-            "--name",
-            "pygoat",
-            "pygoat:2.0.1",
-        ]
-    )
-    time.sleep(5)
-    yield
-    subprocess.run(["docker", "rm", "-f", "pygoat"])
-    os.chdir(curcwd)
 
 
 @pytest.fixture(autouse=False)
