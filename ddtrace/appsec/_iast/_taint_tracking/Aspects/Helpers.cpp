@@ -8,21 +8,26 @@ namespace py = pybind11;
 
 template<class StrType>
 StrType
-common_replace(const py::str& string_method,
-               const StrType& candidate_text,
-               const py::args& args,
-               const py::kwargs& kwargs)
+api_common_replace(const py::str& string_method,
+                   const StrType& candidate_text,
+                   const py::args& args,
+                   const py::kwargs& kwargs)
 {
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges;
-    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr());
-
+    TaintRangeMapType* tx_map = initializer->get_tainting_map();
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
+
+    if (not tx_map or tx_map->empty()) {
+        return res;
+    }
+    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr(), tx_map);
+
     if (ranges_error or candidate_text_ranges.empty()) {
         return res;
     }
 
-    set_ranges(res.ptr(), shift_taint_ranges(candidate_text_ranges, 0, -1));
+    set_ranges(res.ptr(), shift_taint_ranges(candidate_text_ranges, 0, -1), tx_map);
     return res;
 }
 
@@ -179,11 +184,14 @@ split_taints(const string& str_to_split)
 py::bytearray
 api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
+
+    auto tx_map = initializer->get_tainting_map();
+
     py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
     std::tuple result = _convert_escaped_text_to_taint_text<py::bytes>(bytes_text, std::move(ranges_orig));
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
-    set_ranges(new_result, get<1>(result));
+    set_ranges(new_result, get<1>(result), tx_map);
     return py::reinterpret_steal<py::bytearray>(new_result);
 }
 
@@ -191,11 +199,13 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
+    auto tx_map = initializer->get_tainting_map();
+
     std::tuple result = _convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     StrType result_text = get<0>(result);
     TaintRangeRefs result_ranges = get<1>(result);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
-    set_ranges(new_result, result_ranges);
+    set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
 }
 
@@ -328,9 +338,9 @@ parse_params(size_t position,
 void
 pyexport_aspect_helpers(py::module& m)
 {
-    m.def("common_replace", &common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &common_replace<py::str>, "string_method"_a, "candidate_text"_a);
-    m.def("common_replace", &common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
+    m.def("common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
     m.def("_all_as_formatted_evidence",
           &_all_as_formatted_evidence<py::str>,
           "text"_a,
