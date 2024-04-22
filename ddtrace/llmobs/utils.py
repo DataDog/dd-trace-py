@@ -36,7 +36,7 @@ class Messages:
                     self.messages.append(Message(**message))
                 else:
                     log.warning("messages must be a string, dictionary, or list of dictionaries.")
-        except:
+        except (TypeError, ValueError, AttributeError):
             log.warning(
                 "Cannot format provided messages. The messages argument must be a string, a dictionary, or a "
                 "list of dictionaries, or construct messages directly using the ``ddtrace.llmobs.utils.Message`` "

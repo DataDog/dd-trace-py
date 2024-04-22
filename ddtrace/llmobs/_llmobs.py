@@ -14,18 +14,19 @@ from ddtrace.internal.service import Service
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs.utils import Messages
 
 
 log = get_logger(__name__)
@@ -129,7 +130,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
     ) -> Optional[Span]:
         """
-        Trace an operation performed by an LLM where inputs and outputs are represented as text.
+        Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
         :param str model_name: The name of the invoked LLM.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
@@ -236,8 +237,9 @@ class LLMObs(Service):
         parameters: Optional[Dict[str, Any]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
-        tags: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
+        tags: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -253,7 +255,10 @@ class LLMObs(Service):
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
                            - other: any stringable type.
-        :param tags: Dictionary of serializable key-value custom tag pairs to set or update on the LLMObs span.
+        :param metadata: Dictionary of serializable key-value metadata pairs relevant to the input/output operation
+                         described by the LLMObs span.
+        :param tags: Dictionary of serializable key-value tag pairs to set or update on the LLMObs span
+                     regarding the span's context.
         :param metrics: Dictionary of serializable key-value metric pairs such as `{prompt,completion,total}_tokens`.
         """
         if cls.enabled is False or cls._instance is None:
@@ -282,10 +287,12 @@ class LLMObs(Service):
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
-        if tags is not None:
-            cls._tag_span_tags(span, tags)
+        if metadata is not None:
+            cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
+        if tags is not None:
+            cls._tag_span_tags(span, tags)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
@@ -309,15 +316,17 @@ class LLMObs(Service):
             if not isinstance(input_messages, Messages):
                 input_messages = Messages(input_messages)
             try:
-                span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
-            except TypeError:
+                if input_messages.messages:
+                    span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
+            except (TypeError, AttributeError):
                 log.warning("Failed to parse input messages.")
         if output_messages is not None:
             if not isinstance(output_messages, Messages):
                 output_messages = Messages(output_messages)
             try:
-                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
-            except TypeError:
+                if output_messages.messages:
+                    span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
+            except (TypeError, AttributeError):
                 log.warning("Failed to parse output messages.")
 
     @classmethod
@@ -345,6 +354,17 @@ class LLMObs(Service):
             span.set_tag_str(TAGS, json.dumps(span_tags))
         except TypeError:
             log.warning("Failed to parse span tags. Tag key-value pairs must be serializable.")
+
+    @staticmethod
+    def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
+        """Tags a given LLMObs span with a dictionary of key-value metadata pairs."""
+        if not isinstance(metadata, dict):
+            log.warning("metadata must be a dictionary of string key-value pairs.")
+            return
+        try:
+            span.set_tag_str(METADATA, json.dumps(metadata))
+        except TypeError:
+            log.warning("Failed to parse span metadata. Metadata key-value pairs must be serializable.")
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:

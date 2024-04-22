@@ -45,6 +45,7 @@ def _expected_llmobs_llm_span_event(
     input_messages=None,
     output_messages=None,
     parameters=None,
+    metadata=None,
     token_metrics=None,
     model_name=None,
     model_provider=None,
@@ -60,6 +61,7 @@ def _expected_llmobs_llm_span_event(
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
+    metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     model_name: name of the model
     model_provider: name of the model provider
@@ -75,6 +77,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict["input"].update({"messages": input_messages})
     if output_messages is not None:
         meta_dict["output"].update({"messages": output_messages})
+    if metadata is not None:
+        meta_dict.update({"metadata": metadata})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     if model_name is not None:
@@ -97,6 +101,7 @@ def _expected_llmobs_non_llm_span_event(
     input_value=None,
     output_value=None,
     parameters=None,
+    metadata=None,
     token_metrics=None,
     tags=None,
     session_id=None,
@@ -110,6 +115,7 @@ def _expected_llmobs_non_llm_span_event(
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
+    metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     tags: dict of tags to add/override on span
     session_id: session ID
@@ -123,6 +129,8 @@ def _expected_llmobs_non_llm_span_event(
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
+    if metadata is not None:
+        meta_dict.update({"metadata": metadata})
     if output_value is not None:
         meta_dict["output"].update({"messages": output_value})
     if not meta_dict["input"]:

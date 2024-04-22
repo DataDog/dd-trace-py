@@ -7,6 +7,7 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -20,6 +21,10 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
+
+
+class Unserializable:
+    pass
 
 
 @pytest.fixture
@@ -247,10 +252,46 @@ def test_llmobs_annotate_parameters(LLMObs, mock_logs):
         )
 
 
+def test_llmobs_annotate_metadata(LLMObs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
+        assert json.loads(span.get_tag(METADATA)) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
+
+
+def test_llmobs_annotate_metadata_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, metadata="wrong_metadata")
+        assert span.get_tag(METADATA) is None
+        mock_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
+        assert span.get_tag(METADATA) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span metadata. Metadata key-value pairs must be serializable."
+        )
+
+
 def test_llmobs_annotate_tag(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
         assert json.loads(span.get_tag(TAGS)) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+
+
+def test_llmobs_annotate_tag_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, tags=12345)
+        assert span.get_tag(TAGS) is None
+        mock_logs.warning.assert_called_once_with(
+            "span_tags must be a dictionary of string key - primitive value pairs."
+        )
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
+        assert span.get_tag(TAGS) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span tags. Tag key-value pairs must be serializable."
+        )
 
 
 def test_llmobs_annotate_input_string(LLMObs):
@@ -277,6 +318,13 @@ def test_llmobs_annotate_input_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
 
 
+def test_llmobs_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, input_data=[{"content": Unserializable()}])
+        assert llm_span.get_tag(INPUT_MESSAGES) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.")
+
+
 def test_llmobs_annotate_output_string(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data="test_output")
@@ -301,10 +349,31 @@ def test_llmobs_annotate_output_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output", "role": "human"}]
 
 
+def test_llmobs_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, output_data=[{"content": Unserializable()}])
+        assert llm_span.get_tag(OUTPUT_MESSAGES) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.")
+
+
 def test_llmobs_annotate_metrics(LLMObs):
     with LLMObs.llm(model_name="test_model") as span:
         LLMObs.annotate(span=span, metrics={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30})
         assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+
+
+def test_llmobs_annotate_metrics_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, metrics=12345)
+        assert llm_span.get_tag(METRICS) is None
+        mock_logs.warning.assert_called_once_with("metrics must be a dictionary of string key - numeric value pairs.")
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=llm_span, metrics={"content": Unserializable()})
+        assert llm_span.get_tag(METRICS) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span metrics. Metric key-value pairs must be serializable."
+        )
 
 
 def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
