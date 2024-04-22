@@ -125,6 +125,10 @@ venv = Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
+            pkgs={
+                "requests": latest,
+                "docker": latest,
+            },
         ),
         Venv(
             name="appsec_iast",
@@ -1665,7 +1669,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-benchmark",
-            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
