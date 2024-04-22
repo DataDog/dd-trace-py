@@ -25,7 +25,7 @@ class TestOperatorJoinReplacement(object):
         )
         it = ["a", "b", "c"]
 
-        result = mod.do(string_input, it)
+        result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
         ranges = get_tainted_ranges(result)
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
