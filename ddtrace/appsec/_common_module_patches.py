@@ -40,7 +40,6 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-
     if asm_config._iast_enabled:
         # LFI sink to be added
         pass
