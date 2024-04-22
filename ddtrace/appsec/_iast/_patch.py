@@ -166,11 +166,13 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
         if not AppSecIastSpanProcessor.is_span_analyzed():
             for key, value in wrapped(*args, **kwargs):
                 yield key, value
-
-        for key, value in wrapped(*args, **kwargs):
-            new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
-            new_value = taint_pyobject(pyobject=value, source_name=key, source_value=value, source_origin=origins[1])
-            yield new_key, new_value
+        else:
+            for key, value in wrapped(*args, **kwargs):
+                new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
+                new_value = taint_pyobject(
+                    pyobject=value, source_name=key, source_value=value, source_origin=origins[1]
+                )
+                yield new_key, new_value
 
     else:
         for key, value in wrapped(*args, **kwargs):
