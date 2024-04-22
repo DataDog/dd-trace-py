@@ -4,8 +4,7 @@ PyObject*
 api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2 or !args) {
-        // TODO: any other more sane error handling?
-        return nullptr;
+        throw py::value_error(MSG_ERROR_N_PARAMS);
     }
 
     PyObject* candidate_text = args[0];
