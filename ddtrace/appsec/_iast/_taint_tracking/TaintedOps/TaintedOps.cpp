@@ -23,10 +23,7 @@ api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
         TaintRangeMapType* tx_map = initializer->get_tainting_map();
-        if (not tx_map) {
-            throw py::value_error(MSG_ERROR_TAINT_MAP);
-        }
-        if (tx_map->empty()) {
+        if (not tx_map or tx_map->empty()) {
             return false;
         }
 
