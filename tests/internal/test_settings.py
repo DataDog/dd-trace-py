@@ -289,6 +289,7 @@ config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
+
 custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
 tracer.configure(sampler=custom_sampler)
 with tracer.trace("test") as span:
@@ -337,6 +338,129 @@ assert span.get_metric("_dd.rule_psr") == 0.3
 assert span.get_tag("_dd.p.dm") == "-3"
 
         """,
+        env=env,
+    )
+    assert status == 0, err.decode("utf-8")
+
+
+def test_remoteconfig_sample_rate_and_rules(run_python_code_in_subprocess):
+    """There is complex logic regarding the interaction between setting new
+    sample rates and rules with remote config.
+    """
+    env = os.environ.copy()
+    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}]'})
+    env.update({"DD_TRACE_SAMPLE_RATE": "0.8"})
+
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import config, tracer
+from ddtrace.sampler import DatadogSampler
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
+
+with tracer.trace("rules") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_tag("_dd.p.dm") == "-3"
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.8
+assert span.get_tag("_dd.p.dm") == "-3"
+
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
+        {
+            "service": "*",
+            "name": "rules",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 0.7,
+        }
+        ]}))
+
+with tracer.trace("rules") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.7
+assert span.get_tag("_dd.p.dm") == "-10"
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.8
+assert span.get_tag("_dd.p.dm") == "-3"
+
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.2}))
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.2
+assert span.get_tag("_dd.p.dm") == "-3"
+
+with tracer.trace("rules") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_tag("_dd.p.dm") == "-3"
+
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.3}))
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.3
+assert span.get_tag("_dd.p.dm") == "-3"
+
+with tracer.trace("rules") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_tag("_dd.p.dm") == "-3"
+
+
+config._handle_remoteconfig(_base_rc_config({}))
+
+with tracer.trace("rules") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_tag("_dd.p.dm") == "-3"
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.8
+assert span.get_tag("_dd.p.dm") == "-3"
+
+
+config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
+        {
+            "service": "*",
+            "name": "rules_dynamic",
+            "resource": "*",
+            "provenance": "dynamic",
+            "sample_rate": 0.1,
+        },
+        {
+            "service": "*",
+            "name": "rules_customer",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 0.6,
+        }
+        ]}))
+
+with tracer.trace("rules_dynamic") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.1
+assert span.get_tag("_dd.p.dm") == "-11"
+
+with tracer.trace("rules_customer") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.6
+assert span.get_tag("_dd.p.dm") == "-10"
+
+with tracer.trace("sample_rate") as span:
+    pass
+assert span.get_metric("_dd.rule_psr") == 0.8
+assert span.get_tag("_dd.p.dm") == "-3"
+
+         """,
         env=env,
     )
     assert status == 0, err.decode("utf-8")
