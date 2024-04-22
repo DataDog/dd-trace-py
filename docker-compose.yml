@@ -182,7 +182,9 @@ services:
         - "127.0.0.1:8001:80"
 
     pygoat:
-        image: registry.ddbuild.io/appsec-testing/pygoat/pygoat:2.0.1
+        build:
+            context: tests/appsec/integrations/pygoat_tests
+            dockerfile: Dockerfile.pygoat.2.0.1
         ports:
             - "127.0.0.1:8000:8000"
         environment:
@@ -194,7 +196,6 @@ services:
             - DD_AGENT_PORT=8126
             - DD_TRACE_AGENT_URL=http://testagent:8126
             - _DD_APPSEC_DEDUPLICATION_ENABLED=false 
-
 
 volumes:
     ddagent:
