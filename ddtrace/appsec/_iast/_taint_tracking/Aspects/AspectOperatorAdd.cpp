@@ -71,7 +71,7 @@ PyObject*
 api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
+        // TODO: any other more sane error handling?
         return nullptr;
     }
     PyObject* candidate_text = args[0];
@@ -95,10 +95,10 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return result_o;
     }
 
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
+    auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty()) {
         return result_o;
     }
-    auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
+    auto res = add_aspect(result_o, candidate_text, text_to_add, ctx_map);
     return res;
 }

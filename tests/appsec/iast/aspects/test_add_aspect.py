@@ -309,16 +309,15 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     assert sources == [input_info1, input_info2]
 
 
-@pytest.mark.skip_iast_check_logs
 @pytest.mark.parametrize(
     "log_level, iast_debug, expected_log_msg",
     [
-        (logging.DEBUG, "", ""),
+        (logging.DEBUG, "", "[IAST] Tainted Map"),
         (logging.WARNING, "", ""),
-        (logging.DEBUG, "false", ""),
+        (logging.DEBUG, "false", "[IAST] Tainted Map"),
         (logging.WARNING, "false", ""),
         (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
-        (logging.WARNING, "true", ""),
+        (logging.WARNING, "true", "_iast/_taint_tracking/__init__.py"),
     ],
 )
 def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_msg, caplog):
@@ -344,8 +343,9 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
             source_origin=OriginType.PARAMETER,
         )
 
-    ranges_result = get_tainted_ranges(result)
-    assert len(ranges_result) == 0
+    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
+        ranges_result = get_tainted_ranges(result)
+        assert len(ranges_result) == 0
 
     if expected_log_msg:
         assert any(expected_log_msg in record.message for record in caplog.records), [
@@ -366,7 +366,6 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     assert len(ranges_result) == 1
 
 
-@pytest.mark.skip_iast_check_logs
 def test_get_ranges_from_object_with_no_context():
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "my_string"
@@ -383,8 +382,7 @@ def test_get_ranges_from_object_with_no_context():
     assert len(ranges_result) == 0
 
 
-@pytest.mark.skip_iast_check_logs
-def test_propagate_ranges_with_no_context(caplog):
+def test_propagate_ranges_with_no_context():
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "my_string"
     create_context()
@@ -396,11 +394,6 @@ def test_propagate_ranges_with_no_context(caplog):
     )
 
     destroy_context()
-    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
-        result_2 = add_aspect(result, "another_string")
-
-    create_context()
+    result_2 = add_aspect(result, "another_string")
     ranges_result = get_tainted_ranges(result_2)
-    log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
