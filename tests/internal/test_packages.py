@@ -94,3 +94,16 @@ def test_third_party_packages():
 
     assert "requests" in _third_party_packages()
     assert "nota3rdparty" not in _third_party_packages()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_THIRD_PARTY_DETECTION_EXCLUDES": "myfancypackage,myotherfancypackage",
+        "DD_THIRD_PARTY_DETECTION_INCLUDES": "requests",
+    }
+)
+def test_third_party_packages_excludes_includes():
+    from ddtrace.internal.packages import _third_party_packages
+
+    assert {"myfancypackage", "myotherfancypackage"} < _third_party_packages()
+    assert "requests" not in _third_party_packages()
