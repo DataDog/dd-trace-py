@@ -251,10 +251,11 @@ def test_str_aspect_kwargs(obj, expected_result, encoding, errors):
 def test_str_aspect_decode_error(obj):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
+    source_name = str(obj, "utf-8", errors="ignore")
     obj = taint_pyobject(
         obj,
         source_name="test_str_aspect_tainting",
-        source_value=str(obj, "utf-8", errors="ignore"),
+        source_value=source_name if source_name else "invalid",
         source_origin=OriginType.PARAMETER,
     )
     with pytest.raises(UnicodeDecodeError) as e:
