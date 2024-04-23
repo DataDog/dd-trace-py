@@ -94,9 +94,14 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         Sets the response tags on the span given the formatted response body and any metadata.
         Also generates an LLM record if enabled.
         """
+        model_id = self._datadog_span.get_tag("bedrock.request.model")
         if metadata is not None:
             for k, v in metadata.items():
                 self._datadog_span.set_tag_str("bedrock.{}".format(k), str(v))
+        if "embed" in model_id:
+            self._datadog_span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"]))
+            return
+
         for i in range(len(formatted_response["text"])):
             if self._datadog_integration.is_pc_sampled_span(self._datadog_span):
                 self._datadog_span.set_tag_str(
@@ -115,7 +120,8 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 def _handle_exception(span, integration, prompt, exc_info):
     """Helper method to finish the span on stream read error."""
     span.set_exc_info(*exc_info)
-    if integration.is_pc_sampled_llmobs(span):
+    model_id = span.get_tag("bedrock.request.model")
+    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_id:
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
     span.finish()
 
@@ -125,6 +131,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
     """
     request_body = json.loads(params.get("body"))
+    model_id = params.get("modelId")
     if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
@@ -134,6 +141,11 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "stop_sequences": request_body.get("stopSequences", []),
         }
     elif provider == _AMAZON:
+        if "embed" in model_id:
+            return {
+                "prompt": request_body.get("inputText"),
+                "output_embedding_length": request_body.get("outputEmbeddingLength", 1024),
+            }
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
             "prompt": request_body.get("inputText"),
@@ -154,6 +166,12 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "stop_sequences": request_body.get("stop_sequences", []),
         }
     elif provider == _COHERE:
+        if "embed" in model_id:
+            return {
+                "prompt": request_body.get("texts"),
+                "input_type": request_body.get("input_type", ""),
+                "truncate": request_body.get("truncate", ""),
+            }
         return {
             "prompt": request_body.get("prompt"),
             "temperature": request_body.get("temperature", ""),
@@ -182,17 +200,22 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     Extracts text and finish_reason from the response body, which has different formats for different providers.
     """
     text, finish_reason = "", ""
+    model_id = span.get_tag("bedrock.request.model")
     provider = span.get_tag("bedrock.request.model_provider")
     try:
         if provider == _AI21:
             text = body.get("completions")[0].get("data").get("text")
             finish_reason = body.get("completions")[0].get("finishReason")
+        elif provider == _AMAZON and "embed" in model_id:
+            text = body.get("embedding", [])
         elif provider == _AMAZON:
             text = body.get("results")[0].get("outputText")
             finish_reason = body.get("results")[0].get("completionReason")
         elif provider == _ANTHROPIC:
             text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
+        elif provider == _COHERE and "embed" in model_id:
+            text = body.get("embeddings", [])
         elif provider == _COHERE:
             text = [generation["text"] for generation in body.get("generations")]
             finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
@@ -220,10 +243,13 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
     Extracts text,finish_reason from the streamed response body, which has different formats for different providers.
     """
     text, finish_reason = "", ""
+    model_id = span.get_tag("bedrock.request.model")
     provider = span.get_tag("bedrock.request.model_provider")
     try:
         if provider == _AI21:
             pass  # note: ai21 does not support streamed responses
+        elif provider == _AMAZON and "embed" in model_id:
+            pass  # note: amazon embed models do not support streamed responses
         elif provider == _AMAZON:
             text = "".join([chunk["outputText"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["completionReason"]
@@ -237,7 +263,9 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
                     text += chunk["delta"].get("text", "")
                     if "stop_reason" in chunk["delta"]:
                         finish_reason = str(chunk["delta"]["stop_reason"])
-        elif provider == _COHERE and streamed_body:
+        elif provider == _COHERE and "embed" in model_id:
+            pass  # note: cohere embed models do not support streamed responses
+        elif provider == _COHERE:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
                     n = int(span.get_tag("bedrock.request.n") or 0)
@@ -261,8 +289,7 @@ def _extract_streamed_response(span: Span, streamed_body: List[Dict[str, Any]]) 
             text = "".join([chunk["generation"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["stop_reason"]
         elif provider == _STABILITY:
-            # We do not yet support image modality models
-            pass
+            pass  # We do not yet support image modality models
     except (IndexError, AttributeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
@@ -339,7 +366,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         trace_operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         resource=operation,
-        span_type=SpanTypes.LLM,
+        span_type=SpanTypes.LLM if "embed" not in params.get("modelId", "") else None,
     )
     prompt = None
     try:

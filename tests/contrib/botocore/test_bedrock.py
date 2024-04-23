@@ -429,6 +429,24 @@ def test_readlines_error(bedrock_client, request_vcr):
                 response.get("body").readlines()
 
 
+@pytest.mark.snapshot
+def test_amazon_embedding(bedrock_client, request_vcr):
+    body = json.dumps({"inputText": "Hello World!"})
+    model = "amazon.titan-embed-text-v1"
+    with request_vcr.use_cassette("amazon_embedding.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
+def test_cohere_embedding(bedrock_client, request_vcr):
+    body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
+    model = "cohere.embed-english-v3"
+    with request_vcr.use_cassette("cohere_embedding.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
