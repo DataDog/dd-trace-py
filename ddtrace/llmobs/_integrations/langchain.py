@@ -52,7 +52,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, model_provider or "")
 
-        self._llmobs_set_input_metadata(span, model_provider)
+        self._llmobs_set_metadata(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
@@ -63,11 +63,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         span.set_tag_str(METRICS, json.dumps({}))
 
-    def _llmobs_set_input_metadata(
-        self,
-        span: Span,
-        model_provider: Optional[str] = None,
-    ) -> None:
+    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
             return
 
@@ -89,11 +85,7 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(METADATA, json.dumps(input_parameters))
 
     def _llmobs_set_meta_tags_from_llm(
-        self,
-        span: Span,
-        prompts: List[Any],
-        completions: Any,
-        err: bool = False,
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
 
