@@ -53,7 +53,11 @@ __all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect
 def add_aspect(op1, op2):
     if not isinstance(op1, TEXT_TYPES) or not isinstance(op2, TEXT_TYPES) or type(op1) != type(op2):
         return op1 + op2
-    return _add_aspect(op1, op2)
+    try:
+        return _add_aspect(op1, op2)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. add_aspect. {}".format(e))
+    return op1 + op2
 
 
 def str_aspect(orig_function, flag_added_args, *args, **kwargs):
@@ -67,7 +71,7 @@ def str_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].str(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             if isinstance(args[0], (bytes, bytearray)):
                 encoding = parse_params(1, "encoding", "utf-8", *args, **kwargs)
@@ -93,7 +97,7 @@ def bytes_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytes(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
@@ -112,7 +116,7 @@ def bytearray_aspect(orig_function, flag_added_args, *args, **kwargs):
     else:
         result = args[0].bytearray(*args[1:], **kwargs)
 
-    if args and isinstance(args[0], TEXT_TYPES) and is_pyobject_tainted(args[0]):
+    if args and is_pyobject_tainted(args[0]):
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
