@@ -67,16 +67,16 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
     return shift_taint_ranges(source_taint_ranges, offset);
 }
 
-void
+py::object
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
 {
     auto tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
-        py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
-        return;
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
     }
     set_ranges(str.ptr(), ranges, tx_map);
+    return py::none();
 }
 
 /**
