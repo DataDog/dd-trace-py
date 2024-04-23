@@ -762,7 +762,7 @@ class Config(object):
                 if trace_sampling_rules:
                     # returns None if we error out
                     trace_sampling_rules = self.convert_rc_trace_sampling_rules(trace_sampling_rules)
-                    if trace_sampling_rules is not None:
+                    if trace_sampling_rules:
                         base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
             if "log_injection_enabled" in lib_config:
@@ -815,8 +815,27 @@ class Config(object):
         remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
 
+    def _remove_invalid_rules(self, rc_rules: List) -> List:
+        """Remove invalid sampling rules from the JSON string."""
+        # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
+        for rule in rc_rules:
+            if (
+                ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
+                or "sample_rate" not in rule
+                or "provenance" not in rule
+            ):
+                log.debug("Invalid sampling rule from remoteconfig found, rule will be removed: %s", rule)
+                rc_rules.remove(rule)
+
+        return rc_rules
+
     def _tags_to_dict(self, tags):
-        return {tag["key"]: tag["value_glob"] for tag in tags}
+        """
+        Converts a list of tag dictionaries to a single dictionary.
+        """
+        if isinstance(tags, list):
+            return {tag["key"]: tag["value_glob"] for tag in tags}
+        return tags
 
     def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:
@@ -843,5 +862,14 @@ class Config(object):
                 Example of a converted rule:
                 '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
         """
-        # Convert JSON to string
-        return json.dumps(rc_rules, default=lambda o: self._tags_to_dict(o) if isinstance(o, list) else o)
+        rc_rules = self._remove_invalid_rules(rc_rules)
+        for rule in rc_rules:
+            # Convert tags to dictionary
+            tags = rule.get("tags")
+            if tags:
+                rule["tags"] = self._tags_to_dict(tags)
+        if rc_rules:
+            # Convert JSON to string
+            return json.dumps(rc_rules)
+        else:
+            return None

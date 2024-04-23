@@ -447,7 +447,8 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"dynamic"}]',
+            '[{"service": "my-service", "name": "web.request", "resource": "*", "provenance": "dynamic",'
+            ' "sample_rate": 1.0, "tags": {"care_about": "yes", "region": "us-*"}}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -469,7 +470,8 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
+            '[{"name": "web.request", "resource": "*", "provenance": "customer", "sample_rate": 1.0, "tags": '
+            '{"care_about": "yes", "region": "us-*"}}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -492,7 +494,8 @@ def test_rc_default_products_registered():
                     "sample_rate": 1.0,
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","provenance":"customer"}]',
+            '[{"service": "my-service", "name": "web.request", "resource": "*", "provenance": '
+            '"customer", "sample_rate": 1.0}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -515,7 +518,8 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","name":"web.request","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
+            '[{"service": "my-service", "name": "web.request", "provenance": "customer", "sample_rate": 1.0, "tags":'
+            ' {"care_about": "yes", "region": "us-*"}}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -538,7 +542,8 @@ def test_rc_default_products_registered():
                     "tags": [{"key": "care_about", "value_glob": "yes"}, {"key": "region", "value_glob": "us-*"}],
                 }
             ],
-            '[{"sample_rate":1.0,"service":"my-service","resource":"*","tags":{"care_about":"yes","region":"us-*"},"provenance":"customer"}]',
+            '[{"service": "my-service", "resource": "*", "provenance": "customer", "sample_rate": 1.0, "tags":'
+            ' {"care_about": "yes", "region": "us-*"}}]',
             [
                 SamplingRule(
                     sample_rate=1.0,
@@ -578,6 +583,7 @@ def test_rc_default_products_registered():
     ],
 )
 def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
+    # import pdb; pdb.set_trace()
     trace_sampling_rules = config.convert_rc_trace_sampling_rules(rc_rules)
 
     assert trace_sampling_rules == expected_config_rules
