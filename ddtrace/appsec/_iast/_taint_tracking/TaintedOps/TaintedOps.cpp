@@ -1,10 +1,12 @@
 #include "TaintedOps/TaintedOps.h"
 
 PyObject*
-api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args)
+api_new_pyobject_id(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
-    PyObject* tainted_object;
-    PyArg_ParseTuple(args, "O", &tainted_object);
+    if (nargs != 1 or !args) {
+        throw py::value_error(MSG_ERROR_N_PARAMS);
+    }
+    PyObject* tainted_object = args[0];
     return new_pyobject_id(tainted_object);
 }
 

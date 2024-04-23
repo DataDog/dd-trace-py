@@ -1,5 +1,12 @@
 #include "AspectSlice.h"
 
+/**
+ * This function reduces the taint ranges from the given index range map.
+ *
+ * @param index_range_map The index range map from which the taint ranges are to be reduced.
+ *
+ * @return A map of taint ranges for the given index range map.
+ */
 TaintRangeRefs
 reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
 {
@@ -26,6 +33,14 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
     return new_ranges;
 }
 
+/**
+ * This function builds a map of taint ranges for the given text object.
+ *
+ * @param text The text object for which the taint ranges are to be built.
+ * @param ranges The taint range map that stores taint information.
+ *
+ * @return A map of taint ranges for the given text object.
+ */
 TaintRangeRefs
 build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, PyObject* stop, PyObject* step)
 {
