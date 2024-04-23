@@ -585,7 +585,6 @@ def _on_botocore_trace_context_injection_prepared(
     ctx, cloud_service, schematization_function, injection_function, trace_operation
 ):
     endpoint_name = ctx.get_item("endpoint_name")
-    params = ctx.get_item("params")
     if cloud_service is not None:
         span = ctx.get_item(ctx["call_key"])
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
@@ -593,7 +592,7 @@ def _on_botocore_trace_context_injection_prepared(
         if endpoint_name != "lambda":
             schematize_kwargs["direction"] = SpanDirection.OUTBOUND
         try:
-            injection_function(ctx, params, span, **inject_kwargs)
+            injection_function(ctx, **inject_kwargs)
             span.name = schematization_function(trace_operation, **schematize_kwargs)
         except Exception:
             log.warning("Unable to inject trace context", exc_info=True)

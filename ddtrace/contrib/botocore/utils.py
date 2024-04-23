@@ -66,13 +66,12 @@ def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(ctx: ExecutionContext, params: Any, span: Span) -> None:
+def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
     """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
     Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
     Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """
+    params = ctx["params"]
     if "Entries" not in params:
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
         return
@@ -87,6 +86,7 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext, params: Any, span:
                 continue
 
         detail["_datadog"] = {}
+        span = ctx[ctx["call_key"]]
         HTTPPropagator.inject(span.context, detail["_datadog"])
         detail_json = json.dumps(detail)
 
@@ -99,8 +99,10 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext, params: Any, span:
         entry["Detail"] = detail_json
 
 
-def inject_trace_to_client_context(ctx, params, span):
+def inject_trace_to_client_context(ctx):
     trace_headers = {}
+    span = ctx[ctx["call_key"]]
+    params = ctx["params"]
     HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
     if "ClientContext" in params:

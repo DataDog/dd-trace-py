@@ -54,7 +54,8 @@ def add_dd_attributes_to_message(
         entry["MessageAttributes"]["_datadog"] = {"DataType": data_type, f"{data_type}Value": _encode_data(data_to_add)}
 
 
-def update_messages(ctx, params: Any, endpoint_service: Optional[str] = None) -> None:
+def update_messages(ctx, endpoint_service: Optional[str] = None) -> None:
+    params = ctx["params"]
     if "Entries" in params or "PublishBatchRequestEntries" in params:
         entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
         if len(entries) == 0:
@@ -152,7 +153,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             if should_update_messages:
-                update_messages(ctx, params, endpoint_service=endpoint_name)
+                update_messages(ctx, endpoint_service=endpoint_name)
 
             try:
                 if not func_has_run:

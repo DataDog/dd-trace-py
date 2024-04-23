@@ -182,11 +182,7 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
         injection_function = inject_trace_to_eventbridge_detail
         cloud_service = "events"
     if endpoint_name == "sns" and "Publish" in operation:
-        injection_function = (  # noqa: E731
-            lambda ctx, params, span, endpoint_service: inject_trace_to_sqs_or_sns_message(
-                ctx, params, endpoint_service
-            )
-        )
+        injection_function = inject_trace_to_sqs_or_sns_message
         cloud_service = "sns"
     if endpoint_name == "states" and (operation == "StartExecution" or operation == "StartSyncExecution"):
         injection_function = update_stepfunction_input
