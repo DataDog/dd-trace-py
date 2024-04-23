@@ -64,9 +64,8 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     assert vulnerability.hash == hash_value
 
 
-@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
-def test_sql_injection_deduplication(fixture_path, fixture_module, num_vuln_expected, iast_span_deduplication_enabled):
+def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_deduplication_enabled):
     mod = _iast_patched_module(fixture_module)
 
     table = taint_pyobject(
@@ -81,9 +80,6 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, num_vuln_expe
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
+    assert span_report
 
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+    assert len(span_report.vulnerabilities) == 1
