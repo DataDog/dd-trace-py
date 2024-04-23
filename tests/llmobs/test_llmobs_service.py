@@ -268,7 +268,7 @@ def test_llmobs_annotate_metadata_wrong_type(LLMObs, mock_logs):
         LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
         assert span.get_tag(METADATA) is None
         mock_logs.warning.assert_called_once_with(
-            "Failed to parse span metadata. Metadata key-value pairs must be serializable."
+            "Failed to parse span metadata. Metadata key-value pairs must be JSON serializable."
         )
 
 
@@ -290,7 +290,7 @@ def test_llmobs_annotate_tag_wrong_type(LLMObs, mock_logs):
         LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
         assert span.get_tag(TAGS) is None
         mock_logs.warning.assert_called_once_with(
-            "Failed to parse span tags. Tag key-value pairs must be serializable."
+            "Failed to parse span tags. Tag key-value pairs must be JSON serializable."
         )
 
 
@@ -331,7 +331,7 @@ def test_llmobs_annotate_input_value_wrong_type(LLMObs, mock_logs):
     with LLMObs.workflow() as llm_span:
         LLMObs.annotate(span=llm_span, input_data=Unserializable())
         assert llm_span.get_tag(INPUT_VALUE) is None
-        mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be serializable.")
+        mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be JSON serializable.")
 
 
 def test_llmobs_annotate_input_llm_message(LLMObs):
@@ -384,7 +384,9 @@ def test_llmobs_annotate_output_value_wrong_type(LLMObs, mock_logs):
     with LLMObs.workflow() as llm_span:
         LLMObs.annotate(span=llm_span, output_data=Unserializable())
         assert llm_span.get_tag(OUTPUT_VALUE) is None
-        mock_logs.warning.assert_called_once_with("Failed to parse output value. Output value must be serializable.")
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse output value. Output value must be JSON serializable."
+        )
 
 
 def test_llmobs_annotate_output_llm_message(LLMObs):
@@ -416,7 +418,7 @@ def test_llmobs_annotate_metrics_wrong_type(LLMObs, mock_logs):
         LLMObs.annotate(span=llm_span, metrics={"content": Unserializable()})
         assert llm_span.get_tag(METRICS) is None
         mock_logs.warning.assert_called_once_with(
-            "Failed to parse span metrics. Metric key-value pairs must be serializable."
+            "Failed to parse span metrics. Metric key-value pairs must be JSON serializable."
         )
 
 

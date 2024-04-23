@@ -250,17 +250,18 @@ class LLMObs(Service):
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
-                           - other: any serializable type.
+                           - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
-                           - other: any serializable type.
-        :param parameters: (DEPRECATED) Dictionary of serializable key-value pairs to set as input parameters.
-        :param metadata: Dictionary of serializable key-value metadata pairs relevant to the input/output operation
+                           - other: any JSON serializable type.
+        :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
+        :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
-        :param tags: Dictionary of serializable key-value tag pairs to set or update on the LLMObs span
+        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param metrics: Dictionary of serializable key-value metric pairs such as `{prompt,completion,total}_tokens`.
+        :param metrics: Dictionary of JSON serializable key-value metric pairs,
+                        such as `{prompt,completion,total}_tokens`.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.annotate() cannot be used while LLMObs is disabled.")
@@ -306,7 +307,7 @@ class LLMObs(Service):
         try:
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
         except TypeError:
-            log.warning("Failed to parse input parameters. Parameter key-value pairs must be serializable.")
+            log.warning("Failed to parse input parameters. Parameters must be JSON serializable.")
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
@@ -342,7 +343,7 @@ class LLMObs(Service):
                 try:
                     span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
                 except TypeError:
-                    log.warning("Failed to parse input value. Input value must be serializable.")
+                    log.warning("Failed to parse input value. Input value must be JSON serializable.")
         if output_value is not None:
             if isinstance(output_value, str):
                 span.set_tag_str(OUTPUT_VALUE, output_value)
@@ -350,7 +351,7 @@ class LLMObs(Service):
                 try:
                     span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
                 except TypeError:
-                    log.warning("Failed to parse output value. Output value must be serializable.")
+                    log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
@@ -366,7 +367,7 @@ class LLMObs(Service):
                 span_tags.update(json.loads(current_tags))
             span.set_tag_str(TAGS, json.dumps(span_tags))
         except TypeError:
-            log.warning("Failed to parse span tags. Tag key-value pairs must be serializable.")
+            log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
 
     @staticmethod
     def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
@@ -377,7 +378,7 @@ class LLMObs(Service):
         try:
             span.set_tag_str(METADATA, json.dumps(metadata))
         except TypeError:
-            log.warning("Failed to parse span metadata. Metadata key-value pairs must be serializable.")
+            log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
@@ -388,4 +389,4 @@ class LLMObs(Service):
         try:
             span.set_tag_str(METRICS, json.dumps(metrics))
         except TypeError:
-            log.warning("Failed to parse span metrics. Metric key-value pairs must be serializable.")
+            log.warning("Failed to parse span metrics. Metric key-value pairs must be JSON serializable.")
