@@ -31,6 +31,19 @@ class TestOperatorJoinReplacement(object):
         assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
         assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
 
+    def test_string_join_tainted_joiner_and_string_iterator(self):  # type: () -> None
+        # taint "joi" from "-joiner-"
+        string_input = taint_pyobject(
+            pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
+        )
+        it = "abc"
+
+        result = mod.do_join(string_input, it)
+        assert result == "a-joiner-b-joiner-c"
+        ranges = get_tainted_ranges(result)
+        assert result[ranges[0].start : (ranges[0].start + ranges[0].length)] == "-joiner-"
+        assert result[ranges[1].start : (ranges[1].start + ranges[1].length)] == "-joiner-"
+
     def test_string_join_tainted_joiner_bytes(self):  # type: () -> None
         # taint "joi" from "-joiner-"
         string_input = taint_pyobject(
