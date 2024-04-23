@@ -61,8 +61,7 @@ PyObject*
 aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
-    // FIXME: bug. if the argument is a string instead of a tuple, it will enter
-    // into an infinite loop
+
     size_t len_iterable{ 0 };
     auto GetElement = PyList_GetItem;
     if (PyList_Check(iterable_elements)) {
