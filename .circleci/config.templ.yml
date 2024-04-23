@@ -416,6 +416,7 @@ jobs:
           at: .
       - run: pip install -r ci/coverage/requirements.txt
       - run: rm -f empty.*.coverage
+      - run: rm -f *.coverage
       # Combine all job coverage reports into one
       - run: ls -hal *.coverage 2>/dev/null && coverage combine *.coverage || true
       # Upload coverage report to Codecov
