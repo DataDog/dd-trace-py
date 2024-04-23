@@ -65,6 +65,18 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START of
     return shift_taint_ranges(source_taint_ranges, offset);
 }
 
+py::object
+api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
+{
+    auto tx_map = initializer->get_tainting_map();
+
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+    set_ranges(str.ptr(), ranges, tx_map);
+    return py::none();
+}
+
 /**
  * set_ranges_from_values.
  *
@@ -363,7 +375,6 @@ pyexport_taintrange(py::module& m)
           "offset"_a,
           "new_length"_a = -1);
 
-    m.def("set_ranges", py::overload_cast<PyObject*, const TaintRangeRefs&>(&set_ranges), "str"_a, "ranges"_a);
     m.def("set_ranges", &api_set_ranges, "str"_a, "ranges"_a);
 
     m.def("copy_ranges_from_strings", &api_copy_ranges_from_strings, "str_1"_a, "str_2"_a);
