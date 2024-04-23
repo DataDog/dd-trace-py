@@ -75,7 +75,7 @@ Initializer::num_objects_tainted()
 {
     auto ctx_map = initializer->get_tainting_map();
     if (ctx_map) {
-        return (int)ctx_map->size();
+        return static_cast<int>(ctx_map->size());
     }
     return 0;
 }
@@ -108,7 +108,7 @@ Initializer::initializer_size()
 int
 Initializer::active_map_addreses_size()
 {
-    return (int)active_map_addreses.size();
+    return static_cast<int>(active_map_addreses.size());
 }
 
 TaintedObjectPtr

@@ -15,7 +15,9 @@ namespace py = pybind11;
  * @return A new taint range with the given offset and maximum length.
  */
 TaintRangePtr
-allocate_limited_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH max_length)
+allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range,
+                                         RANGE_START offset,
+                                         RANGE_LENGTH max_length)
 {
     RANGE_LENGTH length;
     if (max_length != -1)
@@ -86,7 +88,7 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
                     // Make sure original position (orig_offset) is covered by the range
                     if (trange->start <= orig_offset and
                         ((trange->start + trange->length) >= orig_offset + max_length)) {
-                        ranges_.emplace_back(allocate_limited_taint_range(trange, offset, max_length));
+                        ranges_.emplace_back(allocate_limited_taint_range_with_offset(trange, offset, max_length));
                         i++;
                     }
                 } else {
