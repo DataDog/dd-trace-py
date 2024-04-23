@@ -1,6 +1,15 @@
-#pragma once
 #include "Aspects/AspectFormat.h"
 
+/**
+ * @brief This function is used to format the candidate_text with the given parameter_list, args and kwargs.
+ *
+ * @tparam StrType
+ * @param candidate_text
+ * @param parameter_list
+ * @param args
+ * @param kwargs
+ * @return StrType
+ */
 template<class StrType>
 StrType
 api_format_aspect(StrType& candidate_text,
