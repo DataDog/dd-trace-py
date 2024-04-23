@@ -312,6 +312,28 @@ def test_llmobs_annotate_input_string(LLMObs):
         assert agent_span.get_tag(INPUT_VALUE) == "test_input"
 
 
+def test_llmobs_annotate_input_serializable_value(LLMObs):
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, input_data=["test_input"])
+        assert task_span.get_tag(INPUT_VALUE) == '["test_input"]'
+    with LLMObs.tool() as tool_span:
+        LLMObs.annotate(span=tool_span, input_data={"test_input": "hello world"})
+        assert tool_span.get_tag(INPUT_VALUE) == '{"test_input": "hello world"}'
+    with LLMObs.workflow() as workflow_span:
+        LLMObs.annotate(span=workflow_span, input_data=("asd", 123))
+        assert workflow_span.get_tag(INPUT_VALUE) == '["asd", 123]'
+    with LLMObs.agent() as agent_span:
+        LLMObs.annotate(span=agent_span, input_data="test_input")
+        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+
+
+def test_llmobs_annotate_input_value_wrong_type(LLMObs, mock_logs):
+    with LLMObs.workflow() as llm_span:
+        LLMObs.annotate(span=llm_span, input_data=Unserializable())
+        assert llm_span.get_tag(INPUT_VALUE) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be serializable.")
+
+
 def test_llmobs_annotate_input_llm_message(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, input_data=[{"content": "test_input", "role": "human"}])
@@ -341,6 +363,28 @@ def test_llmobs_annotate_output_string(LLMObs):
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
         assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+
+
+def test_llmobs_annotate_output_serializable_value(LLMObs):
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, output_data=["test_output"])
+        assert task_span.get_tag(OUTPUT_VALUE) == '["test_output"]'
+    with LLMObs.tool() as tool_span:
+        LLMObs.annotate(span=tool_span, output_data={"test_output": "hello world"})
+        assert tool_span.get_tag(OUTPUT_VALUE) == '{"test_output": "hello world"}'
+    with LLMObs.workflow() as workflow_span:
+        LLMObs.annotate(span=workflow_span, output_data=("asd", 123))
+        assert workflow_span.get_tag(OUTPUT_VALUE) == '["asd", 123]'
+    with LLMObs.agent() as agent_span:
+        LLMObs.annotate(span=agent_span, output_data="test_output")
+        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+
+
+def test_llmobs_annotate_output_value_wrong_type(LLMObs, mock_logs):
+    with LLMObs.workflow() as llm_span:
+        LLMObs.annotate(span=llm_span, output_data=Unserializable())
+        assert llm_span.get_tag(OUTPUT_VALUE) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse output value. Output value must be serializable.")
 
 
 def test_llmobs_annotate_output_llm_message(LLMObs):
