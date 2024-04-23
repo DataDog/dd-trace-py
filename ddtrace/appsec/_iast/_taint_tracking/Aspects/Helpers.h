@@ -14,10 +14,10 @@ namespace py = pybind11;
 // lower() and similar.
 template<class StrType>
 StrType
-common_replace(const py::str& string_method,
-               const StrType& candidate_text,
-               const py::args& args,
-               const py::kwargs& kwargs);
+api_common_replace(const py::str& string_method,
+                   const StrType& candidate_text,
+                   const py::args& args,
+                   const py::kwargs& kwargs);
 
 template<class StrType>
 StrType
