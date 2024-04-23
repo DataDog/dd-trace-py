@@ -415,10 +415,9 @@ jobs:
       - attach_workspace:
           at: .
       - run: pip install -r ci/coverage/requirements.txt
-      - run: ls -hal *.coverage 2>/dev/null || true
       - run: rm -f empty.*.coverage
       # Combine all job coverage reports into one
-      - run: coverage combine *.coverage
+      - run: ls -hal *.coverage 2>/dev/null && coverage combine *.coverage || true
       # Upload coverage report to Codecov
       # DEV: Do not use the bash uploader, it cannot be trusted
       - run: codecov
@@ -503,6 +502,7 @@ jobs:
           pattern: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
+          docker_services: "pygoat"
 
   appsec_threats_django:
     parallelism: 12
