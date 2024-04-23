@@ -445,12 +445,16 @@ def _on_request_span_modifier(
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     span = ctx.get_item("req_span")
+    try:
+        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
+    except Exception:
+        raw_uri = request.url
     trace_utils.set_http_meta(
         span,
         flask_config,
         method=request.method,
         url=request.base_url,
-        raw_uri=request.url,
+        raw_uri=raw_uri,
         query=request.query_string,
         parsed_query=request.args,
         request_headers=request.headers,
@@ -586,13 +590,13 @@ def _on_botocore_trace_context_injection_prepared(
     endpoint_name = ctx.get_item("endpoint_name")
     params = ctx.get_item("params")
     if cloud_service is not None:
-        span = ctx.get_item("instrumented_api_call")
+        span = ctx.get_item(ctx["call_key"])
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
         schematize_kwargs = dict(cloud_provider="aws", cloud_service=cloud_service)
         if endpoint_name != "lambda":
             schematize_kwargs["direction"] = SpanDirection.OUTBOUND
         try:
-            injection_function(None, params, span, **inject_kwargs)
+            injection_function(ctx, params, span, **inject_kwargs)
             span.name = schematization_function(trace_operation, **schematize_kwargs)
         except Exception:
             log.warning("Unable to inject trace context", exc_info=True)
@@ -605,7 +609,7 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inje
         HTTPPropagator.inject(ctx[ctx["call_key"]].context, data_obj["_datadog"])
 
 
-def _on_botocore_sqs_update_messages(ctx, span, endpoint_service, trace_data, params, message=None):
+def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
     context = span.context if span else ctx[ctx["call_key"]].context
     HTTPPropagator.inject(context, trace_data)
 
@@ -646,7 +650,10 @@ def listen():
     core.on("botocore.patched_sqs_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_sqs_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.patched_sqs_api_call.success", _on_botocore_patched_api_call_success)
-    core.on("botocore.sqs_sns.update_messages", _on_botocore_sqs_update_messages)
+    core.on("botocore.sqs_sns.update_messages", _on_botocore_update_messages)
+    core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
+    core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
+    core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
 
     for context_name in (
         "flask.call",
@@ -662,6 +669,7 @@ def listen():
         "botocore.instrumented_lib_function",
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
+        "botocore.patched_stepfunctions_api_call",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
