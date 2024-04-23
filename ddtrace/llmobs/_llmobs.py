@@ -250,11 +250,12 @@ class LLMObs(Service):
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
-                           - other: any stringable type.
+                           - other: any serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
-                           - other: any stringable type.
+                           - other: any serializable type.
+        :param parameters: (DEPRECATED) Dictionary of serializable key-value pairs to set as input parameters.
         :param metadata: Dictionary of serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
         :param tags: Dictionary of serializable key-value tag pairs to set or update on the LLMObs span
