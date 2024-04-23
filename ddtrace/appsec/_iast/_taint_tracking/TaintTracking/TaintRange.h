@@ -97,7 +97,6 @@ api_get_ranges(py::object& string_input)
 void
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
-
 set_ranges(PyObject* str, const TaintRangeRefs& ranges)
 {
     set_ranges(str, ranges, nullptr);
