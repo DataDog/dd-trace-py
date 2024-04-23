@@ -11,22 +11,13 @@ using namespace pybind11::literals;
 namespace py = pybind11;
 
 PyObject*
-api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args);
+api_new_pyobject_id(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
 
 bool
-is_tainted(PyObject* Py_UNUSED(module), PyObject* args);
+is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map);
 
 bool
 api_is_tainted(py::object tainted_object);
 
 void
 pyexport_tainted_ops(py::module& m);
-// TODO
-// PyObject *api_add_taint_pyobject(PyObject* pyobject, PyObject* op1, PyObject*
-// op2); PyObject* api_taint_pyobject(PyObject* pyobject, Source source); bool
-// api_is_pyobject_tainted(PyObject* pyobject); void
-// api_set_tainted_ranges(PyObject* pyobject, TaintRangeRefs ranges);
-// TaintRangeRefs api_get_tainted_ranges(PyObject* pyobject); // can be already
-// implemented
-// XXX (Tuple[List[Dict[str, Union[Any, int]]], list[Source]])
-// api_taint_ranges_as_evidence_info(PyObject* pyobject);

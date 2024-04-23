@@ -75,7 +75,7 @@ Initializer::num_objects_tainted()
 {
     auto ctx_map = initializer->get_tainting_map();
     if (ctx_map) {
-        return ctx_map->size();
+        return (int)ctx_map->size();
     }
     return 0;
 }
@@ -108,7 +108,7 @@ Initializer::initializer_size()
 int
 Initializer::active_map_addreses_size()
 {
-    return active_map_addreses.size();
+    return (int)active_map_addreses.size();
 }
 
 TaintedObjectPtr
@@ -129,15 +129,6 @@ Initializer::allocate_ranges_into_taint_object(TaintRangeRefs ranges)
     auto toptr = allocate_tainted_object();
     toptr->set_values(std::move(ranges));
     return toptr;
-}
-
-TaintedObjectPtr
-Initializer::allocate_tainted_object(TaintedObjectPtr from)
-{
-    if (!from) {
-        return allocate_tainted_object();
-    }
-    return allocate_ranges_into_taint_object(std::move(from->ranges_));
 }
 
 TaintedObjectPtr
@@ -227,12 +218,6 @@ Initializer::destroy_context()
 {
     free_tainting_map((TaintRangeMapType*)ThreadContextCache.tx_id);
     ThreadContextCache.tx_id = 0;
-}
-
-size_t
-Initializer::context_id()
-{
-    return ThreadContextCache.tx_id;
 }
 
 void
