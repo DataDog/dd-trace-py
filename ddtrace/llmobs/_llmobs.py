@@ -336,9 +336,15 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            span.set_tag_str(INPUT_VALUE, str(input_value))
+            try:
+                span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+            except TypeError:
+                log.warning("Failed to parse input value. Input value must be serializable.")
         if output_value is not None:
-            span.set_tag_str(OUTPUT_VALUE, str(output_value))
+            try:
+                span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+            except TypeError:
+                log.warning("Failed to parse output value. Output value must be serializable.")
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
