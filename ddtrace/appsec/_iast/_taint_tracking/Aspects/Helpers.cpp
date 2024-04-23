@@ -6,6 +6,13 @@
 using namespace pybind11::literals;
 namespace py = pybind11;
 
+/**
+ * @brief This function is used to get the taint ranges for the given text object.
+ *
+ * @tparam StrType
+ * @param text
+ * @return TaintRangeRefs
+ */
 template<class StrType>
 StrType
 api_common_replace(const py::str& string_method,

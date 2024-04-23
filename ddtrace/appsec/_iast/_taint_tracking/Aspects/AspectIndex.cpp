@@ -1,5 +1,14 @@
 #include "AspectIndex.h"
 
+/**
+ * @brief Index aspect
+ *
+ * @param result_o
+ * @param candidate_text
+ * @param idx
+ * @param tx_taint_map
+ * @return PyObject*
+ */
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map)
 {
