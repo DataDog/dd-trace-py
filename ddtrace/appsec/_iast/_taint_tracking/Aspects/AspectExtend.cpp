@@ -1,5 +1,13 @@
 #include "AspectExtend.h"
 
+/**
+ * @brief Taint candidate_text when bytearray extends is called.
+ *
+ * @param self
+ * @param args: 0: candidate text, 1: Bytearray or bytes to extend in candidate text
+ * @param nargs number of elements in args
+ * @return PyObject*: return None (Remember, Pyobject None isn't the same as nullptr)
+ */
 PyObject*
 api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
