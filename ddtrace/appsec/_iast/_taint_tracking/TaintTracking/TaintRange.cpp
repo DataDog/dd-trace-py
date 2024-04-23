@@ -71,7 +71,7 @@ api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
     auto tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
+        throw py::value_error("[IAST] Tainted Map isn't initialized");
     }
     set_ranges(str.ptr(), ranges, tx_map);
     return py::none();
