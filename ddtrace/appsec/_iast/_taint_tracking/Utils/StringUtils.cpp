@@ -71,7 +71,8 @@ PyObjectToString(PyObject* obj)
     const char* str = PyUnicode_AsUTF8(obj);
 
     if (str == nullptr) {
-        return "";
+        PyErr_Print();
+        throw runtime_error("PyObjectToString error");
     }
     return str;
 }

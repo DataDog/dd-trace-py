@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-import logging
-
 import pytest
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import create_context
@@ -16,7 +13,6 @@ from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-from tests.utils import override_env
 
 
 @pytest.mark.parametrize(
@@ -309,18 +305,7 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
     assert sources == [input_info1, input_info2]
 
 
-@pytest.mark.parametrize(
-    "log_level, iast_debug, expected_log_msg",
-    [
-        (logging.DEBUG, "", "[IAST] Tainted Map"),
-        (logging.WARNING, "", ""),
-        (logging.DEBUG, "false", "[IAST] Tainted Map"),
-        (logging.WARNING, "false", ""),
-        (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
-        (logging.WARNING, "true", "_iast/_taint_tracking/__init__.py"),
-    ],
-)
-def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_msg, caplog):
+def test_taint_object_error_with_no_context():
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     string_to_taint = "my_string"
     create_context()
@@ -335,24 +320,15 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     assert len(ranges_result) == 1
 
     destroy_context()
-    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
-        result = taint_pyobject(
-            pyobject=string_to_taint,
-            source_name="test_add_aspect_tainting_left_hand",
-            source_value=string_to_taint,
-            source_origin=OriginType.PARAMETER,
-        )
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
 
-    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
-        ranges_result = get_tainted_ranges(result)
-        assert len(ranges_result) == 0
-
-    if expected_log_msg:
-        assert any(expected_log_msg in record.message for record in caplog.records), [
-            record.message for record in caplog.records
-        ]
-    else:
-        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 0
 
     create_context()
     result = taint_pyobject(

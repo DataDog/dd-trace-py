@@ -13,12 +13,10 @@ common_replace(const py::str& string_method,
                const py::args& args,
                const py::kwargs& kwargs)
 {
-    bool ranges_error;
-    TaintRangeRefs candidate_text_ranges;
-    std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text.ptr());
+    TaintRangeRefs candidate_text_ranges{ get_ranges(candidate_text.ptr()) };
 
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
-    if (ranges_error or candidate_text_ranges.empty()) {
+    if (candidate_text_ranges.empty()) {
         return res;
     }
 
