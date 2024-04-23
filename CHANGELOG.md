@@ -26,8 +26,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
 
-- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
-
 
 ---
 
