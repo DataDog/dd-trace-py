@@ -1,14 +1,22 @@
 # -*- encoding: utf-8 -*-
+import logging
 import math
 from typing import Any
 from typing import NamedTuple
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import override_env
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -223,3 +231,24 @@ class TestOperatorFormatReplacement(BaseReplacement):
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context(caplog):
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "-1234 {} {} {} {test_kwarg} {test_var}"
+    create_context()
+    string_input = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
+
+    ranges_result = get_tainted_ranges(result_2)
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert len(ranges_result) == 0
