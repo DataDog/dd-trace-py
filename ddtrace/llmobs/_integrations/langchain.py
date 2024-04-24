@@ -8,6 +8,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -19,6 +20,9 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
+
+
+log = get_logger(__name__)
 
 
 API_KEY = "langchain.request.api_key"
@@ -145,12 +149,23 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            span.set_tag_str(INPUT_VALUE, str(inputs))
-
+            if isinstance(inputs, str):
+                span.set_tag_str(INPUT_VALUE, inputs)
+            else:
+                try:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(inputs))
+                except TypeError:
+                    log.warning("Failed to serialize chain input data to JSON: %s", inputs)
         if error:
             span.set_tag_str(OUTPUT_VALUE, "")
         elif outputs is not None:
-            span.set_tag_str(OUTPUT_VALUE, str(outputs))
+            if isinstance(outputs, str):
+                span.set_tag_str(OUTPUT_VALUE, str(outputs))
+            else:
+                try:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(outputs))
+                except TypeError:
+                    log.warning("Failed to serialize chain output data to JSON: %s", outputs)
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import sys
@@ -1495,8 +1496,8 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"question": "what is two raised to the fifty-fourth power?"}),
-                        "output_value": str(
+                        "input_value": json.dumps({"question": "what is two raised to the fifty-fourth power?"}),
+                        "output_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "answer": "Answer: 18014398509481984",
@@ -1507,13 +1508,13 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str(
+                        "input_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "stop": ["```output"],
                             }
                         ),
-                        "output_value": str(
+                        "output_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "stop": ["```output"],
@@ -1573,14 +1574,14 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"input_text": input_text}),
+                        "input_value": json.dumps({"input_text": input_text}),
                         "output_value": mock.ANY,
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": str({"input_text": input_text}),
+                        "input_value": json.dumps({"input_text": input_text}),
                         "output_value": mock.ANY,
                     },
                 ),

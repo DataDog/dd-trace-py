@@ -1,3 +1,4 @@
+import json
 from operator import itemgetter
 import os
 import re
@@ -1477,7 +1478,7 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str([{"input": "Can you explain what an LLM chain is?"}]),
+                        "input_value": json.dumps([{"input": "Can you explain what an LLM chain is?"}]),
                         "output_value": expected_output,
                     },
                 ),
@@ -1510,14 +1511,14 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
+                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
+                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),
@@ -1543,7 +1544,7 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str(["chickens", "pigs"]),
+                        "input_value": json.dumps(["chickens", "pigs"]),
                         "output_value": mock.ANY,
                     },
                 ),
