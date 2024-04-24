@@ -18,7 +18,7 @@ DEBUG_LEVEL_INT = logging.DEBUG
 
 
 class TracerFlareTests(unittest.TestCase):
-    mock_flare_prep_request = FlarePrepRequest("DEBUG")
+    mock_flare_prep_request = FlarePrepRequest(DEBUG_LEVEL_INT)
     mock_flare_send_request = FlareSendRequest(
         case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com"
     )

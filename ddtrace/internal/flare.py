@@ -1,4 +1,5 @@
 import binascii
+import dataclasses
 import io
 import json
 import logging
@@ -27,19 +28,22 @@ DEFAULT_TIMEOUT_SECONDS = 5
 log = get_logger(__name__)
 
 
+@dataclasses.dataclass
 class FlarePrepRequest:
-    def __init__(self, log_level: str):
+    log_level: int
+
+    def __init__(self, log_level):
         if logging.getLevelName(log_level) == f"Level {log_level}":
             raise TypeError("Invalid log level provided: %s", log_level)
         self.log_level = log_level
 
 
+@dataclasses.dataclass
 class FlareSendRequest:
-    def __init__(self, case_id: str, hostname: str, email: str):
-        self.case_id = case_id
-        self.source = "tracer_python"
-        self.hostname = hostname
-        self.email = email
+    case_id: str
+    hostname: str
+    email: str
+    source: str = "tracer_python"
 
 
 class Flare:
@@ -62,7 +66,6 @@ class Flare:
                 return
 
         flare_log_level = flare_prep_req.log_level
-        flare_log_level_int = logging.getLevelName(flare_log_level)
 
         ddlogger = get_logger("ddtrace")
         pid = os.getpid()
@@ -74,10 +77,10 @@ class Flare:
         # which is the minimum value. In this case, we just want to use the flare level, but still
         # retain the original state as NOTSET/0
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
-        logger_level = min(valid_original_level, flare_log_level_int)
+        logger_level = min(valid_original_level, flare_log_level)
         ddlogger.setLevel(logger_level)
         self.file_handler = _add_file_handler(
-            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
+            ddlogger, flare_file_path.__str__(), flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
         )
 
         # Create and add config file
