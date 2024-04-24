@@ -32,10 +32,12 @@ log = get_logger(__name__)
 class FlarePrepRequest:
     log_level: int
 
-    def __init__(self, log_level):
-        if logging.getLevelName(log_level) == f"Level {log_level}":
+    def __init__(self, log_level_name: str):
+        log_level: int | str = logging.getLevelName(log_level_name)
+        if type(log_level) == int:
+            self.log_level = log_level
+        else:
             raise TypeError("Invalid log level provided: %s", log_level)
-        self.log_level = log_level
 
 
 @dataclasses.dataclass
