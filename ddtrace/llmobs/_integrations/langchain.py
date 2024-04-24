@@ -50,7 +50,6 @@ class LangChainIntegration(BaseLLMIntegration):
             return
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
-        self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
@@ -65,7 +64,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if not model_provider:
             return
 
-        input_parameters = {}
+        metadata = {}
         temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
             f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
         )  # huggingface
@@ -76,11 +75,11 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
         if temperature is not None:
-            input_parameters["temperature"] = float(temperature)
+            metadata["temperature"] = float(temperature)
         if max_tokens is not None:
-            input_parameters["max_tokens"] = int(max_tokens)
-        if input_parameters:
-            span.set_tag_str(METADATA, json.dumps(input_parameters))
+            metadata["max_tokens"] = int(max_tokens)
+        if metadata:
+            span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
         self, span: Span, prompts: List[Any], completions: Any, err: bool = False
