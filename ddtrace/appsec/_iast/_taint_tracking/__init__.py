@@ -2,9 +2,10 @@
 # flake8: noqa
 from typing import TYPE_CHECKING
 
+from ..._constants import IAST
+from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
-
 
 if _is_python_version_supported():
     from .. import oce
@@ -90,7 +91,7 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     # type: (Any, Any, Any, OriginType) -> Any
 
     # Pyobject must be Text with len > 1
-    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
         return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
@@ -103,9 +104,13 @@ def taint_pyobject(pyobject, source_name, source_value, source_origin=None):
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
-    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-    _set_metric_iast_executed_source(source_origin)
-    return pyobject_newid
+    try:
+        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+        return pyobject_newid
+    except ValueError as e:
+        _set_iast_error_metric("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+    return pyobject
 
 
 def taint_pyobject_with_ranges(pyobject, ranges):  # type: (Any, tuple) -> None
