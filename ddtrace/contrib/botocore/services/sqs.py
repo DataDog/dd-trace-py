@@ -91,8 +91,8 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     message_received = False
     func_has_run = False
     func_run_err = None
-    child_of = None
     result = None
+    parent_ctx: core.ExecutionContext = None
 
     if operation == "ReceiveMessage":
         _ensure_datadog_messageattribute_enabled(params)
@@ -108,7 +108,10 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
         if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
             message_received = True
             if config.botocore.propagation_enabled:
-                child_of = extract_DD_context(result["Messages"])
+                parent_ctx = core.ExecutionContext(
+                    "botocore.patched_sqs_api_call.propagated",
+                    distributed_context=extract_DD_context(result["Messages"]),
+                )
 
     function_is_not_recvmessage = not func_has_run
     received_message_when_polling = func_has_run and message_received
@@ -135,10 +138,10 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_sqs_api_call",
+            parent=parent_ctx,
             span_name=call_name,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
-            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
             instance=instance,
             args=args,
@@ -171,6 +174,8 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     [ctx, e.response, botocore.exceptions.ClientError],
                 )
                 raise
+        if parent_ctx is not None:
+            parent_ctx.__exit__()
     elif func_has_run:
         if func_run_err:
             raise func_run_err

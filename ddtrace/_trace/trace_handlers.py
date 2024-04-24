@@ -107,6 +107,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
+    distributed_context = ctx.get_item("distributed_context", traverse=True)
+    if distributed_context and not call_trace:
+        span_kwargs["child_of"] = distributed_context
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
