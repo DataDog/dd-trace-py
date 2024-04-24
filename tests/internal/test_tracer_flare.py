@@ -9,7 +9,6 @@ from unittest import mock
 from ddtrace.internal.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare import Flare
-from ddtrace.internal.flare import FlarePrepRequest
 from ddtrace.internal.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
 
@@ -18,7 +17,6 @@ DEBUG_LEVEL_INT = logging.DEBUG
 
 
 class TracerFlareTests(unittest.TestCase):
-    mock_flare_prep_request = FlarePrepRequest("DEBUG")
     mock_flare_send_request = FlareSendRequest(
         case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com"
     )
@@ -46,7 +44,7 @@ class TracerFlareTests(unittest.TestCase):
         """
         ddlogger = get_logger("ddtrace")
 
-        self.flare.prepare(self.mock_flare_prep_request)
+        self.flare.prepare("DEBUG")
 
         file_handler = self._get_handler()
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
@@ -72,7 +70,7 @@ class TracerFlareTests(unittest.TestCase):
         # Mock the partial failure
         with mock.patch("json.dump") as mock_json:
             mock_json.side_effect = Exception("file issue happened")
-            self.flare.prepare(self.mock_flare_prep_request)
+            self.flare.prepare("DEBUG")
 
         file_handler = self._get_handler()
         assert file_handler is not None
@@ -92,7 +90,7 @@ class TracerFlareTests(unittest.TestCase):
         num_processes = 3
 
         def handle_agent_config():
-            self.flare.prepare(self.mock_flare_prep_request)
+            self.flare.prepare("DEBUG")
 
         def handle_agent_task():
             self.flare.send(self.mock_flare_send_request)
@@ -131,9 +129,7 @@ class TracerFlareTests(unittest.TestCase):
             self.flare.send(send_request)
 
         # Create successful process
-        p = multiprocessing.Process(
-            target=do_tracer_flare, args=(self.mock_flare_prep_request, self.mock_flare_send_request)
-        )
+        p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", self.mock_flare_send_request))
         processes.append(p)
         p.start()
         # Create failing process
@@ -149,7 +145,7 @@ class TracerFlareTests(unittest.TestCase):
         file, just the tracer logs
         """
         app_logger = Logger(name="my-app", level=DEBUG_LEVEL_INT)
-        self.flare.prepare(self.mock_flare_prep_request)
+        self.flare.prepare("DEBUG")
 
         app_log_line = "this is an app log"
         app_logger.debug(app_log_line)

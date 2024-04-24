@@ -29,18 +29,6 @@ log = get_logger(__name__)
 
 
 @dataclasses.dataclass
-class FlarePrepRequest:
-    log_level: int
-
-    def __init__(self, log_level_name: str):
-        log_level: int | str = logging.getLevelName(log_level_name)
-        if type(log_level) == int:
-            self.log_level = log_level
-        else:
-            raise TypeError("Invalid log level provided: %s", log_level)
-
-
-@dataclasses.dataclass
 class FlareSendRequest:
     case_id: str
     hostname: str
@@ -54,7 +42,7 @@ class Flare:
         self.timeout = timeout_sec
         self.file_handler: Optional[RotatingFileHandler] = None
 
-    def prepare(self, flare_prep_req: FlarePrepRequest):
+    def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -67,7 +55,9 @@ class Flare:
                 log.error("Failed to create %s directory: %s", TRACER_FLARE_DIRECTORY, e)
                 return
 
-        flare_log_level = flare_prep_req.log_level
+        flare_log_level_int = logging.getLevelName(log_level)
+        if type(flare_log_level_int) != int:
+            raise TypeError("Invalid log level provided: %s", log_level)
 
         ddlogger = get_logger("ddtrace")
         pid = os.getpid()
@@ -81,10 +71,10 @@ class Flare:
         valid_original_level = (
             logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
         )
-        logger_level = min(valid_original_level, flare_log_level)
+        logger_level = min(valid_original_level, flare_log_level_int)
         ddlogger.setLevel(logger_level)
         self.file_handler = _add_file_handler(
-            ddlogger, flare_file_path.__str__(), flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
+            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
         )
 
         # Create and add config file
