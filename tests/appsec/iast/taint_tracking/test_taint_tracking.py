@@ -58,7 +58,7 @@ def test_propagate_ranges_with_no_context(caplog):
         )
         assert string_input == "abcde"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("[IAST] " in message for message in log_messages), log_messages
 
 
 @pytest.mark.skip_iast_check_logs
