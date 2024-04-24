@@ -285,7 +285,7 @@ def _default_config():
         ),
         "_trace_sampling_rules": _ConfigItem(
             name="trace_sampling_rules",
-            default=None,
+            default=lambda: "",
             envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
         "logs_injection": _ConfigItem(

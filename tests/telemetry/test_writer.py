@@ -141,7 +141,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
-                    {"name": "trace_sampling_rules", "origin": "unknown", "value": None},
+                    {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
@@ -307,7 +307,7 @@ import ddtrace.auto
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {
                 "name": "trace_sampling_rules",
-                "origin": "unknown",
+                "origin": "env_var",
                 "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
             },
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
