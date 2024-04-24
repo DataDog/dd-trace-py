@@ -46,7 +46,7 @@ jobs:
           sudo apt install -y python3-pip
           python3 -m pip install --user pipx
           python3 -m pipx ensurepath
-          sudo pipx ensurepath --global
+          #sudo pipx ensurepath --global
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
