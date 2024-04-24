@@ -49,7 +49,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
 
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
     iast_span_processor = AppSecIastSpanProcessor()
-    VulnerabilityBase._reset_cache()
+    VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:
