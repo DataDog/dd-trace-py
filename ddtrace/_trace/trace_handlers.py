@@ -716,6 +716,8 @@ def listen():
     core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
+    core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
+    core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)

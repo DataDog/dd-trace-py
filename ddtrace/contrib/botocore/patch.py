@@ -39,9 +39,9 @@ from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
-from .utils import inject_trace_to_client_context
-from .utils import inject_trace_to_eventbridge_detail
 from .utils import set_response_metadata_tags
+from .utils import update_client_context as inject_trace_to_client_context
+from .utils import update_eventbridge_detail as inject_trace_to_eventbridge_detail
 
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]

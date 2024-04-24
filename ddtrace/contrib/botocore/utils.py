@@ -10,6 +10,7 @@ from typing import Tuple
 
 from ddtrace import Span
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.core import ExecutionContext
 
 from ...ext import http
@@ -66,11 +67,7 @@ def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
-    """
-    Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
-    Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
-    """
+def update_eventbridge_detail(ctx: ExecutionContext) -> None:
     params = ctx["params"]
     if "Entries" not in params:
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
@@ -86,8 +83,7 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
                 continue
 
         detail["_datadog"] = {}
-        span = ctx[ctx["call_key"]]
-        HTTPPropagator.inject(span.context, detail["_datadog"])
+        core.dispatch("botocore.eventbridge.update_messages", [ctx, None, None, detail["_datadog"], None])
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -99,12 +95,11 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
         entry["Detail"] = detail_json
 
 
-def inject_trace_to_client_context(ctx):
+def update_client_context(ctx: ExecutionContext) -> None:
     trace_headers = {}
-    span = ctx[ctx["call_key"]]
-    params = ctx["params"]
-    HTTPPropagator.inject(span.context, trace_headers)
+    core.dispatch("botocore.client_context.update_messages", [ctx, None, None, trace_headers, None])
     client_context_object = {}
+    params = ctx["params"]
     if "ClientContext" in params:
         try:
             client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
