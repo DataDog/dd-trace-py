@@ -11,8 +11,10 @@ from tests.utils import override_env
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
+    from ddtrace.appsec._iast._taint_tracking import TaintRange
     from ddtrace.appsec._iast._taint_tracking import destroy_context
     from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
+    from ddtrace.appsec._iast._taint_tracking import set_ranges
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
     from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -57,6 +59,18 @@ def test_propagate_ranges_with_no_context(caplog):
         assert string_input == "abcde"
     log_messages = [record.message for record in caplog.get_records("call")]
     assert any("[IAST] " in message for message in log_messages), log_messages
+
+
+@pytest.mark.skip_iast_check_logs
+def test_call_to_set_ranges_directly_raises_a_exception(caplog):
+    destroy_context()
+    input_str = "abcde"
+    with pytest.raises(ValueError) as excinfo:
+        set_ranges(
+            input_str,
+            [TaintRange(0, len(input_str), Source(input_str, "sample_value", OriginType.PARAMETER))],
+        )
+    assert str(excinfo.value).startswith("[IAST] Tainted Map isn't initialized")
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():

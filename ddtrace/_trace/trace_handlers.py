@@ -446,12 +446,16 @@ def _on_request_span_modifier(
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     span = ctx.get_item("req_span")
+    try:
+        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
+    except Exception:
+        raw_uri = request.url
     trace_utils.set_http_meta(
         span,
         flask_config,
         method=request.method,
         url=request.base_url,
-        raw_uri=request.url,
+        raw_uri=raw_uri,
         query=request.query_string,
         parsed_query=request.args,
         request_headers=request.headers,
