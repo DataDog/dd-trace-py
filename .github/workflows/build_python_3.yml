@@ -46,6 +46,7 @@ jobs:
           sudo apt install -y python3-pip
           python3 -m pip install --user pipx
           python3 -m pipx ensurepath
+          export PATH=$PATH:/home/runner/.local/bin
           #sudo pipx ensurepath --global
 
       - name: Set up QEMU
@@ -55,7 +56,9 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        run: pipx run cibuildwheel==2.16.5
+        run: |
+          export PATH=$PATH:/home/runner/.local/bin
+          pipx run cibuildwheel==2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
