@@ -243,7 +243,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 }
 
 TaintRangeRefs
-api_get_ranges(py::object& string_input)
+api_get_ranges(const py::object& string_input)
 {
     bool ranges_error;
     TaintRangeRefs ranges;

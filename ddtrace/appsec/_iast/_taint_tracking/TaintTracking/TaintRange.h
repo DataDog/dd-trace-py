@@ -91,7 +91,7 @@ py::object
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges);
 
 TaintRangeRefs
-api_get_ranges(py::object& string_input);
+api_get_ranges(const py::object& string_input);
 
 void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2);

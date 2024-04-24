@@ -2,6 +2,14 @@
 #include <string>
 #include <iostream>  // JJJ
 
+static bool starts_with_separator(const py::handle& arg, const std::string& separator) {
+    if (not is_text(arg.ptr())) {
+        return false;
+    }
+    std::string carg = py::cast<std::string>(arg);
+    return carg.substr(0, 1) == separator;
+}
+
 template<class StrType>
 StrType
 api_ospathjoin_aspect(StrType& first_part,
@@ -16,19 +24,19 @@ api_ospathjoin_aspect(StrType& first_part,
         return joined;
     }
 
-    std::string separator = py::str(ospath.attr("sep")).cast<std::string>();
+    std::string separator = ospath.attr("sep").cast<std::string>();
     auto sepsize = separator.size();
 
     // Find the initial iteration point. This will be the first argument that has the separator ("/foo")
     // as a first character or first_part (the first element) if no such argument is found.
-    long unsigned initial_arg_pos = 0;
+    auto initial_arg_pos = -1;
     bool root_is_after_first = false;
     for (auto &arg : args) {
         if (not is_text(arg.ptr())) {
             return joined;
         }
-        std::string carg = py::cast<std::string>(arg);
-        if (carg.substr(0, 1) == separator) {
+
+        if (starts_with_separator(arg, separator)) {
             root_is_after_first = true;
             initial_arg_pos++;
             break;
@@ -36,67 +44,54 @@ api_ospathjoin_aspect(StrType& first_part,
         initial_arg_pos++;
     }
 
-    if (not root_is_after_first) {
-        initial_arg_pos = 0;
-    }
-
-
-    /*
-    // Put first_part and all the args into a vector, converting them to std::string
-    std::vector<py::object> all_args;
-    std::vector<TaintRangeRefs> all_ranges;
-
-    // Add the valid arguments and potential ranges to two vectors
-    if (not root_is_after_first) {
-        all_args.emplace_back(py::cast<py::object>(first_part));
-        all_ranges.emplace_back(api_get_ranges(first_part));
-    }
-
-    for (long unsigned i = initial_arg_pos; i < args.size(); i++) {
-        auto pyobject_arg = py::cast<py::object>(args[i]);
-        all_args.emplace_back(pyobject_arg);
-        all_ranges.emplace_back(api_get_ranges(pyobject_arg));
-    }
-
-    int current_offset;
-    bool first_had_sep = false;
-    // If initial_arg starts with the separator ("/foo"), skip it for the string offset
-    if (all_args[initial_arg_pos].cast<std::string>().substr(0, 1) == separator) {
-        current_offset = sepsize;
-        first_had_sep = true;
-    } else {
-        current_offset = 0;
-    }
-
-    // Iterate over all_args from initial_arg_pos to the end, updating the current_offset
-    // to the position of the last character of the current argument and the separator
     TaintRangeRefs result_ranges;
+    std::vector<TaintRangeRefs> all_ranges;
+    unsigned long current_offset = 0;
 
-    for (long unsigned i = initial_arg_pos; i < all_args.size(); i++) {
-        auto ranges = all_ranges[i];
+    if (not root_is_after_first) {
+        // Get the ranges of first_part and set them to the result, skipping the first character position
+        // if it's a separator
+        auto ranges = api_get_ranges(first_part);
         if (not ranges.empty()) {
             for (auto &range : ranges) {
-                result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(all_args[i])));
+                std::cerr << "JJJ setting FIRST range with current_offset: " << current_offset << std::endl;
+                result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(first_part)));
             }
         }
 
-        if (i == initial_arg_pos and first_had_sep) {
-            current_offset += py::len(all_args[i]) - sepsize;
-        } else {
-            current_offset += py::len(all_args[i]);
+        if (not first_part.is(py::str(separator))) {
+            current_offset = py::len(first_part);
+            std::cerr << "JJJ current offset first time updated to " << current_offset << std::endl;
         }
 
         current_offset += sepsize;
+        initial_arg_pos = 0;
     }
-    current_offset -= sepsize;
+
+    unsigned long unsigned_initial_arg_pos = max(0, initial_arg_pos);
+
+    // Now go trough the arguments and do the same
+    for (unsigned long i = 0; i < args.size(); i++) {
+        if (i >= unsigned_initial_arg_pos) {
+            // Set the ranges from the corresponding argument
+            TaintRangeRefs ranges = api_get_ranges(args[i]);
+            if (not ranges.empty()) {
+                for (auto &range : ranges) {
+                    result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(args[i])));
+                    std::cerr << "JJJ setting range with current_offset: " << current_offset << std::endl;
+                }
+            }
+            current_offset += py::len(args[i]);
+            current_offset += sepsize;
+            std::cerr << "JJJ current_offset iteration updated to " << current_offset << std::endl;
+        }
+    }
 
     if (not result_ranges.empty()) {
         PyObject* new_result = new_pyobject_id(joined.ptr());
         set_ranges(new_result, result_ranges, tx_map);
         return py::reinterpret_steal<StrType>(new_result);
     }
-
-     */
 
     return joined;
 }
