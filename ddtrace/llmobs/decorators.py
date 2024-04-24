@@ -39,7 +39,7 @@ def llm(
     return inner
 
 
-def llmobs_decorator(operation_kind):
+def _llmobs_decorator(operation_kind):
     def decorator(
         original_func: Optional[Callable] = None,
         name: Optional[str] = None,
@@ -68,7 +68,7 @@ def llmobs_decorator(operation_kind):
     return decorator
 
 
-workflow = llmobs_decorator("workflow")
-task = llmobs_decorator("task")
-tool = llmobs_decorator("tool")
-agent = llmobs_decorator("agent")
+workflow = _llmobs_decorator("workflow")
+task = _llmobs_decorator("task")
+tool = _llmobs_decorator("tool")
+agent = _llmobs_decorator("agent")

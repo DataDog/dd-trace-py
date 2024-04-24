@@ -26,6 +26,8 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._writer import LLMObsWriter
 
 
@@ -110,14 +112,16 @@ class LLMObs(Service):
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
         span.set_tag_str(SPAN_KIND, operation_kind)
-        if session_id is not None:
-            span.set_tag_str(SESSION_ID, session_id)
         if model_name is not None:
             span.set_tag_str(MODEL_NAME, model_name)
         if model_provider is not None:
             span.set_tag_str(MODEL_PROVIDER, model_provider)
-        if ml_app is not None:
-            span.set_tag_str(ML_APP, ml_app)
+        if session_id is None:
+            session_id = _get_session_id(span)
+        span.set_tag_str(SESSION_ID, session_id)
+        if ml_app is None:
+            ml_app = _get_ml_app(span)
+        span.set_tag_str(ML_APP, ml_app)
         return span
 
     @classmethod
