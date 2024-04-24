@@ -18,6 +18,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -62,17 +63,20 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
-        meta: Dict[str, Any] = {"span.kind": span._meta.pop(SPAN_KIND), "input": {}, "output": {}}
-        if span.get_tag(MODEL_NAME) is not None:
+        span_kind = span._meta.pop(SPAN_KIND)
+        meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
+        if span_kind == "llm" and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
             meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
-        if span.get_tag(INPUT_PARAMETERS) is not None:
+        if span.get_tag(METADATA) is not None:
+            meta["metadata"] = json.loads(span._meta.pop(METADATA))
+        if span.get_tag(INPUT_PARAMETERS):
             meta["input"]["parameters"] = json.loads(span._meta.pop(INPUT_PARAMETERS))
-        if span.get_tag(INPUT_MESSAGES) is not None:
+        if span_kind == "llm" and span.get_tag(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = json.loads(span._meta.pop(INPUT_MESSAGES))
         if span.get_tag(INPUT_VALUE) is not None:
             meta["input"]["value"] = span._meta.pop(INPUT_VALUE)
-        if span.get_tag(OUTPUT_MESSAGES) is not None:
+        if span_kind == "llm" and span.get_tag(OUTPUT_MESSAGES) is not None:
             meta["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
         if span.get_tag(OUTPUT_VALUE) is not None:
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
