@@ -47,6 +47,7 @@ if _is_python_version_supported():
     from ._native.taint_tracking import shift_taint_ranges
     from ._native.taint_tracking import str_to_origin
     from ._native.taint_tracking import taint_range as TaintRange
+    from ._native.aspect_ospath_join import _aspect_ospathjoin
 
     new_pyobject_id = ops.new_pyobject_id
     set_ranges_from_values = ops.set_ranges_from_values
