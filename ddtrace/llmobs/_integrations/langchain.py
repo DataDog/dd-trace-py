@@ -3,16 +3,19 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
@@ -39,17 +42,13 @@ class LangChainIntegration(BaseLLMIntegration):
         operation: str,  # oneof "llm","chat","chain"
         span: Span,
         inputs: Any,
-        response: Any,
+        response: Any = None,
         error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
         model_provider = span.get_tag(PROVIDER)
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
-        span.set_tag_str(MODEL_PROVIDER, model_provider or "")
-
         self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
@@ -57,7 +56,7 @@ class LangChainIntegration(BaseLLMIntegration):
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            pass
+            self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
 
         span.set_tag_str(METRICS, json.dumps({}))
 
@@ -79,9 +78,9 @@ class LangChainIntegration(BaseLLMIntegration):
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
 
-        if temperature:
+        if temperature is not None:
             input_parameters["temperature"] = float(temperature)
-        if max_tokens:
+        if max_tokens is not None:
             input_parameters["max_tokens"] = int(max_tokens)
         if input_parameters:
             span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
@@ -93,6 +92,10 @@ class LangChainIntegration(BaseLLMIntegration):
         completions: Any,
         err: bool = False,
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
         if isinstance(prompts, str):
             prompts = [prompts]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
@@ -109,6 +112,10 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         err: bool = False,
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
         input_messages = []
         for message_set in chat_messages:
             for message in message_set:
@@ -135,6 +142,23 @@ class LangChainIntegration(BaseLLMIntegration):
                         }
                     )
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+
+    def _llmobs_set_meta_tags_from_chain(
+        self,
+        span: Span,
+        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+        outputs: Any,
+        error: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow")
+
+        if inputs is not None:
+            span.set_tag_str(INPUT_VALUE, str(inputs))
+
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif outputs is not None:
+            span.set_tag_str(OUTPUT_VALUE, str(outputs))
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

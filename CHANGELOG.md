@@ -4,6 +4,89 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.2
+
+
+### Bug Fixes
+
+- tracing: This fix resolves an issue where sampling rules were not matching correctly on float values that had a 0 decimal value. Sampling rules now evaluate such values as integers.
+
+- langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner  
+  libraries, even if they were not available.
+
+- langchain: This fix resolves an issue where tracing `Chain.invoke()` instead of `Chain.__call__()` resulted in the an `ArgumentError` due to an argument name change for inputs between the two methods.
+
+- langchain: This fix adds error handling for checking if a traced LLM or chat model is an OpenAI instance, as the langchain_community package does not allow automatic submodule importing.
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+
+- profiling: fix a bug that caused the HTTP exporter to crash when attempting to serialize tags.
+
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+
+
+---
+
+## 2.7.9
+
+
+### Bug Fixes
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
+
+---
+
+## 2.6.11
+
+
+### Bug Fixes
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
+
+---
+
+## 2.8.1
+
+
+### New Features
+
+- Code Security: to enable IAST in the application, you had to start it with the command `ddtrace-run [your-application-run-command]` so far. Now, you can also activate IAST with the `patch_all` function.
+
+### Bug Fixes
+
+- Code Security: fix setting the wrong source on map elements tainted from <span class="title-ref">taint_structure</span>.
+- Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a `FileNotFoundError`.
+- CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
+- Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- kafka: This fix resolves an issue where an empty message list returned from consume calls could cause crashes in the Kafka integration. Empty lists from consume can occur when the call times out.
+- ASM: This fix removes unrequired API security metrics.
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
+
+---
+
+## 2.7.8
+
+
+### Bug Fixes
+
+- Code Security: fix setting the wrong source on map elements tainted from <span class="title-ref">taint_structure</span>.
+- Code Security: Fixes an issue where the AST patching process fails when the origin of a module is reported as None, raising a `FileNotFoundError`.
+- CI Visibility: fixes an issue where tests were less likely to be skipped due to ITR skippable tests requests timing out earlier than they should
+- Code Security: Fixed an issue with AES functions from the pycryptodome package that caused the application to crash and stop.
+- ASM: This fix removes unrequired API security metrics.
+- instrumentation: fixes crashes that could occur in certain integrations with packages that use non-integer components in their version specifiers
+
+---
+
 ## 2.6.10
 
 
@@ -21,7 +104,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - Code Security: Some native exceptions were not being caught correctly by the python tracer. This fix remove those exceptions to avoid fatal error executions.
 - ASM: This fix removes unrequired API security metrics.
 - structlog: Fixes error where multiple loggers would duplicate processors. Also adds processors injection when resetting to defaults.
-
 
 ---
 

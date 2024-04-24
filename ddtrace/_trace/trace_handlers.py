@@ -447,12 +447,16 @@ def _on_request_span_modifier(
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     span = ctx.get_item("req_span")
+    try:
+        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
+    except Exception:
+        raw_uri = request.url
     trace_utils.set_http_meta(
         span,
         flask_config,
         method=request.method,
         url=request.base_url,
-        raw_uri=request.url,
+        raw_uri=raw_uri,
         query=request.query_string,
         parsed_query=request.args,
         request_headers=request.headers,
@@ -639,7 +643,9 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
     span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
-    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+
+
+span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
 
 
 def _on_botocore_bedrock_process_response(
@@ -650,26 +656,26 @@ def _on_botocore_bedrock_process_response(
     should_set_choice_ids: bool,
 ) -> None:
     text = formatted_response["text"]
-    dd_span = ctx[ctx["call_key"]]
+    span = ctx[ctx["call_key"]]
     if should_set_choice_ids:
         for i in range(len(text)):
-            dd_span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
-    datadog_integration = ctx["bedrock_integration"]
+            span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
+    integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
-            dd_span.set_tag_str("bedrock.{}".format(k), str(v))
+            span.set_tag_str("bedrock.{}".format(k), str(v))
     for i in range(len(formatted_response["text"])):
-        if datadog_integration.is_pc_sampled_span(dd_span):
-            dd_span.set_tag_str(
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str(
                 "bedrock.response.choices.{}.text".format(i),
-                datadog_integration.trunc(str(formatted_response["text"][i])),
+                integration.trunc(str(formatted_response["text"][i])),
             )
-        dd_span.set_tag_str(
+        span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    if datadog_integration.is_pc_sampled_llmobs(dd_span):
-        datadog_integration.llmobs_set_tags(dd_span, formatted_response=formatted_response, prompt=ctx["prompt"])
-    dd_span.finish()
+    if integration.is_pc_sampled_llmobs(span):
+        integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    span.finish()
 
 
 def listen():

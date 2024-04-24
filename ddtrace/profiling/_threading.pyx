@@ -25,7 +25,6 @@ cdef extern from "<Python.h>":
 
 IF UNAME_SYSNAME == "Linux":
     from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.wrapping import wrap
 
     cdef extern from "<sys/syscall.h>" nogil:
         int __NR_gettid
@@ -42,6 +41,7 @@ IF UNAME_SYSNAME == "Linux":
                     # DEV: args[0] == self
                     args[0].native_id = PyLong_FromLong(syscall(__NR_gettid))
 
+            from ddtrace.internal.wrapping import wrap
             wrap(threading.Thread._bootstrap, bootstrap_wrapper)
 
             # Assign the native thread ID to the main thread as well
