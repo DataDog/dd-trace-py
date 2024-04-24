@@ -18,6 +18,7 @@ from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
+from .._taint_tracking import _aspect_ospathjoin
 from .._taint_tracking import are_all_text_all_ranges
 from .._taint_tracking import as_formatted_evidence
 from .._taint_tracking import common_replace

@@ -2,9 +2,6 @@
 #include <string>
 
 static bool starts_with_separator(const py::handle& arg, const std::string& separator) {
-    if (not is_text(arg.ptr())) {
-        return false;
-    }
     std::string carg = py::cast<std::string>(arg);
     return carg.substr(0, 1) == separator;
 }
@@ -44,8 +41,11 @@ api_ospathjoin_aspect(StrType& first_part,
     }
 
     TaintRangeRefs result_ranges;
+    result_ranges.reserve(args.size());
+
     std::vector<TaintRangeRefs> all_ranges;
     unsigned long current_offset = 0;
+    auto first_part_len = py::len(first_part);
 
     if (not root_is_after_first) {
         // Get the ranges of first_part and set them to the result, skipping the first character position
@@ -53,7 +53,7 @@ api_ospathjoin_aspect(StrType& first_part,
         auto ranges = api_get_ranges(first_part);
         if (not ranges.empty()) {
             for (auto &range : ranges) {
-                result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(first_part)));
+                result_ranges.emplace_back(api_shift_taint_range(range, current_offset, first_part_len));
             }
         }
 
@@ -71,10 +71,11 @@ api_ospathjoin_aspect(StrType& first_part,
     for (unsigned long i = 0; i < args.size(); i++) {
         if (i >= unsigned_initial_arg_pos) {
             // Set the ranges from the corresponding argument
-            TaintRangeRefs ranges = api_get_ranges(args[i]);
+            auto ranges = api_get_ranges(args[i]);
             if (not ranges.empty()) {
+                auto len_args_i = py::len(args[i]);
                 for (auto &range : ranges) {
-                    result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(args[i])));
+                    result_ranges.emplace_back(api_shift_taint_range(range, current_offset, len_args_i));
                 }
             }
             current_offset += py::len(args[i]);
