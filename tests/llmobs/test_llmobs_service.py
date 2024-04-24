@@ -149,7 +149,7 @@ def test_llmobs_llm_span(LLMObs, mock_llmobs_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) is None
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
     mock_llmobs_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
@@ -175,7 +175,6 @@ def test_llmobs_default_model_provider_set_to_custom(LLMObs):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "custom"
-        assert span.get_tag(SESSION_ID) is None
 
 
 def test_llmobs_tool_span(LLMObs, mock_llmobs_writer):
@@ -184,7 +183,6 @@ def test_llmobs_tool_span(LLMObs, mock_llmobs_writer):
         assert span.resource == "tool"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "tool"
-        assert span.get_tag(SESSION_ID) is None
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
@@ -194,7 +192,6 @@ def test_llmobs_task_span(LLMObs, mock_llmobs_writer):
         assert span.resource == "task"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "task"
-        assert span.get_tag(SESSION_ID) is None
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
@@ -204,7 +201,6 @@ def test_llmobs_workflow_span(LLMObs, mock_llmobs_writer):
         assert span.resource == "workflow"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "workflow"
-        assert span.get_tag(SESSION_ID) is None
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
@@ -214,7 +210,6 @@ def test_llmobs_agent_span(LLMObs, mock_llmobs_writer):
         assert span.resource == "agent"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "agent"
-        assert span.get_tag(SESSION_ID) is None
     mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
