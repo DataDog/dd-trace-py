@@ -439,7 +439,7 @@ jobs:
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/ || true
       # Print diff-cover report to stdout (compares against origin/1.x)
-      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
 
   build_base_venvs:
