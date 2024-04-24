@@ -6,9 +6,9 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
+from ddtrace._trace.utils import set_botocore_response_metadata_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -569,20 +569,14 @@ def _on_botocore_patched_api_call_started(ctx):
         span.start_ns = start_ns
 
 
-def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_response_metadata_tags):
+def _on_botocore_patched_api_call_exception(ctx, response, exception_type):
     span = ctx.get_item(ctx.get_item("call_key"))
     # `ClientError.response` contains the result, so we can still grab response metadata
-    set_response_metadata_tags(span, response)
-
-    # If we have a status code, and the status code is not an error,
-    #   then ignore the exception being raised
-    status_code = span.get_tag(http.STATUS_CODE)
-    if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-        span._ignore_exception(exception_type)
+    set_botocore_response_metadata_tags(span, response)
 
 
-def _on_botocore_patched_api_call_success(ctx, response, set_response_metadata_tags):
-    set_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
+def _on_botocore_patched_api_call_success(ctx, response):
+    set_botocore_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
 
 
 def _on_botocore_trace_context_injection_prepared(

@@ -8,7 +8,6 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.botocore.utils import extract_DD_context
-from ddtrace.contrib.botocore.utils import set_response_metadata_tags
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -161,7 +160,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     result = original_func(*args, **kwargs)
                     core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result, set_response_metadata_tags])
+                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
 
                 if func_run_err:
                     raise func_run_err
@@ -169,7 +168,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_sqs_api_call.exception",
-                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                    [ctx, e.response, botocore.exceptions.ClientError],
                 )
                 raise
     elif func_has_run:

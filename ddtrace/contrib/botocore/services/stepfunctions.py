@@ -12,7 +12,6 @@ from ....internal.logger import get_logger
 from ....internal.schema import SpanDirection
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
-from ..utils import set_response_metadata_tags
 
 
 log = get_logger(__name__)
@@ -81,6 +80,6 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_stepfunctions_api_call.exception",
-                [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                [ctx, e.response, botocore.exceptions.ClientError],
             )
             raise

@@ -19,7 +19,6 @@ from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
-from ..utils import set_response_metadata_tags
 
 
 log = get_logger(__name__)
@@ -158,13 +157,13 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 if getrecords_error:
                     raise getrecords_error
 
-                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result, set_response_metadata_tags])
+                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result])
                 return result
 
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_kinesis_api_call.exception",
-                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                    [ctx, e.response, botocore.exceptions.ClientError],
                 )
                 raise
     elif is_getrecords_call:

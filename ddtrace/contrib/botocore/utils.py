@@ -8,12 +8,10 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.core import ExecutionContext
 
-from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 
@@ -124,26 +122,6 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"].update(trace_headers)
     else:
         client_context_object["custom"] = trace_headers
-
-
-def set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
-    if not result or not result.get("ResponseMetadata"):
-        return
-    response_meta = result["ResponseMetadata"]
-
-    if "HTTPStatusCode" in response_meta:
-        status_code = response_meta["HTTPStatusCode"]
-        span.set_tag(http.STATUS_CODE, status_code)
-
-        # Mark this span as an error if requested
-        if config.botocore.operations[span.resource].is_error_code(int(status_code)):
-            span.error = 1
-
-    if "RetryAttempts" in response_meta:
-        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
-
-    if "RequestId" in response_meta:
-        span.set_tag_str("aws.requestid", response_meta["RequestId"])
 
 
 def extract_DD_context(messages):
