@@ -76,10 +76,6 @@ class AstVisitor(ast.NodeTransformer):
                 "os.path": {
                     "join": "ddtrace_aspects._aspect_ospathjoin",
                 }
-                # "BytesIO": "ddtrace_aspects.stringio_aspect",
-                # "StringIO": "ddtrace_aspects.stringio_aspect",
-                # "format": "ddtrace_aspects.format_aspect",
-                # "format_map": "ddtrace_aspects.format_map_aspect",
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
@@ -497,11 +493,11 @@ class AstVisitor(ast.NodeTransformer):
 
             # This resolve moduleparent.modulechild.name
             # TODO: use the better Hdiv method with a decorator
-            func_value = getattr(func_member, 'value', None)
-            func_value_value = getattr(func_value, 'value', None) if func_value else None
-            func_value_value_id = getattr(func_value_value, 'id', None) if func_value_value else None
-            func_value_attr = getattr(func_value, 'attr', None) if func_value else None
-            func_attr = getattr(func_member, 'attr', None)
+            func_value = getattr(func_member, "value", None)
+            func_value_value = getattr(func_value, "value", None) if func_value else None
+            func_value_value_id = getattr(func_value_value, "id", None) if func_value_value else None
+            func_value_attr = getattr(func_value, "attr", None) if func_value else None
+            func_attr = getattr(func_member, "attr", None)
             if func_value_value_id or func_attr:
                 aspect = None
                 if func_value_value_id and func_value_attr:
@@ -537,7 +533,6 @@ class AstVisitor(ast.NodeTransformer):
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
-
 
         if self.codetype == CODE_TYPE_FIRST_PARTY:
             # Function replacement case

@@ -1,13 +1,13 @@
-import logging
 
 import pytest
 
-from ddtrace.appsec._iast._taint_tracking import _aspect_ospathjoin
-from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathjoin
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
 
 tainted_foo_slash = taint_pyobject(
     pyobject="/foo",
@@ -38,8 +38,8 @@ def test_first_arg_nottainted_noslash():
         source_value="bar",
         source_origin=OriginType.PARAMETER,
     )
-    res = _aspect_ospathjoin("root", tainted_foo,"nottainted", tainted_bar, "alsonottainted")
-    assert res == 'root/foo/nottainted/bar/alsonottainted'
+    res = _aspect_ospathjoin("root", tainted_foo, "nottainted", tainted_bar, "alsonottainted")
+    assert res == "root/foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
         TaintRange(5, 3, Source("test_ospathjoin", "foo", OriginType.PARAMETER)),
         TaintRange(20, 3, Source("test_ospathjoin", "bar", OriginType.PARAMETER)),
@@ -62,10 +62,11 @@ def test_later_arg_tainted_with_slash_then_ignore_previous():
     )
 
     res = _aspect_ospathjoin("ignored", ignored_tainted_foo, "ignored_nottainted", tainted_slashbar, "alsonottainted")
-    assert res == '/bar/alsonottainted'
+    assert res == "/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
         TaintRange(0, 4, Source("test_ospathjoin", "/bar", OriginType.PARAMETER)),
     ]
+
 
 def test_first_arg_tainted_no_slash():
     tainted_foo = taint_pyobject(
@@ -83,7 +84,7 @@ def test_first_arg_tainted_no_slash():
     )
 
     res = _aspect_ospathjoin(tainted_foo, "nottainted", tainted_bar, "alsonottainted")
-    assert res == 'foo/nottainted/bar/alsonottainted'
+    assert res == "foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
         TaintRange(0, 3, Source("test_ospathjoin", "foo", OriginType.PARAMETER)),
         TaintRange(15, 3, Source("test_ospathjoin", "bar", OriginType.PARAMETER)),
@@ -106,11 +107,12 @@ def test_first_arg_tainted_with_slah():
     )
 
     res = _aspect_ospathjoin(tainted_slashfoo, "nottainted", tainted_bar, "alsonottainted")
-    assert res == '/foo/nottainted/bar/alsonottainted'
+    assert res == "/foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
         TaintRange(0, 4, Source("test_ospathjoin", "/foo", OriginType.PARAMETER)),
         TaintRange(16, 3, Source("test_ospathjoin", "bar", OriginType.PARAMETER)),
     ]
+
 
 def test_single_arg_nottainted():
     res = _aspect_ospathjoin("nottainted")
@@ -153,7 +155,7 @@ def test_last_slash_nottainted():
     )
 
     res = _aspect_ospathjoin("root", tainted_foo, "/nottainted")
-    assert res == '/nottainted'
+    assert res == "/nottainted"
     assert not get_tainted_ranges(res)
 
 
@@ -172,7 +174,7 @@ def test_last_slash_tainted():
         source_origin=OriginType.PARAMETER,
     )
     res = _aspect_ospathjoin("root", tainted_foo, "nottainted", tainted_slashbar)
-    assert res == '/bar'
+    assert res == "/bar"
     assert get_tainted_ranges(res) == [TaintRange(0, 4, Source("test_ospathjoin", "/bar", OriginType.PARAMETER))]
 
 
@@ -221,4 +223,3 @@ def test_empty():
 def test_noparams():
     with pytest.raises(TypeError):
         _ = _aspect_ospathjoin()
-
