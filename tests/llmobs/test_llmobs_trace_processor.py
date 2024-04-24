@@ -20,13 +20,33 @@ def mock_logs():
         yield mock_logs
 
 
-def test_processor_returns_all_traces():
-    """Test that the LLMObsTraceProcessor returns all traces."""
+def test_processor_returns_all_traces_by_default(monkeypatch):
+    """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
     root_llm_span.set_tag_str(SPAN_KIND, "llm")
     trace1 = [root_llm_span]
     assert trace_filter.process_trace(trace1) == trace1
+
+
+def test_processor_returns_all_traces_if_no_apm_env_var_is_false(monkeypatch):
+    """Test that the LLMObsTraceProcessor returns all traces if DD_LLMOBS_NO_APM is not set to true."""
+    monkeypatch.setenv("DD_LLMOBS_NO_APM", "0")
+    trace_filter = LLMObsTraceProcessor(llmobs_writer=mock.MagicMock())
+    root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+    root_llm_span.set_tag_str(SPAN_KIND, "llm")
+    trace1 = [root_llm_span]
+    assert trace_filter.process_trace(trace1) == trace1
+
+
+def test_processor_returns_none_if_no_apm_env_var_is_true(monkeypatch):
+    """Test that the LLMObsTraceProcessor returns None if DD_LLMOBS_NO_APM is set to true."""
+    monkeypatch.setenv("DD_LLMOBS_NO_APM", "1")
+    trace_filter = LLMObsTraceProcessor(llmobs_writer=mock.MagicMock())
+    root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+    root_llm_span.set_tag_str(SPAN_KIND, "llm")
+    trace1 = [root_llm_span]
+    assert trace_filter.process_trace(trace1) is None
 
 
 def test_processor_creates_llmobs_span_event():
