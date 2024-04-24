@@ -49,9 +49,6 @@ class LangChainIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         model_provider = span.get_tag(PROVIDER)
-        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
-        span.set_tag_str(MODEL_PROVIDER, model_provider or "")
-
         self._llmobs_set_input_parameters(span, model_provider)
 
         if operation == "llm":
@@ -96,6 +93,8 @@ class LangChainIntegration(BaseLLMIntegration):
         err: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
         if isinstance(prompts, str):
             prompts = [prompts]
@@ -114,6 +113,8 @@ class LangChainIntegration(BaseLLMIntegration):
         err: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
         input_messages = []
         for message_set in chat_messages:
