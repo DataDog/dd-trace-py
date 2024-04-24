@@ -21,7 +21,7 @@ jobs:
         include:
          - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-latest
+         - os: arm-4core-linux
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
@@ -45,7 +45,7 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        run: pipx run cibuildwheel==2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
