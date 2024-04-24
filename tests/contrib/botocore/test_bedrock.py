@@ -471,7 +471,7 @@ class TestLLMObsBedrock:
             model_provider=span.get_tag("bedrock.request.model_provider"),
             input_messages=expected_input,
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
-            parameters=expected_parameters,
+            metadata=expected_parameters,
             token_metrics={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
@@ -631,7 +631,7 @@ class TestLLMObsBedrock:
                     model_name=span.get_tag("bedrock.request.model"),
                     model_provider=span.get_tag("bedrock.request.model_provider"),
                     input_messages=[{"content": mock.ANY}],
-                    parameters={
+                    metadata={
                         "temperature": float(span.get_tag("bedrock.request.temperature")),
                         "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
                     },
