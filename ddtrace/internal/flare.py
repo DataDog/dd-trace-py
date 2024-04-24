@@ -69,7 +69,9 @@ class Flare:
             # We do this valid_original_level check because if the log level is NOTSET, the value is 0
             # which is the minimum value. In this case, we just want to use the flare level, but still
             # retain the original state as NOTSET/0
-            valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
+            valid_original_level = (
+                logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
+            )
             logger_level = min(valid_original_level, flare_log_level_int)
             ddlogger.setLevel(logger_level)
             self.file_handler = _add_file_handler(
@@ -103,8 +105,9 @@ class Flare:
                 except Exception as e:
                     log.error("Failed to create %s file", lock_path)
                     raise e
+                zendesk_ticket = args.get("case_id")
                 data = {
-                    "case_id": args.get("case_id"),
+                    "case_id": zendesk_ticket,
                     "source": "tracer_python",
                     "hostname": args.get("hostname"),
                     "email": args.get("user_handle"),
@@ -115,16 +118,17 @@ class Flare:
                     client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                     response = client.getresponse()
                     if response.status == 200:
-                        log.info("Successfully sent the flare")
+                        log.info("Successfully sent the flare to Zendesk ticket %s", zendesk_ticket)
                     else:
                         log.error(
-                            "Upload failed with %s status code:(%s) %s",
+                            "Flare upload to Zendesk ticket %s failed with %s status code:(%s) %s",
+                            zendesk_ticket,
                             response.status,
                             response.reason,
                             response.read().decode(),
                         )
                 except Exception as e:
-                    log.error("Failed to send tracer flare")
+                    log.error("Failed to send tracer flare to Zendesk ticket %s", zendesk_ticket)
                     raise e
                 finally:
                     client.close()
