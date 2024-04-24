@@ -398,7 +398,9 @@ def test_read_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
+        with mock.patch(
+            "ddtrace.contrib.botocore.services.bedrock._extract_text_and_response_reason"
+        ) as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
             with pytest.raises(Exception):
                 response.get("body").read()
@@ -423,7 +425,9 @@ def test_readlines_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
+        with mock.patch(
+            "ddtrace.contrib.botocore.services.bedrock._extract_text_and_response_reason"
+        ) as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
             with pytest.raises(Exception):
                 response.get("body").readlines()
