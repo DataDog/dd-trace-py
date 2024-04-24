@@ -236,12 +236,13 @@ def test_model_and_provider_are_set():
     """Test that model and provider are set on the span event if they are present on the LLM-kind span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(MODEL_NAME, "model_name")
-        llm_span.set_tag(MODEL_PROVIDER, "model_provider")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    span_event = tp._llmobs_span_event(llm_span)
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(MODEL_NAME, "model_name")
+            llm_span.set_tag(MODEL_PROVIDER, "model_provider")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        span_event = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "model_provider"
 
@@ -250,11 +251,12 @@ def test_model_provider_defaults_to_custom():
     """Test that model provider defaults to "custom" if not provided."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(MODEL_NAME, "model_name")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    span_event = tp._llmobs_span_event(llm_span)
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(MODEL_NAME, "model_name")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        span_event = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["model_name"] == "model_name"
     assert span_event["meta"]["model_provider"] == "custom"
 
@@ -263,11 +265,12 @@ def test_model_not_set_if_not_llm_kind_span():
     """Test that model name and provider not set if non-LLM span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_workflow_span", span_type=SpanTypes.LLM) as span:
-        span.set_tag(SPAN_KIND, "workflow")
-        span.set_tag(MODEL_NAME, "model_name")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    span_event = tp._llmobs_span_event(span)
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_workflow_span", span_type=SpanTypes.LLM) as span:
+            span.set_tag(SPAN_KIND, "workflow")
+            span.set_tag(MODEL_NAME, "model_name")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        span_event = tp._llmobs_span_event(span)
     assert "model_name" not in span_event["meta"]
     assert "model_provider" not in span_event["meta"]
 
@@ -276,89 +279,97 @@ def test_input_messages_are_set():
     """Test that input messages are set on the span event if they are present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(INPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(INPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
 
 
 def test_input_value_is_set():
     """Test that input value is set on the span event if they are present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(INPUT_VALUE, "value")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["input"]["value"] == "value"
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(INPUT_VALUE, "value")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["value"] == "value"
 
 
 def test_input_parameters_are_set():
     """Test that input parameters are set on the span event if they are present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(INPUT_PARAMETERS, '{"key": "value"}')
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["input"]["parameters"] == {"key": "value"}
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(INPUT_PARAMETERS, '{"key": "value"}')
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["input"]["parameters"] == {"key": "value"}
 
 
 def test_output_messages_are_set():
     """Test that output messages are set on the span event if they are present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(OUTPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["output"]["messages"] == [{"content": "message", "role": "user"}]
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(OUTPUT_MESSAGES, '[{"content": "message", "role": "user"}]')
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["output"]["messages"] == [{"content": "message", "role": "user"}]
 
 
 def test_output_value_is_set():
     """Test that output value is set on the span event if they are present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(OUTPUT_VALUE, "value")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(OUTPUT_VALUE, "value")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["output"]["value"] == "value"
 
 
 def test_metadata_is_set():
     """Test that metadata is set on the span event if it is present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(METADATA, '{"key": "value"}')
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["meta"]["metadata"] == {"key": "value"}
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(METADATA, '{"key": "value"}')
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["meta"]["metadata"] == {"key": "value"}
 
 
 def test_metrics_are_set():
     """Test that metadata is set on the span event if it is present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span.set_tag(SPAN_KIND, "llm")
-        llm_span.set_tag(METRICS, '{"tokens": 100}')
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    assert tp._llmobs_span_event(llm_span)["metrics"] == {"tokens": 100}
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+            llm_span.set_tag(METRICS, '{"tokens": 100}')
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        assert tp._llmobs_span_event(llm_span)["metrics"] == {"tokens": 100}
 
 
 def test_error_is_set():
     """Test that error is set on the span event if it is present on the span."""
     dummy_tracer = DummyTracer()
     mock_llmobs_writer = mock.MagicMock()
-    with pytest.raises(ValueError):
-        with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-            llm_span.set_tag(SPAN_KIND, "llm")
-            raise ValueError("error")
-    tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
-    span_event = tp._llmobs_span_event(llm_span)
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with pytest.raises(ValueError):
+            with dummy_tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+                llm_span.set_tag(SPAN_KIND, "llm")
+                raise ValueError("error")
+        tp = LLMObsTraceProcessor(llmobs_writer=mock_llmobs_writer)
+        span_event = tp._llmobs_span_event(llm_span)
     assert span_event["meta"]["error.message"] == "error"
     assert "ValueError" in span_event["meta"]["error.type"]
     assert 'raise ValueError("error")' in span_event["meta"]["error.stack"]

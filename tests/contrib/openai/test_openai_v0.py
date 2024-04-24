@@ -2495,7 +2495,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": ""}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={},
             error="openai.error.AuthenticationError",
             error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
