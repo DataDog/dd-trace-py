@@ -1,6 +1,5 @@
 #include "AspectOsPathJoin.h"
 #include <string>
-#include <iostream>  // JJJ
 
 static bool starts_with_separator(const py::handle& arg, const std::string& separator) {
     if (not is_text(arg.ptr())) {
@@ -54,14 +53,12 @@ api_ospathjoin_aspect(StrType& first_part,
         auto ranges = api_get_ranges(first_part);
         if (not ranges.empty()) {
             for (auto &range : ranges) {
-                std::cerr << "JJJ setting FIRST range with current_offset: " << current_offset << std::endl;
                 result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(first_part)));
             }
         }
 
         if (not first_part.is(py::str(separator))) {
             current_offset = py::len(first_part);
-            std::cerr << "JJJ current offset first time updated to " << current_offset << std::endl;
         }
 
         current_offset += sepsize;
@@ -78,12 +75,10 @@ api_ospathjoin_aspect(StrType& first_part,
             if (not ranges.empty()) {
                 for (auto &range : ranges) {
                     result_ranges.emplace_back(api_shift_taint_range(range, current_offset, py::len(args[i])));
-                    std::cerr << "JJJ setting range with current_offset: " << current_offset << std::endl;
                 }
             }
             current_offset += py::len(args[i]);
             current_offset += sepsize;
-            std::cerr << "JJJ current_offset iteration updated to " << current_offset << std::endl;
         }
     }
 
