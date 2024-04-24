@@ -423,22 +423,22 @@ jobs:
       - run: codecov
       # Generate and save xml report
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage xml --ignore-errors
+      - run: coverage xml --ignore-errors || true
       - store_artifacts:
           path: coverage.xml
       # Generate and save JSON report
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage json --ignore-errors
+      - run: coverage json --ignore-errors || true
       - store_artifacts:
           path: coverage.json
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/
+      - run: coverage report --ignore-errors --omit=tests/ || true
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/
+      - run: coverage report --ignore-errors --omit=ddtrace/ || true
       # Print diff-cover report to stdout (compares against origin/1.x)
-      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
 
   build_base_venvs:
