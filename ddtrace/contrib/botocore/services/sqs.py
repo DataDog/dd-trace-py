@@ -7,13 +7,14 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
-from ddtrace.contrib.botocore.utils import extract_DD_context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
+from ..utils import extract_trace_context_json
 
 
 log = get_logger(__name__)
@@ -92,8 +93,10 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     func_has_run = False
     func_run_err = None
     result = None
-    parent_ctx: core.ExecutionContext = None
 
+    parent_ctx: core.ExecutionContext = core.ExecutionContext(
+        "botocore.patched_sqs_api_call.propagated",
+    )
     if operation == "ReceiveMessage":
         _ensure_datadog_messageattribute_enabled(params)
 
@@ -102,16 +105,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             # run the function to extract possible parent context before creating ExecutionContext
             result = original_func(*args, **kwargs)
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+            core.dispatch(
+                f"botocore.{endpoint_name}.{operation}.post",
+                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_trace_context_json],
+            )
         except Exception as e:
             func_run_err = e
-        if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
-            message_received = True
-            if config.botocore.propagation_enabled:
-                parent_ctx = core.ExecutionContext(
-                    "botocore.patched_sqs_api_call.propagated",
-                    distributed_context=extract_DD_context(result["Messages"]),
-                )
 
     function_is_not_recvmessage = not func_has_run
     received_message_when_polling = func_has_run and message_received
@@ -174,8 +173,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     [ctx, e.response, botocore.exceptions.ClientError],
                 )
                 raise
-        if parent_ctx is not None:
-            parent_ctx.__exit__()
+        parent_ctx.end()
     elif func_has_run:
         if func_run_err:
             raise func_run_err

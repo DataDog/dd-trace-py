@@ -172,7 +172,7 @@ def get_datastreams_context(message):
     return context_json
 
 
-def handle_sqs_receive(params, result):
+def handle_sqs_receive(_, params, result, *args):
     from . import data_streams_processor as processor
 
     queue_name = get_queue_name(params)

@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace._trace.utils import set_botocore_response_metadata_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -673,6 +674,13 @@ def _on_botocore_bedrock_process_response(
     span.finish()
 
 
+def _on_botocore_sqs_recvmessage_post(
+    ctx: core.ExecutionContext, _, result: Dict, propagate: bool, message_parser: Callable
+) -> None:
+    if result is not None and "Messages" in result and len(result["Messages"]) >= 1 and propagate:
+        ctx.set_safe("distributed_context", extract_DD_context_from_messages(result["Messages"], message_parser))
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -719,6 +727,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
 
     for context_name in (
         "flask.call",

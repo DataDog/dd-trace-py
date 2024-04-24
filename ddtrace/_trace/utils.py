@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Callable
 from typing import Dict
 
 from ddtrace import Span
@@ -11,6 +12,7 @@ from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.propagation.http import HTTPPropagator
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
@@ -63,3 +65,15 @@ def set_botocore_response_metadata_tags(span: Span, result: Dict[str, Any]) -> N
 
     if "RequestId" in response_meta:
         span.set_tag_str("aws.requestid", response_meta["RequestId"])
+
+
+def extract_DD_context_from_messages(messages, extract_from_message: Callable):
+    ctx = None
+    if len(messages) >= 1:
+        message = messages[0]
+        context_json = extract_from_message(message)
+        if context_json is not None:
+            child_of = HTTPPropagator.extract(context_json)
+            if child_of.trace_id is not None:
+                ctx = child_of
+    return ctx
