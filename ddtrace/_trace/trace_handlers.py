@@ -677,8 +677,26 @@ def _on_botocore_bedrock_process_response(
 def _on_botocore_sqs_recvmessage_post(
     ctx: core.ExecutionContext, _, result: Dict, propagate: bool, message_parser: Callable
 ) -> None:
-    if result is not None and "Messages" in result and len(result["Messages"]) >= 1 and propagate:
-        ctx.set_safe("distributed_context", extract_DD_context_from_messages(result["Messages"], message_parser))
+    if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
+        ctx.set_item("message_received", True)
+        if propagate:
+            ctx.set_safe("distributed_context", extract_DD_context_from_messages(result["Messages"], message_parser))
+
+
+def _on_botocore_kinesis_getrecords_post(
+    ctx: core.ExecutionContext,
+    _,
+    __,
+    ___,
+    ____,
+    result,
+    propagate: bool,
+    message_parser: Callable,
+):
+    if result is not None and "Records" in result and len(result["Records"]) >= 1:
+        ctx.set_item("message_received", True)
+        if propagate:
+            ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
 def listen():
@@ -728,6 +746,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
+    core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
 
     for context_name in (
         "flask.call",

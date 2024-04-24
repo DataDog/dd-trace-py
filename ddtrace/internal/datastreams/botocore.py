@@ -206,7 +206,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
     )
 
 
-def handle_kinesis_receive(params, time_estimate, context_json, record):
+def handle_kinesis_receive(_, params, time_estimate, context_json, record, *args):
     try:
         record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:

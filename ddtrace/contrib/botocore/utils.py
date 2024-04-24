@@ -13,7 +13,6 @@ from ddtrace.internal import core
 from ddtrace.internal.core import ExecutionContext
 
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -124,19 +123,7 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def extract_DD_context(messages):
-    ctx = None
-    if len(messages) >= 1:
-        message = messages[0]
-        context_json = extract_trace_context_json(message)
-        if context_json is not None:
-            child_of = HTTPPropagator.extract(context_json)
-            if child_of.trace_id is not None:
-                ctx = child_of
-    return ctx
-
-
-def extract_trace_context_json(message):
+def extract_DD_json(message):
     context_json = None
     try:
         if message and message.get("Type") == "Notification":
@@ -173,7 +160,7 @@ def extract_trace_context_json(message):
             if "Body" in message:
                 try:
                     body = json.loads(message["Body"])
-                    return extract_trace_context_json(body)
+                    return extract_DD_json(body)
                 except ValueError:
                     log.debug("Unable to parse AWS message body.")
     except Exception:

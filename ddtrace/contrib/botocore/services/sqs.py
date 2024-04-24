@@ -14,7 +14,7 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from ..utils import extract_trace_context_json
+from ..utils import extract_DD_json
 
 
 log = get_logger(__name__)
@@ -89,7 +89,6 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    message_received = False
     func_has_run = False
     func_run_err = None
     result = None
@@ -107,13 +106,13 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             result = original_func(*args, **kwargs)
             core.dispatch(
                 f"botocore.{endpoint_name}.{operation}.post",
-                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_trace_context_json],
+                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
             )
         except Exception as e:
             func_run_err = e
 
     function_is_not_recvmessage = not func_has_run
-    received_message_when_polling = func_has_run and message_received
+    received_message_when_polling = func_has_run and parent_ctx.get_item("message_received")
     instrument_empty_poll_calls = config.botocore.empty_poll_enabled
     should_instrument = (
         received_message_when_polling or instrument_empty_poll_calls or function_is_not_recvmessage or func_run_err
