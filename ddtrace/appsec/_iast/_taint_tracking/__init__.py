@@ -1,12 +1,20 @@
+import os
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
+
+from ..._constants import IAST
+from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
+
+log = get_logger(__name__)
 
 if _is_python_version_supported():
     from ._native import ops
@@ -42,7 +50,6 @@ if _is_python_version_supported():
 
     new_pyobject_id = ops.new_pyobject_id
     set_ranges_from_values = ops.set_ranges_from_values
-    is_pyobject_tainted = is_tainted
 
 
 __all__ = [
@@ -77,12 +84,34 @@ __all__ = [
     "parse_params",
     "num_objects_tainted",
     "debug_taint_map",
+    "iast_taint_log_error",
 ]
+
+
+def iast_taint_log_error(msg):
+    if asbool(os.environ.get(IAST.ENV_DEBUG, "false")):
+        import inspect
+
+        stack = inspect.stack()
+        frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
+        log.debug("%s:\n%s", msg, frame_info)
+        _set_iast_error_metric("IAST propagation error. %s" % msg)
+
+
+def is_pyobject_tainted(pyobject: Any) -> bool:
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+        return False
+
+    try:
+        return is_tainted(pyobject)
+    except ValueError as e:
+        iast_taint_log_error("Checking tainted object error: %s" % e)
+    return False
 
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
-    if not pyobject or not isinstance(pyobject, (str, bytes, bytearray)):
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
         return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
@@ -95,17 +124,32 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
-    pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
-    _set_metric_iast_executed_source(source_origin)
-    return pyobject_newid
+    try:
+        pyobject_newid = set_ranges_from_values(pyobject, len(pyobject), source_name, source_value, source_origin)
+        _set_metric_iast_executed_source(source_origin)
+        return pyobject_newid
+    except ValueError as e:
+        iast_taint_log_error("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
+    return pyobject
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
-    set_ranges(pyobject, tuple(ranges))
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+        return None
+    try:
+        set_ranges(pyobject, ranges)
+    except ValueError as e:
+        iast_taint_log_error("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    return get_ranges(pyobject)
+    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+        return tuple()
+    try:
+        return get_ranges(pyobject)
+    except ValueError as e:
+        iast_taint_log_error("Get ranges error (pyobject type %s): %s" % (type(pyobject), e))
+    return tuple()
 
 
 def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:

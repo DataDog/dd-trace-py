@@ -1,13 +1,11 @@
 import json
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
+from typing import Any
+from typing import Dict
 
 import botocore.exceptions
 
-from ddtrace import Span  # noqa:F401
 from ddtrace import config
-from ddtrace.ext import http
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.internal import core
 
 from ....ext import SpanTypes
 from ....internal.logger import get_logger
@@ -21,50 +19,25 @@ from ..utils import set_response_metadata_tags
 log = get_logger(__name__)
 
 
-def inject_trace_to_stepfunction_input(params, span):
-    # type: (Any, Span) -> None
-    """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
-
-    Inject the trace headers into the StepFunction input if the input is a JSON string
-    """
-    if "input" not in params:
-        log.warning("Unable to inject context. The StepFunction input had no input.")
+def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
+    if "input" not in params or params["input"] is None:
         return
 
-    if params["input"] is None:
-        log.warning("Unable to inject context. The StepFunction input was None.")
-        return
+    input_obj = params["input"]
 
-    elif isinstance(params["input"], dict):
-        if "_datadog" in params["input"]:
-            log.warning("Input already has trace context.")
-            return
-        params["input"]["_datadog"] = {}
-        HTTPPropagator.inject(span.context, params["input"]["_datadog"])
-        return
-
-    elif isinstance(params["input"], str):
+    if isinstance(input_obj, str):
         try:
             input_obj = json.loads(params["input"])
         except ValueError:
             log.warning("Input is not a valid JSON string")
             return
 
-        if isinstance(input_obj, dict):
-            input_obj["_datadog"] = {}
-            HTTPPropagator.inject(span.context, input_obj["_datadog"])
-            input_json = json.dumps(input_obj)
+    if not isinstance(input_obj, dict) or "_datadog" in input_obj:
+        return
 
-            params["input"] = input_json
-            return
-        else:
-            log.warning("Unable to inject context. The StepFunction input was not a dict.")
-            return
+    input_obj["_datadog"] = {}
 
-    else:
-        log.warning("Unable to inject context. The StepFunction input was not a dict or a JSON string.")
+    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj["_datadog"], None])
 
 
 def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, function_vars: Dict):
@@ -74,35 +47,42 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    with pin.tracer.trace(
-        trace_operation,
+    is_start_execution_call = endpoint_name == "states" and operation in {"StartExecution", "StartSyncExecution"}
+    should_update_input = args and config.botocore["distributed_tracing"] and is_start_execution_call
+    if should_update_input:
+        call_name = schematize_cloud_messaging_operation(
+            trace_operation,
+            cloud_provider="aws",
+            cloud_service="stepfunctions",
+            direction=SpanDirection.OUTBOUND,
+        )
+    else:
+        call_name = trace_operation
+
+    with core.context_with_data(
+        "botocore.patched_stepfunctions_api_call",
+        span_name=call_name,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
-    ) as span:
-        set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation)
+        call_key="patched_stepfunctions_api_call",
+        instance=instance,
+        args=args,
+        params=params,
+        endpoint_name=endpoint_name,
+        operation=operation,
+        context_started_callback=set_patched_api_call_span_tags,
+        pin=pin,
+    ) as ctx, ctx.get_item(ctx["call_key"]):
+        core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
 
-        if args:
-            if config.botocore["distributed_tracing"]:
-                try:
-                    if endpoint_name == "states" and operation in {"StartExecution", "StartSyncExecution"}:
-                        inject_trace_to_stepfunction_input(params, span)
-                        span.name = schematize_cloud_messaging_operation(
-                            trace_operation,
-                            cloud_provider="aws",
-                            cloud_service="stepfunctions",
-                            direction=SpanDirection.OUTBOUND,
-                        )
-                except Exception:
-                    log.warning("Unable to inject trace context", exc_info=True)
+        if should_update_input:
+            update_stepfunction_input(ctx, params)
 
         try:
             return original_func(*args, **kwargs)
         except botocore.exceptions.ClientError as e:
-            set_response_metadata_tags(span, e.response)
-
-            # If we have a status code, and the status code is not an error,
-            #   then ignore the exception being raised
-            status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
-                span._ignore_exception(botocore.exceptions.ClientError)
+            core.dispatch(
+                "botocore.patched_stepfunctions_api_call.exception",
+                [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+            )
             raise

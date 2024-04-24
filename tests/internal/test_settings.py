@@ -164,6 +164,36 @@ def test_settings_parametrized(testcase, config, monkeypatch):
         assert config._get_source(expected_name) == expected_source
 
 
+def test_settings_missing_lib_config(config, monkeypatch):
+    testcase = {
+        "env": {"DD_TRACE_ENABLED": "true"},
+        "code": {"_tracing_enabled": True},
+        "rc": {},
+        "expected": {"_tracing_enabled": True},
+        "expected_source": {"_tracing_enabled": "code"},
+    }
+    for env_name, env_value in testcase.get("env", {}).items():
+        monkeypatch.setenv(env_name, env_value)
+        config._reset()
+
+    for code_name, code_value in testcase.get("code", {}).items():
+        setattr(config, code_name, code_value)
+
+    base_rc_config = _base_rc_config({})
+
+    # Delete "lib_config" from the remote config
+    del base_rc_config["config"][0]["lib_config"]
+    assert "lib_config" not in base_rc_config["config"][0]
+
+    config._handle_remoteconfig(base_rc_config, None)
+
+    for expected_name, expected_value in testcase["expected"].items():
+        assert getattr(config, expected_name) == expected_value
+
+    for expected_name, expected_source in testcase.get("expected_source", {}).items():
+        assert config._get_source(expected_name) == expected_source
+
+
 def test_config_subscription(config):
     for s in ("_trace_sample_rate", "logs_injection", "trace_http_header_tags"):
         _handler = mock.MagicMock()
