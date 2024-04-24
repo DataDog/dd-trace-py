@@ -400,9 +400,12 @@ class Tracer(object):
             service = active.service
         else:
             service = config.service
-
+        if active:
+            trace_id = active.trace_id
+            if config._128_bit_trace_id_enabled and not config._128_bit_trace_id_logging_enabled:
+                trace_id = active._trace_id_64bits
         return {
-            "trace_id": str(active.trace_id) if active else "0",
+            "trace_id": str(trace_id) if active else "0",
             "span_id": str(active.span_id) if active else "0",
             "service": service or "",
             "version": config.version or "",
