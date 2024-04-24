@@ -30,6 +30,7 @@ if _is_python_version_supported():
     from ._native.initializer import initializer_size
     from ._native.initializer import num_objects_tainted
     from ._native.initializer import reset_context
+    from ._native.taint_tracking import _aspect_ospathjoin
     from ._native.taint_tracking import OriginType
     from ._native.taint_tracking import Source
     from ._native.taint_tracking import TagMappingMode

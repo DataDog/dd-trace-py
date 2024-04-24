@@ -1,4 +1,3 @@
-
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
