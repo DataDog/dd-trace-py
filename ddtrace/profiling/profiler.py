@@ -28,6 +28,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config
+from ddtrace.settings.profiling import reload as reload_config
 
 
 LOG = logging.getLogger(__name__)
@@ -113,12 +114,6 @@ class _ProfilerInstance(service.Service):
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(type=bool, default=config.agentless)
-    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
-    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
-    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
-    enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
-    endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -127,6 +122,15 @@ class _ProfilerInstance(service.Service):
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+
+    # Attributes with defaults coming from configuration.  When we reload these, we might over-write attributes the user
+    # had specified.
+    _agentless_enabled = attr.ib(type=bool, default=config.agentless)
+    _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
+    _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
+    _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
+    _code_provenance_enabled = attr.ib(type=bool, default=config.code_provenance)
+    _endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
     _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
@@ -148,7 +152,7 @@ class _ProfilerInstance(service.Service):
 
         if self.url is not None:
             endpoint = self.url
-        elif self.agentless:
+        elif self._agentless_enabled:
             LOG.warning(
                 "Agentless uploading is currently for internal usage only and not officially supported. "
                 "You should not enable it unless somebody at Datadog instructed you to do so."
@@ -160,7 +164,7 @@ class _ProfilerInstance(service.Service):
             else:
                 endpoint = agent.get_trace_url()
 
-        if self.agentless:
+        if self._agentless_enabled:
             endpoint_path = "/api/v2/profile"
         else:
             # Agent mode
@@ -202,7 +206,7 @@ class _ProfilerInstance(service.Service):
         self.tags.update({"profiler_config": "_".join(configured_features)})
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
-        if self.endpoint_collection_enabled:
+        if self._endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
         # If libdd is enabled, then
@@ -248,7 +252,7 @@ class _ProfilerInstance(service.Service):
                 api_key=self.api_key,
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
-                enable_code_provenance=self.enable_code_provenance,
+                enable_code_provenance=self._code_provenance_enabled,
                 endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
             )
         ]
@@ -280,7 +284,7 @@ class _ProfilerInstance(service.Service):
                     stack.StackCollector(
                         r,
                         tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
+                        endpoint_collection_enabled=self._endpoint_collection_enabled,
                     )  # type: ignore[call-arg]
                 )
                 LOG.debug("Profiling collector (stack) initialized")
@@ -405,6 +409,3 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
-
-    def visible_events(self):
-        return not self._export_libdd_enabled

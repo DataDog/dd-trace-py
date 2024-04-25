@@ -9,6 +9,9 @@ from ddtrace.internal.utils.formats import parse_tags_str
 
 logger = get_logger(__name__)
 
+# This module attribute holds the current configuration. It is set by the `reload` function.
+config = None  # type: t.ProfilingConfig
+
 
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
     # type: (ProfilingConfig.Heap, int) -> int
@@ -284,8 +287,12 @@ class ProfilingConfig(En):
     Export.include(Stack, namespace="stack")
 
 
-config = ProfilingConfig()
+def reload():
+    global config
+    config = ProfilingConfig()
+    if config.export.libdd_required and not config.export.libdd_enabled:
+        logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
+        config.enabled = False
 
-if config.export.libdd_required and not config.export.libdd_enabled:
-    logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
-    config.enabled = False
+
+reload()
