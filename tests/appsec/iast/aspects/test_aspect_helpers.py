@@ -7,6 +7,7 @@ from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import common_replace
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking import set_ranges_on_splitted
 from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
 
 
@@ -105,3 +106,56 @@ def test_as_formatted_evidence_convert_escaped_text_to_tainted_text():  # type: 
         as_formatted_evidence(s, tag_mapping_function=TagMappingMode.Mapper) == ":+-<1750328947>abcde<1750328947>-+:fgh"
     )
     assert _convert_escaped_text_to_tainted_text(":+-<1750328947>abcde<1750328947>-+:fgh", [ranges]) == "abcdefgh"
+
+
+def test_set_ranges_on_splitted_str() -> None:
+    s = "abc|efgh"
+    range1 = _build_sample_range(0, 2, "first")
+    range2 = _build_sample_range(4, 2, "second")
+    set_ranges(s, (range1, range2))
+    ranges = get_ranges(s)
+    assert ranges
+
+    parts = s.split('|')
+    ok = set_ranges_on_splitted(s, ranges, parts)
+    assert ok
+    assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(parts[1]) == [TaintRange(0, 2, Source("second", "sample_value", OriginType.PARAMETER))]
+
+
+def test_set_ranges_on_splitted_bytes() -> None:
+    s = b"abc|efgh|ijkl"
+    range1 = _build_sample_range(0, 2, "first")  # ab -> 0, 2
+    range2 = _build_sample_range(5, 1, "second")  # f -> 1, 1
+    range3 = _build_sample_range(11, 2, "third")  # jkl -> 1, 3
+    set_ranges(s, (range1, range2, range3))
+    ranges = get_ranges(s)
+    assert ranges
+
+    parts = s.split(b'|')
+    ok = set_ranges_on_splitted(s, ranges, parts)
+    assert ok
+    assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(parts[1]) == [TaintRange(1, 1, Source("second", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(parts[2]) == [TaintRange(2, 2, Source("third", "sample_value", OriginType.PARAMETER))]
+
+
+def test_set_ranges_on_splitted_bytearray() -> None:
+    s = bytearray(b"abc|efgh|ijkl")
+    range1 = _build_sample_range(0, 2, "first")  # ab -> 0, 2
+    range2 = _build_sample_range(5, 1, "second")  # f -> 1, 1 and 1, 6
+    range3 = _build_sample_range(5, 6, "third")  # ij -> 0, 6
+
+    set_ranges(s, (range1, range2, range3))
+    ranges = get_ranges(s)
+    assert ranges
+
+    parts = s.split(b'|')
+    ok = set_ranges_on_splitted(s, ranges, parts)
+    assert ok
+    assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(parts[1]) == [
+        TaintRange(1, 1, Source("second", "sample_value", OriginType.PARAMETER)),
+        TaintRange(1, 6, Source("second", "sample_value", OriginType.PARAMETER)),
+    ]
+    assert get_ranges(parts[2]) == [TaintRange(0, 6, Source("third", "sample_value", OriginType.PARAMETER))]

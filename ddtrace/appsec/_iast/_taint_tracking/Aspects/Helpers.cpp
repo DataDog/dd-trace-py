@@ -2,6 +2,7 @@
 #include "Initializer/Initializer.h"
 #include <ostream>
 #include <regex>
+#include <algorithm>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -327,6 +328,72 @@ _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRang
     return { StrType(result), ranges };
 }
 
+/**
+ * @brief This function takes the ranges of a string splitted (as in string.split or rsplit or os.path.split) and
+ * applies the ranges of the original string to the splitted parts with updated offsets.
+ *
+ * @param source_str: The original string that was splitted.
+ * @param source_ranges: The ranges of the original string.
+ * @param split_result: The splitted parts of the original string.
+ */
+template <class StrType>
+bool set_ranges_on_splitted(const StrType& source_str, const TaintRangeRefs& source_ranges, const py::list& split_result, TaintRangeMapType* tx_map)
+{
+    bool some_set = false;
+    RANGE_START offset = 0;
+    std::string c_source_str = py::cast<std::string>(source_str);
+
+    for (const auto& item : split_result)
+    {
+        auto c_item = py::cast<std::string>(item);
+        TaintRangeRefs item_ranges;
+
+        // Find the item in the source_str.
+        const auto start = static_cast<RANGE_START>(c_source_str.find(c_item, offset));
+        if (start == -1) {
+            continue;
+        }
+        const auto end = static_cast<RANGE_START>(start + c_item.length());
+
+        // Find what source_ranges match these positions and create a new range with the start and len updated.
+        for (const auto& range : source_ranges)
+        {
+            auto range_end_abs = range->start + range->length;
+
+            if (range->start <= end && range_end_abs >= start)
+            {
+                // Create a new range with the updated start
+                item_ranges.emplace_back(
+                    initializer->allocate_taint_range(
+                        std::max(range->start - offset, 0L), range->length,
+                        range->source)
+                    );
+            }
+        }
+        if (not item_ranges.empty())
+        {
+            set_ranges(item.ptr(), item_ranges, tx_map);
+            some_set = true;
+        }
+
+        offset += py::len(item) + 1;
+    }
+
+    return some_set;
+}
+
+template <class StrType>
+bool api_set_ranges_on_splitted(const StrType& source_str, const TaintRangeRefs& source_ranges,
+    const py::list& split_result)
+{
+    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    return set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map);
+}
+
 py::object
 parse_params(size_t position,
              const char* keyword_name,
@@ -348,6 +415,12 @@ pyexport_aspect_helpers(py::module& m)
     m.def("common_replace", &api_common_replace<py::bytes>, "string_method"_a, "candidate_text"_a);
     m.def("common_replace", &api_common_replace<py::str>, "string_method"_a, "candidate_text"_a);
     m.def("common_replace", &api_common_replace<py::bytearray>, "string_method"_a, "candidate_text"_a);
+    m.def("set_ranges_on_splitted", &api_set_ranges_on_splitted<py::bytes>, "source_str"_a, "source_ranges"_a,
+          "split_result"_a);
+    m.def("set_ranges_on_splitted", &api_set_ranges_on_splitted<py::str>, "source_str"_a, "source_ranges"_a,
+          "split_result"_a);
+    m.def("set_ranges_on_splitted", &api_set_ranges_on_splitted<py::bytearray>, "source_str"_a, "source_ranges"_a,
+          "split_result"_a);
     m.def("_all_as_formatted_evidence",
           &_all_as_formatted_evidence<py::str>,
           "text"_a,
