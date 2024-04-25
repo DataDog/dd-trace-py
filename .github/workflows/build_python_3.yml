@@ -43,7 +43,7 @@ jobs:
         if: matrix.os == 'arm-4core-linux'
         run: |
           sudo apt update
-          sudo apt install -y python3-pip python3.10-venv cmake g++-12 git make curl
+          sudo apt install -y python3-pip python3.10-venv python-is-python3 cmake g++-12 git make curl
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo python3 -m pip install pipx
