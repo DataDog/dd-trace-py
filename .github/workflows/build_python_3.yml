@@ -43,7 +43,9 @@ jobs:
         if: matrix.os == 'arm-4core-linux'
         run: |
           sudo apt update
-          sudo apt install -y python3-pip python3.10-venv cmake g++-12 git make curl docker
+          sudo apt install -y python3-pip python3.10-venv cmake g++-12 git make curl
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
           python3 -m pip install --user pipx "cibuildwheel==2.16.5"
           python3 -m pipx ensurepath
           #sudo pipx ensurepath --global
