@@ -2,9 +2,7 @@ import json
 import os
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Union
 
 import ddtrace
 from ddtrace import Span
@@ -16,6 +14,7 @@ from ddtrace.internal.service import Service
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -29,6 +28,7 @@ from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs.utils import Messages
 
 
 log = get_logger(__name__)
@@ -134,7 +134,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
     ) -> Optional[Span]:
         """
-        Trace an interaction with a large language model (LLM).
+        Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
         :param str model_name: The name of the invoked LLM.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
@@ -163,7 +163,7 @@ class LLMObs(Service):
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Optional[Span]:
         """
-        Trace an operation of an interface/software used for interacting with or supporting an LLM.
+        Trace a call to an external interface or API.
 
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
@@ -182,7 +182,7 @@ class LLMObs(Service):
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Optional[Span]:
         """
-        Trace an operation of a function/task that is part of a larger workflow involving an LLM.
+        Trace a standalone non-LLM operation which does not involve an external request.
 
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
@@ -201,7 +201,7 @@ class LLMObs(Service):
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Optional[Span]:
         """
-        Trace a workflow orchestrated by an LLM agent.
+        Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
@@ -220,7 +220,7 @@ class LLMObs(Service):
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
     ) -> Optional[Span]:
         """
-        Trace a sequence of operations that are part of a larger workflow involving an LLM.
+        Trace a predefined or static sequence of operations.
 
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
@@ -239,28 +239,33 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         parameters: Optional[Dict[str, Any]] = None,
-        input_data: Optional[Union[List[Dict[str, Any]], str]] = None,
-        output_data: Optional[Union[List[Dict[str, Any]], str]] = None,
-        tags: Optional[Dict[str, Any]] = None,
+        input_data: Optional[Any] = None,
+        output_data: Optional[Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
+        tags: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Sets the parameter, input, output, tags, and metrics for a given LLMObs span.
-        Note that this method will override any existing values for the specified fields.
+        Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
+        Note that with the exception of tags, this method will override any existing values for the provided fields.
 
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
-                          Must be an LLMObs-type span.
-        :param parameters: Dictionary of input parameter key-value pairs such as max_tokens/temperature.
-                           Will be mapped to span's meta.input.parameters.* fields.
-        :param input_data: A single input string, or a list of dictionaries of form {"content": "...", "role": "..."}.
-                           Will be mapped to `meta.input.value` or `meta.input.messages.*`, respectively.
-                           For llm/agent spans, string inputs will be wrapped in a message dictionary.
-        :param output_data: A single output string, or a list of dictionaries of form {"content": "...", "role": "..."}.
-                            Will be mapped to `meta.output.value` or `meta.output.messages.*`, respectively.
-                            For llm/agent spans, string outputs will be wrapped in a message dictionary.
-        :param tags: Dictionary of key-value custom tag pairs to set on the LLMObs span.
-        :param metrics: Dictionary of key-value metric pairs such as prompt_tokens/completion_tokens/total_tokens.
-                        Will be mapped to span's metrics.* fields.
+                          Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
+        :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
+                                        or a list of dictionaries with the same signature.
+                           - other: any JSON serializable type.
+        :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
+                                        or a list of dictionaries with the same signature.
+                           - other: any JSON serializable type.
+        :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
+        :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
+                         described by the LLMObs span.
+        :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
+                     regarding the span's context.
+        :param metrics: Dictionary of JSON serializable key-value metric pairs,
+                        such as `{prompt,completion,total}_tokens`.
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.annotate() cannot be used while LLMObs is disabled.")
@@ -276,73 +281,108 @@ class LLMObs(Service):
         if span.finished:
             log.warning("Cannot annotate a finished span.")
             return
+        span_kind = span.get_tag(SPAN_KIND)
+        if not span_kind:
+            log.warning("LLMObs span must have a span kind specified.")
+            return
         if parameters is not None:
+            log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
             cls._tag_params(span, parameters)
-        if input_data is not None:
-            cls._tag_span_input_output("input", span, input_data)
-        if output_data is not None:
-            cls._tag_span_input_output("output", span, output_data)
-        if tags is not None:
-            cls._tag_span_tags(span, tags)
+        if input_data or output_data:
+            if span_kind == "llm":
+                cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
+            else:
+                cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+        if metadata is not None:
+            cls._tag_metadata(span, metadata)
         if metrics is not None:
             cls._tag_metrics(span, metrics)
+        if tags is not None:
+            cls._tag_span_tags(span, tags)
 
     @staticmethod
     def _tag_params(span: Span, params: Dict[str, Any]) -> None:
-        """Tags input parameters for a given LLMObs span."""
+        """Tags input parameters for a given LLMObs span.
+        Will be mapped to span's `meta.input.parameters` field.
+        """
         if not isinstance(params, dict):
             log.warning("parameters must be a dictionary of key-value pairs.")
             return
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
+        try:
+            span.set_tag_str(INPUT_PARAMETERS, json.dumps(params))
+        except TypeError:
+            log.warning("Failed to parse input parameters. Parameters must be JSON serializable.")
 
-    @staticmethod
-    def _tag_span_input_output(io_type: str, span: Span, data: Union[List[Dict[str, Any]], str]) -> None:
+    @classmethod
+    def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
+        """Tags input/output messages for LLM-kind spans.
+        Will be mapped to span's `meta.{input,output}.messages` fields.
         """
-        Tags input/output for a given LLMObs span.
-        io_type: "input" or "output".
-        meta: Span's meta dictionary.
-        data: String or dictionary of key-value pairs to tag as the input or output.
+        if input_messages is not None:
+            if not isinstance(input_messages, Messages):
+                input_messages = Messages(input_messages)
+            try:
+                if input_messages.messages:
+                    span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse input messages.")
+        if output_messages is not None:
+            if not isinstance(output_messages, Messages):
+                output_messages = Messages(output_messages)
+            try:
+                if output_messages.messages:
+                    span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse output messages.")
+
+    @classmethod
+    def _tag_text_io(cls, span, input_value=None, output_value=None):
+        """Tags input/output values for non-LLM kind spans.
+        Will be mapped to span's `meta.{input,output}.values` fields.
         """
-        if io_type not in ("input", "output"):
-            raise ValueError("io_type must be either 'input' or 'output'.")
-        if not isinstance(data, (str, list)):
-            log.warning(
-                "Invalid type, must be either a raw string or list of dictionaries with the format {'content': '...'}."
-            )
-            return
-        if isinstance(data, list) and not all(isinstance(item, dict) for item in data):
-            log.warning("Invalid list item type, must be a list of dictionaries with the format {'content': '...'}.")
-            return
-        span_kind = span.get_tag(SPAN_KIND)
-        tags = None
-        if not span_kind:
-            log.warning("Cannot tag input/output without a span.kind tag.")
-            return
-        if span_kind in ("llm", "agent"):
-            if isinstance(data, str):
-                tags = [{"content": data}]
-            elif isinstance(data, list) and data and isinstance(data[0], dict):
-                tags = data
-            if io_type == "input":
-                span.set_tag_str(INPUT_MESSAGES, json.dumps(tags))
+        if input_value is not None:
+            if isinstance(input_value, str):
+                span.set_tag_str(INPUT_VALUE, input_value)
             else:
-                span.set_tag_str(OUTPUT_MESSAGES, json.dumps(tags))
-        else:
-            if isinstance(data, str):
-                if io_type == "input":
-                    span.set_tag_str(INPUT_VALUE, data)
-                else:
-                    span.set_tag_str(OUTPUT_VALUE, data)
+                try:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_value))
+                except TypeError:
+                    log.warning("Failed to parse input value. Input value must be JSON serializable.")
+        if output_value is not None:
+            if isinstance(output_value, str):
+                span.set_tag_str(OUTPUT_VALUE, output_value)
             else:
-                log.warning("Invalid input/output type for non-llm span. Must be a raw string.")
+                try:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_value))
+                except TypeError:
+                    log.warning("Failed to parse output value. Output value must be JSON serializable.")
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
-        """Tags a given LLMObs span with a dictionary of key-value tag pairs."""
+        """Tags a given LLMObs span with a dictionary of key-value tag pairs.
+        If tags are already set on the span, the new tags will be merged with the existing tags.
+        """
         if not isinstance(span_tags, dict):
             log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
             return
-        span.set_tag_str(TAGS, json.dumps(span_tags))
+        try:
+            current_tags = span.get_tag(TAGS)
+            if current_tags:
+                span_tags.update(json.loads(current_tags))
+            span.set_tag_str(TAGS, json.dumps(span_tags))
+        except TypeError:
+            log.warning("Failed to parse span tags. Tag key-value pairs must be JSON serializable.")
+
+    @staticmethod
+    def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
+        """Tags a given LLMObs span with a dictionary of key-value metadata pairs."""
+        if not isinstance(metadata, dict):
+            log.warning("metadata must be a dictionary of string key-value pairs.")
+            return
+        try:
+            span.set_tag_str(METADATA, json.dumps(metadata))
+        except TypeError:
+            log.warning("Failed to parse span metadata. Metadata key-value pairs must be JSON serializable.")
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
@@ -350,4 +390,7 @@ class LLMObs(Service):
         if not isinstance(metrics, dict):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
-        span.set_tag_str(METRICS, json.dumps(metrics))
+        try:
+            span.set_tag_str(METRICS, json.dumps(metrics))
+        except TypeError:
+            log.warning("Failed to parse span metrics. Metric key-value pairs must be JSON serializable.")
