@@ -714,10 +714,10 @@ class TelemetryWriter(PeriodicService):
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
-    def _generate_logs_event(self, payload):
+    def _generate_logs_event(self, logs):
         # type: (Set[Dict[str, str]]) -> None
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
-        self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
+        self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False):
         namespace_metrics = self._namespace.flush()
