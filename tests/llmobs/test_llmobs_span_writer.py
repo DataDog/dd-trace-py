@@ -92,7 +92,9 @@ def test_buffer_limit(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(site="datad0g.com", api_key="asdf", interval=1000, timeout=1)
     for _ in range(1001):
         llmobs_span_writer.enqueue({})
-    mock_writer_logs.warning.assert_called_with("%r event buffer full (limit is %d), dropping event", ("LLMObsSpanWriter", 1000))
+    mock_writer_logs.warning.assert_called_with(
+        "%r event buffer full (limit is %d), dropping event", ("LLMObsSpanWriter", 1000)
+    )
 
 
 @pytest.mark.vcr_logs
@@ -120,14 +122,15 @@ def test_send_completion_bad_api_key(mock_writer_logs):
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.error.assert_called_with(
-        "failed to send %d LLMObs %s events to %s, got response code %d, status: %s", (
+        "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
+        (
             1,
             "span",
             INTAKE_ENDPOINT,
             403,
             b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
         ),
-        )
+    )
 
 
 @pytest.mark.vcr_logs

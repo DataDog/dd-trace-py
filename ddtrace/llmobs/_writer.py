@@ -100,15 +100,20 @@ class BaseLLMObsWriter(PeriodicService):
             resp = get_connection_response(conn)
             if resp.status >= 300:
                 logger.error(
-                    "failed to send %d LLMObs %s events to %s, got response code %d, status: %s", (
-                        len(events), self._event_type, self._url, resp.status, resp.read(),
+                    "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
+                    (
+                        len(events),
+                        self._event_type,
+                        self._url,
+                        resp.status,
+                        resp.read(),
                     ),
                 )
             else:
                 logger.debug("sent %d LLMObs %s events to %s", (len(events), self._event_type, self._url))
         except Exception:
-            logger.error("failed to send %d LLMObs %s events to %s", (
-                len(events), self._event_type, self._intake), exc_info=True
+            logger.error(
+                "failed to send %d LLMObs %s events to %s", (len(events), self._event_type, self._intake), exc_info=True
             )
         finally:
             conn.close()
@@ -127,7 +132,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "span"
-        self._buffer = []  # type: List[LLMObsSpanEvent]
+        self._buffer = []
         self._endpoint = "/api/v2/llmobs"  # type: str
         self._intake = "llmobs-intake.%s" % self._site  # type: str
 
@@ -144,7 +149,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "eval metric"
-        self._buffer = []  # type: List[LLMObsEvalMetricEvent]
+        self._buffer = []
         self._endpoint = "/api/unstable/llm-obs/v1/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 

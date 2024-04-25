@@ -497,7 +497,9 @@ class TestLLMObsBedrock:
         )
 
     @classmethod
-    def _test_llmobs_invoke_stream(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
+    def _test_llmobs_invoke_stream(
+        cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1
+    ):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
@@ -566,10 +568,14 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_anthropic_message_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+    def test_llmobs_anthropic_message_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer
+    ):
         self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+    def test_llmobs_cohere_single_output_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer
+    ):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
@@ -577,7 +583,9 @@ class TestLLMObsBedrock:
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+    def test_llmobs_cohere_multi_output_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer
+    ):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,

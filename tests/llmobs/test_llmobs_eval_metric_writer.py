@@ -45,29 +45,36 @@ def _numerical_metric_event():
 def test_writer_start(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key=dd_api_key, interval=1000, timeout=1)
     llmobs_eval_metric_writer.start()
-    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", ("LLMObsEvalMetricWriter", INTAKE_ENDPOINT))])
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("started %r to %r", ("LLMObsEvalMetricWriter", INTAKE_ENDPOINT))]
+    )
 
 
 def test_buffer_limit(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datadoghq.com", api_key="asdf", interval=1000, timeout=1)
     for _ in range(1001):
         llmobs_eval_metric_writer.enqueue({})
-    mock_writer_logs.warning.assert_called_with("%r event buffer full (limit is %d), dropping event", ("LLMObsEvalMetricWriter", 1000))
+    mock_writer_logs.warning.assert_called_with(
+        "%r event buffer full (limit is %d), dropping event", ("LLMObsEvalMetricWriter", 1000)
+    )
 
 
 @pytest.mark.vcr_logs
 def test_send_metric_bad_api_key(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key="<bad-api-key>", interval=1000, timeout=1)
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+        site="datad0g.com", api_key="<bad-api-key>", interval=1000, timeout=1
+    )
     llmobs_eval_metric_writer.start()
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.error.assert_called_with(
-        "failed to send %d LLMObs %s events to %s, got response code %d, status: %s", (
+        "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
+        (
             1,
             "eval metric",
             INTAKE_ENDPOINT,
             403,
-            b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'  # noqa
+            b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',  # noqa
         ),
     )
 
@@ -78,7 +85,9 @@ def test_send_categorical_metric(mock_writer_logs):
     llmobs_eval_metric_writer.start()
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls([mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))])
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))]
+    )
 
 
 @pytest.mark.vcr_logs
@@ -87,7 +96,9 @@ def test_send_numerical_metric(mock_writer_logs):
     llmobs_eval_metric_writer.start()
     llmobs_eval_metric_writer.enqueue(_numerical_metric_event())
     llmobs_eval_metric_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls([mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))])
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))]
+    )
 
 
 @pytest.mark.vcr_logs
@@ -96,7 +107,9 @@ def test_send_score_metric(mock_writer_logs):
     llmobs_eval_metric_writer.start()
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls([mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))])
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("sent %d LLMObs %s events to %s", (1, "eval metric", INTAKE_ENDPOINT))]
+    )
 
 
 @pytest.mark.vcr_logs
@@ -127,7 +140,9 @@ def test_send_multiple_events(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.enqueue(_numerical_metric_event())
     time.sleep(0.1)
-    mock_writer_logs.debug.assert_has_calls([mock.call("sent %d LLMObs %s events to %s", (2, "eval metric", INTAKE_ENDPOINT))])
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("sent %d LLMObs %s events to %s", (2, "eval metric", INTAKE_ENDPOINT))]
+    )
 
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
