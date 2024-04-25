@@ -7,10 +7,10 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.redis_utils import _extract_conn_tags
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
@@ -38,22 +38,6 @@ SINGLE_KEY_COMMANDS = [
 ]
 MULTI_KEY_COMMANDS = ["MGET"]
 ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
-
-
-def _extract_conn_tags(conn_kwargs):
-    """Transform redis conn info into dogtrace metas"""
-    try:
-        conn_tags = {
-            net.TARGET_HOST: conn_kwargs["host"],
-            net.TARGET_PORT: conn_kwargs["port"],
-            redisx.DB: conn_kwargs.get("db") or 0,
-        }
-        client_name = conn_kwargs.get("client_name")
-        if client_name:
-            conn_tags[redisx.CLIENT_NAME] = client_name
-        return conn_tags
-    except Exception:
-        return {}
 
 
 def determine_row_count(redis_command, span, result):
