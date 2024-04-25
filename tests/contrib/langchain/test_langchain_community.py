@@ -1434,7 +1434,9 @@ class TestLLMObsLangchain:
         )
 
     @flaky(1735812000)
-    def test_llmobs_openai_chat_model_custom_role(self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
+    def test_llmobs_openai_chat_model_custom_role(
+        self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
+    ):
         chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_llm_invoke(
@@ -1486,7 +1488,9 @@ class TestLLMObsLangchain:
             ],
         )
 
-    def test_llmobs_chain_nested(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
+    def test_llmobs_chain_nested(
+        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
+    ):
         prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
         prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
             "what country is the city {city} in? respond in {language}"
@@ -1528,7 +1532,9 @@ class TestLLMObsLangchain:
         )
 
     @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 required")
-    def test_llmobs_chain_batch(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
+    def test_llmobs_chain_batch(
+        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
+    ):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
         output_parser = langchain_core.output_parsers.StrOutputParser()
         model = langchain_openai.ChatOpenAI()
