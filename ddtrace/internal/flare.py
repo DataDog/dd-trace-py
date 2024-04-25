@@ -70,9 +70,7 @@ class Flare:
             # We do this valid_original_level check because if the log level is NOTSET, the value is 0
             # which is the minimum value. In this case, we just want to use the flare level, but still
             # retain the original state as NOTSET/0
-            valid_original_level = (
-                logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
-            )
+            valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
             logger_level = min(valid_original_level, flare_log_level_int)
             ddlogger.setLevel(logger_level)
             self.file_handler = _add_file_handler(
