@@ -3,6 +3,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace import Span
@@ -27,8 +28,9 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._writer import LLMObsWriter
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 
 
 log = get_logger(__name__)
@@ -41,18 +43,25 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
-        self._llmobs_writer = LLMObsWriter(
+        self._llmobs_span_writer = LLMObsSpanWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
         )
-        self._llmobs_writer.start()
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+        )
+        self._llmobs_span_writer.start()
+        self._llmobs_eval_metric_writer.start()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_writer)]
+            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
 
     def _stop_service(self) -> None:
@@ -233,6 +242,38 @@ class LLMObs(Service):
             log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
             return None
         return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
+
+    @classmethod
+    def submit_evaluation(cls, pair_id: str, label: str, metric_type: str, value: Union[str, int, float]) -> None:
+        """
+        Submits a custom evaluation metric for a given pair ID.
+
+        :param str pair_id: The ID of the pair for which the evaluation metric is being submitted.
+        :param str label: The name of the evaluation metric.
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
+        :param value: The value of the evaluation metric. Can be a string, integer, or float.
+        """
+        if cls.enabled is False or cls._instance is None or cls._instance._llmobs_eval_metric_writer is None:
+            log.warning("LLMObs.submit_evaluation() cannot be used while LLMObs is disabled.")
+            return
+        if not pair_id:
+            log.warning("pair_id must be the specified ID of the pair for which the evaluation metric is being submitted.")
+            return
+        if not label:
+            log.warning("label must be the specified name of the evaluation metric.")
+            return
+        if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
+            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            return
+        if metric_type == "categorical" and not isinstance(value, str):
+            log.warning("value must be a string for a categorical metric.")
+            return
+        if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
+            log.warning("value must be an integer or float for a numerical/score metric.")
+            return
+        cls._instance._llmobs_eval_metric_writer.enqueue(
+            {"pair_id": pair_id, "label": label, "{}_value".format(metric_type): value}
+        )
 
     @classmethod
     def annotate(
