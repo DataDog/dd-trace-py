@@ -80,6 +80,11 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_stepfunctions_api_call.exception",
-                [ctx, e.response, botocore.exceptions.ClientError],
+                [
+                    ctx,
+                    e.response,
+                    botocore.exceptions.ClientError,
+                    config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                ],
             )
             raise

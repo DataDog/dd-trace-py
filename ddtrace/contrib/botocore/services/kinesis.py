@@ -169,7 +169,12 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_kinesis_api_call.exception",
-                    [ctx, e.response, botocore.exceptions.ClientError],
+                    [
+                        ctx,
+                        e.response,
+                        botocore.exceptions.ClientError,
+                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                    ],
                 )
                 raise
         parent_ctx.end()

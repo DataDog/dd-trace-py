@@ -223,7 +223,12 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_api_call.exception",
-                [ctx, e.response, botocore.exceptions.ClientError],
+                [
+                    ctx,
+                    e.response,
+                    botocore.exceptions.ClientError,
+                    config.botocore.operations[ctx["instrumented_api_call"].resource].is_error_code,
+                ],
             )
             raise
         else:

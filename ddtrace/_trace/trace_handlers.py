@@ -573,10 +573,16 @@ def _on_botocore_patched_api_call_started(ctx):
         span.start_ns = start_ns
 
 
-def _on_botocore_patched_api_call_exception(ctx, response, exception_type):
+def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
     span = ctx.get_item(ctx.get_item("call_key"))
     # `ClientError.response` contains the result, so we can still grab response metadata
-    set_botocore_response_metadata_tags(span, response)
+    set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
+
+    # If we have a status code, and the status code is not an error,
+    #   then ignore the exception being raised
+    status_code = span.get_tag(http.STATUS_CODE)
+    if status_code and not is_error_code_fn(int(status_code)):
+        span._ignore_exception(exception_type)
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
