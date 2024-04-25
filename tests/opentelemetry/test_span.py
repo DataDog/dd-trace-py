@@ -1,6 +1,7 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
 
+from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.span import NonRecordingSpan
@@ -12,6 +13,7 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.opentelemetry._span import Span
 from tests.utils import flaky
 
 
@@ -235,3 +237,22 @@ def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):
         assert child_context.is_remote is False  # parent_context.is_remote is True
         assert child_context.trace_flags == remote_context.trace_flags
         assert remote_context.trace_state.to_header() in child_context.trace_state.to_header()
+
+
+def test_otel_span_interoperability(oteltracer):
+    """Ensures that opentelemetry spans can be converted to ddtrace spans"""
+    # Start an otel span
+    otel_span_og = oteltracer.start_span(
+        "test-span-interop",
+        links=[Link(SpanContext(1, 2, False, None, None))],
+        kind=OtelSpanKind.CLIENT,
+        attributes={"start_span_tag": "start_span_val"},
+        start_time=1713118129,
+        record_exception=False,
+        set_status_on_exception=False,
+    )
+    # Creates a new otel span from the underlying datadog span
+    otel_span_clone = Span(otel_span_og._ddspan)
+    # Ensure all properties are consistent
+    assert otel_span_clone.__dict__ == otel_span_og.__dict__
+    assert otel_span_clone._ddspan._pprint() == otel_span_og._ddspan._pprint()

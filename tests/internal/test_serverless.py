@@ -96,9 +96,15 @@ def test_slow_imports(monkeypatch):
     # any of those modules are imported during the import of ddtrace.
 
     blocklist = [
+        "ddtrace.appsec._api_security.api_manager",
         "ddtrace.appsec._iast._ast.ast_patching",
         "ddtrace.internal.telemetry.telemetry_writer",
-        "ddtrace.appsec._api_security.api_manager",
+        "email.mime.application",
+        "email.mime.multipart",
+        "logging.handlers",
+        "multiprocessing",
+        "importlib.metadata",
+        "importlib_metadata",
     ]
     monkeypatch.setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", False)
     monkeypatch.setenv("DD_API_SECURITY_ENABLED", False)
@@ -117,12 +123,13 @@ def test_slow_imports(monkeypatch):
     deleted_modules = {}
 
     for mod in sys.modules.copy():
-        if mod.startswith("ddtrace"):
+        if mod.startswith("ddtrace") or mod in blocklist:
             deleted_modules[mod] = sys.modules[mod]
             del sys.modules[mod]
 
     with mock.patch("sys.meta_path", meta_path):
         import ddtrace
+        import ddtrace.contrib.aws_lambda  # noqa:F401
         import ddtrace.contrib.psycopg  # noqa:F401
 
     for name, mod in deleted_modules.items():
