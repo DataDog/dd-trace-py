@@ -437,17 +437,12 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float],
-        exported_span: Optional[ExportedLLMObsSpan] = None,
-        span_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
+        span_context: Dict[str, str],
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
 
-        :param str exported_span: A dictionary containing the spanID and traceID of interest.
-                                  May be used instead of the span_id/trace_id arguments.
-        :param str span_id: The spanID of the corresponding span for which the evaluation metric is being submitted.
-        :param str trace_id: The traceID of the corresponding span for which the evaluation metric is being submitted.
+        :param str span_context: A dictionary containing the span_id and trace_id of interest.
         :param str label: The name of the evaluation metric.
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
@@ -456,17 +451,18 @@ class LLMObs(Service):
         if cls.enabled is False or cls._instance is None or cls._instance._llmobs_eval_metric_writer is None:
             log.warning("LLMObs.submit_evaluation() requires LLMObs to be enabled.")
             return
-        if exported_span:
-            if not isinstance(exported_span, dict):
-                log.warning(
-                    "exported_span must be a dictionary containing both span_id and trace_id keys. "
-                    "LLMObs.export_span() can be used to generate this dictionary from a given span."
-                )
-                return
-            span_id = exported_span.get("span_id")
-            trace_id = exported_span.get("trace_id")
+        if not isinstance(span_context, dict):
+            log.warning(
+                "span_context must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+            return
+        span_id = span_context.get("span_id")
+        trace_id = span_context.get("trace_id")
         if not (span_id and trace_id):
-            log.warning("span_id and trace_id must both be specified for the given evaluation metric to be submitted.")
+            log.warning(
+                "span_id and trace_id must both be specified for the given evaluation metric to be submitted."
+            )
             return
         if not label:
             log.warning("label must be the specified name of the evaluation metric.")
