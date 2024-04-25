@@ -4,12 +4,15 @@ from typing import Dict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
+from .._patch import set_and_check_module_is_patched
+from .._patch import set_module_unpatched
+from .._patch import try_wrap_function_wrapper
 from .._utils import _has_to_scrub
 from .._utils import _scrub
 from .._utils import _scrub_get_tokens_positions
@@ -41,35 +44,39 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
-    # if not getattr(os, "_datadog_header_injection_patch", False):
-    # Flask
-    _w(
+    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
+        return
+    if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
+        return
+
+    try_wrap_function_wrapper(
         "wsgiref.headers",
         "Headers.add_header",
         _iast_h,
     )
-    _w(
+    try_wrap_function_wrapper(
         "wsgiref.headers",
         "Headers.__setitem__",
         _iast_h,
     )
-    _w(
+    try_wrap_function_wrapper(
         "werkzeug.datastructures",
         "Headers.set",
         _iast_h,
     )
-    _w(
+    try_wrap_function_wrapper(
         "werkzeug.datastructures",
         "Headers.add",
         _iast_h,
     )
+
     # Django
-    _w(
+    try_wrap_function_wrapper(
         "django.http.response",
         "HttpResponseBase.__setitem__",
         _iast_h,
     )
-    _w(
+    try_wrap_function_wrapper(
         "django.http.response",
         "ResponseHeaders.__setitem__",
         _iast_h,
@@ -80,12 +87,16 @@ def patch():
 
 def unpatch():
     # type: () -> None
-    # trace_utils.unwrap(os, "system")
-    # trace_utils.unwrap(os, "_spawnvef")
-    # trace_utils.unwrap(subprocess.Popen, "__init__")
-    #
-    # os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
-    # subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
+    try_unwrap("wsgiref.headers", "Headers.add_header")
+    try_unwrap("wsgiref.headers", "Headers.__setitem__")
+    try_unwrap("werkzeug.datastructures", "Headers.set")
+    try_unwrap("werkzeug.datastructures", "Headers.add")
+    try_unwrap("django.http.response", "HttpResponseBase.__setitem__")
+    try_unwrap("django.http.response", "ResponseHeaders.__setitem__")
+
+    set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
+    set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
+
     pass
 
 
