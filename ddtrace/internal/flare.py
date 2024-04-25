@@ -106,9 +106,8 @@ class Flare:
                 except Exception as e:
                     log.error("Failed to create %s file", lock_path)
                     raise e
-                zendesk_ticket = args.get("case_id")
                 data = {
-                    "case_id": zendesk_ticket,
+                    "case_id": args.get("case_id"),
                     "source": "tracer_python",
                     "hostname": args.get("hostname"),
                     "email": args.get("user_handle"),
@@ -119,17 +118,16 @@ class Flare:
                     client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                     response = client.getresponse()
                     if response.status == 200:
-                        log.info("Successfully sent the flare to Zendesk ticket %s", zendesk_ticket)
+                        log.info("Successfully sent the flare")
                     else:
                         log.error(
-                            "Flare upload to Zendesk ticket %s failed with %s status code:(%s) %s",
-                            zendesk_ticket,
+                            "Upload failed with %s status code:(%s) %s",
                             response.status,
                             response.reason,
                             response.read().decode(),
                         )
                 except Exception as e:
-                    log.error("Failed to send tracer flare to Zendesk ticket %s", zendesk_ticket)
+                    log.error("Failed to send tracer flare")
                     raise e
                 finally:
                     client.close()
