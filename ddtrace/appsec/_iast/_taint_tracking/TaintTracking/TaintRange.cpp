@@ -49,12 +49,6 @@ shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, R
     return tptr;
 }
 
-TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
-{
-    return shift_taint_range(source_taint_range, offset, new_length);
-}
-
 TaintRangeRefs
 shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
