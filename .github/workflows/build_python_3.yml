@@ -46,8 +46,8 @@ jobs:
           sudo apt install -y python3-pip python3.10-venv cmake g++-12 git make curl
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
-          python3 -m pip install --user pipx "cibuildwheel==2.16.5"
-          python3 -m pipx ensurepath
+          sudo python3 -m pip install pipx
+          sudo python3 -m pipx ensurepath
           #sudo pipx ensurepath --global
 
       - name: Set up QEMU
@@ -58,7 +58,7 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: sudo /home/runner/.local/bin/pipx run cibuildwheel==2.16.5
+        run: sudo pipx run cibuildwheel==2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
