@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Optional
 
 from ddtrace import Span
 from ddtrace import config
@@ -47,7 +48,9 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
 
-def set_botocore_response_metadata_tags(span: Span, result: Dict[str, Any], is_error_code_fn: Callable = None) -> None:
+def set_botocore_response_metadata_tags(
+    span: Span, result: Dict[str, Any], is_error_code_fn: Optional[Callable] = None
+) -> None:
     if not result or not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]
