@@ -51,8 +51,10 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     if (not root_is_after_first) {
         // Get the ranges of first_part and set them to the result, skipping the first character position
         // if it's a separator
-        auto ranges = api_get_ranges(first_part);
-        if (not ranges.empty()) {
+        bool ranges_error;
+        TaintRangeRefs ranges;
+        std::tie(ranges, ranges_error) = get_ranges(first_part.ptr(), tx_map);
+        if (not ranges_error and not ranges.empty()) {
             for (auto& range : ranges) {
                 result_ranges.emplace_back(api_shift_taint_range(range, current_offset, first_part_len));
             }
@@ -72,8 +74,10 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     for (unsigned long i = 0; i < args.size(); i++) {
         if (i >= unsigned_initial_arg_pos) {
             // Set the ranges from the corresponding argument
-            auto ranges = api_get_ranges(args[i]);
-            if (not ranges.empty()) {
+            bool ranges_error;
+            TaintRangeRefs ranges;
+            std::tie(ranges, ranges_error) = get_ranges(args[i].ptr(), tx_map);
+            if (not ranges_error and not ranges.empty()) {
                 auto len_args_i = py::len(args[i]);
                 for (auto& range : ranges) {
                     result_ranges.emplace_back(api_shift_taint_range(range, current_offset, len_args_i));
