@@ -1,3 +1,4 @@
+import json
 from operator import itemgetter
 import os
 import re
@@ -1301,13 +1302,13 @@ class TestLLMObsLangchain:
         else:
             max_tokens_key = "max_tokens"
 
-        parameters = {}
+        metadata = {}
         temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
         max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
         if temperature is not None:
-            parameters["temperature"] = float(temperature)
+            metadata["temperature"] = float(temperature)
         if max_tokens is not None:
-            parameters["max_tokens"] = int(max_tokens)
+            metadata["max_tokens"] = int(max_tokens)
 
         return _expected_llmobs_llm_span_event(
             span,
@@ -1315,7 +1316,7 @@ class TestLLMObsLangchain:
             model_provider=span.get_tag("langchain.request.provider"),
             input_messages=[input_meta],
             output_messages=[output_meta],
-            parameters=parameters,
+            metadata=metadata,
             token_metrics={},
             tags={
                 "ml_app": "langchain_community_test",
@@ -1477,7 +1478,7 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str([{"input": "Can you explain what an LLM chain is?"}]),
+                        "input_value": json.dumps([{"input": "Can you explain what an LLM chain is?"}]),
                         "output_value": expected_output,
                     },
                 ),
@@ -1510,14 +1511,14 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
+                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": str([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
+                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
                         "output_value": mock.ANY,
                     },
                 ),
@@ -1543,7 +1544,7 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str(["chickens", "pigs"]),
+                        "input_value": json.dumps(["chickens", "pigs"]),
                         "output_value": mock.ANY,
                     },
                 ),
