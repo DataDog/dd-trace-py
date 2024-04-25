@@ -50,7 +50,6 @@ jobs:
           sudo usermod -a -G docker $USER
           python3 -m pip install pipx
           python3 -m pipx ensurepath
-          sudo /home/runner/.local/bin/pipx ensurepath --global
           sudo cat /etc/sudoers
 
       - name: Set up QEMU
