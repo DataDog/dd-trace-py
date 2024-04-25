@@ -40,3 +40,8 @@ class Messages:
                 "Cannot format provided messages. The messages argument must be a string, a dictionary, or a "
                 "list of dictionaries, or construct messages directly using the ``ddtrace.llmobs.utils.Message`` class."
             )
+
+
+class ExportedLLMObsSpan(TypedDict):
+    span_id: str
+    trace_id: str
