@@ -8,6 +8,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
@@ -491,13 +493,12 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
             payload=payload,
             content_type=content_type,
         )
-        vuln_type = "SQL_INJECTION"
         loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", vuln_type, filename=TEST_FILE)
+        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", VULN_SQL_INJECTION, filename=TEST_FILE)
 
         assert loaded["sources"] == [{"origin": "http.request.body", "name": "body", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == "SQL_INJECTION"
+        assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
             "valueParts": [
@@ -548,9 +549,70 @@ def test_querydict_django_with_iast(client, test_spans, tracer):
         )
 
         assert root_span.get_tag(IAST.JSON) is None
-
         assert response.status_code == 200
         assert (
             response.content == b"x=['1', '3'], all=[('x', ['1', '3']), ('y', ['2'])],"
             b" keys=['x', 'y'], urlencode=x=1&x=3&y=2"
         )
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_command_injection(client, test_spans, tracer):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(
+        dict(DD_IAST_ENABLED="True")
+    ):
+        oce.reconfigure()
+        patch_iast({"command_injection": True})
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/command-injection/",
+            payload="master",
+            content_type="multipart/form-data",
+        )
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("iast_command_injection", VULN_CMDI, filename=TEST_FILE)
+
+        assert loaded["sources"] == [
+            {"name": "body", "origin": "http.request.body", "pattern": "abcdef", "redacted": True}
+        ]
+        assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "dir "}, {"redacted": True}, {"pattern": "abcdef", "redacted": True, "source": 0}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_header_injection(client, test_spans, tracer):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)), override_env(
+        dict(DD_IAST_ENABLED="True")
+    ):
+        oce.reconfigure()
+        patch_iast({"header_injection": True})
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/header-injection/",
+            payload="master",
+            content_type="application/json",
+        )
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
+
+        assert loaded["sources"] == [{"origin": "http.request.body", "name": "body", "value": "master"}]
+        assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
