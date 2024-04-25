@@ -44,7 +44,7 @@ jobs:
         run: |
           echo $USER' ALL=(ALL) NOPASSWD: ALL' | sudo EDITOR='tee -a' visudo
           sudo apt update
-          sudo apt install -y python3-pip python3.10-venv python-is-python3 cmake g++-12 git make curl
+          sudo apt install -y python3-pip python3.10-venv python-is-python3 cmake g++-12 git make curl acl
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo usermod -a -G docker $USER
