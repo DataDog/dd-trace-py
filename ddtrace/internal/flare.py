@@ -19,7 +19,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
 
-TRACER_FLARE_DIRECTORY = pathlib.Path("tracer_flare")
+TRACER_FLARE_DIRECTORY = "tracer_flare"
 TRACER_FLARE_TAR = pathlib.Path("tracer_flare.tar")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
@@ -30,9 +30,10 @@ log = get_logger(__name__)
 
 
 class Flare:
-    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
-        self.original_log_level = 0  # NOTSET
-        self.timeout = timeout_sec
+    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS, flare_dir: str = TRACER_FLARE_DIRECTORY):
+        self.original_log_level: int = logging.NOTSET
+        self.timeout: int = timeout_sec
+        self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
         self.file_handler: Optional[RotatingFileHandler] = None
 
     def prepare(self, configs: List[dict]):
@@ -40,12 +41,12 @@ class Flare:
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        if not os.path.exists(TRACER_FLARE_DIRECTORY):
+        if not os.path.exists(self.flare_dir):
             try:
-                os.makedirs(TRACER_FLARE_DIRECTORY)
-                log.info("Tracer logs will now be sent to the %s directory", TRACER_FLARE_DIRECTORY)
+                os.makedirs(self.flare_dir)
+                log.info("Tracer logs will now be sent to the %s directory", self.flare_dir)
             except Exception as e:
-                log.error("Failed to create %s directory: %s", TRACER_FLARE_DIRECTORY, e)
+                log.error("Failed to create %s directory: %s", self.flare_dir, e)
                 return
         for agent_config in configs:
             # AGENT_CONFIG is currently being used for multiple purposes
@@ -62,7 +63,7 @@ class Flare:
 
             ddlogger = get_logger("ddtrace")
             pid = os.getpid()
-            flare_file_path = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_python_{pid}.log")
+            flare_file_path = self.flare_dir / pathlib.Path(f"tracer_python_{pid}.log")
             self.original_log_level = ddlogger.level
 
             # Set the logger level to the more verbose between original and flare
@@ -98,7 +99,7 @@ class Flare:
 
             # We only want the flare to be sent once, even if there are
             # multiple tracer instances
-            lock_path = TRACER_FLARE_DIRECTORY / TRACER_FLARE_LOCK
+            lock_path = self.flare_dir / TRACER_FLARE_LOCK
             if not os.path.exists(lock_path):
                 try:
                     open(lock_path, "w").close()
@@ -137,7 +138,7 @@ class Flare:
                     return
 
     def _generate_config_file(self, pid: int):
-        config_file = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_config_{pid}.json")
+        config_file = self.flare_dir / pathlib.Path(f"tracer_config_{pid}.json")
         try:
             with open(config_file, "w") as f:
                 tracer_configs = {
@@ -166,8 +167,8 @@ class Flare:
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-            for file_name in os.listdir(TRACER_FLARE_DIRECTORY):
-                flare_file_name = TRACER_FLARE_DIRECTORY / pathlib.Path(file_name)
+            for file_name in os.listdir(self.flare_dir):
+                flare_file_name = self.flare_dir / pathlib.Path(file_name)
                 tar.add(flare_file_name)
         tar_stream.seek(0)
 
@@ -201,6 +202,6 @@ class Flare:
 
     def clean_up_files(self):
         try:
-            shutil.rmtree(TRACER_FLARE_DIRECTORY)
+            shutil.rmtree(self.flare_dir)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)
