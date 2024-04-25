@@ -518,6 +518,7 @@ class AstVisitor(ast.NodeTransformer):
                     self.ast_modified = call_modified = True
 
             if not aspect:
+                # Not a module symbol, check if it's a known method
                 aspect = self._aspect_methods.get(method_name)
 
                 if aspect:
