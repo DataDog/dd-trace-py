@@ -58,8 +58,9 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: sudo /root/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
-
+        run: |
+          sudo -i
+          /root/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
