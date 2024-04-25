@@ -198,7 +198,7 @@ def _unpatch_aio_server():
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    pin = Pin.get_from(channel)
+    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
     if not pin or not pin.enabled():
         return channel
 
@@ -209,11 +209,9 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
-    channel = wrapped(*args, **kwargs)
-
-    pin = Pin.get_from(channel)
+    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
     if not pin or not pin.enabled():
-        return channel
+        return wrapped(*args, **kwargs)
 
     (host, port) = utils._parse_target_from_args(args, kwargs)
 
