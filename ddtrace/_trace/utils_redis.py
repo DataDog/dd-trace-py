@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.redis_utils import _extract_conn_tags
+from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -40,32 +41,13 @@ MULTI_KEY_COMMANDS = ["MGET"]
 ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
 
 
-def determine_row_count(redis_command, span, result):
-    empty_results = [b"", [], {}, None]
-    # result can be an empty list / dict / string
-    if result not in empty_results:
-        if redis_command == "MGET":
-            # only include valid key results within count
-            result = [x for x in result if x not in empty_results]
-            span.set_metric(db.ROWCOUNT, len(result))
-        elif redis_command == "HMGET":
-            # only include valid key results within count
-            result = [x for x in result if x not in empty_results]
-            span.set_metric(db.ROWCOUNT, 1 if len(result) > 0 else 0)
-        else:
-            span.set_metric(db.ROWCOUNT, 1)
-    else:
-        # set count equal to 0 if an empty result
-        span.set_metric(db.ROWCOUNT, 0)
-
-
 def _run_redis_command(span, func, args, kwargs):
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     try:
         result = func(*args, **kwargs)
         if redis_command in ROW_RETURNING_COMMANDS:
-            determine_row_count(redis_command=redis_command, span=span, result=result)
+            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
         return result
     except Exception:
         if redis_command in ROW_RETURNING_COMMANDS:
@@ -160,7 +142,7 @@ async def _run_redis_command_async(span, func, args, kwargs):
     try:
         result = await func(*args, **kwargs)
         if redis_command in ROW_RETURNING_COMMANDS:
-            determine_row_count(redis_command=redis_command, span=span, result=result)
+            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
         return result
     except Exception:
         if redis_command in ROW_RETURNING_COMMANDS:
