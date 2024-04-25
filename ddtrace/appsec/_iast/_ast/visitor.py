@@ -516,6 +516,7 @@ class AstVisitor(ast.NodeTransformer):
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
+
             if not aspect:
                 aspect = self._aspect_methods.get(method_name)
 
