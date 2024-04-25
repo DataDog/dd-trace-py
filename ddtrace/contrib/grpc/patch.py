@@ -209,7 +209,7 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_client_channel_interceptor(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(constants.GRPC_PIN_MODULE_CLIENT)
+    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
