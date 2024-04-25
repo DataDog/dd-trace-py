@@ -170,7 +170,7 @@ class AgentPayload(object):
     roots = attr.ib(type=List[SignedRoot], default=None)
     targets = attr.ib(type=SignedTargets, default=None)
     target_files = attr.ib(type=List[TargetFile], default=[])
-    client_configs = attr.ib(type=Set[str], default={})
+    client_configs = attr.ib(type=Set[str], default=set())
 
 
 AppliedConfigType = Dict[str, ConfigMetadata]
