@@ -23,6 +23,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
+    from ._native.aspect_ospath_join import _aspect_ospathjoin
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
     from ._native.initializer import debug_taint_map
@@ -79,6 +80,7 @@ __all__ = [
     "str_to_origin",
     "origin_to_str",
     "common_replace",
+    "_aspect_ospathjoin",
     "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
