@@ -41,7 +41,6 @@ from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
 from .utils import inject_trace_to_client_context
 from .utils import inject_trace_to_eventbridge_detail
-from .utils import set_patched_api_call_span_tags
 from .utils import set_response_metadata_tags
 
 
@@ -183,11 +182,7 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
         injection_function = inject_trace_to_eventbridge_detail
         cloud_service = "events"
     if endpoint_name == "sns" and "Publish" in operation:
-        injection_function = (  # noqa: E731
-            lambda ctx, params, span, endpoint_service: inject_trace_to_sqs_or_sns_message(
-                ctx, params, endpoint_service
-            )
-        )
+        injection_function = inject_trace_to_sqs_or_sns_message
         cloud_service = "sns"
     if endpoint_name == "states" and (operation == "StartExecution" or operation == "StartSyncExecution"):
         injection_function = update_stepfunction_input
@@ -215,7 +210,6 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         endpoint_name=endpoint_name,
         operation=operation,
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-        context_started_callback=set_patched_api_call_span_tags,
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         span_type=SpanTypes.HTTP,
