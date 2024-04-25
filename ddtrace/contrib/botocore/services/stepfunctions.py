@@ -12,7 +12,6 @@ from ....internal.logger import get_logger
 from ....internal.schema import SpanDirection
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
-from ..utils import set_patched_api_call_span_tags
 from ..utils import set_response_metadata_tags
 
 
@@ -70,7 +69,6 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         params=params,
         endpoint_name=endpoint_name,
         operation=operation,
-        context_started_callback=set_patched_api_call_span_tags,
         pin=pin,
     ) as ctx, ctx.get_item(ctx["call_key"]):
         core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
