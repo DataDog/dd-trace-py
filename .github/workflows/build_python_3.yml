@@ -40,7 +40,7 @@ jobs:
           python-version: '3.8'
 
       - name: Install pipx
-        if: matrix.os == 'arm-4core-linux'
+        if: matrix.os == 'NOarm-4core-linux'
         run: |
           sudo apt update
           sudo apt install -y python3-pip cmake g++-12 git make curl
@@ -56,6 +56,7 @@ jobs:
           platforms: all
 
       - name: Build wheels
+        if: matrix.os != 'arm-4core-linux'
         run: pipx run cibuildwheel==2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
