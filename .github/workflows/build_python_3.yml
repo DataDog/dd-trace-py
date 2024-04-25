@@ -57,7 +57,7 @@ jobs:
       - name: Build wheels Other
         if: matrix.os != 'windows-latest'
         run: |
-          if [['${{ matrix.os }}' == 'arm-4core-linux']]; then
+          if [[ '${{ matrix.os }}' == 'arm-4core-linux' ]]; then
             export PATH=$PATH:/home/runner/.local/bin
           fi
           pipx run cibuildwheel==2.16.5
