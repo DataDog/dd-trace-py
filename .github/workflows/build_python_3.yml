@@ -43,7 +43,7 @@ jobs:
         if: matrix.os == 'arm-4core-linux'
         run: |
           sudo apt update
-          sudo apt install -y python3-pip cmake g++-12 git make curl
+          sudo apt install -y python3-pip python3.10-venv cmake g++-12 git make curl
           python3 -m pip install --user pipx "cibuildwheel==2.16.5"
           python3 -m pipx ensurepath
           #sudo pipx ensurepath --global
