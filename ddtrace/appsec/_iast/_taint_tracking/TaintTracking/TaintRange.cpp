@@ -38,7 +38,7 @@ TaintRange::get_hash() const
 };
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
+shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
     if (new_length == -1) {
         new_length = source_taint_range->length;
@@ -47,6 +47,12 @@ api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offse
                                                   new_length,                         // length
                                                   source_taint_range->source);        // origin
     return tptr;
+}
+
+TaintRangePtr
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
+{
+    return shift_taint_range(source_taint_range, offset, new_length);
 }
 
 TaintRangeRefs

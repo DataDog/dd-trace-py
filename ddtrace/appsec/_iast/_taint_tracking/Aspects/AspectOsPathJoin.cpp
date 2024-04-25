@@ -56,7 +56,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         std::tie(ranges, ranges_error) = get_ranges(first_part.ptr(), tx_map);
         if (not ranges_error and not ranges.empty()) {
             for (auto& range : ranges) {
-                result_ranges.emplace_back(api_shift_taint_range(range, current_offset, first_part_len));
+                result_ranges.emplace_back(shift_taint_range(range, current_offset, first_part_len));
             }
         }
 
@@ -80,7 +80,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
             if (not ranges_error and not ranges.empty()) {
                 auto len_args_i = py::len(args[i]);
                 for (auto& range : ranges) {
-                    result_ranges.emplace_back(api_shift_taint_range(range, current_offset, len_args_i));
+                    result_ranges.emplace_back(shift_taint_range(range, current_offset, len_args_i));
                 }
             }
             current_offset += py::len(args[i]);
