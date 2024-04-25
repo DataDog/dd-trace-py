@@ -56,7 +56,7 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset
     new_ranges.reserve(source_taint_ranges.size());
 
     for (const auto& trange : source_taint_ranges) {
-        new_ranges.emplace_back(api_shift_taint_range(trange, offset, new_length));
+        new_ranges.emplace_back(shift_taint_range(trange, offset, new_length));
     }
     return new_ranges;
 }
