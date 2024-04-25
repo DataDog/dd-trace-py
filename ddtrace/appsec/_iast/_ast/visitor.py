@@ -498,8 +498,8 @@ class AstVisitor(ast.NodeTransformer):
             func_value_value_id = getattr(func_value_value, "id", None) if func_value_value else None
             func_value_attr = getattr(func_value, "attr", None) if func_value else None
             func_attr = getattr(func_member, "attr", None)
+            aspect = None
             if func_value_value_id or func_attr:
-                aspect = None
                 if func_value_value_id and func_value_attr:
                     # e.g. "os.path" or "one.two.three.whatever" (all dotted previous tokens with be in the id)
                     key = func_value_value_id + "." + func_value_attr
@@ -516,7 +516,7 @@ class AstVisitor(ast.NodeTransformer):
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
-            else:
+            if not aspect:
                 aspect = self._aspect_methods.get(method_name)
 
                 if aspect:
