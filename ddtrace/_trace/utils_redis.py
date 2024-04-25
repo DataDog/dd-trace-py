@@ -8,7 +8,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.redis_utils import _extract_conn_tags
-from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -19,40 +18,6 @@ from ddtrace.internal.utils.formats import stringify_cache_args
 
 
 format_command_args = stringify_cache_args
-
-SINGLE_KEY_COMMANDS = [
-    "GET",
-    "GETDEL",
-    "GETEX",
-    "GETRANGE",
-    "GETSET",
-    "LINDEX",
-    "LRANGE",
-    "RPOP",
-    "LPOP",
-    "HGET",
-    "HGETALL",
-    "HKEYS",
-    "HMGET",
-    "HRANDFIELD",
-    "HVALS",
-]
-MULTI_KEY_COMMANDS = ["MGET"]
-ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
-
-
-def _run_redis_command(span, func, args, kwargs):
-    parsed_command = stringify_cache_args(args)
-    redis_command = parsed_command.split(" ")[0]
-    try:
-        result = func(*args, **kwargs)
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
-        return result
-    except Exception:
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, 0)
-        raise
 
 
 @contextmanager
@@ -134,17 +99,3 @@ def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, i
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
         # yield the span in case the caller wants to build on span
         yield span
-
-
-async def _run_redis_command_async(span, func, args, kwargs):
-    parsed_command = stringify_cache_args(args)
-    redis_command = parsed_command.split(" ")[0]
-    try:
-        result = await func(*args, **kwargs)
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
-        return result
-    except Exception:
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, 0)
-        raise

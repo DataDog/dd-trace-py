@@ -5,11 +5,11 @@ import sys
 import aioredis
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import ROW_RETURNING_COMMANDS
-from ddtrace._trace.utils_redis import _run_redis_command_async
 from ddtrace._trace.utils_redis import _trace_redis_cmd
 from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
-from ddtrace._trace.utils_redis import determine_row_count
+from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.redis_utils import _run_redis_command_async
+from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin

@@ -5,6 +5,29 @@ from typing import Union
 
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
+from ddtrace.internal import core
+from ddtrace.internal.utils.formats import stringify_cache_args
+
+
+SINGLE_KEY_COMMANDS = [
+    "GET",
+    "GETDEL",
+    "GETEX",
+    "GETRANGE",
+    "GETSET",
+    "LINDEX",
+    "LRANGE",
+    "RPOP",
+    "LPOP",
+    "HGET",
+    "HGETALL",
+    "HKEYS",
+    "HMGET",
+    "HRANDFIELD",
+    "HVALS",
+]
+MULTI_KEY_COMMANDS = ["MGET"]
+ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
 
 
 def _extract_conn_tags(conn_kwargs):
@@ -39,3 +62,21 @@ def determine_row_count(redis_command: str, result: Optional[Union[List, Dict, s
             return 1
     else:
         return 0
+
+
+async def _run_redis_command_async(span, func, args, kwargs):
+    parsed_command = stringify_cache_args(args)
+    redis_command = parsed_command.split(" ")[0]
+    rowcount = None
+    try:
+        result = await func(*args, **kwargs)
+        return result
+    except Exception:
+        rowcount = 0
+        raise
+    finally:
+        if rowcount is None:
+            rowcount = determine_row_count(redis_command=redis_command, result=result)
+        if redis_command not in ROW_RETURNING_COMMANDS:
+            rowcount = None
+        await core.dispatch_async("redis.async_command.post", [span, rowcount])
