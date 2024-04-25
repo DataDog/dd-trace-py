@@ -1,3 +1,0 @@
-features:
-  - |
-    Vulnerability Management for Code-level (IAST): add propagation aspect for `os.path.join()`.
