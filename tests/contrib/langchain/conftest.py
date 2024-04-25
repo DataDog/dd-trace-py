@@ -77,7 +77,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
-def mock_llmobs_writer():
+def mock_llmobs_span_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()

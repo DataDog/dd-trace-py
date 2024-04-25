@@ -131,7 +131,7 @@ def aws_credentials():
 
 
 @pytest.fixture
-def boto3(aws_credentials, mock_llmobs_writer, ddtrace_global_config, ddtrace_config_botocore):
+def boto3(aws_credentials, mock_llmobs_span_writer, ddtrace_global_config, ddtrace_config_botocore):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -156,7 +156,7 @@ def bedrock_client(boto3, request_vcr):
 
 
 @pytest.fixture
-def mock_llmobs_writer():
+def mock_llmobs_span_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
         LLMObsSpanWriterMock = patcher.start()
@@ -463,7 +463,7 @@ class TestLLMObsBedrock:
         )
 
     @classmethod
-    def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_writer, cassette_name=None, n_output=1):
+    def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
@@ -491,13 +491,13 @@ class TestLLMObsBedrock:
             json.loads(response.get("body").read())
         span = mock_tracer.pop_traces()[0][0]
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
 
     @classmethod
-    def _test_llmobs_invoke_stream(cls, provider, bedrock_client, mock_llmobs_writer, cassette_name=None, n_output=1):
+    def _test_llmobs_invoke_stream(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
@@ -526,70 +526,70 @@ class TestLLMObsBedrock:
                 pass
         span = mock_tracer.pop_traces()[0][0]
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
 
-    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke("amazon", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke("amazon", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke("anthropic", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke("anthropic", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke("anthropic_message", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke("anthropic_message", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke(
-            "cohere", bedrock_client, mock_llmobs_writer, cassette_name="cohere_invoke_single_output.yaml"
+            "cohere", bedrock_client, mock_llmobs_span_writer, cassette_name="cohere_invoke_single_output.yaml"
         )
 
-    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
-            mock_llmobs_writer,
+            mock_llmobs_span_writer,
             cassette_name="cohere_invoke_multi_output.yaml",
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke("meta", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke("meta", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke_stream("amazon", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke_stream("amazon", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke_stream("anthropic", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_anthropic_message_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_anthropic_message_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
-            mock_llmobs_writer,
+            mock_llmobs_span_writer,
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
+    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
-            mock_llmobs_writer,
+            mock_llmobs_span_writer,
             cassette_name="cohere_invoke_stream_multi_output.yaml",
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer):
-        self._test_llmobs_invoke_stream("meta", bedrock_client, mock_llmobs_writer)
+    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
+        self._test_llmobs_invoke_stream("meta", bedrock_client, mock_llmobs_span_writer)
 
-    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_llmobs_writer, request_vcr):
+    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer, request_vcr):
         import botocore
 
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
@@ -626,5 +626,5 @@ class TestLLMObsBedrock:
             ),
         ]
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
