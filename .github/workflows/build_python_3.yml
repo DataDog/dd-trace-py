@@ -40,13 +40,12 @@ jobs:
           python-version: '3.8'
 
       - name: Install pipx
-        if: matrix.os == 'NOarm-4core-linux'
+        if: matrix.os == 'arm-4core-linux'
         run: |
           sudo apt update
           sudo apt install -y python3-pip cmake g++-12 git make curl
           python3 -m pip install --user pipx "cibuildwheel==2.16.5"
           python3 -m pipx ensurepath
-          export PATH=$PATH:/home/runner/.local/bin
           #sudo pipx ensurepath --global
 
       - name: Set up QEMU
@@ -56,8 +55,11 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        if: matrix.os != 'arm-4core-linux'
-        run: pipx run cibuildwheel==2.16.5
+        run: |
+          if [[${{ matrix.os }} == 'arm-4core-linux']]; then
+            export PATH=$PATH:/home/runner/.local/bin
+          fi
+          pipx run cibuildwheel==2.16.5
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
