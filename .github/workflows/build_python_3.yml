@@ -42,14 +42,14 @@ jobs:
       - name: Install pipx
         if: matrix.os == 'arm-4core-linux'
         run: |
-          sudo apt install -y acl
+          sudo apt install -y acl python3.10-venv
           curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
           sudo python3 get-pip.py
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo usermod -a -G docker $USER
           sudo setfacl --modify user:runner:rw /var/run/docker.sock
-          python3 -m pip install pipx virtualenv
+          python3 -m pip install pipx
           python3 -m pipx ensurepath
 
       - name: Set up QEMU
