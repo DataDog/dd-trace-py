@@ -92,7 +92,8 @@ jobs:
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
         uses: pypa/cibuildwheel@v2.16.5
-        env: *cibuildwheel_opts
+        env:
+          <<: *cibuildwheel_opts
 
       - uses: actions/upload-artifact@v3
         with:
