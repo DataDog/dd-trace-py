@@ -57,14 +57,15 @@ bool
 set_ranges_on_splitted(const StrType& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
-                       TaintRangeMapType* tx_map);
-
+                       TaintRangeMapType* tx_map,
+                       bool include_separator = false);
 
 template<class StrType>
 bool
 api_set_ranges_on_splitted(const StrType& source_str,
                            const TaintRangeRefs& source_ranges,
-                           const py::list& split_result);
+                           const py::list& split_result,
+                           bool include_separator = false);
 
 void
 pyexport_aspect_helpers(py::module& m);
