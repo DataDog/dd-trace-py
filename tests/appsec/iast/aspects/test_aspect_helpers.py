@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -207,6 +208,7 @@ def test_set_ranges_on_splitted_ospathsplit_with_empty_string():
     ]
     assert get_ranges(parts[1]) == []
 
+
 def test_set_ranges_on_splitted_ospathbasename():
     s = "abc/efgh/jkl"
     range1 = _build_sample_range(0, 2, s[0:2])
@@ -288,6 +290,7 @@ def test_set_ranges_on_splitted_ospathsplitroot_windows_drive():
         TaintRange(9, 3, Source("jkl", "sample_value", OriginType.PARAMETER)),
     ]
 
+
 def test_set_ranges_on_splitted_ospathsplitroot_windows_share():
     s = "//server/share/abc/efgh/jkl"
     range1 = _build_sample_range(0, 2, "//")
@@ -319,6 +322,7 @@ def test_set_ranges_on_splitted_ospathsplitroot_windows_share():
         TaintRange(8, 4, Source("/jkl", "sample_value", OriginType.PARAMETER)),
     ]
 
+
 def test_set_ranges_on_splitted_ospathsplitroot_posix_normal_path():
     s = "/abc/efgh/jkl"
     range1 = _build_sample_range(0, 4, "/abc")
@@ -340,6 +344,7 @@ def test_set_ranges_on_splitted_ospathsplitroot_posix_normal_path():
         TaintRange(2, 5, Source("c/efg", "sample_value", OriginType.PARAMETER)),
         TaintRange(6, 5, Source("gh/jk", "sample_value", OriginType.PARAMETER)),
     ]
+
 
 def test_set_ranges_on_splitted_ospathsplitroot_posix_startwithtwoslashes_path():
     s = "//abc/efgh/jkl"
