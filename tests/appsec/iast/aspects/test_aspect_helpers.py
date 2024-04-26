@@ -123,6 +123,28 @@ def test_set_ranges_on_splitted_str() -> None:
     assert get_ranges(parts[1]) == [TaintRange(0, 2, Source("second", "sample_value", OriginType.PARAMETER))]
 
 
+def test_set_ranges_on_splitted_rsplit() -> None:
+    s = "abc|efgh|jkl"
+    range1 = _build_sample_range(0, 2, s[0:2])
+    range2 = _build_sample_range(4, 2, s[4:6])
+    range3 = _build_sample_range(9, 3, s[9:12])
+    set_ranges(s, (range1, range2, range3))
+    ranges = get_ranges(s)
+    assert ranges
+
+    parts = s.rsplit("|", 1)
+    assert parts == ["abc|efgh", "jkl"]
+    ok = set_ranges_on_splitted(s, ranges, parts)
+    assert ok
+    assert get_ranges(parts[0]) == [
+        TaintRange(0, 2, Source("ab", "sample_value", OriginType.PARAMETER)),
+        TaintRange(4, 2, Source("ef", "sample_value", OriginType.PARAMETER)),
+    ]
+    assert get_ranges(parts[1]) == [
+        TaintRange(0, 3, Source("jkl", "sample_value", OriginType.PARAMETER)),
+    ]
+
+
 def test_set_ranges_on_splitted_bytes() -> None:
     s = b"abc|efgh|ijkl"
     range1 = _build_sample_range(0, 2, "first")  # ab -> 0, 2
