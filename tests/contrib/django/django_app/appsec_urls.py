@@ -215,13 +215,13 @@ def command_injection(request):
     # label iast_command_injection
     os.system(add_aspect("dir -l ", value))
 
-    return HttpResponse(value, status=200)
+    return HttpResponse("OK", status=200)
 
 
 def header_injection(request):
     value = decode_aspect(bytes.decode, 1, request.body)
 
-    response = HttpResponse(value, status=200)
+    response = HttpResponse("OK", status=200)
     # label iast_header_injection
     response.headers["Header-Injection"] = value
     return response

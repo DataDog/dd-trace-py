@@ -569,7 +569,7 @@ def test_django_command_injection(client, test_spans, tracer):
             tracer,
             url="/appsec/command-injection/",
             payload="master",
-            content_type="multipart/form-data",
+            content_type="application/json",
         )
 
         loaded = json.loads(root_span.get_tag(IAST.JSON))
