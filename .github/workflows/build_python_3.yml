@@ -48,7 +48,7 @@ jobs:
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo usermod -a -G docker $USER
-          sudo apt install -y acl python3.10-venv python3.10-pip
+          sudo apt install -y acl python3.10-venv python3-pip
           sudo setfacl --modify user:runner:rw /var/run/docker.sock
           python3 -m pip install pipx
 
