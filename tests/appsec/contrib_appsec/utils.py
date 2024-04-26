@@ -449,6 +449,27 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
+    @pytest.mark.parametrize("uri", ["/waf/../"])
+    def test_request_suspicious_request_block_match_uri_lfi(
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri
+    ):
+        if interface.name in ("fastapi",):
+            raise pytest.skip(f"TODO: fix {interface.name}")
+
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)):
+            self.update_tracer(interface)
+            interface.client.get(uri)
+            # assert get_tag(http.URL) == f"http://localhost:8000{uri}"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled:
+                self.check_single_rule_triggered("crs-930-110", root_span)
+            else:
+                assert get_triggers(root_span()) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("path", "blocked"),
         [

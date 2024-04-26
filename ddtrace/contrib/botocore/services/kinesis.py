@@ -19,7 +19,6 @@ from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
 from ..utils import extract_DD_context
 from ..utils import get_kinesis_data_object
-from ..utils import set_patched_api_call_span_tags
 from ..utils import set_response_metadata_tags
 
 
@@ -134,7 +133,6 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             operation=operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             call_trace=False,
-            context_started_callback=set_patched_api_call_span_tags,
             pin=pin,
             span_name=span_name,
             span_type=SpanTypes.HTTP,

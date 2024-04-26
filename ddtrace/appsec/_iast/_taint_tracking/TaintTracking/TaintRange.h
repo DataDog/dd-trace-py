@@ -73,7 +73,13 @@ using TaintRangePtr = shared_ptr<TaintRange>;
 using TaintRangeRefs = vector<TaintRangePtr>;
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length);
+shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length);
+
+inline TaintRangePtr
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length)
+{
+    return shift_taint_range(source_taint_range, offset, new_length);
+}
 
 TaintRangeRefs
 shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset, RANGE_LENGTH new_length);
@@ -84,39 +90,16 @@ api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH n
 std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, TaintRangeMapType* tx_map);
 
-inline std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input)
-{
-    return get_ranges(string_input, nullptr);
-}
-
-inline TaintRangeRefs
-api_get_ranges(py::object& string_input)
-{
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(string_input.ptr());
-    if (ranges_error) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-    return ranges;
-}
-
 bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
 
-inline bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges)
-{
-    return set_ranges(str, ranges, nullptr);
-}
-inline void
-api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
-{
-    set_ranges(str.ptr(), ranges);
-}
+py::object
+api_set_ranges(py::object& str, const TaintRangeRefs& ranges);
 
-inline void
+TaintRangeRefs
+api_get_ranges(const py::object& string_input);
+
+void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2);
 
 inline void
