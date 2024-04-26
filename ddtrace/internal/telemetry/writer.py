@@ -83,7 +83,6 @@ from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
 from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
 from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
 from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
 from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
@@ -387,7 +386,7 @@ class TelemetryWriter(PeriodicService):
             name = "trace_sample_rate"
             value = str(item.value())
         elif cfg_name == "_trace_sampling_rules":
-            name = "_trace_sampling_rules"
+            name = "trace_sampling_rules"
             if item.value() is None:
                 value = ""
             else:
@@ -469,7 +468,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
                 (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
