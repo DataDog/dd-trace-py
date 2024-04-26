@@ -62,8 +62,8 @@ class SamplingMechanism(object):
     REMOTE_RATE_USER = 6
     REMOTE_RATE_DATADOG = 7
     SPAN_SAMPLING_RULE = 8
-    REMOTE_USER_RULE = 10
-    REMOTE_DYNAMIC_RULE = 11
+    REMOTE_USER_RULE = 11
+    REMOTE_DYNAMIC_RULE = 12
 
 
 # Use regex to validate trace tag value
