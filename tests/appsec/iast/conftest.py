@@ -11,6 +11,8 @@ from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
+from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
@@ -62,6 +64,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             psycopg_patch()
             sqlalchemy_patch()
             cmdi_patch()
+            header_injection_patch()
             langchain_patch()
             iast_span_processor.on_span_start(span)
             yield span
@@ -73,6 +76,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             psycopg_unpatch()
             sqlalchemy_unpatch()
             cmdi_unpatch()
+            header_injection_unpatch()
             langchain_unpatch()
 
 

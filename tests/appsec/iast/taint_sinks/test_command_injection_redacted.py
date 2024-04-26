@@ -81,7 +81,7 @@ def test_cmdi_redact_rel_paths(file_path):
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     s = Source(origin="file", name="SomeName", value=file_path)
     report = IastSpanReporter([s], {v})
 
@@ -117,7 +117,7 @@ def test_cmdi_redact_options(file_path):
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     s = Source(origin="file", name="SomeName", value=file_path)
     report = IastSpanReporter([s], {v})
 
@@ -153,7 +153,7 @@ def test_cmdi_redact_source_command(file_path):
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
