@@ -429,3 +429,18 @@ def test_set_ranges_on_splitted_bytearray() -> None:
         TaintRange(1, 4, Source("second", "sample_value", OriginType.PARAMETER)),
     ]
     assert get_ranges(parts[2]) == [TaintRange(0, 2, Source("third", "sample_value", OriginType.PARAMETER))]
+
+
+def test_set_ranges_on_splitted_wrong_args():
+    s = "12345"
+    range1 = _build_sample_range(1, 3, "234")
+    set_ranges(s, (range1,))
+    ranges = get_ranges(s)
+
+    assert not set_ranges_on_splitted(s, [], ["123", 45])
+    assert not set_ranges_on_splitted("", ranges, ["123", 45])
+    assert not set_ranges_on_splitted(s, ranges, [])
+    parts = ["123", 45]
+    set_ranges_on_splitted(s, ranges, parts)
+    ranges = get_ranges(parts[0])
+    assert ranges == [TaintRange(1, 3, Source("123", "sample_value", OriginType.PARAMETER))]

@@ -347,12 +347,18 @@ set_ranges_on_splitted(const StrType& source_str,
                        bool include_separator)
 {
     bool some_set = false;
+
+    // Some quick shortcuts
+    if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map) {
+        return false;
+    }
+
     RANGE_START offset = 0;
     std::string c_source_str = py::cast<std::string>(source_str);
     auto separator_increase = (int)((not include_separator));
 
     for (const auto& item : split_result) {
-        if (py::len(item) == 0) {
+        if (not is_text(item.ptr()) or py::len(item) == 0) {
             continue;
         }
         auto c_item = py::cast<std::string>(item);
