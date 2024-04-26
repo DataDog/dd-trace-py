@@ -313,7 +313,7 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             mock_send_request.assert_called()
             sleep(0.5)
             assert callback.features == {}
-            assert rc._client._last_error == "invalid agent payload received"
+            assert rc._client._last_error.startswith("invalid agent payload received")
 
     class Callback:
         features = {}
@@ -351,7 +351,7 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
                 mock_send_request.assert_called()
                 sleep(0.5)
                 assert callback.features == {}
-                assert rc._client._last_error == "invalid agent payload received"
+                assert rc._client._last_error.startswith("invalid agent payload received")
 
             mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
             rc._online()

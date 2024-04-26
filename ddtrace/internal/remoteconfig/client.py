@@ -544,9 +544,10 @@ class RemoteConfigClient(object):
         # type: (Mapping[str, Any]) -> None
         try:
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
-        except Exception:
+        except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
-            raise RemoteConfigError("invalid agent payload received")
+            msg = f"invalid agent payload received: {e}"
+            raise RemoteConfigError(msg)
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
