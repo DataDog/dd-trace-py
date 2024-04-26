@@ -283,7 +283,7 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.2
-assert span.get_tag("_dd.p.dm") == "-10"
+assert span.get_tag("_dd.p.dm") == "-11"
 
 config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
@@ -309,7 +309,7 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.4
-assert span.get_tag("_dd.p.dm") == "-11"
+assert span.get_tag("_dd.p.dm") == "-12"
 
 config._handle_remoteconfig(_base_rc_config({}))
 with tracer.trace("test") as span:
@@ -329,7 +329,7 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
 with tracer.trace(service="ok", name="test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.4
-assert span.get_tag("_dd.p.dm") == "-10"
+assert span.get_tag("_dd.p.dm") == "-11"
 
 config._handle_remoteconfig(_deleted_rc_config())
 with tracer.trace("test") as span:
@@ -381,7 +381,7 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
 with tracer.trace("rules") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.7
-assert span.get_tag("_dd.p.dm") == "-10"
+assert span.get_tag("_dd.p.dm") == "-11"
 
 with tracer.trace("sample_rate") as span:
     pass
@@ -448,12 +448,12 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
 with tracer.trace("rules_dynamic") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
-assert span.get_tag("_dd.p.dm") == "-11"
+assert span.get_tag("_dd.p.dm") == "-12"
 
 with tracer.trace("rules_customer") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.6
-assert span.get_tag("_dd.p.dm") == "-10"
+assert span.get_tag("_dd.p.dm") == "-11"
 
 with tracer.trace("sample_rate") as span:
     pass
