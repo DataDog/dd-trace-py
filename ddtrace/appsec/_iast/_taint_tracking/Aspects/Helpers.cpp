@@ -435,19 +435,22 @@ pyexport_aspect_helpers(py::module& m)
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          "include_separator"_a = false); // cppcheck-suppress assignBoolToPointer
+          // cppcheck-suppress assignBoolToPointer
+          "include_separator"_a = false);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::str>,
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          "include_separator"_a = false); // cppcheck-suppress assignBoolToPointer
+           // cppcheck-suppress assignBoolToPointer
+          "include_separator"_a = false);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::bytearray>,
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          "include_separator"_a = false); // cppcheck-suppress assignBoolToPointer
+           // cppcheck-suppress assignBoolToPointer
+          "include_separator"_a = false);
     m.def("_all_as_formatted_evidence",
           &_all_as_formatted_evidence<py::str>,
           "text"_a,
