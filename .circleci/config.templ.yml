@@ -1227,21 +1227,6 @@ jobs:
           snapshot: true
           docker_services: "httpbin_local"
 
-  vertica:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - image: *vertica_image
-        environment:
-          - VP_TEST_USER=dbadmin
-          - VP_TEST_PASSWORD=abc123
-          - VP_TEST_DATABASE=docker
-    steps:
-      - run_test:
-          wait: vertica
-          pattern: 'vertica'
-
   wsgi:
     <<: *machine_executor
     steps:
