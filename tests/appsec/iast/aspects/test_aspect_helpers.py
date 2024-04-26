@@ -116,7 +116,7 @@ def test_set_ranges_on_splitted_str() -> None:
     ranges = get_ranges(s)
     assert ranges
 
-    parts = s.split('|')
+    parts = s.split("|")
     ok = set_ranges_on_splitted(s, ranges, parts)
     assert ok
     assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
@@ -132,7 +132,7 @@ def test_set_ranges_on_splitted_bytes() -> None:
     ranges = get_ranges(s)
     assert ranges
 
-    parts = s.split(b'|')
+    parts = s.split(b"|")
     ok = set_ranges_on_splitted(s, ranges, parts)
     assert ok
     assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
@@ -150,7 +150,7 @@ def test_set_ranges_on_splitted_bytearray() -> None:
     ranges = get_ranges(s)
     assert ranges
 
-    parts = s.split(b'|')
+    parts = s.split(b"|")
     ok = set_ranges_on_splitted(s, ranges, parts)
     assert ok
     assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
