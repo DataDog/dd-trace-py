@@ -1,5 +1,6 @@
 SPAN_KIND = "_ml_obs.meta.span.kind"
 SESSION_ID = "_ml_obs.session_id"
+METADATA = "_ml_obs.meta.metadata"
 METRICS = "_ml_obs.metrics"
 TAGS = "_ml_obs.tags"
 ML_APP = "_ml_obs.meta.ml_app"

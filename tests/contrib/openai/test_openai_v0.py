@@ -2205,7 +2205,7 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
             model_provider="openai",
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-            parameters={"temperature": 0.8, "max_tokens": 10},
+            metadata={"temperature": 0.8, "max_tokens": 10},
             token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2231,7 +2231,7 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
             model_provider="openai",
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": expected_completion}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 2, "completion_tokens": 16, "total_tokens": 18},
             tags={"ml_app": "<ml-app-name>"},
         ),
@@ -2272,7 +2272,7 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2315,7 +2315,7 @@ async def test_llmobs_chat_completion_stream(
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": expected_completion, "role": "assistant"}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2340,6 +2340,10 @@ def test_llmobs_chat_completion_function_call(
             function_call="auto",
             user="ddtrace-test",
         )
+    expected_output = "[function: {}]\n\n{}".format(
+        resp.choices[0].message.function_call.name,
+        resp.choices[0].message.function_call.arguments,
+    )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.enqueue.assert_called_with(
@@ -2348,8 +2352,8 @@ def test_llmobs_chat_completion_function_call(
             model_name=resp.model,
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-            output_messages=[{"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}],
-            parameters={"temperature": 0},
+            output_messages=[{"content": expected_output, "role": "assistant"}],
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2381,7 +2385,7 @@ def test_llmobs_chat_completion_function_call_stream(
             for chunk in resp:
                 resp_model = chunk.model
 
-    expected_output = '{"name":"David Nguyen","major":"Computer Science","school":"Stanford University","grades":3.8,"clubs":["Chess Club","South Asian Student Association"]}'  # noqa: E501
+    expected_output = '[function: extract_student_info]\n\n{"name":"David Nguyen","major":"Computer Science","school":"Stanford University","grades":3.8,"clubs":["Chess Club","South Asian Student Association"]}'  # noqa: E501
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
     mock_llmobs_writer.enqueue.assert_called_with(
@@ -2391,7 +2395,7 @@ def test_llmobs_chat_completion_function_call_stream(
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 63, "completion_tokens": 33, "total_tokens": 96},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2422,7 +2426,7 @@ def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_con
             model_provider="openai",
             input_messages=[{"content": chat_completion_input_description, "role": "user"}],
             output_messages=[{"content": expected_output, "role": "assistant"}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
             tags={"ml_app": "<ml-app-name>"},
         )
@@ -2449,7 +2453,7 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
             model_provider="openai",
             input_messages=[{"content": "Hello world"}],
             output_messages=[{"content": ""}],
-            parameters={"temperature": 0.8, "max_tokens": 10},
+            metadata={"temperature": 0.8, "max_tokens": 10},
             token_metrics={},
             error="openai.error.AuthenticationError",
             error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
@@ -2491,7 +2495,7 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": ""}],
-            parameters={"temperature": 0},
+            metadata={"temperature": 0},
             token_metrics={},
             error="openai.error.AuthenticationError",
             error_message="Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.",  # noqa: E501
