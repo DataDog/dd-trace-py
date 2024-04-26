@@ -91,7 +91,7 @@ def test_redacted_report_no_match():
     ev = Evidence(value="SomeEvidenceValue")
     orig_ev = ev.value
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -105,7 +105,7 @@ def test_redacted_report_source_name_match():
     ev = Evidence(value="'SomeEvidenceValue'")
     len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="secret", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -120,7 +120,7 @@ def test_redacted_report_source_value_match():
     ev = Evidence(value="'SomeEvidenceValue'")
     len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="somepassword")
     report = IastSpanReporter([s], {v})
 
@@ -135,7 +135,7 @@ def test_redacted_report_evidence_value_match_also_redacts_source_value():
     ev = Evidence(value="'SomeSecretPassword'")
     len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeSecretPassword")
     report = IastSpanReporter([s], {v})
 
@@ -159,7 +159,7 @@ def test_redacted_report_valueparts():
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -183,7 +183,7 @@ def test_redacted_report_valueparts_username_not_tainted():
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -211,7 +211,7 @@ def test_redacted_report_valueparts_username_tainted():
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -237,7 +237,7 @@ def test_regression_ci_failure():
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
