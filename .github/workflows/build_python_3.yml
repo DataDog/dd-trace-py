@@ -39,15 +39,16 @@ jobs:
         with:
           python-version: '3.8'
 
-      - name: Install pipx
+      - name: Install docker and pipx
         if: matrix.os == 'arm-4core-linux'
+        # The ARM64 Ubuntu has less things installed by default
+        # We need docker, pip and venv for cibuildwheel
+        # acl allows us to use docker in the same session
         run: |
-          curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-          sudo python3 get-pip.py
           curl -fsSL https://get.docker.com -o get-docker.sh
           sudo sh get-docker.sh
           sudo usermod -a -G docker $USER
-          sudo apt install -y acl python3.10-venv
+          sudo apt install -y acl python3.10-venv python3.10-pip
           sudo setfacl --modify user:runner:rw /var/run/docker.sock
           python3 -m pip install pipx
 
@@ -60,30 +61,7 @@ jobs:
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
         run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_BUILD_VERBOSITY: 1
-          CIBW_ARCHS: ${{ matrix.archs }}
-          CIBW_BUILD: ${{ inputs.cibw_build }}
-          CIBW_SKIP: ${{ inputs.cibw_skip }}
-          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CMAKE_BUILD_PARALLEL_LEVEL: 12
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
-            mkdir ./tempwheelhouse &&
-            unzip -l {wheel} | grep '\.so' &&
-            auditwheel repair -w ./tempwheelhouse {wheel} &&
-            (yum install -y zip || apk add zip) &&
-            for w in ./tempwheelhouse/*.whl; do
-              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
-              mv $w {dest_dir}
-            done &&
-            rm -rf ./tempwheelhouse
-
-      - name: Build wheels Other
-        if: matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
-        env:
+        env: &cibuildwheel_opts
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
@@ -110,6 +88,11 @@ jobs:
             move "{wheel}" "{dest_dir}"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
+
+      - name: Build wheels
+        if: matrix.os != 'arm-4core-linux'
+        uses: pypa/cibuildwheel@v2.16.5
+        env: *cibuildwheel_opts
 
       - uses: actions/upload-artifact@v3
         with:
