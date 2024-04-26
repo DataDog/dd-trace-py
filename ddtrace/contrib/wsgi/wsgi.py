@@ -108,6 +108,7 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
             call_key="req_span",
         ) as ctx:
+            ctx.set_item("wsgi.construct_url", construct_url)
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
                 if result:
@@ -198,9 +199,21 @@ def construct_url(environ):
                 url += ":" + environ["SERVER_PORT"]
 
     url += quote(environ.get("SCRIPT_NAME", ""))
-    url += quote(environ.get("PATH_INFO", ""))
-    if environ.get("QUERY_STRING"):
-        url += "?" + environ["QUERY_STRING"]
+    # we need the raw uri here for reporting, not the computed one
+    if environ.get("RAW_URI"):
+        url += environ["RAW_URI"]
+        # on old versions of wsgi, the raw uri does not include the query string
+        if environ.get("QUERY_STRING") and "?" not in environ["RAW_URI"]:
+            url += "?" + environ["QUERY_STRING"]
+    elif environ.get("REQUEST_URI"):
+        url += environ["REQUEST_URI"]
+        # on old versions of wsgi, the raw uri does not include the query string
+        if environ.get("QUERY_STRING") and "?" not in environ["REQUEST_URI"]:
+            url += "?" + environ["QUERY_STRING"]
+    else:
+        url += quote(environ.get("PATH_INFO", ""))
+        if environ.get("QUERY_STRING"):
+            url += "?" + environ["QUERY_STRING"]
 
     return url
 

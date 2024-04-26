@@ -10,7 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -149,7 +149,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        span.set_tag_str(METADATA, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return
@@ -175,7 +175,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         parameters = {"temperature": kwargs.get("temperature", 0)}
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        span.set_tag_str(METADATA, json.dumps(parameters))
         if err is not None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
             return

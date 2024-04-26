@@ -125,6 +125,10 @@ venv = Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec/appsec/",
+            pkgs={
+                "requests": latest,
+                "docker": latest,
+            },
         ),
         Venv(
             name="appsec_iast",
@@ -142,6 +146,7 @@ venv = Venv(
                 "grpcio": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -161,6 +166,7 @@ venv = Venv(
                 "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -174,6 +180,7 @@ venv = Venv(
                 "flask": "~=3.0",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -206,6 +213,7 @@ venv = Venv(
                 "sqlparse": ">=0.2.2",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -219,6 +227,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
@@ -647,14 +656,14 @@ venv = Venv(
                 Venv(
                     # celery dropped support for Python 2.7/3.5 in 5.0
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=4.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
                         "redis": "~=3.5",
                         "kombu": "~=4.4",
                         "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
-                        "pytest-cov": "==2.3.0",
+                        "pytest-cov": "~=3.0",
                         "pytest-mock": "==2.0.0",
                     },
                     venvs=[
@@ -666,7 +675,7 @@ venv = Venv(
                     # celery added support for Python 3.9 in 4.x
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "pytest": "~=3.10",
+                        "pytest": "~=4.0",
                         "celery": [
                             "~=4.4",  # most recent 4.x
                         ],
@@ -791,6 +800,7 @@ venv = Venv(
                 "django-q": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
@@ -1080,9 +1090,9 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=3.0",
+                        "pytest": "~=4.0",
                         "pytest-mock": "==2.0.0",
-                        "pytest-cov": "==2.1.0",
+                        "pytest-cov": "~=3.0",
                         "Jinja2": "~=2.11.0",
                         "more_itertools": "<8.11.0",
                         # https://github.com/pallets/itsdangerous/issues/290
@@ -1665,7 +1675,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-benchmark",
-            command="pytest {cmdargs} tests/contrib/pytest_benchmark/",
+            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
                 "msgpack": latest,
                 "pytest-randomly": latest,
@@ -2190,6 +2200,7 @@ venv = Venv(
             },
             pys=select_pys(),
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
@@ -2197,6 +2208,7 @@ venv = Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={

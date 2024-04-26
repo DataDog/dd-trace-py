@@ -62,7 +62,8 @@ class VulnerabilityBase(Operation):
     _redacted_report_cache = LFUCache()
 
     @classmethod
-    def _reset_cache(cls):
+    def _reset_cache_for_testing(cls):
+        """Reset the redacted reports and deduplication cache. For testing purposes only."""
         cls._redacted_report_cache.clear()
 
     @classmethod

@@ -398,7 +398,9 @@ def test_read_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
+        with mock.patch(
+            "ddtrace.contrib.botocore.services.bedrock._extract_text_and_response_reason"
+        ) as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
             with pytest.raises(Exception):
                 response.get("body").read()
@@ -423,7 +425,9 @@ def test_readlines_error(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with request_vcr.use_cassette("meta_invoke.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
-        with mock.patch("ddtrace.contrib.botocore.services.bedrock._extract_response") as mock_extract_response:
+        with mock.patch(
+            "ddtrace.contrib.botocore.services.bedrock._extract_text_and_response_reason"
+        ) as mock_extract_response:
             mock_extract_response.side_effect = Exception("test")
             with pytest.raises(Exception):
                 response.get("body").readlines()
@@ -449,7 +453,7 @@ class TestLLMObsBedrock:
             model_provider=span.get_tag("bedrock.request.model_provider"),
             input_messages=expected_input,
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
-            parameters=expected_parameters,
+            metadata=expected_parameters,
             token_metrics={
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
@@ -609,7 +613,7 @@ class TestLLMObsBedrock:
                     model_name=span.get_tag("bedrock.request.model"),
                     model_provider=span.get_tag("bedrock.request.model_provider"),
                     input_messages=[{"content": mock.ANY}],
-                    parameters={
+                    metadata={
                         "temperature": float(span.get_tag("bedrock.request.temperature")),
                         "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
                     },

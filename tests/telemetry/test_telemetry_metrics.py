@@ -53,12 +53,12 @@ def _assert_logs(
     test_agent.telemetry_writer.periodic()
     events = test_agent.get_events()
 
-    expected_body = _get_request_body(expected_payload, TELEMETRY_TYPE_LOGS, seq_id)
-    expected_body["payload"].sort(key=lambda x: x["message"], reverse=False)
-    expected_body_sorted = expected_body["payload"]
+    expected_body = _get_request_body({"logs": expected_payload}, TELEMETRY_TYPE_LOGS, seq_id)
+    expected_body["payload"]["logs"].sort(key=lambda x: x["message"], reverse=False)
+    expected_body_sorted = expected_body["payload"]["logs"]
 
-    events[0]["payload"].sort(key=lambda x: x["message"], reverse=False)
-    result_event = events[0]["payload"]
+    events[0]["payload"]["logs"].sort(key=lambda x: x["message"], reverse=False)
+    result_event = events[0]["payload"]["logs"]
 
     assert result_event == expected_body_sorted
 
