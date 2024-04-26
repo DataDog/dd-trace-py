@@ -32,7 +32,7 @@ from ddtrace.settings.profiling import config as profiling_config  # noqa
 post_preload = []
 
 
-def register_post_preload(func: t.Callable) -> None:
+def register_post_preload(func):
     post_preload.append(func)
 
 
