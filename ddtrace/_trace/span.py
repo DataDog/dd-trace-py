@@ -527,9 +527,13 @@ class Span(object):
         self._set_exc_tags(exc_type, exc_val, exc_tb)
 
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
+        limit = config._span_traceback_max_size
+        if limit is None:
+            limit = 30
+
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
