@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from typing import Callable  # noqa:F401
 
 
-# TODO: we also need a pybind11 version of this function
+# TODO: we also need a native version of this function!
 def ast_function(
     func,  # type: Callable
     flag_added_args,  # type: Any
