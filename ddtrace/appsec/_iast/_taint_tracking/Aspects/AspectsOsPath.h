@@ -10,4 +10,4 @@ StrType
 api_ospathjoin_aspect(StrType& first_part, const py::args& args);
 
 void
-pyexport_ospathjoin_aspect(py::module& m);
+pyexport_ospath_aspects(py::module& m);

@@ -24,7 +24,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
-    from ._native.aspect_ospath_join import _aspect_ospathjoin
+    from ._native.aspects_ospath import _aspect_ospathjoin
     from ._native.aspect_split import _aspect_splitlines
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context

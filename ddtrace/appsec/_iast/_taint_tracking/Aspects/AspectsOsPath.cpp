@@ -1,4 +1,4 @@
-#include "AspectOsPathJoin.h"
+#include "AspectsOsPath.h"
 #include <string>
 
 static bool
@@ -98,7 +98,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
 }
 
 void
-pyexport_ospathjoin_aspect(py::module& m)
+pyexport_ospath_aspects(py::module& m)
 {
     m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::str>, "first_part"_a);
     m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::bytes>, "first_part"_a);
