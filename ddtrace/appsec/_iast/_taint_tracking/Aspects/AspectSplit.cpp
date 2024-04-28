@@ -65,7 +65,10 @@ pyexport_aspect_split(py::module& m)
     m.def("_aspect_rsplit", &api_rsplit_text<py::str>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
     m.def("_aspect_rsplit", &api_rsplit_text<py::bytes>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
     m.def("_aspect_rsplit", &api_rsplit_text<py::bytearray>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
+    // cppcheck-suppress assignBoolToPointer
     m.def("_aspect_splitlines", &api_splitlines_text<py::str>, "text"_a, "keepends"_a = false);
+    // cppcheck-suppress assignBoolToPointer
     m.def("_aspect_splitlines", &api_splitlines_text<py::bytes>, "text"_a, "keepends"_a = false);
+    // cppcheck-suppress assignBoolToPointer
     m.def("_aspect_splitlines", &api_splitlines_text<py::bytearray>, "text"_a, "keepends"_a = false);
 }
