@@ -109,7 +109,7 @@ def splitlines_aspect(orig_function: Optional[Callable], flag_added_args: int, *
         return _aspect_splitlines(*args, **kwargs)
     except Exception as e:
         iast_taint_log_error("IAST propagation error. splitlines_aspect. {}".format(e))
-        return args[0].rsplit(*args[1:], **kwargs)
+        return args[0].splitlines(*args[1:], **kwargs)
 
 
 def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
