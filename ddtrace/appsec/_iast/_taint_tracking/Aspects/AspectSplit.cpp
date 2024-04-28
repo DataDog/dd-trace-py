@@ -13,8 +13,7 @@ api_split_text(const StrType& text, const optional<StrType>& separator, const op
     auto split = text.attr("split");
     auto split_result = split(separator, maxsplit);
     auto ranges = api_get_ranges(text);
-    if (not ranges.empty())
-    {
+    if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
     }
 
@@ -33,8 +32,7 @@ api_rsplit_text(const StrType& text, const optional<StrType>& separator, const o
     auto rsplit = text.attr("rsplit");
     auto split_result = rsplit(separator, maxsplit);
     auto ranges = api_get_ranges(text);
-    if (not ranges.empty())
-    {
+    if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
     }
     return split_result;
@@ -52,14 +50,14 @@ api_splitlines_text(const StrType& text, bool keepends)
     auto splitlines = text.attr("splitlines");
     auto split_result = splitlines(keepends);
     auto ranges = api_get_ranges(text);
-    if (not ranges.empty())
-    {
+    if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, keepends);
     }
     return split_result;
 }
 
-void pyexport_aspect_split(py::module& m)
+void
+pyexport_aspect_split(py::module& m)
 {
     m.def("_aspect_split", &api_split_text<py::str>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);
     m.def("_aspect_split", &api_split_text<py::bytes>, "text"_a, "separator"_a = py::none(), "maxsplit"_a = -1);

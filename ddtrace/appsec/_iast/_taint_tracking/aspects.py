@@ -17,8 +17,8 @@ from ddtrace.appsec._constants import IAST
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
 from .._taint_tracking import _aspect_ospathjoin
-from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_rsplit
+from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
@@ -48,8 +48,17 @@ _index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 _slice_aspect = aspects.slice_aspect
 
-__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect",
-           "_aspect_ospathjoin", "_aspect_split", "_aspect_rsplit", "_aspect_splitlines"]
+__all__ = [
+    "add_aspect",
+    "str_aspect",
+    "bytearray_extend_aspect",
+    "decode_aspect",
+    "encode_aspect",
+    "_aspect_ospathjoin",
+    "_aspect_split",
+    "_aspect_rsplit",
+    "_aspect_splitlines",
+]
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator
 

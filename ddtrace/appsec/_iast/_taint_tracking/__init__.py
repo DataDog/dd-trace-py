@@ -25,8 +25,6 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
     from ._native.aspect_ospath_join import _aspect_ospathjoin
-    from ._native.aspect_split import _aspect_split
-    from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_splitlines
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
@@ -85,8 +83,7 @@ __all__ = [
     "origin_to_str",
     "common_replace",
     "_aspect_ospathjoin",
-    "_aspect_split"
-    "_aspect_rsplit",
+    "_aspect_split" "_aspect_rsplit",
     "_aspect_splitlines",
     "_format_aspect",
     "as_formatted_evidence",

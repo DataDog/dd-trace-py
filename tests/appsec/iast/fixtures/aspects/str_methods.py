@@ -1028,7 +1028,7 @@ def do_splitlines_no_arg(s):  # type: (str) -> List[str]
     return s.splitlines()
 
 
-def do_splitlines_keepends(s, keepends): # type: (str, bool) -> List[str]
+def do_splitlines_keepends(s, keepends):  # type: (str, bool) -> List[str]
     return s.splitlines(keepends=keepends)
 
 

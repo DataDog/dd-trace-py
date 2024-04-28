@@ -1,9 +1,11 @@
-from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges, get_ranges, Source, OriginType
-
-from ddtrace.appsec._iast._taint_tracking import _aspect_split
-from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
-from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_split
+from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
 
 
@@ -141,4 +143,3 @@ def test_aspect_splitlines_keepend_true():
     assert get_ranges(res[0]) == [range1]
     assert get_ranges(res[1]) == [TaintRange(0, 4, Source("def\n", "sample_value", OriginType.PARAMETER))]
     assert get_ranges(res[2]) == [TaintRange(0, 4, Source("hij\n", "sample_value", OriginType.PARAMETER))]
-

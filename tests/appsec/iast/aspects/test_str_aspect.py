@@ -4,10 +4,10 @@ import pytest
 
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
@@ -401,10 +401,24 @@ def test_split_tainted_noargs():
     [
         ("abc def", mod.do_split_no_args, [], True, ["abc", "def"], [(0, 3), (0, 3)]),
         (b"abc def", mod.do_split_no_args, [], True, [b"abc", b"def"], [(0, 3), (0, 3)]),
-        (bytearray(b"abc def"), mod.do_split_no_args, [], True, [bytearray(b"abc"), bytearray(b"def")], [(0, 3), (0, 3)]),
+        (
+            bytearray(b"abc def"),
+            mod.do_split_no_args,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def")],
+            [(0, 3), (0, 3)],
+        ),
         ("abc def", mod.do_rsplit_no_args, [], True, ["abc", "def"], [(0, 3), (0, 3)]),
         (b"abc def", mod.do_rsplit_no_args, [], True, [b"abc", b"def"], [(0, 3), (0, 3)]),
-        (bytearray(b"abc def"), mod.do_rsplit_no_args, [], True, [bytearray(b"abc"), bytearray(b"def")], [(0, 3), (0, 3)]),
+        (
+            bytearray(b"abc def"),
+            mod.do_rsplit_no_args,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def")],
+            [(0, 3), (0, 3)],
+        ),
         ("abc def", mod.do_split_no_args, [], False, ["abc", "def"], []),
         ("abc def", mod.do_rsplit_no_args, [], False, ["abc", "def"], []),
         (b"abc def", mod.do_rsplit_no_args, [], False, [b"abc", b"def"], []),
@@ -416,7 +430,14 @@ def test_split_tainted_noargs():
         (b"abc def hij", mod.do_split_no_args, [], False, [b"abc", b"def", b"hij"], []),
         ("abc def hij", mod.do_rsplit_no_args, [], False, ["abc", "def", "hij"], []),
         (b"abc def hij", mod.do_rsplit_no_args, [], False, [b"abc", b"def", b"hij"], []),
-        (bytearray(b"abc def hij"), mod.do_rsplit_no_args, [], False, [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")], []),
+        (
+            bytearray(b"abc def hij"),
+            mod.do_rsplit_no_args,
+            [],
+            False,
+            [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")],
+            [],
+        ),
         ("abc def hij", mod.do_split_maxsplit, [1], True, ["abc", "def hij"], [(0, 3), (0, 7)]),
         ("abc def hij", mod.do_rsplit_maxsplit, [1], True, ["abc def", "hij"], [(0, 7), (0, 3)]),
         ("abc def hij", mod.do_split_maxsplit, [1], False, ["abc", "def hij"], []),
@@ -439,21 +460,45 @@ def test_split_tainted_noargs():
         ("abc|def|hij", mod.do_rsplit_separator_and_maxsplit, ["|", 1], False, ["abc|def", "hij"], []),
         ("abc\ndef\nhij", mod.do_splitlines_no_arg, [], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
         (b"abc\ndef\nhij", mod.do_splitlines_no_arg, [], True, [b"abc", b"def", b"hij"], [(0, 3), (0, 3), (0, 3)]),
-        (bytearray(b"abc\ndef\nhij"), mod.do_splitlines_no_arg, [], True, [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")], [(0, 3), (0, 3), (0, 3)]),
-        ("abc\ndef\nhij\n", mod.do_splitlines_keepends, [True], True, ["abc\n", "def\n", "hij\n"], [(0, 4), (0, 4), (0, 4)]),
-        (b"abc\ndef\nhij\n", mod.do_splitlines_keepends, [True], True, [b"abc\n", b"def\n", b"hij\n"], [(0, 4), (0, 4), (0, 4)]),
-        (bytearray(b"abc\ndef\nhij\n"), mod.do_splitlines_keepends, [True], True, [bytearray(b"abc\n"), bytearray(b"def\n"), bytearray(b"hij\n")],
-         [(0, 4), (0, 4), (0, 4)]),
-    ]
+        (
+            bytearray(b"abc\ndef\nhij"),
+            mod.do_splitlines_no_arg,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")],
+            [(0, 3), (0, 3), (0, 3)],
+        ),
+        (
+            "abc\ndef\nhij\n",
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            ["abc\n", "def\n", "hij\n"],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+        (
+            b"abc\ndef\nhij\n",
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            [b"abc\n", b"def\n", b"hij\n"],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+        (
+            bytearray(b"abc\ndef\nhij\n"),
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            [bytearray(b"abc\n"), bytearray(b"def\n"), bytearray(b"hij\n")],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+    ],
 )
 def test_split_aspect_tainting(s, call, _args, should_be_tainted, result_list, result_tainted_list):
     _test_name = "test_split_aspect_tainting"
     if should_be_tainted:
         obj = taint_pyobject(
-            s,
-            source_name="test_split_aspect_tainting",
-            source_value=s,
-            source_origin=OriginType.PARAMETER
+            s, source_name="test_split_aspect_tainting", source_value=s, source_origin=OriginType.PARAMETER
         )
     else:
         obj = s
@@ -465,8 +510,7 @@ def test_split_aspect_tainting(s, call, _args, should_be_tainted, result_list, r
         assert is_pyobject_tainted(result_item) == should_be_tainted
         if should_be_tainted:
             _range = get_tainted_ranges(result_item)[0]
-            assert _range == TaintRange(result_range[0], result_range[1],
-                                       Source(_test_name, obj, OriginType.PARAMETER))
+            assert _range == TaintRange(result_range[0], result_range[1], Source(_test_name, obj, OriginType.PARAMETER))
 
 
 class TestOperatorsReplacement(BaseReplacement):
