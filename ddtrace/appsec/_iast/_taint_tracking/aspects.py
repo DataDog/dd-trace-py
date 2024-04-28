@@ -16,7 +16,7 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspects_ospath
+from .._taint_tracking import _aspect_ospathjoin
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
