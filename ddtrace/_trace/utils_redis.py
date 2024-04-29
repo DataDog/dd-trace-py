@@ -30,7 +30,7 @@ def _set_span_tags(
     span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
     if query is not None:
-        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)
+        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         span.set_tag_str(span_name, query)
     if pin.tags:
         span.set_tags(pin.tags)
