@@ -1,3 +1,6 @@
+import os
+import sys
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -7,9 +10,16 @@ from ddtrace.appsec._iast._taint_tracking import _aspect_ospathjoin
 from ddtrace.appsec._iast._taint_tracking import _aspect_ospathbasename
 from ddtrace.appsec._iast._taint_tracking import _aspect_ospathdirname
 from ddtrace.appsec._iast._taint_tracking import _aspect_ospathnormcase
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitext
+if sys.version_info >= (3, 12) or os.name == "nt":
+    from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitdrive
+if sys.version_info >= (3, 12):
+    from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitroot
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
+# JJJ: check the Python versions where each function is supported
 
 def test_ospathjoin_first_arg_nottainted_noslash():
     tainted_foo = taint_pyobject(
@@ -370,7 +380,9 @@ def test_ospathdirname_tainted_normal():
 
     res = _aspect_ospathdirname(tainted_foobarbaz)
     assert res == "/foo/bar"
-    assert get_tainted_ranges(res) == [TaintRange(0, 8, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res) == [
+        TaintRange(0, 8, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))
+    ]
 
 
 def test_ospathdirname_tainted_empty():
@@ -432,3 +444,264 @@ def test_ospathdirname_nottainted_empty():
     res = _aspect_ospathdirname("")
     assert res == ""
     assert not get_tainted_ranges(res)
+
+
+def test_ospathsplit_tainted_normal():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="/foo/bar/baz",
+        source_name="test_ospath",
+        source_value="/foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplit(tainted_foobarbaz)
+    assert res == ("/foo/bar", "baz")
+    assert get_tainted_ranges(res[0]) == [TaintRange(0, 8, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 3, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))]
+
+
+def test_ospathsplit_tainted_empty():
+    tainted_empty = taint_pyobject(
+        pyobject="",
+        source_name="test_ospath",
+        source_value="",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplit(tainted_empty)
+    assert res == ("", "")
+    assert not get_tainted_ranges(res[0])
+    assert not get_tainted_ranges(res[1])
+
+
+def test_ospathsplit_nottainted():
+    res = _aspect_ospathsplit("/foo/bar/baz")
+    assert res == ("/foo/bar", "baz")
+    assert not get_tainted_ranges(res[0])
+    assert not get_tainted_ranges(res[1])
+
+
+def test_ospathsplit_wrong_arg():
+    with pytest.raises(TypeError):
+        _ = _aspect_ospathsplit(42)
+
+
+def test_ospathsplit_bytes_tainted():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject=b"/foo/bar/baz",
+        source_name="test_ospath",
+        source_value=b"/foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplit(tainted_foobarbaz)
+    assert res == (b"/foo/bar", b"baz")
+    assert get_tainted_ranges(res[0]) == [TaintRange(0, 8, Source("test_ospath", b"/foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 3, Source("test_ospath", b"/foo/bar/baz", OriginType.PARAMETER))]
+
+
+def test_ospathsplit_bytes_nottainted():
+    res = _aspect_ospathsplit(b"/foo/bar/baz")
+    assert res == (b"/foo/bar", b"baz")
+    assert not get_tainted_ranges(res[0])
+    assert not get_tainted_ranges(res[1])
+
+
+def test_ospathsplit_single_slash_tainted():
+    tainted_slash = taint_pyobject(
+        pyobject="/",
+        source_name="test_ospath",
+        source_value="/",
+        source_origin=OriginType.PARAMETER,
+    )
+    res = _aspect_ospathsplit(tainted_slash)
+    assert res == ("/", "")
+    assert get_tainted_ranges(res[0]) == [TaintRange(0, 1, Source("test_ospath", "/", OriginType.PARAMETER))]
+    assert not get_tainted_ranges(res[1])
+
+
+def test_ospathsplit_nottainted_empty():
+    res = _aspect_ospathsplit("")
+    assert res == ("", "")
+    assert not get_tainted_ranges(res[0])
+    assert not get_tainted_ranges(res[1])
+
+
+def test_ospathsplitext_tainted_normal():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="/foo/bar/baz.jpg",
+        source_name="test_ospath",
+        source_value="/foo/bar/baz.jpg",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitext(tainted_foobarbaz)
+    assert res == ("/foo/bar/baz", ".jpg")
+    assert get_tainted_ranges(res[0]) == [
+        TaintRange(0, 12, Source("test_ospath", "/foo/bar/baz.jpg", OriginType.PARAMETER))
+    ]
+    assert get_tainted_ranges(res[1]) == [
+        TaintRange(0, 4, Source("test_ospath", "/foo/bar/baz.jpg", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_tainted_normal():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="/foo/bar/baz",
+        source_name="test_ospath",
+        source_value="/foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitroot(tainted_foobarbaz)
+    assert res == ("", "/", "foo/bar/baz")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 1, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[2]) == [
+        TaintRange(0, 11, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_tainted_doble_initial_slash():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="//foo/bar/baz",
+        source_name="test_ospath",
+        source_value="//foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitroot(tainted_foobarbaz)
+    assert res == ("", "//", "foo/bar/baz")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 2, Source("test_ospath", "//foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[2]) == [
+        TaintRange(0, 11, Source("test_ospath", "//foo/bar/baz", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_tainted_triple_initial_slash():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="///foo/bar/baz",
+        source_name="test_ospath",
+        source_value="///foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitroot(tainted_foobarbaz)
+    assert res == ("", "/", "//foo/bar/baz")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 1, Source("test_ospath", "///foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[2]) == [
+        TaintRange(0, 13, Source("test_ospath", "///foo/bar/baz", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_tainted_empty():
+    tainted_empty = taint_pyobject(
+        pyobject="",
+        source_name="test_ospath",
+        source_value="",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitroot(tainted_empty)
+    assert res == ('', '', '')
+    for i in res:
+        assert not get_tainted_ranges(i)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_nottainted():
+    res = _aspect_ospathsplitroot("/foo/bar/baz")
+    assert res == ("", "/", "foo/bar/baz")
+    for i in res:
+        assert not get_tainted_ranges(i)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_wrong_arg():
+    with pytest.raises(TypeError):
+        _ = _aspect_ospathsplitroot(42)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_bytes_tainted():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject=b"/foo/bar/baz",
+        source_name="test_ospath",
+        source_value=b"/foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitroot(tainted_foobarbaz)
+    assert res == (b"", b"/", b"foo/bar/baz")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 1, Source("test_ospath", b"/foo/bar/baz", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res[2]) == [
+        TaintRange(0, 11, Source("test_ospath", b"/foo/bar/baz", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def test_ospathsplitroot_bytes_nottainted():
+    res = _aspect_ospathsplitroot(b"/foo/bar/baz")
+    assert res == (b"", b"/", b"foo/bar/baz")
+    for i in res:
+        assert not get_tainted_ranges(i)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+def tets_ospathsplitroot_single_slash_tainted():
+    tainted_slash = taint_pyobject(
+        pyobject="/",
+        source_name="test_ospath",
+        source_value="/",
+        source_origin=OriginType.PARAMETER,
+    )
+    res = _aspect_ospathsplitroot(tainted_slash)
+    assert res == ("", "/", "")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [TaintRange(0, 1, Source("test_ospath", "/", OriginType.PARAMETER))]
+    assert not get_tainted_ranges(res[2])
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12) and os.name != "nt", reason="Requires Python 3.12 or Windows")
+def test_ospathsplitdrive_tainted_normal():
+    tainted_foobarbaz = taint_pyobject(
+        pyobject="/foo/bar/baz",
+        source_name="test_ospath",
+        source_value="/foo/bar/baz",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitdrive(tainted_foobarbaz)
+    assert res == ("", "/foo/bar/baz")
+    assert not get_tainted_ranges(res[0])
+    assert get_tainted_ranges(res[1]) == [
+        TaintRange(0, 12, Source("test_ospath", "/foo/bar/baz", OriginType.PARAMETER))
+    ]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12) and os.name != "nt", reason="Requires Python 3.12 or Windows")
+def test_ospathsplitdrive_tainted_empty():
+    tainted_empty = taint_pyobject(
+        pyobject="",
+        source_name="test_ospath",
+        source_value="",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    res = _aspect_ospathsplitdrive(tainted_empty)
+    assert res == ('', '')
+    for i in res:
+        assert not get_tainted_ranges(i)
+
+
+# TODO: add tests for ospathsplitdrive with different drive letters that must run
+# under Windows since they're noop under posix
+
+

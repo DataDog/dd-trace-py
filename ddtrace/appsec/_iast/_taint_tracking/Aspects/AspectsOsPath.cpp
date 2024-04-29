@@ -172,39 +172,57 @@ api_ospathdirname_aspect(const StrType& path)
 }
 
 template<class StrType>
-py::list
+static py::tuple
+_forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
+{
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+    auto ospath = py::module_::import("os.path");
+    auto function = ospath.attr(function_name);
+    auto function_result = function(path);
+    if (py::len(function_result) == 0) {
+        return function_result;
+    }
+
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    if (ranges_error or ranges.empty()) {
+        return function_result;
+    }
+
+    set_ranges_on_splitted(path, ranges, function_result, tx_map, includeseparator);
+    return function_result;
+}
+
+template<class StrType>
+py::tuple
 api_ospathsplit_aspect(const StrType& path)
 {
-    py::list result;
-    // JJJ
-    return result;
+    return _forward_to_set_ranges_on_splitted("split", path);
 }
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitext_aspect(const StrType& path)
 {
-    py::list result;
-    // JJJ
-    return result;
+    return _forward_to_set_ranges_on_splitted("splitext", path, true);
 }
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitdrive_aspect(const StrType& path)
 {
-    py::list result;
-    // JJJ
-    return result;
+    return _forward_to_set_ranges_on_splitted("splitdrive", path, true);
 }
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitroot_aspect(const StrType& path)
 {
-    py::list result;
-    // JJJ
-    return result;
+    return _forward_to_set_ranges_on_splitted("splitroot", path, true);
 }
 
 template<class StrType>
@@ -249,4 +267,12 @@ pyexport_ospath_aspects(py::module& m)
     m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::bytes>, "path"_a);
     m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::str>, "path"_a);
     m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathsplit", &api_ospathsplit_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathsplitext", &api_ospathsplitext_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathsplitdrive", &api_ospathsplitdrive_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathsplitroot", &api_ospathsplitroot_aspect<py::bytes>, "path"_a);
 }

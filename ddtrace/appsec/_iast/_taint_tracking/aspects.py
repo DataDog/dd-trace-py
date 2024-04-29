@@ -1,3 +1,5 @@
+# JJJ check the python versions supported for the os.path aspects
+
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
@@ -23,6 +25,10 @@ from .._taint_tracking import _aspect_splitlines
 from .._taint_tracking import _aspect_ospathnormcase
 from .._taint_tracking import _aspect_ospathbasename
 from .._taint_tracking import _aspect_ospathdirname
+from .._taint_tracking import _aspect_ospathsplit
+from .._taint_tracking import _aspect_ospathsplitext
+from .._taint_tracking import _aspect_ospathsplitdrive
+from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -64,6 +70,10 @@ __all__ = [
     "_aspect_ospathbasename",
     "_aspect_ospathdirname",
     "_aspect_ospathnormcase",
+    "_aspect_ospathsplit",
+    "_aspect_ospathsplitext",
+    "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitroot",
 ]
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator

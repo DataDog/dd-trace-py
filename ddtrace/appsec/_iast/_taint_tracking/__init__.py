@@ -13,6 +13,7 @@ from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
+# JJJ check the python versions supported for the os.path aspects
 
 log = get_logger(__name__)
 
@@ -28,6 +29,10 @@ if _is_python_version_supported():
     from ._native.aspects_ospath import _aspect_ospathnormcase
     from ._native.aspects_ospath import _aspect_ospathbasename
     from ._native.aspects_ospath import _aspect_ospathdirname
+    from ._native.aspects_ospath import _aspect_ospathsplit
+    from ._native.aspects_ospath import _aspect_ospathsplitext
+    from ._native.aspects_ospath import _aspect_ospathsplitdrive
+    from ._native.aspects_ospath import _aspect_ospathsplitroot
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
@@ -92,7 +97,12 @@ __all__ = [
     "_aspect_rsplit",
     "_aspect_splitlines",
     "_aspect_ospathbasename",
+    "_aspect_ospathdirname",
     "_aspect_ospathnormcase",
+    "_aspect_ospathsplit",
+    "_aspect_ospathsplitext",
+    "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitroot",
     "_format_aspect",
     "as_formatted_evidence",
     "parse_params",

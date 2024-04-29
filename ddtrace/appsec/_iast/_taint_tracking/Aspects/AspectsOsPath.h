@@ -18,19 +18,19 @@ StrType
 api_ospathdirname_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplit_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitext_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitdrive_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+py::tuple
 api_ospathsplitroot_aspect(const StrType& path);
 
 template<class StrType>
