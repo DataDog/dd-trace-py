@@ -32,7 +32,7 @@ fi
     --python-version=3.9 \
     --python-version=3.8 \
     --python-version=3.7 \
-    --ddtrace-version=$PYTHON_PACKAGE_VERSION \
+    --ddtrace-version=2.8.2 \
     --arch=$WHEEL_ARCH \
     --platform=musllinux_1_1 \
     --platform=manylinux2014 \
