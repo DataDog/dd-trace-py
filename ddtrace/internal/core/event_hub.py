@@ -3,6 +3,7 @@ import enum
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -82,38 +83,34 @@ def reset(event_id: Optional[str] = None) -> None:
         del _listeners[event_id]
 
 
-def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
+def _inner_dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> Generator:
     """Call all hooks for the provided event_id with the provided args"""
     global _all_listeners
     global _listeners
 
     for hook in _all_listeners:
-        try:
-            hook(event_id, args)
-        except Exception:
-            if config._raise:
-                raise
+        yield lambda: hook(event_id, args)
 
     if event_id not in _listeners:
         return
 
     for local_hook in _listeners[event_id].values():
+        yield lambda: local_hook(*args)
+
+
+def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
+    for hook in _inner_dispatch(event_id, args):
         try:
-            local_hook(*args)
+            hook()
         except Exception:
             if config._raise:
                 raise
 
 
 async def dispatch_async(event_id: str, args: Tuple[Any, ...] = ()) -> None:
-    global _listeners
-
-    if event_id not in _listeners:
-        return
-
-    for local_hook in _listeners[event_id].values():
+    for hook in _inner_dispatch(event_id, args):
         try:
-            await local_hook(*args)
+            await hook()
         except Exception:
             if config._raise:
                 raise
