@@ -39,7 +39,7 @@ fi
     --output-dir=$BUILD_DIR/ddtrace_pkgs \
     --verbose
 cp ../lib-injection/sitecustomize.py $BUILD_DIR/
-echo -n $PYTHON_PACKAGE_VERSION > $BUILD_DIR/version
+echo -n $PYTHON_PACKAGE_VERSION > $BUILD_DIR/auto_inject-python.version
 chmod -R o-w $BUILD_DIR
 chmod -R g-w $BUILD_DIR
 
