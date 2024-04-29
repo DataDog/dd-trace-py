@@ -387,10 +387,7 @@ class TelemetryWriter(PeriodicService):
             value = str(item.value())
         elif cfg_name == "_trace_sampling_rules":
             name = "trace_sampling_rules"
-            if item.value() is None:
-                value = ""
-            else:
-                value = "true" if item.value() else "false"
+            value = str(item.value())
         elif cfg_name == "logs_injection":
             name = "logs_injection_enabled"
             value = "true" if item.value() else "false"

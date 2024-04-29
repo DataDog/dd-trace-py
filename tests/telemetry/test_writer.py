@@ -308,7 +308,7 @@ import ddtrace.auto
             {
                 "name": "trace_sampling_rules",
                 "origin": "env_var",
-                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc","provenance":"default"}]',
+                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
             },
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
