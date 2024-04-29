@@ -13,6 +13,9 @@ import zlib
 import attr
 
 from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
+from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
+from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -87,8 +90,9 @@ class IastSpanReporter(object):
     Class representing an IAST span reporter.
     """
 
-    sources = attr.ib(type=Set[Source], factory=set)  # type: Set[Source]
+    sources = attr.ib(type=Set[Source], factory=list)  # type: List[Source]
     vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
+    _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
     def __hash__(self) -> int:
         """
@@ -97,9 +101,9 @@ class IastSpanReporter(object):
         Returns:
         - int: Hash value.
         """
-        return reduce(operator.xor, (hash(obj) for obj in self.sources | self.vulnerabilities))
+        return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
-    def taint_ranges_as_evidence_info(self, pyobject: Any) -> Tuple[Set[Source], List[Dict]]:
+    def taint_ranges_as_evidence_info(self, pyobject: Any) -> Tuple[List[Source], List[Dict]]:
         """
         Extracts tainted ranges as evidence information.
 
@@ -111,15 +115,15 @@ class IastSpanReporter(object):
         """
         from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 
-        sources = set()
+        sources = list()
         tainted_ranges = get_tainted_ranges(pyobject)
         tainted_ranges_to_dict = list()
         if not len(tainted_ranges):
-            return set(), []
+            return [], []
 
         for _range in tainted_ranges:
             if _range.source not in sources:
-                sources.add(_range.source)
+                sources.append(_range.source)
 
             tainted_ranges_to_dict.append(
                 {
@@ -140,7 +144,7 @@ class IastSpanReporter(object):
         """
         for vuln in self.vulnerabilities:
             sources, tainted_ranges_to_dict = self.taint_ranges_as_evidence_info(vuln.evidence.value)
-            self.sources = self.sources.union([Source(origin=s.origin, name=s.name, value=s.value) for s in sources])
+            self.sources = self.sources + [Source(origin=s.origin, name=s.name, value=s.value) for s in sources]
             scrubbing_result = sensitive_handler.scrub_evidence(
                 vuln.type, vuln.evidence, tainted_ranges_to_dict, self.sources
             )
@@ -153,14 +157,14 @@ class IastSpanReporter(object):
                         source.value = None
                 vuln.evidence.valueParts = redacted_value_parts
                 vuln.evidence.value = None
-            elif vuln.evidence.value is not None:
+            elif vuln.evidence.value is not None and vuln.type not in self._evidences_with_no_sources:
                 vuln.evidence.valueParts = self.get_unredacted_value_parts(
                     vuln.evidence.value, tainted_ranges_to_dict, self.sources
                 )
                 vuln.evidence.value = None
         return self._to_dict()
 
-    def get_unredacted_value_parts(self, evidence_value: str, ranges: List[Dict], sources: Set[Any]) -> List[Dict]:
+    def get_unredacted_value_parts(self, evidence_value: str, ranges: List[Dict], sources: List[Any]) -> List[Dict]:
         """
         Gets unredacted value parts of evidence.
 
@@ -174,13 +178,12 @@ class IastSpanReporter(object):
         """
         value_parts = []
         from_index = 0
-        list_sources = list(sources)
 
         for range_ in ranges:
             if from_index < range_["start"]:
                 value_parts.append({"value": evidence_value[from_index : range_["start"]]})
             value_parts.append(
-                {"value": evidence_value[range_["start"] : range_["end"]], "source": list_sources[range_["index"]]}
+                {"value": evidence_value[range_["start"] : range_["end"]], "source": sources[range_["index"]]}
             )
             from_index = range_["end"]
 

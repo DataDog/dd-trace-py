@@ -100,7 +100,6 @@ class VulnerabilityBase(Operation):
 
         else:
             report = IastSpanReporter(
-                sources=set(),
                 vulnerabilities={
                     Vulnerability(
                         type=vulnerability_type,
@@ -121,7 +120,7 @@ class VulnerabilityBase(Operation):
                     value_decoded = value
                 return value_decoded
 
-            report.sources = set([Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources])
+            report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
 
         if getattr(cls, "redact_report", False):
             redacted_report = cls._redacted_report_cache.get(
