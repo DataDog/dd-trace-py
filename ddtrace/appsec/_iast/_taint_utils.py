@@ -122,8 +122,8 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     todo = []
                     for k, v in list(iterable):
                         key_store = []
-                        todo.append(_DeepTaintCommand(True, k, k, key_store, is_key=True))
-                        todo.append(_DeepTaintCommand(True, k, v, res, key_store))
+                        todo.append(_DeepTaintCommand(True, str(k), k, key_store, is_key=True))
+                        todo.append(_DeepTaintCommand(True, str(k), v, res, key_store))
                     stack.extend(reversed(todo))
                 elif isinstance(command.obj, abc.Sequence):
                     res = []

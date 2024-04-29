@@ -1,0 +1,3 @@
+fixes:
+  - |
+    pymongo: this resolves an issue where the library raised an error in ``pymongo.pool.validate_session``

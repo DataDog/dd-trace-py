@@ -23,8 +23,14 @@ from .visitor import AstVisitor
 
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
-IAST_DENYLIST = ("ddtrace", "pkg_resources")  # type: tuple[str, ...]
-
+IAST_DENYLIST = (
+    "ddtrace",
+    "pkg_resources",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+)  # type: tuple[str, ...]
 
 if IAST.PATCH_MODULES in os.environ:
     IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
@@ -125,9 +131,15 @@ def _remove_flask_run(text):  # type (str) -> str
 
 def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, str]:
     module_name = module.__name__
-    module_path = str(origin(module))
+
+    module_origin = origin(module)
+    if module_origin is None:
+        log.debug("astpatch_source couldn't find the module: %s", module_name)
+        return "", ""
+
+    module_path = str(module_origin)
     try:
-        if os.stat(module_path).st_size == 0:
+        if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
             log.debug("empty file: %s", module_path)
             return "", ""
