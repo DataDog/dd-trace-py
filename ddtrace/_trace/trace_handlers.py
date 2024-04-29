@@ -704,7 +704,7 @@ def _on_botocore_kinesis_getrecords_post(
         if propagate:
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
-            
+
 def _on_redis_async_command_post(span, rowcount):
     if rowcount is not None:
         span.set_metric(db.ROWCOUNT, rowcount)
