@@ -676,7 +676,7 @@ def _on_botocore_bedrock_process_response(
     span.finish()
 
 
-async def _on_redis_async_command_post(span, rowcount):
+def _on_redis_async_command_post(span, rowcount):
     if rowcount is not None:
         span.set_metric(db.ROWCOUNT, rowcount)
 
