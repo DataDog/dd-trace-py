@@ -77,12 +77,12 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
+def mock_llmobs_span_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
-        LLMObsWriterMock = patcher.start()
+        LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()
-        LLMObsWriterMock.return_value = m
+        LLMObsSpanWriterMock.return_value = m
         yield m
     finally:
         patcher.stop()
