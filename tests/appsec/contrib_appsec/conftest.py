@@ -8,6 +8,26 @@ from tests.utils import _build_tree
 
 
 @pytest.fixture
+def iast():
+    from os import environ
+
+    from ddtrace import config
+    from ddtrace.appsec._iast import oce
+    from ddtrace.appsec._iast._patch_modules import patch_iast
+
+    environ["DD_IAST_ENABLED"] = "true"
+
+    asm_config._iast_enabled = True
+
+    config._raise = True
+
+    oce._enabled = True
+
+    patch_iast()
+    yield
+
+
+@pytest.fixture
 def test_spans(interface, check_waf_timeout):
     container = TracerSpanContainer(interface.tracer)
     assert check_waf_timeout is None

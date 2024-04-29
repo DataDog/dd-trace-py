@@ -127,7 +127,7 @@ def test_str_utf(encoding):
 def test_repr_utf16():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
         obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
 
         obj = taint_pyobject(
@@ -147,7 +147,7 @@ def test_repr_utf16():
 def test_repr_utf16_2():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
         obj = (
             "\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85".encode(
                 "utf-16"
@@ -171,7 +171,7 @@ def test_repr_utf16_2():
 def test_repr_nonascii():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
         obj = "記者 鄭啟源 羅智堅"
 
         obj = taint_pyobject(
@@ -191,7 +191,7 @@ def test_repr_nonascii():
 def test_repr_bytearray():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
         obj = bytearray(
             b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
         )
@@ -251,10 +251,11 @@ def test_str_aspect_kwargs(obj, expected_result, encoding, errors):
 def test_str_aspect_decode_error(obj):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
+    source_name = str(obj, "utf-8", errors="ignore")
     obj = taint_pyobject(
         obj,
         source_name="test_str_aspect_tainting",
-        source_value=str(obj, "utf-8", errors="ignore"),
+        source_value=source_name if source_name else "invalid",
         source_origin=OriginType.PARAMETER,
     )
     with pytest.raises(UnicodeDecodeError) as e:
@@ -357,7 +358,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     ],
 )
 def test_repr_aspect_tainting(obj, expected_result, formatted_result):
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._set_iast_error_metric") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
         assert repr(obj) == expected_result
 
         obj = taint_pyobject(

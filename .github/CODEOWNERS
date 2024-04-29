@@ -10,6 +10,7 @@ ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framew
 tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations
 tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations
+tests/contrib/grpc                  @DataDog/apm-framework-integrations @DataDog/asm-python
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added

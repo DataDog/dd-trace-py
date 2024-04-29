@@ -52,12 +52,13 @@ def test_iast_flask_orm(orm, xfail):
 
 
 def test_iast_flask_weak_cipher():
+    """Verify a segmentation fault on pycriptodome and AES"""
     with flask_server(
         iast_enabled="true",
         tracer_enabled="true",
         remote_configuration_enabled="false",
         token=None,
-        app="flask_taint_sinks_app.py",
+        app="tests/appsec/iast_tdd_propagation/flask_taint_sinks_app.py",
     ) as context:
         server_process, client, pid = context
         for i in range(10):
@@ -83,3 +84,27 @@ def test_iast_flask_weak_cipher():
             assert content["sources"] == ""
             assert content["vulnerabilities"] == "WEAK_CIPHER"
             assert content["params_are_tainted"] is True
+
+
+def test_iast_flask_headers():
+    """Verify duplicated headers in the request"""
+    with flask_server(
+        iast_enabled="true",
+        tracer_enabled="true",
+        remote_configuration_enabled="false",
+        token=None,
+        # app="tests/appsec/iast_tdd_propagation/flask_propagation_app.py",
+        app="flask_propagation_app.py",
+    ) as context:
+        server_process, client, pid = context
+        tainted_response = client.get("/check-headers", headers={"Accept-Encoding": "gzip, deflate, br"})
+
+        assert tainted_response.status_code == 200
+        content = json.loads(tainted_response.content)
+        assert content["param"] == [
+            ["Host", "0.0.0.0:8000"],
+            ["User-Agent", "python-requests/2.31.0"],
+            ["Accept-Encoding", "gzip, deflate, br"],
+            ["Accept", "*/*"],
+            ["Connection", "keep-alive"],
+        ]

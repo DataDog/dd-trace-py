@@ -12,6 +12,7 @@ from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.api.ci_session import CIVisibilitySession
 from ddtrace.internal.ci_visibility.api.ci_suite import CIVisibilitySuite
 from ddtrace.internal.ci_visibility.api.ci_test import CIVisibilityTest
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from tests.utils import DummyTracer
 
 
@@ -22,6 +23,7 @@ def _get_default_civisibility_settings():
         test_command="test_command",
         test_framework="test_framework",
         test_framework_version="1.2.3",
+        test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
         session_operation_name="session_operation_name",
         module_operation_name="module_operation_name",
         suite_operation_name="suite_operation_name",
@@ -115,6 +117,7 @@ class TestCIVisibilitySessionSettings:
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",
+                test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
                 test_framework_version="1.2.3",
                 session_operation_name="session_operation_name",
                 module_operation_name="module_operation_name",
@@ -130,6 +133,7 @@ class TestCIVisibilitySessionSettings:
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",
+                test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
                 test_framework_version="1.2.3",
                 session_operation_name="session_operation_name",
                 module_operation_name="module_operation_name",
@@ -145,6 +149,7 @@ class TestCIVisibilitySessionSettings:
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",
+                test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
                 test_framework_version="1.2.3",
                 session_operation_name="session_operation_name",
                 module_operation_name="module_operation_name",

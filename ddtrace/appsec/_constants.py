@@ -84,6 +84,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
     REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
+    TEXT_TYPES = (str, bytes, bytearray)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -129,6 +130,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS = "waf.context.processor"
     LFI_ADDRESS = "server.io.fs.file"
+    SSRF_ADDRESS = "server.io.net.url"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -180,13 +182,13 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
-    STACK = "stack_trace"
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
     REDIRECT_ACTION = "redirect_request"
+    STACK_ACTION = "generate_stack"
     DEFAULT_ACTIONS = {
         BLOCK: {
             ID: BLOCK,
@@ -241,6 +243,7 @@ class DEFAULT(metaclass=Constant_Class):
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACES = "_dd.stack"
+    STACK_TRACE_ID = "stack_id"
     EP_ENABLED = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
