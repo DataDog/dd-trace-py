@@ -437,3 +437,20 @@ def test_core_context_data_concurrent_safety():
     task2.join()
 
     assert results[data_key] == "right"
+
+
+async def test_core_dispatch_async():
+    class Listener:
+        args: tuple
+
+        async def __call__(self, *args: Any) -> None:
+            self.args = args
+
+    listener = Listener()
+
+    event_name = "my.cool.event"
+    dynamic_value = 43
+    core.on(event_name, listener)
+    await core.dispatch_async(event_name, (dynamic_value,))
+
+    assert listener.args == (dynamic_value,)
