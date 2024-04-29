@@ -46,10 +46,10 @@ chmod -R g-w $BUILD_DIR
 
 # Build packages
 datadog-package create \
-    --version="$PYTHON_PACKAGE_VERSION" \
+    --version="2.8.2" \
     --package="datadog-apm-library-python" \
     --archive=true \
-    --archive-path="datadog-apm-library-python-$PYTHON_PACKAGE_VERSION-$ARCH.tar" \
+    --archive-path="datadog-apm-library-python-2.8.2-$ARCH.tar" \
     --arch "$ARCH" \
     --os "linux" \
     $BUILD_DIR
