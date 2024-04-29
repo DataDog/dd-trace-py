@@ -3,6 +3,11 @@ import os
 import redis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
+from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.redis_utils import determine_row_count
+from ddtrace.ext import db
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -11,9 +16,6 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
-from ..trace_utils_redis import _run_redis_command
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 config._add(
@@ -117,6 +119,20 @@ def unpatch():
             if redis.VERSION >= (4, 3, 2):
                 unwrap(redis.asyncio.cluster.RedisCluster, "pipeline")
                 unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
+
+
+def _run_redis_command(span, func, args, kwargs):
+    parsed_command = stringify_cache_args(args)
+    redis_command = parsed_command.split(" ")[0]
+    try:
+        result = func(*args, **kwargs)
+        if redis_command in ROW_RETURNING_COMMANDS:
+            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
+        return result
+    except Exception:
+        if redis_command in ROW_RETURNING_COMMANDS:
+            span.set_metric(db.ROWCOUNT, 0)
+        raise
 
 
 #
