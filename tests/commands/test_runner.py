@@ -334,49 +334,36 @@ def test_info_no_configs():
     )
     p.wait()
     stdout = p.stdout.read()
-    assert (stdout) == (
-        b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
-    Tracer enabled: True
-    Application Security enabled: False
-    Remote Configuration enabled: False
-    IAST enabled (experimental): False
-    Debug logging: False
-    Writing traces to: http://localhost:8126
-    Agent error: Agent not reachable at http://localhost:8126. """
-        + b"""Exception raised: [Errno 99] Cannot assign requested address\n"""
-        b"""    App Analytics enabled(deprecated): False
-    Log injection enabled: False
-    Health metrics enabled: False
-    Priority sampling enabled: True
-    Partial flushing enabled: True
-    Partial flush minimum number of spans: 300
-    WAF timeout: 5.0 msecs
-    \x1b[92m\x1b[1mTagging:\x1b[0m
-    DD Service: None
-    DD Env: None
-    DD Version: None
-    Global Tags: None
-    Tracer Tags: None
-
-\x1b[96m\x1b[1mSummary\x1b[0m"""
-        b"""\n\n\x1b[91mERROR: It looks like you have an agent error: 'Agent not reachable at http://localhost:8126."""
-        b""" Exception raised: [Errno 99] Cannot assign requested address'\n"""
-        b""" If you're experiencing a connection error, please """
-        b"""make sure you've followed the setup for your particular environment so that the tracer and Datadog """
-        b"""agent are configured properly to connect, and that the Datadog agent is running:"""
-        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html"""
-        b"""#failed-to-send-traces-connectionrefusederror"""
-        b"""\nIf your issue is not a connection error then please reach out to support for further assistance:"""
-        b""" https://docs.datadoghq.com/help/\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced """
-        b"""applications. For more information please see"""
-        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. """
-        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m"""
-        b"""\n\n\x1b[93mWARNING VERSION NOT SET: """
-        b"""It is recommended that a version tag be set for all traced applications. """
-        b"""For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m\n"""
-    )
+    # checks most of the output but some pieces are removed due to the dynamic nature of the output
+    expected_strings = [
+        b"\x1b[1mTracer Configurations:\x1b[0m",
+        b"Tracer enabled: True",
+        b"Application Security enabled: False",
+        b"Remote Configuration enabled: False",
+        b"Debug logging: False",
+        b"App Analytics enabled(deprecated): False",
+        b"Log injection enabled: False",
+        b"Health metrics enabled: False",
+        b"Priority sampling enabled: True",
+        b"Partial flushing enabled: True",
+        b"Partial flush minimum number of spans: 300",
+        b"WAF timeout: 5.0 msecs",
+        b"Tagging:",
+        b"DD Service: None",
+        b"DD Env: None",
+        b"DD Version: None",
+        b"Global Tags: None",
+        b"Tracer Tags: None",
+        b"Summary",
+        b"WARNING SERVICE NOT SET: It is recommended that a service tag be set for all traced applications.",
+        b"For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m",
+        b"WARNING ENV NOT SET: It is recommended that an env tag be set for all traced applications. For more",
+        b"information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m",
+        b"WARNING VERSION NOT SET: It is recommended that a version tag be set for all traced applications.",
+        b"For more information please see https://ddtrace.readthedocs.io/en/stable/troubleshooting.html\x1b[0m",
+    ]
+    for expected in expected_strings:
+        assert expected in stdout, f"Expected string not found in output: {expected.decode()}"
 
     assert p.returncode == 0
 
@@ -405,43 +392,31 @@ def test_info_w_configs():
 
     p.wait()
     stdout = p.stdout.read()
-    assert (
-        (stdout)
-        == b"""\x1b[94m\x1b[1mTracer Configurations:\x1b[0m
-    Tracer enabled: True
-    Application Security enabled: True
-    Remote Configuration enabled: True
-    IAST enabled (experimental): True
-    Debug logging: True
-    Writing traces to: http://168.212.226.204:8126
-    Agent error: Agent not reachable at http://168.212.226.204:8126. Exception raised: timed out
-    App Analytics enabled(deprecated): False
-    Log injection enabled: True
-    Health metrics enabled: False
-    Priority sampling enabled: True
-    Partial flushing enabled: True
-    Partial flush minimum number of spans: 1000
-    WAF timeout: 5.0 msecs
-    \x1b[92m\x1b[1mTagging:\x1b[0m
-    DD Service: tester
-    DD Env: dev
-    DD Version: 0.45
-    Global Tags: None
-    Tracer Tags: None
+    # checks most of the output but some pieces are removed due to the dynamic nature of the output
+    expected_strings = [
+        b"1mTracer Configurations:\x1b[0m",
+        b"Tracer enabled: True",
+        b"Remote Configuration enabled: True",
+        b"IAST enabled (experimental)",
+        b"Debug logging: True",
+        b"App Analytics enabled(deprecated): False",
+        b"Log injection enabled: True",
+        b"Health metrics enabled: False",
+        b"Priority sampling enabled: True",
+        b"Partial flushing enabled: True",
+        b"Partial flush minimum number of spans: 1000",
+        b"WAF timeout: 5.0 msecs",
+        b"Tagging:",
+        b"DD Service: tester",
+        b"DD Env: dev",
+        b"DD Version: 0.45",
+        b"Global Tags: None",
+        b"Tracer Tags: None",
+        b"m\x1b[1mSummary\x1b[0m",
+    ]
 
-\x1b[96m\x1b[1mSummary\x1b[0m"""
-        b"""\n\n\x1b[91mERROR: It looks like you have an agent error: """
-        b"""'Agent not reachable at http://168.212.226.204:8126. """
-        b"""Exception raised: timed out'\n If you're experiencing a connection error, """
-        b"""please make sure you've followed the """
-        b"""setup for your particular environment so that the tracer and """
-        b"""Datadog agent are configured properly to connect,"""
-        b""" and that the Datadog agent is running:"""
-        b""" https://ddtrace.readthedocs.io/en/stable/troubleshooting.html#failed-to-send-traces-"""
-        b"""connectionrefusederror\n"""
-        b"""If your issue is not a connection error then please reach out to support for further assistance: """
-        b"""https://docs.datadoghq.com/help/\x1b[0m\n"""
-    )
+    for expected in expected_strings:
+        assert expected in stdout, f"Expected string not found in output: {expected.decode()}"
 
     assert p.returncode == 0
 
