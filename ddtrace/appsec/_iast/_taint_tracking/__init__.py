@@ -23,6 +23,7 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
+    from ._native.aspect_helpers import set_ranges_on_splitted
     from ._native.aspect_ospath_join import _aspect_ospathjoin
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
@@ -84,6 +85,7 @@ __all__ = [
     "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
+    "set_ranges_on_splitted",
     "num_objects_tainted",
     "debug_taint_map",
     "iast_taint_log_error",
