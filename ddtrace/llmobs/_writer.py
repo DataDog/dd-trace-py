@@ -38,7 +38,7 @@ class LLMObsSpanEvent(TypedDict):
     metrics: Dict[str, Any]
 
 
-class LLMObsEvalMetricEvent(TypedDict, total=False):
+class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     span_id: str
     trace_id: str
     metric_type: str
@@ -54,7 +54,7 @@ class BaseLLMObsWriter(PeriodicService):
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvalMetricEvent]]
+        self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
         self._buffer_limit = 1000
         self._timeout = timeout  # type: float
         self._api_key = api_key or ""  # type: str
@@ -72,7 +72,7 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvalMetricEvent]) -> None:
+    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
@@ -148,13 +148,13 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
-        self._event_type = "eval metric"
+        self._event_type = "evaluation_metric"
         self._buffer = []
         self._endpoint = "/api/unstable/llm-obs/v1/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
-    def enqueue(self, event: LLMObsEvalMetricEvent) -> None:
+    def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
         self._enqueue(event)
 
-    def _data(self, events: List[LLMObsEvalMetricEvent]) -> Dict[str, Any]:
+    def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
