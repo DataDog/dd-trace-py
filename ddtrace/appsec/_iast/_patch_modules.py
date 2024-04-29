@@ -3,6 +3,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 IAST_PATCH = {
     "command_injection": True,
+    "header_injection": False,
     "path_traversal": True,
     "weak_cipher": True,
     "weak_hash": True,

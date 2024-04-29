@@ -1,12 +1,14 @@
 import functools
 import sys
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -445,12 +447,16 @@ def _on_request_span_modifier(
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
     span = ctx.get_item("req_span")
+    try:
+        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
+    except Exception:
+        raw_uri = request.url
     trace_utils.set_http_meta(
         span,
         flask_config,
         method=request.method,
         url=request.base_url,
-        raw_uri=request.url,
+        raw_uri=raw_uri,
         query=request.query_string,
         parsed_query=request.args,
         request_headers=request.headers,
@@ -546,9 +552,8 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
-    callback = ctx.get_item("context_started_callback")
     span = ctx.get_item(ctx.get_item("call_key"))
-    callback(
+    set_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
         ctx.get_item("args"),
@@ -584,7 +589,6 @@ def _on_botocore_trace_context_injection_prepared(
     ctx, cloud_service, schematization_function, injection_function, trace_operation
 ):
     endpoint_name = ctx.get_item("endpoint_name")
-    params = ctx.get_item("params")
     if cloud_service is not None:
         span = ctx.get_item(ctx["call_key"])
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
@@ -592,7 +596,7 @@ def _on_botocore_trace_context_injection_prepared(
         if endpoint_name != "lambda":
             schematize_kwargs["direction"] = SpanDirection.OUTBOUND
         try:
-            injection_function(ctx, params, span, **inject_kwargs)
+            injection_function(ctx, **inject_kwargs)
             span.name = schematization_function(trace_operation, **schematize_kwargs)
         except Exception:
             log.warning("Unable to inject trace context", exc_info=True)
@@ -608,6 +612,73 @@ def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inje
 def _on_botocore_update_messages(ctx, span, _, trace_data, __, message=None):
     context = span.context if span else ctx[ctx["call_key"]].context
     HTTPPropagator.inject(context, trace_data)
+
+
+def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
+    span = ctx[ctx["call_key"]]
+    integration = ctx["bedrock_integration"]
+    span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
+    span.set_tag_str("bedrock.request.model", ctx["model_name"])
+    for k, v in request_params.items():
+        if k == "prompt":
+            if integration.is_pc_sampled_span(span):
+                v = integration.trunc(str(v))
+        span.set_tag_str("bedrock.request.{}".format(k), str(v))
+        if k == "n":
+            ctx.set_item("num_generations", str(v))
+
+
+def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
+    span = ctx[ctx["call_key"]]
+    span.set_exc_info(*exc_info)
+    prompt = ctx["prompt"]
+    integration = ctx["bedrock_integration"]
+    if integration.is_pc_sampled_llmobs(span):
+        integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
+    span.finish()
+
+
+def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
+    span = ctx[ctx["call_key"]]
+    span.set_tag_str("bedrock.response.id", reqid)
+    span.set_tag_str("bedrock.response.duration", latency)
+    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
+    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+
+
+def _on_botocore_bedrock_process_response(
+    ctx: core.ExecutionContext,
+    formatted_response: Dict[str, Any],
+    metadata: Dict[str, Any],
+    body: Dict[str, List[Dict]],
+    should_set_choice_ids: bool,
+) -> None:
+    text = formatted_response["text"]
+    span = ctx[ctx["call_key"]]
+    if should_set_choice_ids:
+        for i in range(len(text)):
+            span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
+    integration = ctx["bedrock_integration"]
+    if metadata is not None:
+        for k, v in metadata.items():
+            span.set_tag_str("bedrock.{}".format(k), str(v))
+    for i in range(len(formatted_response["text"])):
+        if integration.is_pc_sampled_span(span):
+            span.set_tag_str(
+                "bedrock.response.choices.{}.text".format(i),
+                integration.trunc(str(formatted_response["text"][i])),
+            )
+        span.set_tag_str(
+            "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
+        )
+    if integration.is_pc_sampled_llmobs(span):
+        integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
+    span.finish()
+
+
+def _on_redis_async_command_post(span, rowcount):
+    if rowcount is not None:
+        span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
@@ -650,6 +721,11 @@ def listen():
     core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
+    core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
+    core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
+    core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
+    core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("redis.async_command.post", _on_redis_async_command_post)
 
     for context_name in (
         "flask.call",
@@ -666,6 +742,7 @@ def listen():
         "botocore.patched_kinesis_api_call",
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
+        "botocore.patched_bedrock_api_call",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

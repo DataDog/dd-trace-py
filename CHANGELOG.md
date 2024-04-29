@@ -4,6 +4,38 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.10
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+---
+
+## 2.8.3
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+
+---
+
+## 2.6.12
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+
+
+---
+
 ## 2.8.2
 
 
@@ -25,6 +57,20 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - grpc: Resolves segfaults raised when grpc.aio interceptors are registered
 
 - Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+
+
+---
+
+## 2.7.9
+
+
+### Bug Fixes
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
 
 ---
 

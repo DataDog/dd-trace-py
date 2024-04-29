@@ -4,13 +4,13 @@
 *                                   @DataDog/lang-platform-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/python-guild @DataDog/apm-framework-integrations
-ddtrace/contrib/                    @DataDog/python-guild @DataDog/apm-framework-integrations
-ddtrace/internal/schema/            @DataDog/apm-framework-integrations
-tests/contrib/                      @DataDog/python-guild @DataDog/apm-framework-integrations
-tests/internal/peer_service         @DataDog/python-guild @DataDog/apm-framework-integrations
-tests/internal/service_name         @DataDog/python-guild @DataDog/apm-framework-integrations
-tests/contrib/grpc                  @DataDog/apm-framework-integrations @DataDog/asm-python
+ddtrace/ext/                        @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/contrib/                    @DataDog/python-guild @DataDog/apm-idm-python
+ddtrace/internal/schema/            @DataDog/apm-idm-python
+tests/contrib/                      @DataDog/python-guild @DataDog/apm-idm-python
+tests/internal/peer_service         @DataDog/python-guild @DataDog/apm-idm-python
+tests/internal/service_name         @DataDog/python-guild @DataDog/apm-idm-python
+tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring lang-platform-python to review new files added
