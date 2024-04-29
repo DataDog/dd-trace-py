@@ -429,3 +429,23 @@ class AioMySQLTestCase(AsyncioTestCase):
         await shared_tests._test_dbm_propagation_comment_peer_service_enabled(
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
         )
+
+    @mark_asyncio
+    @AsyncioTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+            DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1",
+        )
+    )
+    async def test_aiomysql_dbm_propagation_comment_with_peer_service_tag(self):
+        """tests if dbm comment is set in mysql"""
+        conn, tracer = await self._get_conn_tracer()
+        cursor = await conn.cursor()
+        cursor.__wrapped__ = mock.AsyncMock()
+
+        await shared_tests._test_dbm_propagation_comment_with_peer_service_tag(
+            config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+        )
