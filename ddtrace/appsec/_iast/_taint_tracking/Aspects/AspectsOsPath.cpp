@@ -247,8 +247,7 @@ api_ospathnormcase_aspect(const StrType& path)
 
     TaintRangeRefs result_ranges = ranges;
     PyObject* new_result = new_pyobject_id(normcased.ptr());
-    if (new_result)
-    {
+    if (new_result) {
         set_ranges(new_result, result_ranges, tx_map);
         return py::reinterpret_steal<StrType>(new_result);
     }
