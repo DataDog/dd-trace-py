@@ -676,6 +676,11 @@ def _on_botocore_bedrock_process_response(
     span.finish()
 
 
+def _on_redis_async_command_post(span, rowcount):
+    if rowcount is not None:
+        span.set_metric(db.ROWCOUNT, rowcount)
+
+
 def listen():
     core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
     core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")
@@ -720,6 +725,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("redis.async_command.post", _on_redis_async_command_post)
 
     for context_name in (
         "flask.call",
