@@ -16,7 +16,10 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspect_ospathjoin  # noqa: F401
+from .._taint_tracking import _aspect_ospathjoin
+from .._taint_tracking import _aspect_rsplit
+from .._taint_tracking import _aspect_split
+from .._taint_tracking import _aspect_splitlines
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -45,7 +48,19 @@ _index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 _slice_aspect = aspects.slice_aspect
 
-__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
+__all__ = [
+    "add_aspect",
+    "str_aspect",
+    "bytearray_extend_aspect",
+    "decode_aspect",
+    "encode_aspect",
+    "_aspect_ospathjoin",
+    "_aspect_split",
+    "_aspect_rsplit",
+    "_aspect_splitlines",
+]
+
+# TODO: Factorize the "flags_added_args" copypasta into a decorator
 
 
 def add_aspect(op1, op2):
@@ -56,6 +71,45 @@ def add_aspect(op1, op2):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. add_aspect. {}".format(e))
     return op1 + op2
+
+
+def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_split(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
+        return args[0].split(*args[1:], **kwargs)
+
+
+def rsplit_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_rsplit(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. rsplit_aspect. {}".format(e))
+        return args[0].rsplit(*args[1:], **kwargs)
+
+
+def splitlines_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_splitlines(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. splitlines_aspect. {}".format(e))
+        return args[0].splitlines(*args[1:], **kwargs)
 
 
 def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
