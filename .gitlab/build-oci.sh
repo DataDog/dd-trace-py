@@ -2,7 +2,7 @@
 
 source common_build_functions.sh
 
-PYTHON_PACKAGE_VERSION=2.8.2
+PYTHON_PACKAGE_VERSION=2.8.2-dev
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
 fi
@@ -33,7 +33,7 @@ fi
     --python-version=3.9 \
     --python-version=3.8 \
     --python-version=3.7 \
-    --ddtrace-version=$PYTHON_PACKAGE_VERSION \
+    --ddtrace-version=2.8.2 \
     --arch=$WHEEL_ARCH \
     --platform=musllinux_1_1 \
     --platform=manylinux2014 \
