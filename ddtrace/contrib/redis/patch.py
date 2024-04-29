@@ -7,7 +7,7 @@ from ddtrace._trace.utils_redis import _trace_redis_cmd
 from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import determine_row_count
-from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -124,15 +124,19 @@ def unpatch():
 def _run_redis_command(span, func, args, kwargs):
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
+    rowcount = None
     try:
         result = func(*args, **kwargs)
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
         return result
     except Exception:
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, 0)
+        rowcount = 0
         raise
+    finally:
+        if rowcount is None:
+            rowcount = determine_row_count(redis_command=redis_command, result=result)
+        if redis_command not in ROW_RETURNING_COMMANDS:
+            rowcount = None
+        core.dispatch("redis.command.post", [span, rowcount])
 
 
 #

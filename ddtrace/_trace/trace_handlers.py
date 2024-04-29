@@ -704,8 +704,8 @@ def _on_botocore_kinesis_getrecords_post(
         if propagate:
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
-            
-def _on_redis_async_command_post(span, rowcount):
+
+def _on_redis_command_post(span, rowcount):
     if rowcount is not None:
         span.set_metric(db.ROWCOUNT, rowcount)
 
@@ -758,7 +758,8 @@ def listen():
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
-    core.on("redis.async_command.post", _on_redis_async_command_post)
+    core.on("redis.async_command.post", _on_redis_command_post)
+    core.on("redis.command.post", _on_redis_command_post)
 
     for context_name in (
         "flask.call",
