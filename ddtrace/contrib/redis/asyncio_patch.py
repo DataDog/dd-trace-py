@@ -1,11 +1,11 @@
 from ddtrace import config
+from ddtrace._trace.utils_redis import _run_redis_command_async
+from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _trace_redis_execute_async_cluster_pipeline
+from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
 
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
-from ..trace_utils_redis import _run_redis_command_async
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_async_cluster_pipeline
-from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 #
