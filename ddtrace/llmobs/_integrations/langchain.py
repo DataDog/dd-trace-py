@@ -8,9 +8,10 @@ from typing import Union
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -19,6 +20,9 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
+
+
+log = get_logger(__name__)
 
 
 API_KEY = "langchain.request.api_key"
@@ -49,7 +53,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_input_parameters(span, model_provider)
+        self._llmobs_set_metadata(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
@@ -60,15 +64,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         span.set_tag_str(METRICS, json.dumps({}))
 
-    def _llmobs_set_input_parameters(
-        self,
-        span: Span,
-        model_provider: Optional[str] = None,
-    ) -> None:
+    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
             return
 
-        input_parameters = {}
+        metadata = {}
         temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
             f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
         )  # huggingface
@@ -79,18 +79,14 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
         if temperature is not None:
-            input_parameters["temperature"] = float(temperature)
+            metadata["temperature"] = float(temperature)
         if max_tokens is not None:
-            input_parameters["max_tokens"] = int(max_tokens)
-        if input_parameters:
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+            metadata["max_tokens"] = int(max_tokens)
+        if metadata:
+            span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self,
-        span: Span,
-        prompts: List[Any],
-        completions: Any,
-        err: bool = False,
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
@@ -153,12 +149,23 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            span.set_tag_str(INPUT_VALUE, str(inputs))
-
+            if isinstance(inputs, str):
+                span.set_tag_str(INPUT_VALUE, inputs)
+            else:
+                try:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(inputs))
+                except TypeError:
+                    log.warning("Failed to serialize chain input data to JSON: %s", inputs)
         if error:
             span.set_tag_str(OUTPUT_VALUE, "")
         elif outputs is not None:
-            span.set_tag_str(OUTPUT_VALUE, str(outputs))
+            if isinstance(outputs, str):
+                span.set_tag_str(OUTPUT_VALUE, str(outputs))
+            else:
+                try:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(outputs))
+                except TypeError:
+                    log.warning("Failed to serialize chain output data to JSON: %s", outputs)
 
     def _set_base_span_tags(  # type: ignore[override]
         self,

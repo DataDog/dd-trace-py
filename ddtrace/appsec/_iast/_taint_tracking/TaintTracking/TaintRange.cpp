@@ -38,7 +38,7 @@ TaintRange::get_hash() const
 };
 
 TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
+shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length = -1)
 {
     if (new_length == -1) {
         new_length = source_taint_range->length;
@@ -56,7 +56,7 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset
     new_ranges.reserve(source_taint_ranges.size());
 
     for (const auto& trange : source_taint_ranges) {
-        new_ranges.emplace_back(api_shift_taint_range(trange, offset, new_length));
+        new_ranges.emplace_back(shift_taint_range(trange, offset, new_length));
     }
     return new_ranges;
 }
@@ -243,7 +243,7 @@ get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 }
 
 TaintRangeRefs
-api_get_ranges(py::object& string_input)
+api_get_ranges(const py::object& string_input)
 {
     bool ranges_error;
     TaintRangeRefs ranges;

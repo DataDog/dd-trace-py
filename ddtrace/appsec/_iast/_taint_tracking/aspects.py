@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_ospathjoin  # noqa: F401
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -440,6 +441,8 @@ def format_value_aspect(
     else:
         new_text = element
     if not isinstance(new_text, IAST.TEXT_TYPES):
+        if format_spec:
+            return format(new_text, format_spec)
         return format(new_text)
 
     try:

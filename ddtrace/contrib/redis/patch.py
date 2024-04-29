@@ -3,6 +3,9 @@ import os
 import redis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _run_redis_command
+from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -11,9 +14,6 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
-from ..trace_utils_redis import _run_redis_command
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 config._add(

@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import sys
@@ -1282,11 +1283,11 @@ class TestLLMObsLangchain:
         return expected_llmobs_writer_calls
 
     @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters=None, input_value=None, output_value=None):
+    def _expected_llmobs_chain_call(span, metadata=None, input_value=None, output_value=None):
         return _expected_llmobs_non_llm_span_event(
             span,
             span_kind="workflow",
-            parameters=input_parameters,
+            metadata=metadata,
             input_value=input_value,
             output_value=output_value,
             tags={
@@ -1313,13 +1314,13 @@ class TestLLMObsLangchain:
         else:
             max_tokens_key = "max_tokens"
 
-        parameters = {}
+        metadata = {}
         temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
         max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
         if temperature is not None:
-            parameters["temperature"] = float(temperature)
+            metadata["temperature"] = float(temperature)
         if max_tokens is not None:
-            parameters["max_tokens"] = int(max_tokens)
+            metadata["max_tokens"] = int(max_tokens)
 
         return _expected_llmobs_llm_span_event(
             span,
@@ -1327,7 +1328,7 @@ class TestLLMObsLangchain:
             model_provider=span.get_tag("langchain.request.provider"),
             input_messages=[input_meta],
             output_messages=[output_meta],
-            parameters=parameters,
+            metadata=metadata,
             token_metrics={},
             tags={
                 "ml_app": "langchain_test",
@@ -1495,8 +1496,8 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"question": "what is two raised to the fifty-fourth power?"}),
-                        "output_value": str(
+                        "input_value": json.dumps({"question": "what is two raised to the fifty-fourth power?"}),
+                        "output_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "answer": "Answer: 18014398509481984",
@@ -1507,13 +1508,13 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str(
+                        "input_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "stop": ["```output"],
                             }
                         ),
-                        "output_value": str(
+                        "output_value": json.dumps(
                             {
                                 "question": "what is two raised to the fifty-fourth power?",
                                 "stop": ["```output"],
@@ -1573,14 +1574,14 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": str({"input_text": input_text}),
+                        "input_value": json.dumps({"input_text": input_text}),
                         "output_value": mock.ANY,
                     },
                 ),
                 (
                     "chain",
                     {
-                        "input_value": str({"input_text": input_text}),
+                        "input_value": json.dumps({"input_text": input_text}),
                         "output_value": mock.ANY,
                     },
                 ),
