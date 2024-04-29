@@ -40,12 +40,11 @@ def setup():
 def test_ossystem(tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         patch()
-        _BAD_DIR = "forbidden_dir/"
+        _BAD_DIR = "mytest/folder/"
         _BAD_DIR = taint_pyobject(
             pyobject=_BAD_DIR,
             source_name="test_ossystem",
             source_value=_BAD_DIR,
-            source_origin=OriginType.PARAMETER,
         )
         assert is_pyobject_tainted(_BAD_DIR)
         with tracer.trace("ossystem_test"):
@@ -54,26 +53,26 @@ def test_ossystem(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
-
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [
+        data = span_report.build_and_scrub_value_parts()
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "dir "},
             {"redacted": True},
             {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_ossystem"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value is None
+        assert "value" not in vulnerability["evidence"].keys()
+        assert vulnerability["evidence"].get("pattern") is None
+        assert vulnerability["evidence"].get("redacted)") is None
+        assert source["name"] == "test_ossystem"
+        assert source["origin"] == OriginType.PARAMETER
+        assert "value" not in source.keys()
 
         line, hash_value = get_line_and_hash("test_ossystem", VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 def test_communicate(tracer, iast_span_defaults):
@@ -94,26 +93,27 @@ def test_communicate(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "dir "},
             {"redacted": True},
             {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_communicate"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value is None
+        assert "value" not in vulnerability["evidence"].keys()
+        assert "pattern" not in vulnerability["evidence"].keys()
+        assert "redacted" not in vulnerability["evidence"].keys()
+        assert source["name"] == "test_communicate"
+        assert source["origin"] == OriginType.PARAMETER
+        assert "value" not in source.keys()
 
         line, hash_value = get_line_and_hash("test_communicate", VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 def test_run(tracer, iast_span_defaults):
@@ -132,26 +132,27 @@ def test_run(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "dir "},
             {"redacted": True},
             {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_run"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value is None
+        assert "value" not in vulnerability["evidence"].keys()
+        assert "pattern" not in vulnerability["evidence"].keys()
+        assert "redacted" not in vulnerability["evidence"].keys()
+        assert source["name"] == "test_run"
+        assert source["origin"] == OriginType.PARAMETER
+        assert "value" not in source.keys()
 
         line, hash_value = get_line_and_hash("test_run", VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 def test_popen_wait(tracer, iast_span_defaults):
@@ -171,26 +172,27 @@ def test_popen_wait(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "dir "},
             {"redacted": True},
             {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_popen_wait"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value is None
+        assert "value" not in vulnerability["evidence"].keys()
+        assert "pattern" not in vulnerability["evidence"].keys()
+        assert "redacted" not in vulnerability["evidence"].keys()
+        assert source["name"] == "test_popen_wait"
+        assert source["origin"] == OriginType.PARAMETER
+        assert "value" not in source.keys()
 
         line, hash_value = get_line_and_hash("test_popen_wait", VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 def test_popen_wait_shell_true(tracer, iast_span_defaults):
@@ -210,26 +212,27 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "dir "},
             {"redacted": True},
             {"pattern": "abcdefghijklmn", "redacted": True, "source": 0},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_popen_wait_shell_true"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value is None
+        assert "value" not in vulnerability["evidence"].keys()
+        assert "pattern" not in vulnerability["evidence"].keys()
+        assert "redacted" not in vulnerability["evidence"].keys()
+        assert source["name"] == "test_popen_wait_shell_true"
+        assert source["origin"] == OriginType.PARAMETER
+        assert "value" not in source.keys()
 
         line, hash_value = get_line_and_hash("test_popen_wait_shell_true", VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
@@ -275,22 +278,23 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_CMDI
-        assert vulnerability.evidence.valueParts == [{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_osspawn_variants"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value == _BAD_DIR
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_CMDI
+        assert vulnerability["evidence"]["valueParts"] == [{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}]
+        assert "value" not in vulnerability["evidence"].keys()
+        assert "pattern" not in vulnerability["evidence"].keys()
+        assert "redacted" not in vulnerability["evidence"].keys()
+        assert source["name"] == "test_osspawn_variants"
+        assert source["origin"] == OriginType.PARAMETER
+        assert source["value"] == _BAD_DIR
 
         line, hash_value = get_line_and_hash(tag, VULN_CMDI, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
@@ -315,8 +319,9 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        assert len(list(span_report.vulnerabilities)) == 2
+        assert len(list(data["vulnerabilities"])) == 2
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
@@ -334,8 +339,9 @@ def test_string_cmdi(tracer, iast_span_defaults):
 
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        assert len(list(span_report.vulnerabilities)) == 1
+        assert len(list(data["vulnerabilities"])) == 1
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
@@ -360,5 +366,5 @@ def test_cmdi_deduplication(num_vuln_expected, tracer, iast_span_deduplication_e
         assert span_report is None
     else:
         assert span_report
-
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+        data = span_report.build_and_scrub_value_parts()
+        assert len(data["vulnerabilities"]) == num_vuln_expected

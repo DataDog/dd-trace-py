@@ -75,14 +75,14 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         from ._taint_tracking import reset_context  # noqa: F401
-        from ._utils import _iast_report_to_str
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        data = core.get_item(IAST.CONTEXT_KEY, span=span)
+        report_data = core.get_item(IAST.CONTEXT_KEY, span=span)
 
-        if data:
-            span.set_tag_str(IAST.JSON, _iast_report_to_str(data))
+        if report_data:
+            report_data.build_and_scrub_value_parts()
+            span.set_tag_str(IAST.JSON, report_data._to_str())
             _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()

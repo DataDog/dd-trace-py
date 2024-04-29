@@ -111,8 +111,8 @@ class SSRF(VulnerabilityBase):
 
         # Iterate over all the sources, if one of the tokens match it, redact it
         for source in report.sources:
-            if source.name in "".join(all_tokens) or source.value in "".join(all_tokens):
-                source.pattern = _scrub(source.value, has_range=True)
+            if source.name in "".join(all_tokens) or source.value in "".join(all_tokens):  # type: ignore
+                source.pattern = _scrub(source.value, has_range=True)  # type: ignore
                 source.redacted = True
                 source.value = None
 
@@ -142,7 +142,7 @@ class SSRF(VulnerabilityBase):
                             part_scrub_end = positions[1] - idx
                             pattern_list.append(value[:part_scrub_start] + "" + value[part_scrub_end:])
                             if part.get("source", False) is not False:
-                                source = report.sources[part["source"]]
+                                source = list(report.sources)[part["source"]]
                                 if source.redacted:
                                     part["redacted"] = source.redacted
                                     part["pattern"] = source.pattern
