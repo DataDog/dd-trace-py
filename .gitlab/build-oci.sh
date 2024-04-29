@@ -43,15 +43,6 @@ echo -n $PYTHON_PACKAGE_VERSION > $BUILD_DIR/version
 chmod -R o-w $BUILD_DIR
 chmod -R g-w $BUILD_DIR
 
-
-fpm \
-  --input-type deb \
-  --output-type dir \
-  --name datadog-python-apm \
-  --package $TMP_DIR \
-  $BUILD_DIR
-
-
 # Build packages
 datadog-package create \
     --version="$PYTHON_PACKAGE_VERSION" \
