@@ -7,11 +7,12 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ..processor import AppSecIastSpanProcessor
+
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import increment_iast_span_metric
 from ..constants import VULN_CMDI
+from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
 
 
@@ -81,12 +82,14 @@ class CommandInjection(VulnerabilityBase):
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
     from .._metrics import _set_metric_iast_executed_sink
+
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
 
     if AppSecIastSpanProcessor.is_span_analyzed() and CommandInjection.has_quota():
         from .._taint_tracking import is_pyobject_tainted
         from .._taint_tracking.aspects import join_aspect
+
         if isinstance(shell_args, (list, tuple)):
             for arg in shell_args:
                 if is_pyobject_tainted(arg):
