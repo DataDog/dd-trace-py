@@ -473,11 +473,13 @@ def django_check(all_issues, display_num_errors=False):
         if visible_issue_count:
             footer += "\n"
         footer += "System check identified %s (%s silenced)." % (
-            "no issues"
-            if visible_issue_count == 0
-            else "1 issue"
-            if visible_issue_count == 1
-            else "%s issues" % visible_issue_count,
+            (
+                "no issues"
+                if visible_issue_count == 0
+                else "1 issue"
+                if visible_issue_count == 1
+                else "%s issues" % visible_issue_count
+            ),
             len(all_issues) - visible_issue_count,
         )
 
@@ -513,11 +515,13 @@ def django_check_simple_formatted_ifs(f):
 def django_check_simple_formatted_multiple_ifs(f):
     visible_issue_count = 1
     f += "System check identified %s (%s silenced)." % (
-        "no issues"
-        if visible_issue_count == 0
-        else "1 issue"
-        if visible_issue_count == 1
-        else "%s issues" % visible_issue_count,
+        (
+            "no issues"
+            if visible_issue_count == 0
+            else "1 issue"
+            if visible_issue_count == 1
+            else "%s issues" % visible_issue_count
+        ),
         5 - visible_issue_count,
     )
     return f
