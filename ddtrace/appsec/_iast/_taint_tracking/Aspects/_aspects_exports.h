@@ -1,7 +1,7 @@
 #pragma once
 #include "AspectFormat.h"
-#include "AspectsOsPath.h"
 #include "AspectSplit.h"
+#include "AspectsOsPath.h"
 #include "Helpers.h"
 #include <pybind11/pybind11.h>
 
