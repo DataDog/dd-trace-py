@@ -16,7 +16,14 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_ospathbasename
+from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _aspect_ospathjoin
+from .._taint_tracking import _aspect_ospathnormcase
+from .._taint_tracking import _aspect_ospathsplit
+from .._taint_tracking import _aspect_ospathsplitdrive
+from .._taint_tracking import _aspect_ospathsplitext
+from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
@@ -58,6 +65,13 @@ __all__ = [
     "_aspect_split",
     "_aspect_rsplit",
     "_aspect_splitlines",
+    "_aspect_ospathbasename",
+    "_aspect_ospathdirname",
+    "_aspect_ospathnormcase",
+    "_aspect_ospathsplit",
+    "_aspect_ospathsplitext",
+    "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitroot",
 ]
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator
@@ -271,12 +285,14 @@ def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
                 tag_mapping_function=TagMappingMode.Mapper,
             )
             % tuple(
-                as_formatted_evidence(
-                    parameter,
-                    tag_mapping_function=TagMappingMode.Mapper,
+                (
+                    as_formatted_evidence(
+                        parameter,
+                        tag_mapping_function=TagMappingMode.Mapper,
+                    )
+                    if isinstance(parameter, IAST.TEXT_TYPES)
+                    else parameter
                 )
-                if isinstance(parameter, IAST.TEXT_TYPES)
-                else parameter
                 for parameter in parameter_list
             ),
             ranges_orig=ranges_orig,
@@ -437,9 +453,11 @@ def format_map_aspect(
                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
             ).format_map(
                 {
-                    key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, IAST.TEXT_TYPES)
-                    else value
+                    key: (
+                        as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+                        if isinstance(value, IAST.TEXT_TYPES)
+                        else value
+                    )
                     for key, value in mapping.items()
                 }
             ),
