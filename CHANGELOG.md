@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.6.12
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+
+
+---
+
 ## 2.8.2
 
 
