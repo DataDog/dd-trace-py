@@ -133,52 +133,54 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     else:
         call_name = trace_operation
 
-    if should_instrument:
-        with core.context_with_data(
-            "botocore.patched_sqs_api_call",
-            parent=parent_ctx,
-            span_name=call_name,
-            service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
-            span_type=SpanTypes.HTTP,
-            activate=True,
-            instance=instance,
-            args=args,
-            params=params,
-            endpoint_name=endpoint_name,
-            operation=operation,
-            call_trace=False,
-            call_key="instrumented_sqs_call",
-            pin=pin,
-        ) as ctx, ctx.get_item(ctx.get_item("call_key")):
-            core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+    try:
+        if should_instrument:
+            with core.context_with_data(
+                "botocore.patched_sqs_api_call",
+                parent=parent_ctx,
+                span_name=call_name,
+                service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
+                span_type=SpanTypes.HTTP,
+                activate=True,
+                instance=instance,
+                args=args,
+                params=params,
+                endpoint_name=endpoint_name,
+                operation=operation,
+                call_trace=False,
+                call_key="instrumented_sqs_call",
+                pin=pin,
+            ) as ctx, ctx.get_item(ctx.get_item("call_key")):
+                core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
-            if should_update_messages:
-                update_messages(ctx, endpoint_service=endpoint_name)
+                if should_update_messages:
+                    update_messages(ctx, endpoint_service=endpoint_name)
 
-            try:
-                if not func_has_run:
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
-                    result = original_func(*args, **kwargs)
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+                try:
+                    if not func_has_run:
+                        core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+                        result = original_func(*args, **kwargs)
+                        core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
+                    core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
 
-                if func_run_err:
-                    raise func_run_err
-                return result
-            except botocore.exceptions.ClientError as e:
-                core.dispatch(
-                    "botocore.patched_sqs_api_call.exception",
-                    [
-                        ctx,
-                        e.response,
-                        botocore.exceptions.ClientError,
-                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
-                    ],
-                )
-                raise
+                    if func_run_err:
+                        raise func_run_err
+                    return result
+                except botocore.exceptions.ClientError as e:
+                    core.dispatch(
+                        "botocore.patched_sqs_api_call.exception",
+                        [
+                            ctx,
+                            e.response,
+                            botocore.exceptions.ClientError,
+                            config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                        ],
+                    )
+                    raise
+        elif func_has_run:
+            if func_run_err:
+                raise func_run_err
+            return result
+    finally:
         parent_ctx.end()
-    elif func_has_run:
-        if func_run_err:
-            raise func_run_err
-        return result
