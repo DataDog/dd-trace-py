@@ -51,4 +51,4 @@ datadog-package create \
     --archive-path="datadog-apm-library-python-$PYTHON_PACKAGE_VERSION-$ARCH.tar" \
     --arch "$ARCH" \
     --os "linux" \
-    $TMP_DIR/datadog-python-apm.dir/
+    $BUILD_DIR
