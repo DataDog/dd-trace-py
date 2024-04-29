@@ -1,5 +1,3 @@
-# JJJ check the python versions supported for the os.path aspects
-
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 from builtins import str as builtin_str
@@ -18,17 +16,17 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_ospathbasename
+from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _aspect_ospathjoin
+from .._taint_tracking import _aspect_ospathnormcase
+from .._taint_tracking import _aspect_ospathsplit
+from .._taint_tracking import _aspect_ospathsplitdrive
+from .._taint_tracking import _aspect_ospathsplitext
+from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
-from .._taint_tracking import _aspect_ospathnormcase
-from .._taint_tracking import _aspect_ospathbasename
-from .._taint_tracking import _aspect_ospathdirname
-from .._taint_tracking import _aspect_ospathsplit
-from .._taint_tracking import _aspect_ospathsplitext
-from .._taint_tracking import _aspect_ospathsplitdrive
-from .._taint_tracking import _aspect_ospathsplitroot
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -287,12 +285,14 @@ def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
                 tag_mapping_function=TagMappingMode.Mapper,
             )
             % tuple(
-                as_formatted_evidence(
-                    parameter,
-                    tag_mapping_function=TagMappingMode.Mapper,
+                (
+                    as_formatted_evidence(
+                        parameter,
+                        tag_mapping_function=TagMappingMode.Mapper,
+                    )
+                    if isinstance(parameter, IAST.TEXT_TYPES)
+                    else parameter
                 )
-                if isinstance(parameter, IAST.TEXT_TYPES)
-                else parameter
                 for parameter in parameter_list
             ),
             ranges_orig=ranges_orig,
@@ -453,9 +453,11 @@ def format_map_aspect(
                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
             ).format_map(
                 {
-                    key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, IAST.TEXT_TYPES)
-                    else value
+                    key: (
+                        as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+                        if isinstance(value, IAST.TEXT_TYPES)
+                        else value
+                    )
                     for key, value in mapping.items()
                 }
             ),

@@ -13,7 +13,6 @@ from .._metrics import _set_iast_error_metric
 from .._metrics import _set_metric_iast_executed_source
 from .._utils import _is_python_version_supported
 
-# JJJ check the python versions supported for the os.path aspects
 
 log = get_logger(__name__)
 
@@ -25,17 +24,17 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
-    from ._native.aspects_ospath import _aspect_ospathjoin
-    from ._native.aspects_ospath import _aspect_ospathnormcase
-    from ._native.aspects_ospath import _aspect_ospathbasename
-    from ._native.aspects_ospath import _aspect_ospathdirname
-    from ._native.aspects_ospath import _aspect_ospathsplit
-    from ._native.aspects_ospath import _aspect_ospathsplitext
-    from ._native.aspects_ospath import _aspect_ospathsplitdrive
-    from ._native.aspects_ospath import _aspect_ospathsplitroot
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
+    from ._native.aspects_ospath import _aspect_ospathbasename
+    from ._native.aspects_ospath import _aspect_ospathdirname
+    from ._native.aspects_ospath import _aspect_ospathjoin
+    from ._native.aspects_ospath import _aspect_ospathnormcase
+    from ._native.aspects_ospath import _aspect_ospathsplit
+    from ._native.aspects_ospath import _aspect_ospathsplitdrive
+    from ._native.aspects_ospath import _aspect_ospathsplitext
+    from ._native.aspects_ospath import _aspect_ospathsplitroot
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
     from ._native.initializer import debug_taint_map

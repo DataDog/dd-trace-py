@@ -1,5 +1,4 @@
 import os.path
-import sys
 
 
 def do_os_path_join(a, b):

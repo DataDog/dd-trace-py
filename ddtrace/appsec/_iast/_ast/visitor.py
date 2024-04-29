@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import os
 from _ast import Expr
 from _ast import ImportFrom
 import ast
 import copy
+import os
 import sys
 from typing import Any  # noqa:F401
 from typing import List  # noqa:F401

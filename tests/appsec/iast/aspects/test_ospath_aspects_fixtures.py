@@ -56,18 +56,29 @@ def test_ospathsplit_tainted():
     )
     result = mod.do_os_path_split(string_input)
     assert result == ("/foo", "bar")
-    assert get_tainted_ranges(result[0]) == [TaintRange(0, 4, Source("first_element", "/foo/bar", OriginType.PARAMETER))]
-    assert get_tainted_ranges(result[1]) == [TaintRange(0, 3, Source("first_element", "/foo/bar", OriginType.PARAMETER))]
+    assert get_tainted_ranges(result[0]) == [
+        TaintRange(0, 4, Source("first_element", "/foo/bar", OriginType.PARAMETER))
+    ]
+    assert get_tainted_ranges(result[1]) == [
+        TaintRange(0, 3, Source("first_element", "/foo/bar", OriginType.PARAMETER))
+    ]
 
 
 def test_ospathsplitext_tainted():
     string_input = taint_pyobject(
-        pyobject="/foo/bar.txt", source_name="first_element", source_value="/foo/bar.txt", source_origin=OriginType.PARAMETER
+        pyobject="/foo/bar.txt",
+        source_name="first_element",
+        source_value="/foo/bar.txt",
+        source_origin=OriginType.PARAMETER,
     )
     result = mod.do_os_path_splitext(string_input)
     assert result == ("/foo/bar", ".txt")
-    assert get_tainted_ranges(result[0]) == [TaintRange(0, 8, Source("first_element", "/foo/bar.txt", OriginType.PARAMETER))]
-    assert get_tainted_ranges(result[1]) == [TaintRange(0, 4, Source("first_element", "/foo/bar.txt", OriginType.PARAMETER))]
+    assert get_tainted_ranges(result[0]) == [
+        TaintRange(0, 8, Source("first_element", "/foo/bar.txt", OriginType.PARAMETER))
+    ]
+    assert get_tainted_ranges(result[1]) == [
+        TaintRange(0, 4, Source("first_element", "/foo/bar.txt", OriginType.PARAMETER))
+    ]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="requires python3.12 or higher")
@@ -85,6 +96,7 @@ def test_ospathsplitroot_tainted():
         TaintRange(0, 7, Source("first_element", "/foo/bar", OriginType.PARAMETER))
     ]
 
+
 @pytest.mark.skipif(sys.version_info < (3, 12) and os.name != "nt", reason="Required Python 3.12 or Windows")
 def test_ospathsplitdrive_tainted():
     string_input = taint_pyobject(
@@ -96,5 +108,6 @@ def test_ospathsplitdrive_tainted():
     assert get_tainted_ranges(result[1]) == [
         TaintRange(0, 8, Source("first_element", "/foo/bar", OriginType.PARAMETER))
     ]
+
 
 # TODO: add tests for os.path.splitdrive and os.path.normcase under Windows
