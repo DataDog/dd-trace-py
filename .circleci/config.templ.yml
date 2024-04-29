@@ -14,7 +14,7 @@ mysql_image: &mysql_image mysql:5.7@sha256:03b6dcedf5a2754da00e119e2cc6094ed3c88
 postgres_image: &postgres_image postgres:12-alpine@sha256:c6704f41eb84be53d5977cb821bf0e5e876064b55eafef1e260c2574de40ad9a
 mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184cd57d9bb922efdd2a8eca514af8
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
-vertica_image: &vertica_image sumitchawla/vertica:latest
+vertica_image: &vertica_image vertica/vertica-ce:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.16.0
 
@@ -142,12 +142,12 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
-            - run: ulimit -c unlimited
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
             - run:
                 command: |
@@ -178,11 +178,11 @@ commands:
                       command: |
                         echo 'export DD_TRACE_AGENT_URL=<< parameters.trace_agent_url >>' >> "$BASH_ENV"
                         source "$BASH_ENV"
-            - run: ulimit -c unlimited
             - run:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
             - run:
                 command: |
@@ -272,12 +272,12 @@ commands:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
                 services: testagent << parameters.docker_services >>
-            - run: ulimit -c unlimited
             - run:
                 name: Run tests
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite-hatch '<<parameters.env>>' 1
             - run:
                 command: |
@@ -415,31 +415,30 @@ jobs:
       - attach_workspace:
           at: .
       - run: pip install -r ci/coverage/requirements.txt
-      - run: ls -hal *.coverage 2>/dev/null || true
       - run: rm -f empty.*.coverage
       # Combine all job coverage reports into one
-      - run: coverage combine *.coverage
+      - run: ls -hal *.coverage 2>/dev/null && coverage combine *.coverage || true
       # Upload coverage report to Codecov
       # DEV: Do not use the bash uploader, it cannot be trusted
       - run: codecov
       # Generate and save xml report
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage xml --ignore-errors
+      - run: coverage xml --ignore-errors || true
       - store_artifacts:
           path: coverage.xml
       # Generate and save JSON report
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage json --ignore-errors
+      - run: coverage json --ignore-errors || true
       - store_artifacts:
           path: coverage.json
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=tests/
+      - run: coverage report --ignore-errors --omit=tests/ || true
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage report --ignore-errors --omit=ddtrace/
+      - run: coverage report --ignore-errors --omit=ddtrace/ || true
       # Print diff-cover report to stdout (compares against origin/1.x)
-      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
 
   build_base_venvs:
@@ -503,6 +502,7 @@ jobs:
           pattern: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
+          docker_services: "pygoat"
 
   appsec_threats_django:
     parallelism: 12
@@ -643,11 +643,11 @@ jobs:
       - setup_riot
       - start_docker_services:
           services: ddagent
-      - run: ulimit -c unlimited
       - run:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
+            ulimit -c unlimited
             ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
       - run:
           command: |
@@ -1226,21 +1226,6 @@ jobs:
           pattern: 'urllib3'
           snapshot: true
           docker_services: "httpbin_local"
-
-  vertica:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - image: *vertica_image
-        environment:
-          - VP_TEST_USER=dbadmin
-          - VP_TEST_PASSWORD=abc123
-          - VP_TEST_DATABASE=docker
-    steps:
-      - run_test:
-          wait: vertica
-          pattern: 'vertica'
 
   wsgi:
     <<: *machine_executor

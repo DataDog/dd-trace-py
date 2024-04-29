@@ -7,6 +7,7 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -20,6 +21,10 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
+
+
+class Unserializable:
+    pass
 
 
 @pytest.fixture
@@ -127,16 +132,16 @@ def test_llmobs_start_span_with_session_id(LLMObs):
         assert span.get_tag(SESSION_ID) == "test_session_id"
 
 
-def test_llmobs_session_id_becomes_top_level_field(LLMObs, mock_llmobs_writer):
+def test_llmobs_session_id_becomes_top_level_field(LLMObs, mock_llmobs_span_writer):
     session_id = "test_session_id"
     with LLMObs.task(session_id=session_id) as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
     )
 
 
-def test_llmobs_llm_span(LLMObs, mock_llmobs_writer):
+def test_llmobs_llm_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
@@ -144,9 +149,9 @@ def test_llmobs_llm_span(LLMObs, mock_llmobs_writer):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "test_provider"
-        assert span.get_tag(SESSION_ID) is None
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
 
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="test_provider")
     )
 
@@ -170,47 +175,42 @@ def test_llmobs_default_model_provider_set_to_custom(LLMObs):
         assert span.get_tag(SPAN_KIND) == "llm"
         assert span.get_tag(MODEL_NAME) == "test_model"
         assert span.get_tag(MODEL_PROVIDER) == "custom"
-        assert span.get_tag(SESSION_ID) is None
 
 
-def test_llmobs_tool_span(LLMObs, mock_llmobs_writer):
+def test_llmobs_tool_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.tool(name="test_tool") as span:
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "tool"
-        assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
+    mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "tool"))
 
 
-def test_llmobs_task_span(LLMObs, mock_llmobs_writer):
+def test_llmobs_task_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.task(name="test_task") as span:
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "task"
-        assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
+    mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "task"))
 
 
-def test_llmobs_workflow_span(LLMObs, mock_llmobs_writer):
+def test_llmobs_workflow_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.workflow(name="test_workflow") as span:
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "workflow"
-        assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
+    mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "workflow"))
 
 
-def test_llmobs_agent_span(LLMObs, mock_llmobs_writer):
+def test_llmobs_agent_span(LLMObs, mock_llmobs_span_writer):
     with LLMObs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
         assert span.get_tag(SPAN_KIND) == "agent"
-        assert span.get_tag(SESSION_ID) is None
-    mock_llmobs_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
+    mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
 def test_llmobs_annotate_while_disabled_logs_warning(LLMObs, mock_logs):
@@ -238,16 +238,55 @@ def test_llmobs_annotate_finished_span_does_nothing(LLMObs, mock_logs):
     mock_logs.warning.assert_called_once_with("Cannot annotate a finished span.")
 
 
-def test_llmobs_annotate_parameters(LLMObs):
+def test_llmobs_annotate_parameters(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
         assert json.loads(span.get_tag(INPUT_PARAMETERS)) == {"temperature": 0.9, "max_tokens": 50}
+        mock_logs.warning.assert_called_once_with(
+            "Setting parameters is deprecated, please set parameters and other metadata as tags instead."
+        )
+
+
+def test_llmobs_annotate_metadata(LLMObs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
+        assert json.loads(span.get_tag(METADATA)) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
+
+
+def test_llmobs_annotate_metadata_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, metadata="wrong_metadata")
+        assert span.get_tag(METADATA) is None
+        mock_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=span, metadata={"unserializable": Unserializable()})
+        assert span.get_tag(METADATA) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span metadata. Metadata key-value pairs must be JSON serializable."
+        )
 
 
 def test_llmobs_annotate_tag(LLMObs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
         assert json.loads(span.get_tag(TAGS)) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+
+
+def test_llmobs_annotate_tag_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        LLMObs.annotate(span=span, tags=12345)
+        assert span.get_tag(TAGS) is None
+        mock_logs.warning.assert_called_once_with(
+            "span_tags must be a dictionary of string key - primitive value pairs."
+        )
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=span, tags={"unserializable": Unserializable()})
+        assert span.get_tag(TAGS) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span tags. Tag key-value pairs must be JSON serializable."
+        )
 
 
 def test_llmobs_annotate_input_string(LLMObs):
@@ -265,7 +304,29 @@ def test_llmobs_annotate_input_string(LLMObs):
         assert workflow_span.get_tag(INPUT_VALUE) == "test_input"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
-        assert json.loads(agent_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input"}]
+        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+
+
+def test_llmobs_annotate_input_serializable_value(LLMObs):
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, input_data=["test_input"])
+        assert task_span.get_tag(INPUT_VALUE) == '["test_input"]'
+    with LLMObs.tool() as tool_span:
+        LLMObs.annotate(span=tool_span, input_data={"test_input": "hello world"})
+        assert tool_span.get_tag(INPUT_VALUE) == '{"test_input": "hello world"}'
+    with LLMObs.workflow() as workflow_span:
+        LLMObs.annotate(span=workflow_span, input_data=("asd", 123))
+        assert workflow_span.get_tag(INPUT_VALUE) == '["asd", 123]'
+    with LLMObs.agent() as agent_span:
+        LLMObs.annotate(span=agent_span, input_data="test_input")
+        assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+
+
+def test_llmobs_annotate_input_value_wrong_type(LLMObs, mock_logs):
+    with LLMObs.workflow() as llm_span:
+        LLMObs.annotate(span=llm_span, input_data=Unserializable())
+        assert llm_span.get_tag(INPUT_VALUE) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse input value. Input value must be JSON serializable.")
 
 
 def test_llmobs_annotate_input_llm_message(LLMObs):
@@ -274,10 +335,20 @@ def test_llmobs_annotate_input_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(INPUT_MESSAGES)) == [{"content": "test_input", "role": "human"}]
 
 
-def test_llmobs_annotate_non_llm_span_message_input_logs_warning(LLMObs, mock_logs):
-    with LLMObs.task() as span:
-        LLMObs.annotate(span=span, input_data=[{"content": "test_input"}])
-        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
+def test_llmobs_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, input_data=[{"content": Unserializable()}])
+        assert llm_span.get_tag(INPUT_MESSAGES) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
+
+
+def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, input_data={"role": "user", "content": {"nested": "yes"}})
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
+        mock_logs.reset_mock()
+        LLMObs.annotate(span=llm_span, output_data={"role": "user", "content": {"nested": "yes"}})
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_llmobs_annotate_output_string(LLMObs):
@@ -295,7 +366,31 @@ def test_llmobs_annotate_output_string(LLMObs):
         assert workflow_span.get_tag(OUTPUT_VALUE) == "test_output"
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, output_data="test_output")
-        assert json.loads(agent_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output"}]
+        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+
+
+def test_llmobs_annotate_output_serializable_value(LLMObs):
+    with LLMObs.task() as task_span:
+        LLMObs.annotate(span=task_span, output_data=["test_output"])
+        assert task_span.get_tag(OUTPUT_VALUE) == '["test_output"]'
+    with LLMObs.tool() as tool_span:
+        LLMObs.annotate(span=tool_span, output_data={"test_output": "hello world"})
+        assert tool_span.get_tag(OUTPUT_VALUE) == '{"test_output": "hello world"}'
+    with LLMObs.workflow() as workflow_span:
+        LLMObs.annotate(span=workflow_span, output_data=("asd", 123))
+        assert workflow_span.get_tag(OUTPUT_VALUE) == '["asd", 123]'
+    with LLMObs.agent() as agent_span:
+        LLMObs.annotate(span=agent_span, output_data="test_output")
+        assert agent_span.get_tag(OUTPUT_VALUE) == "test_output"
+
+
+def test_llmobs_annotate_output_value_wrong_type(LLMObs, mock_logs):
+    with LLMObs.workflow() as llm_span:
+        LLMObs.annotate(span=llm_span, output_data=Unserializable())
+        assert llm_span.get_tag(OUTPUT_VALUE) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse output value. Output value must be JSON serializable."
+        )
 
 
 def test_llmobs_annotate_output_llm_message(LLMObs):
@@ -304,10 +399,11 @@ def test_llmobs_annotate_output_llm_message(LLMObs):
         assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output", "role": "human"}]
 
 
-def test_llmobs_annotate_non_llm_span_message_output_logs_warning(LLMObs, mock_logs):
-    with LLMObs.task() as span:
-        LLMObs.annotate(span=span, output_data=[{"content": "test_input"}])
-        mock_logs.warning.assert_called_once_with("Invalid input/output type for non-llm span. Must be a raw string.")
+def test_llmobs_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, output_data=[{"content": Unserializable()}])
+        assert llm_span.get_tag(OUTPUT_MESSAGES) is None
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_llmobs_annotate_metrics(LLMObs):
@@ -316,11 +412,25 @@ def test_llmobs_annotate_metrics(LLMObs):
         assert json.loads(span.get_tag(METRICS)) == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
 
-def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
+def test_llmobs_annotate_metrics_wrong_type(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, metrics=12345)
+        assert llm_span.get_tag(METRICS) is None
+        mock_logs.warning.assert_called_once_with("metrics must be a dictionary of string key - numeric value pairs.")
+        mock_logs.reset_mock()
+
+        LLMObs.annotate(span=llm_span, metrics={"content": Unserializable()})
+        assert llm_span.get_tag(METRICS) is None
+        mock_logs.warning.assert_called_once_with(
+            "Failed to parse span metrics. Metric key-value pairs must be JSON serializable."
+        )
+
+
+def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_span_writer):
     with pytest.raises(ValueError):
         with LLMObs.llm(model_name="test_model", model_provider="test_model_provider") as span:
             raise ValueError("test error message")
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
             span,
             model_name="test_model",
@@ -336,10 +446,10 @@ def test_llmobs_span_error_sets_error(LLMObs, mock_llmobs_writer):
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
 )
-def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypatch):
+def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_span_writer, monkeypatch):
     with LLMObs.task(name="test_task") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(
             span,
             "task",
@@ -348,22 +458,22 @@ def test_llmobs_tags(ddtrace_global_config, LLMObs, mock_llmobs_writer, monkeypa
     )
 
 
-def test_llmobs_ml_app_override(LLMObs, mock_llmobs_writer):
+def test_llmobs_ml_app_override(LLMObs, mock_llmobs_span_writer):
     with LLMObs.task(name="test_task", ml_app="test_app") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
     )
 
     with LLMObs.tool(name="test_tool", ml_app="test_app") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
     )
 
     with LLMObs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(
             span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
         )
@@ -371,12 +481,12 @@ def test_llmobs_ml_app_override(LLMObs, mock_llmobs_writer):
 
     with LLMObs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
     )
 
     with LLMObs.agent(name="test_agent", ml_app="test_app") as span:
         pass
-    mock_llmobs_writer.enqueue.assert_called_with(
+    mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
     )
