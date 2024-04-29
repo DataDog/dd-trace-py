@@ -105,20 +105,6 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
                 raise
 
 
-async def dispatch_async(event_id: str, args: Tuple[Any, ...] = ()) -> None:
-    global _listeners
-
-    if event_id not in _listeners:
-        return
-
-    for local_hook in _listeners[event_id].values():
-        try:
-            await local_hook(*args)
-        except Exception:
-            if config._raise:
-                raise
-
-
 def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
