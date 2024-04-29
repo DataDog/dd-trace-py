@@ -230,7 +230,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     TEST_SERVICE = "mysql"
     conn = None
 
-    async def _get_conn_tracer(self):
+    async def _get_conn_tracer(self, tags={}):
         if not self.conn:
             self.conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
             assert not self.conn.closed
@@ -239,7 +239,7 @@ class AioMySQLTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -442,10 +442,13 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_with_peer_service_tag(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
+        conn, tracer = await self._get_conn_tracer({"peer.service": "peer_service_name"})
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
 
         await shared_tests._test_dbm_propagation_comment_with_peer_service_tag(
-            config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+            config=AIOMYSQL_CONFIG,
+            cursor=cursor,
+            wrapped_instance=cursor.__wrapped__,
+            peer_service_name="peer_service_name",
         )

@@ -96,13 +96,15 @@ async def _test_dbm_propagation_comment_peer_service_enabled(config, cursor, wra
         await _test_execute_many(dbm_comment, cursor, wrapped_instance)
 
 
-async def _test_dbm_propagation_comment_with_peer_service_tag(config, cursor, wrapped_instance, execute_many=True):
+async def _test_dbm_propagation_comment_with_peer_service_tag(
+    config, cursor, wrapped_instance, peer_service_name, execute_many=True
+):
     """tests if dbm comment is set in mysql"""
     db_name = config["db"]
 
     dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'," + "dddps='test'*/ "
+        f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
+        "ddpv='v7343437-d7ac743'*/ "
     )
     await _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
