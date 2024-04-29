@@ -10,11 +10,11 @@ StrType
 api_ospathjoin_aspect(StrType& first_part, const py::args& args);
 
 template<class StrType>
-py::list
+StrType
 api_ospathbasename_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+StrType
 api_ospathdirname_aspect(const StrType& path);
 
 template<class StrType>
@@ -34,7 +34,7 @@ py::list
 api_ospathsplitroot_aspect(const StrType& path);
 
 template<class StrType>
-py::list
+StrType
 api_ospathnormcase_aspect(const StrType& path);
 
 void

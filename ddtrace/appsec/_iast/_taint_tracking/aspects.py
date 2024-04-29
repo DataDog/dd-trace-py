@@ -20,6 +20,9 @@ from .._taint_tracking import _aspect_ospathjoin
 from .._taint_tracking import _aspect_rsplit
 from .._taint_tracking import _aspect_split
 from .._taint_tracking import _aspect_splitlines
+from .._taint_tracking import _aspect_ospathnormcase
+from .._taint_tracking import _aspect_ospathbasename
+from .._taint_tracking import _aspect_ospathdirname
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -58,6 +61,9 @@ __all__ = [
     "_aspect_split",
     "_aspect_rsplit",
     "_aspect_splitlines",
+    "_aspect_ospathbasename",
+    "_aspect_ospathdirname",
+    "_aspect_ospathnormcase",
 ]
 
 # TODO: Factorize the "flags_added_args" copypasta into a decorator

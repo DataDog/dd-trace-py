@@ -1,6 +1,8 @@
 #include "AspectsOsPath.h"
 #include <string>
 
+#include "Helpers.h"
+
 static bool
 starts_with_separator(const py::handle& arg, const std::string& separator)
 {
@@ -97,9 +99,154 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     return joined;
 }
 
+template<class StrType>
+StrType
+api_ospathbasename_aspect(const StrType& path)
+{
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    auto ospath = py::module_::import("os.path");
+    auto basename = ospath.attr("basename");
+    auto basename_result = basename(path);
+    if (py::len(basename_result) == 0) {
+        return basename_result;
+    }
+
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    if (ranges_error or ranges.empty()) {
+        return basename_result;
+    }
+
+    // Create a fake list to call set_ranges_on_splitted on it (we are
+    // only interested on the last path, which is the basename result)
+    auto prev_path_len = py::len(path) - py::len(basename_result);
+    std::string filler(prev_path_len, 'X');
+    py::str filler_str(filler);
+    py::list apply_list;
+    apply_list.append(filler_str);
+    apply_list.append(basename_result);
+
+    set_ranges_on_splitted(path, ranges, apply_list, tx_map, false);
+    return apply_list[1];
+}
+
+template<class StrType>
+StrType
+api_ospathdirname_aspect(const StrType& path)
+{
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    auto ospath = py::module_::import("os.path");
+    auto dirname = ospath.attr("dirname");
+    auto dirname_result = dirname(path);
+    if (py::len(dirname_result) == 0) {
+        return dirname_result;
+    }
+
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    if (ranges_error or ranges.empty()) {
+        return dirname_result;
+    }
+
+    // Create a fake list to call set_ranges_on_splitted on it (we are
+    // only interested on the first path, which is the dirname result)
+    auto prev_path_len = py::len(path) - py::len(dirname_result);
+    std::string filler(prev_path_len, 'X');
+    py::str filler_str(filler);
+    py::list apply_list;
+    apply_list.append(dirname_result);
+    apply_list.append(filler_str);
+
+    set_ranges_on_splitted(path, ranges, apply_list, tx_map, false);
+    return apply_list[0];
+}
+
+template<class StrType>
+py::list
+api_ospathsplit_aspect(const StrType& path)
+{
+    py::list result;
+    // JJJ
+    return result;
+}
+
+template<class StrType>
+py::list
+api_ospathsplitext_aspect(const StrType& path)
+{
+    py::list result;
+    // JJJ
+    return result;
+}
+
+template<class StrType>
+py::list
+api_ospathsplitdrive_aspect(const StrType& path)
+{
+    py::list result;
+    // JJJ
+    return result;
+}
+
+template<class StrType>
+py::list
+api_ospathsplitroot_aspect(const StrType& path)
+{
+    py::list result;
+    // JJJ
+    return result;
+}
+
+template<class StrType>
+StrType
+api_ospathnormcase_aspect(const StrType& path)
+{
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        throw py::value_error(MSG_ERROR_TAINT_MAP);
+    }
+
+    auto ospath = py::module_::import("os.path");
+    auto normcase = ospath.attr("normcase");
+    auto normcased = normcase(path);
+
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    if (ranges_error or ranges.empty()) {
+        return normcased;
+    }
+
+    TaintRangeRefs result_ranges = ranges;
+    PyObject* new_result = new_pyobject_id(normcased.ptr());
+    if (new_result)
+    {
+        set_ranges(new_result, result_ranges, tx_map);
+        return py::reinterpret_steal<StrType>(new_result);
+    }
+
+    return normcased;
+}
+
 void
 pyexport_ospath_aspects(py::module& m)
 {
     m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::str>, "first_part"_a);
     m.def("_aspect_ospathjoin", &api_ospathjoin_aspect<py::bytes>, "first_part"_a);
+    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathnormcase", &api_ospathnormcase_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathbasename", &api_ospathbasename_aspect<py::bytes>, "path"_a);
+    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::str>, "path"_a);
+    m.def("_aspect_ospathdirname", &api_ospathdirname_aspect<py::bytes>, "path"_a);
 }

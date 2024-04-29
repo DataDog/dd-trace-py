@@ -25,6 +25,9 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import parse_params
     from ._native.aspect_helpers import set_ranges_on_splitted
     from ._native.aspects_ospath import _aspect_ospathjoin
+    from ._native.aspects_ospath import _aspect_ospathnormcase
+    from ._native.aspects_ospath import _aspect_ospathbasename
+    from ._native.aspects_ospath import _aspect_ospathdirname
     from ._native.aspect_split import _aspect_rsplit
     from ._native.aspect_split import _aspect_split
     from ._native.aspect_split import _aspect_splitlines
@@ -88,6 +91,8 @@ __all__ = [
     "_aspect_split",
     "_aspect_rsplit",
     "_aspect_splitlines",
+    "_aspect_ospathbasename",
+    "_aspect_ospathnormcase",
     "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
