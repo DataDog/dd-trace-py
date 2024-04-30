@@ -1,0 +1,12 @@
+[
+{
+    "model": "introduction.login",
+    "pk": 1,
+    "fields": {
+        "user": "admin",
+        "password": "pbkdf2_sha256$390000$jLwjKejGD3OkBdCTuRZuJi$7dlVDgOzsTf1BqC3XIgjdMvUQU0sZ6Dx2uxrY32STkA=",
+        "id": 1
+    }
+}
+]
+

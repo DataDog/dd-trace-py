@@ -1,5 +1,4 @@
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 from typing import Optional
 
@@ -71,11 +70,13 @@ def _add_file_handler(
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
-) -> Optional[RotatingFileHandler]:
+):
     ddtrace_file_handler = None
     if log_path is not None:
         log_path = os.path.abspath(log_path)
         num_backup = 1
+        from logging.handlers import RotatingFileHandler
+
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
