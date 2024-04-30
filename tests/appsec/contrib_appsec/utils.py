@@ -1220,16 +1220,6 @@ class Contrib_TestClass_For_Threats:
                         (c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
                     }
                     assert (
-                        "DistributionMetric",
-                        "appsec.rasp.rule.duration",
-                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                    ) in telemetry_calls
-                    assert (
-                        "DistributionMetric",
-                        "appsec.rasp.duration",
-                        (("waf_version", DDWAF_VERSION),),
-                    ) in telemetry_calls
-                    assert (
                         "CountMetric",
                         "appsec.rasp.rule.match",
                         (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),

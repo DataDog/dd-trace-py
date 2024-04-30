@@ -344,7 +344,6 @@ class AppSecSpanProcessor(SpanProcessor):
             bool(waf_results.data),
             bool(blocked),
             waf_results.timeout,
-            waf_results.runtime,
             rule_type,
         )
         if blocked:

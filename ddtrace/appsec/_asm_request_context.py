@@ -149,7 +149,7 @@ class _DataHandler:
             "timeout": False,
             "version": None,
             "rasp": {
-                "cumulative_duration": 0.0,
+                "called": False,
                 "eval": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
@@ -341,7 +341,6 @@ def set_waf_telemetry_results(
     is_triggered: bool,
     is_blocked: bool,
     is_timeout: bool,
-    libddwaf_runtime: float,
     rule_type: Optional[str],
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
@@ -355,13 +354,10 @@ def set_waf_telemetry_results(
                 result["version"] = rules_version
         else:
             # Exploit Prevention telemetry
-            from ddtrace.appsec._metrics import _report_rasp_rule_duration
-
-            result["rasp"]["cumulative_duration"] += libddwaf_runtime
+            result["rasp"]["called"] = True
             result["rasp"]["eval"][rule_type] += 1
             result["rasp"]["match"][rule_type] += int(is_triggered)
             result["rasp"]["timeout"][rule_type] += int(is_timeout)
-            _report_rasp_rule_duration(rule_type, libddwaf_runtime)
 
 
 def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
