@@ -583,7 +583,6 @@ def test_rc_default_products_registered():
     ],
 )
 def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
-    # import pdb; pdb.set_trace()
     trace_sampling_rules = config.convert_rc_trace_sampling_rules(rc_rules)
 
     assert trace_sampling_rules == expected_config_rules
