@@ -355,21 +355,21 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
         if input_messages is not None:
-            if not isinstance(input_messages, Messages):
-                input_messages = Messages(input_messages)
             try:
+                if not isinstance(input_messages, Messages):
+                    input_messages = Messages(input_messages)
                 if input_messages.messages:
                     span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse input messages.")
+                log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is not None:
-            if not isinstance(output_messages, Messages):
-                output_messages = Messages(output_messages)
             try:
+                if not isinstance(output_messages, Messages):
+                    output_messages = Messages(output_messages)
                 if output_messages.messages:
                     span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse output messages.")
+                log.warning("Failed to parse output messages.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):

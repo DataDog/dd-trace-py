@@ -340,7 +340,16 @@ def test_annotate_input_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, input_data=[{"content": Unserializable()}])
         assert llm_span.get_tag(INPUT_MESSAGES) is None
-        mock_logs.warning.assert_called_once_with("Failed to parse input messages.")
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
+
+
+def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, mock_logs):
+    with LLMObs.llm(model_name="test_model") as llm_span:
+        LLMObs.annotate(span=llm_span, input_data={"role": "user", "content": {"nested": "yes"}})
+        mock_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
+        mock_logs.reset_mock()
+        LLMObs.annotate(span=llm_span, output_data={"role": "user", "content": {"nested": "yes"}})
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_output_string(LLMObs):
@@ -395,7 +404,7 @@ def test_annotate_output_llm_message_wrong_type(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data=[{"content": Unserializable()}])
         assert llm_span.get_tag(OUTPUT_MESSAGES) is None
-        mock_logs.warning.assert_called_once_with("Failed to parse output messages.")
+        mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_metrics(LLMObs):
