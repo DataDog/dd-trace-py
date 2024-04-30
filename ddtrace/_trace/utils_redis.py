@@ -49,7 +49,7 @@ def _set_span_tags(
 
 
 @contextmanager
-def _trace_redis_cmd(pin, config_integration, instance, args):
+def _instrument_redis_cmd(pin, config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
     with core.context_with_data(
         "redis.command",

@@ -3,7 +3,7 @@ import os
 import redis
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import determine_row_count
@@ -148,7 +148,7 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args) as ctx:
+        with _instrument_redis_cmd(pin, integration_config, instance, args) as ctx:
             return _run_redis_command(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command

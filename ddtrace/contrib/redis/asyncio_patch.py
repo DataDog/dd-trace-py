@@ -1,5 +1,5 @@
 from ddtrace import config
-from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _trace_redis_execute_async_cluster_pipeline
 from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import _run_redis_command_async
@@ -16,7 +16,7 @@ async def traced_async_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.redis, instance, args) as ctx:
+    with _instrument_redis_cmd(pin, config.redis, instance, args) as ctx:
         return await _run_redis_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
 
