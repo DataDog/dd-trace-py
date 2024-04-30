@@ -38,14 +38,16 @@ def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
     source = data["sources"][0]
     assert vulnerability["type"] == VULN_CMDI
     assert vulnerability["evidence"]["valueParts"] == [
-        {"value": "echo Hello World", "source": 0},
+        {"source": 0, "value": "echo "},
+        {"pattern": "", "redacted": True, "source": 0},
+        {"source": 0, "value": "Hello World"},
     ]
     assert "value" not in vulnerability["evidence"].keys()
     assert vulnerability["evidence"].get("pattern") is None
     assert vulnerability["evidence"].get("redacted") is None
     assert source["name"] == "test_openai_llm_appsec_iast_cmdi"
     assert source["origin"] == OriginType.PARAMETER
-    assert source["value"] == string_to_taint
+    assert "value" not in source.keys()
 
     line, hash_value = get_line_and_hash("test_openai_llm_appsec_iast_cmdi", VULN_CMDI, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
