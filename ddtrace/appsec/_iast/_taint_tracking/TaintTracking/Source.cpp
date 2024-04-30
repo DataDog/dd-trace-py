@@ -66,6 +66,7 @@ pyexport_source(py::module& m)
       .value("PATH_PARAMETER", OriginType::PATH_PARAMETER)
       .value("COOKIE", OriginType::COOKIE)
       .value("COOKIE_NAME", OriginType::COOKIE_NAME)
+      .value("GRPC_BODY", OriginType::GRPC_BODY)
       .export_values();
 
     py::class_<Source>(m, "Source")

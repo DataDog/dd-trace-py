@@ -3,12 +3,14 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
-from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.ssrf import SSRF
 from ddtrace.internal import core
@@ -45,58 +47,72 @@ def test_ssrf_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert span_report
 
-    vulnerability = list(span_report.vulnerabilities)[0]
+    span_report.build_and_scrub_value_parts()
+    result = span_report._to_dict()
+    vulnerability = list(result["vulnerabilities"])[0]
+    source = list(result["sources"])[0]
+    source["origin"] = origin_to_str(source["origin"])
 
-    assert vulnerability.type == VULN_SSRF
-    assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
+    assert vulnerability["type"] == VULN_SSRF
+    assert source == sources_expected
 
 
-def test_cmdi_redact_param():
+def test_ssrf_redact_param():
+    password_taint_range = taint_pyobject(pyobject="test1234", source_name="password", source_value="test1234")
+
     ev = Evidence(
-        valueParts=[
-            {"value": "https://www.domain1.com/?id="},
-            {"value": "test1234", "source": 0},
-            {"value": "&param2=value2&param3=value3&param3=value3"},
-        ]
+        value=add_aspect(
+            "https://www.domain1.com/?id=",
+            add_aspect(password_taint_range, "&param2=value2&param3=value3&param3=value3"),
+        )
     )
-    loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
-    s = Source(origin="http.request.parameter.name", name="password", value="test1234")
-    report = IastSpanReporter([s], {v})
 
-    redacted_report = SSRF._redact_report(report)
-    for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [
-            {"value": "https://www.domain1.com/?id="},
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type=VULN_SSRF, evidence=ev, location=loc)
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
+
+    assert result["vulnerabilities"]
+    for v in result["vulnerabilities"]:
+        assert v["evidence"]["valueParts"] == [
+            {"value": "https://www.domain1.com/"},
+            {"redacted": True},
             {"pattern": "abcdefgh", "redacted": True, "source": 0},
-            {"value": "&param2=value2&param3=value3&param3=value3"},
+            {"redacted": True},
+            {"redacted": True},
+            {"redacted": True},
         ]
 
 
 def test_cmdi_redact_user_password():
-    ev = Evidence(
-        valueParts=[
-            {"value": "https://"},
-            {"value": "root", "source": 0},
-            {"value": ":"},
-            {"value": "superpasswordsecure", "source": 1},
-            {"value": "@domain1.com/?id="},
-            {"value": "&param2=value2&param3=value3&param3=value3"},
-        ]
+    user_taint_range = taint_pyobject(pyobject="root", source_name="username", source_value="root")
+    password_taint_range = taint_pyobject(
+        pyobject="superpasswordsecure", source_name="password", source_value="superpasswordsecure"
     )
-    loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
-    s1 = Source(origin="http.request.parameter.name", name="username", value="root")
-    s2 = Source(origin="http.request.parameter.name", name="password", value="superpasswordsecure")
-    report = IastSpanReporter([s1, s2], {v})
 
-    redacted_report = SSRF._redact_report(report)
-    for v in redacted_report.vulnerabilities:
-        assert v.evidence.valueParts == [
+    ev = Evidence(
+        value=add_aspect(
+            "https://",
+            add_aspect(
+                add_aspect(add_aspect(user_taint_range, ":"), password_taint_range),
+                "@domain1.com/?id=&param2=value2&param3=value3&param3=value3",
+            ),
+        )
+    )
+
+    loc = Location(path="foobar.py", line=35, spanId=123)
+    v = Vulnerability(type=VULN_SSRF, evidence=ev, location=loc)
+    report = IastSpanReporter(vulnerabilities={v})
+    report.add_ranges_to_evidence_and_extract_sources(v)
+    result = report.build_and_scrub_value_parts()
+
+    assert result["vulnerabilities"]
+    for v in result["vulnerabilities"]:
+        assert v["evidence"]["valueParts"] == [
             {"value": "https://"},
             {"pattern": "abcd", "redacted": True, "source": 0},
             {"value": ":"},
-            {"source": 1, "value": "superpasswordsecure"},
-            {"value": "@domain1.com/?id="},
-            {"value": "&param2=value2&param3=value3&param3=value3"},
+            {"pattern": "abcdefghijklmnopqrs", "redacted": True, "source": 1},
+            {"value": "@domain1.com/?id=&param2=value2&param3=value3&param3=value3"},
         ]

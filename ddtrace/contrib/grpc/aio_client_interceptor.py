@@ -42,6 +42,16 @@ def create_aio_client_interceptors(pin, host, port):
     )
 
 
+def _handle_add_callback(call, callback):
+    try:
+        call.add_done_callback(callback)
+    except NotImplementedError:
+        # add_done_callback is not implemented in UnaryUnaryCallResponse
+        # https://github.com/grpc/grpc/blob/c54c69dcdd483eba78ed8dbc98c60a8c2d069758/src/python/grpcio/grpc/aio/_interceptor.py#L1058
+        # If callback is not called, we need to finish the span here
+        callback(call)
+
+
 def _done_callback(span, code, details):
     # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
     def func(call):
@@ -156,7 +166,7 @@ class _ClientInterceptor:
             details = await call.details()
             # NOTE: The callback is registered after the iteration is done,
             # otherwise `call.code()` and `call.details()` block indefinitely.
-            call.add_done_callback(_done_callback(span, code, details))
+            _handle_add_callback(call, _done_callback(span, code, details))
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks,
             # but reuse this error handling function used in unary response RPCs.
@@ -182,7 +192,7 @@ class _ClientInterceptor:
             # NOTE: As both `code` and `details` are available after the RPC is done (= we get `call` object),
             # and we can't call awaitable functions inside the non-async callback,
             # there is no other way but to register the callback here.
-            call.add_done_callback(_done_callback(span, code, details))
+            _handle_add_callback(call, _done_callback(span, code, details))
             return call
         except aio.AioRpcError as rpc_error:
             # NOTE: `AioRpcError` is raised in `await continuation(...)`

@@ -6,7 +6,6 @@ import functools
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import ipaddress
-import multiprocessing
 import os
 import platform
 import re
@@ -477,4 +476,6 @@ else:
 
 
 def get_mp_context():
+    import multiprocessing
+
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")

@@ -3,6 +3,9 @@ import os
 import yaaredis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
+from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -11,9 +14,6 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ..trace_utils_redis import _run_redis_command_async
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 config._add(

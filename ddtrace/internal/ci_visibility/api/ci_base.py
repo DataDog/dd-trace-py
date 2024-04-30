@@ -30,6 +30,13 @@ from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.errors import CIVisibilityDataError
+from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
+from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
+from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.logger import get_logger
 
 
@@ -42,12 +49,14 @@ class CIVisibilitySessionSettings:
     test_service: str
     test_command: str
     test_framework: str
+    test_framework_metric_name: TEST_FRAMEWORKS
     test_framework_version: str
     session_operation_name: str
     module_operation_name: str
     suite_operation_name: str
     test_operation_name: str
     root_dir: Path
+    is_unknown_ci: bool = False
     reject_unknown_items: bool = True
     reject_duplicates: bool = True
     itr_enabled: bool = False
@@ -61,6 +70,8 @@ class CIVisibilitySessionSettings:
             raise TypeError("root_dir must be a pathlib.Path")
         if not self.root_dir.is_absolute():
             raise ValueError("root_dir must be an absolute pathlib.Path")
+        if not isinstance(self.test_framework_metric_name, TEST_FRAMEWORKS):
+            raise TypeError("test_framework_metric must be a TEST_FRAMEWORKS enum")
 
 
 class SPECIAL_STATUS(Enum):
@@ -86,6 +97,7 @@ def _require_not_finished(func):
 
 class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
     event_type = "unset_event_type"
+    event_type_metric_name = EVENT_TYPES.UNSET
 
     def __init__(
         self,
@@ -120,6 +132,9 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[CISourceFileInfo] = None
         self._coverage_data: Optional[CICoverageData] = None
+
+        # Currently unsupported:
+        self._is_benchmark = False
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.item_id})"
@@ -268,6 +283,13 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
         self.set_tags(self._collect_hierarchy_tags())
 
     def start(self):
+        record_event_created(
+            self.event_type_metric_name,
+            self._session_settings.test_framework_metric_name,
+            self._codeowners is not None,
+            self._session_settings.is_unknown_ci is not None,
+            self._is_benchmark is not None,
+        )
         self._start_span()
 
     def finish(self, force: bool = False):
@@ -275,6 +297,7 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
 
         Nothing should be called after this method is called.
         """
+        record_event_finished(self.event_type_metric_name, self._session_settings.test_framework_metric_name)
         self._finish_span()
 
     def is_finished(self):
@@ -307,14 +330,17 @@ class CIVisibilityItemBase(abc.ABC, Generic[ANYIDT]):
             self.parent.count_itr_skipped()
 
     def mark_itr_skipped(self):
+        record_itr_skipped(self.event_type_metric_name)
         self._is_itr_skipped = True
 
     def mark_itr_unskippable(self):
         """Per RFC, unskippable only applies to a given item, not its ancestors"""
+        record_itr_unskippable(self.event_type_metric_name)
         self._is_itr_unskippable = True
 
     def mark_itr_forced_run(self):
         """If any item is forced to run, all ancestors are forced to run and increment by one"""
+        record_itr_forced_run(self.event_type_metric_name)
         self._is_itr_forced_run = True
         if self.parent is not None:
             self.parent.mark_itr_forced_run()

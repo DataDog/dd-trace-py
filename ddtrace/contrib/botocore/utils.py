@@ -3,35 +3,28 @@ Trace queries monitoring to aws api done via botocore client
 """
 import base64
 import json
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
 
-from ddtrace import Span  # noqa:F401
+from ddtrace import Span
 from ddtrace import config
+from ddtrace.internal.core import ExecutionContext
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanKind
-from ...ext import aws
 from ...ext import http
-from ...internal.constants import COMPONENT
 from ...internal.logger import get_logger
-from ...internal.utils.formats import deep_getattr
 from ...propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
 
-MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
-
+TWOFIFTYSIX_KB = 1 << 18
+MAX_EVENTBRIDGE_DETAIL_SIZE = TWOFIFTYSIX_KB
 LINE_BREAK = "\n"
 
 
-def get_json_from_str(data_str):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     data_obj = json.loads(data_str)
 
     if data_str.endswith(LINE_BREAK):
@@ -39,8 +32,7 @@ def get_json_from_str(data_str):
     return None, data_obj
 
 
-def get_kinesis_data_object(data):
-    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     """
     :data: the data from a kinesis stream
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
@@ -74,14 +66,12 @@ def get_kinesis_data_object(data):
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
     """
-    :params: contains the params for the current botocore action
-    :span: the span which provides the trace context to be propagated
     Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
     Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """
+    params = ctx["params"]
     if "Entries" not in params:
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
         return
@@ -96,6 +86,7 @@ def inject_trace_to_eventbridge_detail(params, span):
                 continue
 
         detail["_datadog"] = {}
+        span = ctx[ctx["call_key"]]
         HTTPPropagator.inject(span.context, detail["_datadog"])
         detail_json = json.dumps(detail)
 
@@ -108,18 +99,10 @@ def inject_trace_to_eventbridge_detail(params, span):
         entry["Detail"] = detail_json
 
 
-def modify_client_context(client_context_object, trace_headers):
-    if config.botocore["invoke_with_legacy_context"]:
-        trace_headers = {"_datadog": trace_headers}
-
-    if "custom" in client_context_object:
-        client_context_object["custom"].update(trace_headers)
-    else:
-        client_context_object["custom"] = trace_headers
-
-
-def inject_trace_to_client_context(params, span):
+def inject_trace_to_client_context(ctx):
     trace_headers = {}
+    span = ctx[ctx["call_key"]]
+    params = ctx["params"]
     HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
     if "ClientContext" in params:
@@ -138,40 +121,17 @@ def inject_trace_to_client_context(params, span):
     params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
 
 
-def set_patched_api_call_span_tags(span, instance, args, params, endpoint_name, operation):
-    span.set_tag_str(COMPONENT, config.botocore.integration_name)
-    # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag(SPAN_MEASURED_KEY)
+def modify_client_context(client_context_object, trace_headers):
+    if config.botocore["invoke_with_legacy_context"]:
+        trace_headers = {"_datadog": trace_headers}
 
-    if args:
-        # DEV: join is the fastest way of concatenating strings that is compatible
-        # across Python versions (see
-        # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
-        span.resource = ".".join((endpoint_name, operation.lower()))
-        span.set_tag("aws_service", endpoint_name)
-
-        if params and not config.botocore["tag_no_params"]:
-            aws._add_api_param_span_tags(span, endpoint_name, params)
-
+    if "custom" in client_context_object:
+        client_context_object["custom"].update(trace_headers)
     else:
-        span.resource = endpoint_name
-
-    region_name = deep_getattr(instance, "meta.region_name")
-
-    span.set_tag_str("aws.agent", "botocore")
-    if operation is not None:
-        span.set_tag_str("aws.operation", operation)
-    if region_name is not None:
-        span.set_tag_str("aws.region", region_name)
-        span.set_tag_str("region", region_name)
-
-    # set analytics sample rate
-    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
+        client_context_object["custom"] = trace_headers
 
 
-def set_response_metadata_tags(span, result):
-    # type: (Span, Dict[str, Any]) -> None
+def set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
     if not result or not result.get("ResponseMetadata"):
         return
     response_meta = result["ResponseMetadata"]

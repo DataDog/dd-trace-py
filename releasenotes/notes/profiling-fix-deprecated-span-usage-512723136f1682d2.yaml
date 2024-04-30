@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes a defect where the deprecated path to the Datadog span type was used
+    by the profiler.
