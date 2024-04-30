@@ -347,12 +347,14 @@ def set_waf_telemetry_results(
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
     if result is not None:
         if rule_type is None:
+            # Request Blocking telemetry
             result["triggered"] |= is_triggered
             result["blocked"] |= is_blocked
             result["timeout"] |= is_timeout
             if rules_version is not None:
                 result["version"] = rules_version
         else:
+            # Exploit Prevention telemetry
             from ddtrace.appsec._metrics import _report_rasp_rule_duration
 
             result["rasp"]["cumulative_duration"] += libddwaf_runtime
