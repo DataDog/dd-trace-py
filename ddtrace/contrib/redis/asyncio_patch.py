@@ -16,8 +16,8 @@ async def traced_async_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.redis, instance, args) as span:
-        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
+    with _trace_redis_cmd(pin, config.redis, instance, args) as ctx:
+        return await _run_redis_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
 
 async def traced_async_execute_pipeline(func, instance, args, kwargs):

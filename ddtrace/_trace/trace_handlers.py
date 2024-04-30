@@ -777,6 +777,7 @@ def listen():
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
+        "redis.command",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

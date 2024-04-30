@@ -121,7 +121,7 @@ def unpatch():
                 unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
 
 
-def _run_redis_command(span, func, args, kwargs):
+def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
@@ -136,7 +136,7 @@ def _run_redis_command(span, func, args, kwargs):
             rowcount = determine_row_count(redis_command=redis_command, result=result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("redis.command.post", [span, rowcount])
+        core.dispatch("redis.command.post", [ctx[ctx["call_key"]], rowcount])
 
 
 #
@@ -148,8 +148,8 @@ def traced_execute_command(integration_config):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
-            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args) as ctx:
+            return _run_redis_command(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
     return _traced_execute_command
 
