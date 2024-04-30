@@ -12,10 +12,10 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
 from ddtrace._logger import _add_file_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.settings.config import Config
 
 
 TRACER_FLARE_DIRECTORY = pathlib.Path("tracer_flare")
@@ -37,12 +37,14 @@ class FlareSendRequest:
 
 
 class Flare:
-    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
+    def __init__(self, trace_agent_url: str, api_key: str, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
         self.original_log_level = logging.NOTSET
         self.timeout = timeout_sec
         self.file_handler: Optional[RotatingFileHandler] = None
+        self.url = trace_agent_url
+        self._api_key = api_key
 
-    def prepare(self, log_level: str):
+    def prepare(self, config: Config, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -78,7 +80,7 @@ class Flare:
         )
 
         # Create and add config file
-        self._generate_config_file(pid)
+        self._generate_config_file(config, pid)
 
     def send(self, flare_send_req: FlareSendRequest):
         """
@@ -97,7 +99,7 @@ class Flare:
                 log.error("Failed to create %s file", lock_path)
                 raise e
             try:
-                client = get_connection(config._trace_agent_url, timeout=self.timeout)
+                client = get_connection(self.url, timeout=self.timeout)
                 headers, body = self._generate_payload(flare_send_req.__dict__)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
@@ -120,7 +122,7 @@ class Flare:
                 self.clean_up_files()
                 return
 
-    def _generate_config_file(self, pid: int):
+    def _generate_config_file(self, config: Config, pid: int):
         config_file = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_config_{pid}.json")
         try:
             with open(config_file, "w") as f:
@@ -175,8 +177,8 @@ class Flare:
             "Content-Type": b"multipart/form-data; boundary=%s" % boundary,
             "Content-Length": body.getbuffer().nbytes,
         }
-        if config._dd_api_key:
-            headers["DD-API-KEY"] = config._dd_api_key
+        if self._api_key:
+            headers["DD-API-KEY"] = self._api_key
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
