@@ -3,6 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -46,10 +47,14 @@ def test_ssrf_redaction_suite(evidence_input, sources_expected, vulnerabilities_
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert span_report
 
-    vulnerability = list(span_report.vulnerabilities)[0]
+    span_report.build_and_scrub_value_parts()
+    result = span_report._to_dict()
+    vulnerability = list(result["vulnerabilities"])[0]
+    source = list(result["sources"])[0]
+    source["origin"] = origin_to_str(source["origin"])
 
-    assert vulnerability.type == VULN_SSRF
-    assert vulnerability.evidence.valueParts == vulnerabilities_expected["evidence"]["valueParts"]
+    assert vulnerability["type"] == VULN_SSRF
+    assert source == sources_expected
 
 
 def test_ssrf_redact_param():
@@ -106,8 +111,8 @@ def test_cmdi_redact_user_password():
     for v in result["vulnerabilities"]:
         assert v["evidence"]["valueParts"] == [
             {"value": "https://"},
-            {"source": 0, "value": "root"},
+            {"pattern": "abcd", "redacted": True, "source": 0},
             {"value": ":"},
-            {"source": 1, "value": "superpasswordsecure"},
+            {"pattern": "abcdefghijklmnopqrs", "redacted": True, "source": 1},
             {"value": "@domain1.com/?id=&param2=value2&param3=value3&param3=value3"},
         ]

@@ -238,9 +238,9 @@ def test_regression_ci_failure():
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
         assert v.evidence.valueParts == [
-            {"value": "https://"},
-            {"pattern": "abcd", "redacted": True, "source": 0},
-            {"value": ":"},
-            {"pattern": "abcdefghijklmnopqrs", "redacted": True, "source": 1},
-            {"value": "@domain1.com/?id=&param2=value2&param3=value3&param3=value3"},
+            {"value": "SELECT tbl_name FROM sqlite_"},
+            {"source": 0, "value": "master"},
+            {"value": "WHERE tbl_name LIKE '"},
+            {"redacted": True},
+            {"value": "'"},
         ]
