@@ -136,7 +136,7 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
             rowcount = determine_row_count(redis_command=redis_command, result=result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("redis.command.post", [ctx[ctx["call_key"]], rowcount])
+        core.dispatch("redis.command.post", [ctx, rowcount])
 
 
 #

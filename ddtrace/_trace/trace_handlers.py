@@ -705,9 +705,9 @@ def _on_botocore_kinesis_getrecords_post(
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
-def _on_redis_command_post(span, rowcount):
+def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        span.set_metric(db.ROWCOUNT, rowcount)
+        ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
