@@ -102,7 +102,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -158,7 +158,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -212,7 +212,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM sqlite_"},
                     {"value": "Master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -264,7 +264,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM sqlite_"},
                     {"value": "master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -417,7 +417,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -479,7 +479,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                             {"redacted": True},
                             {"value": " FROM "},
                             {"value": "sqlite_master", "source": 0},
-                        ],
+                        ]
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -529,7 +529,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -583,7 +583,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     {"value": " WHERE tbl_name LIKE '"},
                     {"redacted": True},
                     {"value": "'"},
-                ],
+                ]
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
