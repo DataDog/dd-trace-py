@@ -816,7 +816,7 @@ class Config(object):
         remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
 
     def _remove_invalid_rules(self, rc_rules: List) -> List:
-        """Remove invalid sampling rules from the JSON string."""
+        """Remove invalid sampling rules from the given list"""
         # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
         for rule in rc_rules:
             if (
