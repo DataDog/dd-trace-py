@@ -65,7 +65,7 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
 
 
 @contextmanager
-def _trace_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
+def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -81,7 +81,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cl
 
 
 @contextmanager
-def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
+def _instrument_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
