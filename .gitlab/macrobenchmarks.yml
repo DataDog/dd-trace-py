@@ -56,7 +56,7 @@ variables:
   allow_failure: true
 
 macrobenchmarks:
-  extends: .macrobenckmarks
+  extends: .macrobenchmarks
   parallel:
     matrix:
       - DD_BENCHMARKS_CONFIGURATION: baseline
