@@ -19,6 +19,7 @@ extern "C"
     void ddup_config_runtime(std::string_view runtime);
     void ddup_config_runtime_version(std::string_view runtime_version);
     void ddup_config_profiler_version(std::string_view profiler_version);
+    void ddup_config_host(std::string_view host);
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
 

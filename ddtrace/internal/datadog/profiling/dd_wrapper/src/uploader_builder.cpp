@@ -50,6 +50,12 @@ Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_versio
         profiler_version = _profiler_version;
     }
 }
+void Datadog::UploaderBuilder::set_host(std::string_view _host)
+{
+    if (!_host.empty()) {
+        host = _host;
+    }
+}
 void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
@@ -105,6 +111,7 @@ Datadog::UploaderBuilder::build()
     std::vector<std::string> reasons{};
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
         { ExportTagKey::dd_env, dd_env },
+        { ExportTagKey::host, host },
         { ExportTagKey::service, service },
         { ExportTagKey::version, version },
         { ExportTagKey::language, language },
