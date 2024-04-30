@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: This introduces tracing support for bedrock-runtime embedding operations.
