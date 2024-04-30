@@ -180,8 +180,8 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
         elif provider == _COHERE and "embed" in model_name:
             text = body.get("embeddings", [[]])
         elif provider == _COHERE:
-            text = [generation["text"] for generation in body.get("generations")]
-            finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
+            text = [generation["text"] for generation in body.get("generations", [])]
+            finish_reason = [generation["finish_reason"] for generation in body.get("generations", [])]
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
