@@ -52,6 +52,11 @@ class TestOperatorsReplacement(BaseReplacement):
         result = mod_py3.do_repr_fstring_with_format(string_input)  # pylint: disable=no-member
         assert as_formatted_evidence(result) == "':+-foo-+:'     "
 
+    def test_int_fstring_zero_padding_tainted(self):
+        int_input = 5
+        result = mod_py3.do_zero_padding_fstring(int_input)  # pylint: disable=no-member
+        assert result == "00005"
+
     def test_string_fstring_repr_str_twice_tainted(self):
         # type: () -> None
         string_input = "foo"

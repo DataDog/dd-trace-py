@@ -130,11 +130,11 @@ def mock_logs(scope="session"):
 
 @pytest.fixture
 def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
-        LLMObsWriterMock = patcher.start()
+        LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()
-        LLMObsWriterMock.return_value = m
+        LLMObsSpanWriterMock.return_value = m
         yield m
     finally:
         patcher.stop()
