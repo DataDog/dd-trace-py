@@ -3,6 +3,7 @@
 
 import ctypes
 import gc
+import os
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -54,7 +55,11 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             # and shouldn't be changed at that time
             return original_open_callable(*args, **kwargs)
 
-        filename = args[0] if args else kwargs.get("file", None)
+        filename_arg = args[0] if args else kwargs.get("file", None)
+        try:
+            filename = os.fspath(filename_arg)
+        except Exception:
+            filename = ""
         if filename and in_context():
             call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
