@@ -147,7 +147,7 @@ class VulnerabilityBase(Operation):
                 if not cls.is_not_reported(file_name, line_number):
                     return
 
-            # TODO: this if is deprecated
+            # TODO: This function is deprecated, but we need to migrate all vulnerabilities first before deleting it
             if _is_evidence_value_parts(evidence_value) or _is_evidence_value_parts(value_parts):
                 evidence = Evidence(value=evidence_value, valueParts=value_parts)
             # Evidence is a string in weak cipher, weak hash and weak randomness
