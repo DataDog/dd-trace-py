@@ -2,8 +2,10 @@ from typing import Any  # noqa:F401
 
 import bm
 
+from bm.utils import override_env
 
-with bm.utils.override_env({"DD_IAST_ENABLED": "True"}):
+
+with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import Source
     from ddtrace.appsec._iast._taint_tracking import TaintRange
