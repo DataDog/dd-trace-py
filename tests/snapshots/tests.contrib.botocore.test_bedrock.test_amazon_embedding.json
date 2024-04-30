@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "InvokeModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "662820e400000000",
+      "bedrock.request.model": "titan-embed-text-v1",
+      "bedrock.request.model_provider": "amazon",
+      "bedrock.request.prompt": "Hello World!",
+      "bedrock.response.duration": "311",
+      "bedrock.response.id": "1fd884e0-c9e8-44fa-b736-d31e2f607d54",
+      "bedrock.usage.completion_tokens": "",
+      "bedrock.usage.prompt_tokens": "3",
+      "language": "python",
+      "runtime-id": "a7bb6456241740dea419398d37aa13d2"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "bedrock.response.embedding_length": 1536,
+      "process_id": 60939
+    },
+    "duration": 6739000,
+    "start": 1713905892539987000
+  }]]

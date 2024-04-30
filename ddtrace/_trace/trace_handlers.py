@@ -8,6 +8,7 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -551,9 +552,8 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
-    callback = ctx.get_item("context_started_callback")
     span = ctx.get_item(ctx.get_item("call_key"))
-    callback(
+    set_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
         ctx.get_item("args"),
@@ -589,7 +589,6 @@ def _on_botocore_trace_context_injection_prepared(
     ctx, cloud_service, schematization_function, injection_function, trace_operation
 ):
     endpoint_name = ctx.get_item("endpoint_name")
-    params = ctx.get_item("params")
     if cloud_service is not None:
         span = ctx.get_item(ctx["call_key"])
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
@@ -597,7 +596,7 @@ def _on_botocore_trace_context_injection_prepared(
         if endpoint_name != "lambda":
             schematize_kwargs["direction"] = SpanDirection.OUTBOUND
         try:
-            injection_function(ctx, params, span, **inject_kwargs)
+            injection_function(ctx, **inject_kwargs)
             span.name = schematization_function(trace_operation, **schematize_kwargs)
         except Exception:
             log.warning("Unable to inject trace context", exc_info=True)
@@ -633,8 +632,9 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
     prompt = ctx["prompt"]
+    model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span):
+    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
     span.finish()
 
@@ -656,6 +656,7 @@ def _on_botocore_bedrock_process_response(
 ) -> None:
     text = formatted_response["text"]
     span = ctx[ctx["call_key"]]
+    model_name = ctx["model_name"]
     if should_set_choice_ids:
         for i in range(len(text)):
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
@@ -663,6 +664,10 @@ def _on_botocore_bedrock_process_response(
     if metadata is not None:
         for k, v in metadata.items():
             span.set_tag_str("bedrock.{}".format(k), str(v))
+    if "embed" in model_name:
+        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
+        span.finish()
+        return
     for i in range(len(formatted_response["text"])):
         if integration.is_pc_sampled_span(span):
             span.set_tag_str(
@@ -675,6 +680,11 @@ def _on_botocore_bedrock_process_response(
     if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
     span.finish()
+
+
+def _on_redis_async_command_post(span, rowcount):
+    if rowcount is not None:
+        span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
@@ -721,6 +731,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("redis.async_command.post", _on_redis_async_command_post)
 
     for context_name in (
         "flask.call",

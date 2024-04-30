@@ -83,7 +83,6 @@ from .constants import TELEMETRY_TRACE_PEER_SERVICE_DEFAULTS_ENABLED
 from .constants import TELEMETRY_TRACE_PEER_SERVICE_MAPPING
 from .constants import TELEMETRY_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
 from .constants import TELEMETRY_TRACE_SAMPLING_LIMIT
-from .constants import TELEMETRY_TRACE_SAMPLING_RULES
 from .constants import TELEMETRY_TRACE_SPAN_ATTRIBUTE_SCHEMA
 from .constants import TELEMETRY_TRACE_WRITER_BUFFER_SIZE_BYTES
 from .constants import TELEMETRY_TRACE_WRITER_INTERVAL_SECONDS
@@ -386,6 +385,9 @@ class TelemetryWriter(PeriodicService):
         elif cfg_name == "_trace_sample_rate":
             name = "trace_sample_rate"
             value = str(item.value())
+        elif cfg_name == "_trace_sampling_rules":
+            name = "trace_sampling_rules"
+            value = str(item.value())
         elif cfg_name == "logs_injection":
             name = "logs_injection_enabled"
             value = "true" if item.value() else "false"
@@ -428,6 +430,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("_sca_enabled"),
                 self._telemetry_entry("_dsm_enabled"),
                 self._telemetry_entry("_trace_sample_rate"),
+                self._telemetry_entry("_trace_sampling_rules"),
                 self._telemetry_entry("logs_injection"),
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
@@ -462,7 +465,6 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_TRACE_SAMPLING_LIMIT, config._trace_rate_limit, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES, config._sampling_rules, "unknown"),
                 (TELEMETRY_SPAN_SAMPLING_RULES_FILE, config._sampling_rules_file, "unknown"),
-                (TELEMETRY_TRACE_SAMPLING_RULES, config._trace_sampling_rules, "unknown"),
                 (TELEMETRY_PRIORITY_SAMPLING, config._priority_sampling, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_ENABLED, config._partial_flush_enabled, "unknown"),
                 (TELEMETRY_PARTIAL_FLUSH_MIN_SPANS, config._partial_flush_min_spans, "unknown"),
@@ -714,10 +716,10 @@ class TelemetryWriter(PeriodicService):
                     elif payload_type == TELEMETRY_TYPE_GENERATE_METRICS:
                         self.add_event(payload, TELEMETRY_TYPE_GENERATE_METRICS)
 
-    def _generate_logs_event(self, payload):
+    def _generate_logs_event(self, logs):
         # type: (Set[Dict[str, str]]) -> None
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
-        self.add_event(list(payload), TELEMETRY_TYPE_LOGS)
+        self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
     def periodic(self, force_flush=False):
         namespace_metrics = self._namespace.flush()
