@@ -829,7 +829,7 @@ class Config(object):
 
         return rc_rules
 
-    def _tags_to_dict(self, tags):
+    def _tags_to_dict(self, tags:List[Dict]):
         """
         Converts a list of tag dictionaries to a single dictionary.
         """
