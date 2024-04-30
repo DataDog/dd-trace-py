@@ -13,6 +13,7 @@ from urllib import parse
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
@@ -147,6 +148,12 @@ class _DataHandler:
             "triggered": False,
             "timeout": False,
             "version": None,
+            "rasp": {
+                "called": False,
+                "eval": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+                "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+                "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+            },
         }
         env.callbacks[_CONTEXT_CALL] = []
 
@@ -330,15 +337,27 @@ def asm_request_context_set(
 
 
 def set_waf_telemetry_results(
-    rules_version: Optional[str], is_triggered: bool, is_blocked: bool, is_timeout: bool
+    rules_version: Optional[str],
+    is_triggered: bool,
+    is_blocked: bool,
+    is_timeout: bool,
+    rule_type: Optional[str],
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
     if result is not None:
-        result["triggered"] |= is_triggered
-        result["blocked"] |= is_blocked
-        result["timeout"] |= is_timeout
-        if rules_version is not None:
-            result["version"] = rules_version
+        if rule_type is None:
+            # Request Blocking telemetry
+            result["triggered"] |= is_triggered
+            result["blocked"] |= is_blocked
+            result["timeout"] |= is_timeout
+            if rules_version is not None:
+                result["version"] = rules_version
+        else:
+            # Exploit Prevention telemetry
+            result["rasp"]["called"] = True
+            result["rasp"]["eval"][rule_type] += 1
+            result["rasp"]["match"][rule_type] += int(is_triggered)
+            result["rasp"]["timeout"][rule_type] += int(is_timeout)
 
 
 def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
