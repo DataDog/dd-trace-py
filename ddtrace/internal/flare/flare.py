@@ -39,7 +39,7 @@ class Flare:
     def __init__(
         self,
         trace_agent_url: str,
-        api_key: str,
+        api_key: Optional[str] = None,
         timeout_sec: int = DEFAULT_TIMEOUT_SECONDS,
         flare_dir: str = TRACER_FLARE_DIRECTORY,
     ):
@@ -47,8 +47,8 @@ class Flare:
         self.timeout: int = timeout_sec
         self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
         self.file_handler: Optional[RotatingFileHandler] = None
-        self.url = trace_agent_url
-        self._api_key = api_key
+        self.url: str = trace_agent_url
+        self._api_key: Optional[str] = api_key
 
     def prepare(self, config: dict, log_level: str):
         """
@@ -105,6 +105,7 @@ class Flare:
             try:
                 client = get_connection(self.url, timeout=self.timeout)
                 headers, body = self._generate_payload(flare_send_req.__dict__)
+                print("headers: %s", headers)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
@@ -118,7 +119,7 @@ class Flare:
                         response.read().decode(),
                     )
             except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s", flare_send_req.case_id)
+                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise e
             finally:
                 client.close()
@@ -165,6 +166,7 @@ class Flare:
         boundary = binascii.hexlify(os.urandom(16))
         body = io.BytesIO()
         for key, value in params.items():
+            print(key, value)
             encoded_key = key.encode()
             encoded_value = value.encode()
             body.write(b"--" + boundary + newline)
