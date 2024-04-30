@@ -186,7 +186,6 @@ class SensitiveHandler:
                     if redaction_start == redaction_end:
                         self.write_redacted_value_part(value_parts, 0)
                     else:
-                        print(redaction_end)
                         self.redact_source(
                             sources,
                             redacted_sources,
