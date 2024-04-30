@@ -116,23 +116,23 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.export_span() requires LLMObs to be enabled.")
-            return
+            return None
         if span:
             try:
                 if span.span_type != SpanTypes.LLM:
                     log.warning("Span must be an LLMObs-generated span.")
-                    return
+                    return None
                 return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
             except (TypeError, AttributeError):
                 log.warning("Failed to export span. Span must be a valid Span object.")
-                return
+                return None
         span = cls._instance.tracer.current_span()
         if span is None:
             log.warning("No span provided and no active LLMObs-generated span found.")
-            return
+            return None
         if span.span_type != SpanTypes.LLM:
             log.warning("Span must be an LLMObs-generated span.")
-            return
+            return None
         return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
 
     def _start_span(
@@ -184,10 +184,10 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
-            return
+            return None
         if not model_name:
             log.warning("model_name must be the specified name of the invoked model.")
-            return
+            return None
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
@@ -210,7 +210,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.tool() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -229,7 +229,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.task() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -248,7 +248,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.agent() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -267,7 +267,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False or cls._instance is None:
             log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
-            return
+            return None
         return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -460,9 +460,7 @@ class LLMObs(Service):
         span_id = span_context.get("span_id")
         trace_id = span_context.get("trace_id")
         if not (span_id and trace_id):
-            log.warning(
-                "span_id and trace_id must both be specified for the given evaluation metric to be submitted."
-            )
+            log.warning("span_id and trace_id must both be specified for the given evaluation metric to be submitted.")
             return
         if not label:
             log.warning("label must be the specified name of the evaluation metric.")
