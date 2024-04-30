@@ -760,7 +760,7 @@ class Config(object):
             if "tracing_sampling_rules" in lib_config:
                 trace_sampling_rules = lib_config["tracing_sampling_rules"]
                 if trace_sampling_rules:
-                    # returns None if we error out
+                    # returns None if no rules
                     trace_sampling_rules = self.convert_rc_trace_sampling_rules(trace_sampling_rules)
                     if trace_sampling_rules:
                         base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
@@ -829,7 +829,7 @@ class Config(object):
 
         return rc_rules
 
-    def _tags_to_dict(self, tags:List[Dict]):
+    def _tags_to_dict(self, tags: List[Dict]):
         """
         Converts a list of tag dictionaries to a single dictionary.
         """
@@ -864,12 +864,10 @@ class Config(object):
         """
         rc_rules = self._remove_invalid_rules(rc_rules)
         for rule in rc_rules:
-            # Convert tags to dictionary
             tags = rule.get("tags")
             if tags:
                 rule["tags"] = self._tags_to_dict(tags)
         if rc_rules:
-            # Convert JSON to string
             return json.dumps(rc_rules)
         else:
             return None
