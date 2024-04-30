@@ -213,8 +213,8 @@ class SensitiveHandler:
                     entries = self._remove(next_sensitive, next_tainted)
                     next_sensitive = entries[0] if entries else None
 
-                if self.is_sensible_source(sources[source_index]):
-                    if not sources[source_index].redacted:
+                if source_index < len(sources):
+                    if not sources[source_index].redacted and self.is_sensible_source(sources[source_index]):
                         redacted_sources.append(source_index)
                         sources[source_index].pattern = REDACTED_SOURCE_BUFFER[: len(sources[source_index].value)]
                         sources[source_index].redacted = True
