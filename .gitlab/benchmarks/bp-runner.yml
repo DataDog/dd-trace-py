@@ -1,6 +1,6 @@
 experiments:
   - name: run-microbenchmarks
-    setup: 
+    setup:
       - name: datadog-agent
         run: datadog_agent
         cpus: 24-25
