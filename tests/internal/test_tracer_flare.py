@@ -173,5 +173,5 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.revert_configs()
 
     def confirm_cleanup(self):
-        assert not os.path.exists(self.flare_dir), f"The directory {self.flare_dir} still exists"
+        assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         assert self._get_handler() is None, "File handler was not removed"

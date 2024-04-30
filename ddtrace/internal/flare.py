@@ -41,13 +41,11 @@ class Flare:
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        if not os.path.exists(self.flare_dir):
-            try:
-                os.makedirs(self.flare_dir)
-                log.info("Tracer logs will now be sent to the %s directory", self.flare_dir)
-            except Exception as e:
-                log.error("Failed to create %s directory: %s", self.flare_dir, e)
-                return
+        try:
+            self.flare_dir.mkdir(exist_ok=True)
+        except Exception as e:
+            log.error("Failed to create %s directory: %s", self.flare_dir, e)
+            return
         for agent_config in configs:
             # AGENT_CONFIG is currently being used for multiple purposes
             # We only want to prepare for a tracer flare if the config name
@@ -63,7 +61,7 @@ class Flare:
 
             ddlogger = get_logger("ddtrace")
             pid = os.getpid()
-            flare_file_path = self.flare_dir / pathlib.Path(f"tracer_python_{pid}.log")
+            flare_file_path = self.flare_dir / f"tracer_python_{pid}.log"
             self.original_log_level = ddlogger.level
 
             # Set the logger level to the more verbose between original and flare
@@ -134,7 +132,7 @@ class Flare:
                     return
 
     def _generate_config_file(self, pid: int):
-        config_file = self.flare_dir / pathlib.Path(f"tracer_config_{pid}.json")
+        config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
                 tracer_configs = {
@@ -163,8 +161,7 @@ class Flare:
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-            for file_name in os.listdir(self.flare_dir):
-                flare_file_name = self.flare_dir / pathlib.Path(file_name)
+            for flare_file_name in self.flare_dir.iterdir():
                 tar.add(flare_file_name)
         tar_stream.seek(0)
 
