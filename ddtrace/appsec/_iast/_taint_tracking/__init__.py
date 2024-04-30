@@ -23,6 +23,18 @@ if _is_python_version_supported():
     from ._native.aspect_helpers import as_formatted_evidence
     from ._native.aspect_helpers import common_replace
     from ._native.aspect_helpers import parse_params
+    from ._native.aspect_helpers import set_ranges_on_splitted
+    from ._native.aspect_split import _aspect_rsplit
+    from ._native.aspect_split import _aspect_split
+    from ._native.aspect_split import _aspect_splitlines
+    from ._native.aspects_ospath import _aspect_ospathbasename
+    from ._native.aspects_ospath import _aspect_ospathdirname
+    from ._native.aspects_ospath import _aspect_ospathjoin
+    from ._native.aspects_ospath import _aspect_ospathnormcase
+    from ._native.aspects_ospath import _aspect_ospathsplit
+    from ._native.aspects_ospath import _aspect_ospathsplitdrive
+    from ._native.aspects_ospath import _aspect_ospathsplitext
+    from ._native.aspects_ospath import _aspect_ospathsplitroot
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
     from ._native.initializer import debug_taint_map
@@ -79,9 +91,21 @@ __all__ = [
     "str_to_origin",
     "origin_to_str",
     "common_replace",
+    "_aspect_ospathjoin",
+    "_aspect_split",
+    "_aspect_rsplit",
+    "_aspect_splitlines",
+    "_aspect_ospathbasename",
+    "_aspect_ospathdirname",
+    "_aspect_ospathnormcase",
+    "_aspect_ospathsplit",
+    "_aspect_ospathsplitext",
+    "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitroot",
     "_format_aspect",
     "as_formatted_evidence",
     "parse_params",
+    "set_ranges_on_splitted",
     "num_objects_tainted",
     "debug_taint_map",
     "iast_taint_log_error",
@@ -153,12 +177,15 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
 
 
 def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:
+    # TODO: This function is deprecated.
+    #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+    #  all vulnerabilities to use it first.
     value_parts = []
-    sources = []
+    sources = list()
     current_pos = 0
     tainted_ranges = get_tainted_ranges(pyobject)
     if not len(tainted_ranges):
-        return ([{"value": pyobject}], [])
+        return ([{"value": pyobject}], list())
 
     for _range in tainted_ranges:
         if _range.start > current_pos:
@@ -168,7 +195,10 @@ def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[A
             sources.append(_range.source)
 
         value_parts.append(
-            {"value": pyobject[_range.start : _range.start + _range.length], "source": sources.index(_range.source)}
+            {
+                "value": pyobject[_range.start : _range.start + _range.length],
+                "source": sources.index(_range.source),
+            }
         )
         current_pos = _range.start + _range.length
 

@@ -1,4 +1,5 @@
 import hashlib
+import os
 from typing import TYPE_CHECKING  # noqa:F401
 
 import django
@@ -209,6 +210,23 @@ def sqli_http_request_body(request):
     return HttpResponse(value, status=200)
 
 
+def command_injection(request):
+    value = decode_aspect(bytes.decode, 1, request.body)
+    # label iast_command_injection
+    os.system(add_aspect("dir -l ", value))
+
+    return HttpResponse("OK", status=200)
+
+
+def header_injection(request):
+    value = decode_aspect(bytes.decode, 1, request.body)
+
+    response = HttpResponse("OK", status=200)
+    # label iast_header_injection
+    response.headers["Header-Injection"] = value
+    return response
+
+
 def validate_querydict(request):
     qd = request.GET
     res = qd.getlist("x")
@@ -224,6 +242,8 @@ urlpatterns = [
     handler("body/$", body_view, name="body_view"),
     handler("weak-hash/$", weak_hash_view, name="weak_hash"),
     handler("block/$", block_callable_view, name="block"),
+    handler("command-injection/$", command_injection, name="command_injection"),
+    handler("header-injection/$", header_injection, name="header_injection"),
     handler("taint-checking-enabled/$", taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler("taint-checking-disabled/$", taint_checking_disabled_view, name="taint_checking_disabled_view"),
     handler("sqli_http_request_parameter/$", sqli_http_request_parameter, name="sqli_http_request_parameter"),

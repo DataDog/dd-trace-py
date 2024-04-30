@@ -39,25 +39,26 @@ def test_ssrf(tracer, iast_span_defaults):
             pass
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
+        data = span_report.build_and_scrub_value_parts()
 
-        vulnerability = list(span_report.vulnerabilities)[0]
-        source = span_report.sources[0]
-        assert vulnerability.type == VULN_SSRF
-        assert vulnerability.evidence.valueParts == [
+        vulnerability = data["vulnerabilities"][0]
+        source = data["sources"][0]
+        assert vulnerability["type"] == VULN_SSRF
+        assert vulnerability["evidence"]["valueParts"] == [
             {"value": "http://localhost/"},
             {"source": 0, "value": tainted_path},
         ]
-        assert vulnerability.evidence.value is None
-        assert vulnerability.evidence.pattern is None
-        assert vulnerability.evidence.redacted is None
-        assert source.name == "test_ssrf"
-        assert source.origin == OriginType.PARAMETER
-        assert source.value == tainted_path
+        assert "value" not in vulnerability["evidence"].keys()
+        assert vulnerability["evidence"].get("pattern") is None
+        assert vulnerability["evidence"].get("redacted") is None
+        assert source["name"] == "test_ssrf"
+        assert source["origin"] == OriginType.PARAMETER
+        assert source["value"] == tainted_path
 
         line, hash_value = get_line_and_hash("test_ssrf", VULN_SSRF, filename=FIXTURES_PATH)
-        assert vulnerability.location.path == FIXTURES_PATH
-        assert vulnerability.location.line == line
-        assert vulnerability.hash == hash_value
+        assert vulnerability["location"]["path"] == FIXTURES_PATH
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])

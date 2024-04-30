@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
@@ -34,7 +35,7 @@ def test_path_traversal_redact_exclude(file_path):
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -80,7 +81,7 @@ def test_path_traversal_redact_rel_paths(file_path):
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
@@ -97,7 +98,7 @@ def test_path_traversal_redact_abs_paths():
         ]
     )
     loc = Location(path="foobar.py", line=35, spanId=123)
-    v = Vulnerability(type="VulnerabilityType", evidence=ev, location=loc)
+    v = Vulnerability(type=VULN_PATH_TRAVERSAL, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
     report = IastSpanReporter([s], {v})
 
