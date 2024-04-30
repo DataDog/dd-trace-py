@@ -2,9 +2,11 @@ import logging
 from logging import Logger
 import multiprocessing
 import os
+import pathlib
 from typing import Optional
 import unittest
 from unittest import mock
+import uuid
 
 from ddtrace.internal.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -22,10 +24,12 @@ class TracerFlareTests(unittest.TestCase):
     )
 
     def setUp(self):
-        self.flare = Flare()
+        self.flare_uuid = uuid.uuid4()
+        self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
+        self.flare = Flare(flare_dir=pathlib.Path(self.flare_dir))
         self.pid = os.getpid()
-        self.flare_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_python_{self.pid}.log"
-        self.config_file_path = f"{TRACER_FLARE_DIRECTORY}/tracer_config_{self.pid}.json"
+        self.flare_file_path = f"{self.flare_dir}/tracer_python_{self.pid}.log"
+        self.config_file_path = f"{self.flare_dir}/tracer_config_{self.pid}.json"
 
     def tearDown(self):
         self.confirm_cleanup()
@@ -105,7 +109,7 @@ class TracerFlareTests(unittest.TestCase):
 
         # Assert that each process wrote its file successfully
         # We double the process number because each will generate a log file and a config file
-        assert len(processes) * 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
+        assert len(processes) * 2 == len(os.listdir(self.flare_dir))
 
         for _ in range(num_processes):
             p = multiprocessing.Process(target=handle_agent_task)
@@ -125,7 +129,7 @@ class TracerFlareTests(unittest.TestCase):
             self.flare.prepare(prep_request)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
-            assert 2 == len(os.listdir(TRACER_FLARE_DIRECTORY))
+            assert 2 == len(os.listdir(self.flare_dir))
             self.flare.send(send_request)
 
         # Create successful process
@@ -160,5 +164,5 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.revert_configs()
 
     def confirm_cleanup(self):
-        assert not os.path.exists(TRACER_FLARE_DIRECTORY), f"The directory {TRACER_FLARE_DIRECTORY} still exists"
+        assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         assert self._get_handler() is None, "File handler was not removed"

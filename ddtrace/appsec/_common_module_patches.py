@@ -3,6 +3,7 @@
 
 import ctypes
 import gc
+import os
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -48,14 +49,23 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
             return original_open_callable(*args, **kwargs)
 
-        filename = args[0] if args else kwargs.get("file", None)
+        filename_arg = args[0] if args else kwargs.get("file", None)
+        try:
+            filename = os.fspath(filename_arg)
+        except Exception:
+            filename = ""
         if filename and in_context():
-            call_waf_callback({"LFI_ADDRESS": filename}, crop_trace="wrapped_open_CFDDB7ABBA9081B6")
+            call_waf_callback(
+                {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
+                crop_trace="wrapped_open_CFDDB7ABBA9081B6",
+                rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
+            )
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
 
@@ -72,6 +82,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -82,7 +93,11 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
             if url.__class__.__name__ == "Request":
                 url = url.get_full_url()
             if isinstance(url, str):
-                call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_open_ED4CF71136E15EBF")
+                call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
+                    crop_trace="wrapped_open_ED4CF71136E15EBF",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                )
             # DEV: Next part of the exploit prevention feature: add block here
     return original_open_callable(*args, **kwargs)
 
@@ -100,6 +115,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
@@ -108,7 +124,11 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
         if url and in_context():
             if isinstance(url, str):
-                call_waf_callback({"SSRF_ADDRESS": url}, crop_trace="wrapped_request_D8CB81E472AF98A2")
+                call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
+                    crop_trace="wrapped_request_D8CB81E472AF98A2",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                )
             # DEV: Next part of the exploit prevention feature: add block here
     return original_request_callable(*args, **kwargs)
 
