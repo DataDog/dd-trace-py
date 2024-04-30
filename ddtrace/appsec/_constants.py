@@ -248,3 +248,12 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+
+    class TYPE(metaclass=Constant_Class):
+        LFI = "lfi"
+        SSRF = "ssrf"
+        SQLI = "sql_injection"
+
+    class ADDRESS(metaclass=Constant_Class):
+        LFI = "LFI_ADDRESS"
+        SSRF = "SSRF_ADDRESS"

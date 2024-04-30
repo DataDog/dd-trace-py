@@ -79,6 +79,28 @@ def _set_waf_init_metric(info):
             log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
 
+def _report_rasp_rule_duration(rule_type, duration):
+    if config._telemetry_enabled:
+        # perf - avoid importing telemetry until needed
+        from ddtrace.internal import telemetry
+        from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+
+        try:
+            tags = (
+                ("rule_type", rule_type),
+                ("waf_version", DDWAF_VERSION),
+            )
+
+            telemetry.telemetry_writer.add_distribution_metric(
+                TELEMETRY_NAMESPACE_TAG_APPSEC,
+                "rasp.rule.duration",
+                duration,
+                tags=tags,
+            )
+        except Exception:
+            log.warning("Error reporting RASP rule duration metrics", exc_info=True)
+
+
 def _set_waf_request_metrics(*args):
     if config._telemetry_enabled:
         # perf - avoid importing telemetry until needed
