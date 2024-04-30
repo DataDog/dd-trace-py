@@ -97,12 +97,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -153,12 +155,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -207,12 +211,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM sqlite_"},
                     {"value": "Master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -259,12 +265,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM sqlite_"},
                     {"value": "master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -412,12 +420,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -474,12 +484,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 if vulnerability["type"] == VULN_SQL_INJECTION:
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
+                        "pattern": "****** * **** *************",
+                        "redacted": True,
                         "valueParts": [
                             {"value": "SELECT "},
                             {"redacted": True},
                             {"value": " FROM "},
                             {"value": "sqlite_master", "source": 0},
-                        ]
+                        ],
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -524,12 +536,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** * **** *************",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
                     {"value": " FROM "},
                     {"value": "sqlite_master", "source": 0},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
@@ -577,13 +591,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
+                "pattern": "****** ******** **** ************* ***** ******** **** '********'",
+                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT tbl_name FROM sqlite_"},
                     {"value": "master", "source": 0},
                     {"value": " WHERE tbl_name LIKE '"},
                     {"redacted": True},
                     {"value": "'"},
-                ]
+                ],
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH

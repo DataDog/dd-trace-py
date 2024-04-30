@@ -33,8 +33,8 @@ class SqlInjection(VulnerabilityBase):
     @classmethod
     def report(cls, evidence_value=None, sources=None):
         if isinstance(evidence_value, (str, bytes, bytearray)):
-            evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
-        super(SqlInjection, cls).report(evidence_value=evidence_value, sources=sources)
+            value_parts, sources = taint_ranges_as_evidence_info(evidence_value)
+        super(SqlInjection, cls).report(evidence_value=evidence_value, value_parts=value_parts, sources=sources)
 
     @classmethod
     def _extract_sensitive_tokens(cls, vulns_to_text):
