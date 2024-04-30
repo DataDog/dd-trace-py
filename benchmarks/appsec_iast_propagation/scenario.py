@@ -1,7 +1,6 @@
 from typing import Any  # noqa:F401
 
 import bm
-
 from bm.utils import override_env
 
 
