@@ -7,7 +7,6 @@ from ..constants import VULN_CMDI
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
 
 
-
 log = get_logger(__name__)
 
 REDACTED_SOURCE_BUFFER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -24,8 +23,6 @@ class SensitiveHandler:
 
         self._sensitive_analyzers = {
             VULN_CMDI: command_injection_sensitive_analyzer,
-            # NOSQL_MONGODB_INJECTION: json_sensitive_analyzer,
-            # LDAP_INJECTION: ldap_sensitive_analyzer,
             # SQL_INJECTION: sql_sensitive_analyzer,
             # SSRF: url_sensitive_analyzer,
             # UNVALIDATED_REDIRECT: url_sensitive_analyzer,
