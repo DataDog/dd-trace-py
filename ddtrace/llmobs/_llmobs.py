@@ -434,15 +434,15 @@ class LLMObs(Service):
     @classmethod
     def submit_evaluation(
         cls,
+        span_context: Dict[str, str],
         label: str,
         metric_type: str,
         value: Union[str, int, float],
-        span_context: Dict[str, str],
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
 
-        :param str span_context: A dictionary containing the span_id and trace_id of interest.
+        :param span_context: A dictionary containing the span_id and trace_id of interest.
         :param str label: The name of the evaluation metric.
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
