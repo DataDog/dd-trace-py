@@ -230,7 +230,9 @@ class AioMySQLTestCase(AsyncioTestCase):
     TEST_SERVICE = "mysql"
     conn = None
 
-    async def _get_conn_tracer(self, tags={}):
+    async def _get_conn_tracer(self, tags=None):
+        tags = tags if tags is not None else {}
+
         if not self.conn:
             self.conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
             assert not self.conn.closed
