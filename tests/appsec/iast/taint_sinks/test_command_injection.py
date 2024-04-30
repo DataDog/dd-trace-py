@@ -64,7 +64,7 @@ def test_ossystem(tracer, iast_span_defaults):
         ]
         assert "value" not in vulnerability["evidence"].keys()
         assert vulnerability["evidence"].get("pattern") is None
-        assert vulnerability["evidence"].get("redacted)") is None
+        assert vulnerability["evidence"].get("redacted") is None
         assert source["name"] == "test_ossystem"
         assert source["origin"] == OriginType.PARAMETER
         assert "value" not in source.keys()

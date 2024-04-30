@@ -32,6 +32,7 @@ class SqlInjection(VulnerabilityBase):
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
+        value_parts = []
         if isinstance(evidence_value, (str, bytes, bytearray)):
             value_parts, sources = taint_ranges_as_evidence_info(evidence_value)
         super(SqlInjection, cls).report(evidence_value=evidence_value, value_parts=value_parts, sources=sources)

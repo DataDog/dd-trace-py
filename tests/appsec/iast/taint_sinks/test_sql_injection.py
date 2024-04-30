@@ -53,8 +53,8 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
         {"value": "students", "source": 0},
     ]
     assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
+    assert vulnerability.evidence.pattern == "****** * **** ********"
+    assert vulnerability.evidence.redacted is True
     assert source.name == "test_ossystem"
     assert source.origin == OriginType.PARAMETER
     assert source.value == "students"

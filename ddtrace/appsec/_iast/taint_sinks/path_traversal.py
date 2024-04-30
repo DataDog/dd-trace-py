@@ -8,7 +8,6 @@ from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from ..constants import EVIDENCE_PATH_TRAVERSAL
 from ..constants import VULN_PATH_TRAVERSAL
 from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
@@ -20,11 +19,6 @@ log = get_logger(__name__)
 @oce.register
 class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
-    evidence_type = EVIDENCE_PATH_TRAVERSAL
-
-    @classmethod
-    def report(cls, evidence_value=None, sources=None):
-        super(PathTraversal, cls).report(evidence_value=evidence_value)
 
 
 def get_version():
