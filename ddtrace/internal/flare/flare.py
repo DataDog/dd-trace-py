@@ -15,7 +15,6 @@ from typing import Tuple
 from ddtrace._logger import _add_file_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.settings.config import Config
 
 
 TRACER_FLARE_DIRECTORY = pathlib.Path("tracer_flare")
@@ -44,7 +43,7 @@ class Flare:
         self.url = trace_agent_url
         self._api_key = api_key
 
-    def prepare(self, config: Config, log_level: str):
+    def prepare(self, config: dict, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -122,12 +121,12 @@ class Flare:
                 self.clean_up_files()
                 return
 
-    def _generate_config_file(self, config: Config, pid: int):
+    def _generate_config_file(self, config: dict, pid: int):
         config_file = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_config_{pid}.json")
         try:
             with open(config_file, "w") as f:
                 tracer_configs = {
-                    "configs": config.__dict__,
+                    "configs": config,
                 }
                 json.dump(
                     tracer_configs,

@@ -561,7 +561,7 @@ class Config(object):
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
-        self.flare = Flare()
+        self.flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -849,7 +849,7 @@ class Config(object):
                 return
 
             flare_log_level = c.get("config", {}).get("log_level").upper()
-            self.flare.prepare(self, flare_log_level)
+            self.flare.prepare(self.__dict__, flare_log_level)
             return
 
     def _generate_tracer_flare(self, configs: List[Any]):
