@@ -27,7 +27,8 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Messages
 
 
@@ -41,18 +42,25 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
-        self._llmobs_writer = LLMObsWriter(
+        self._llmobs_span_writer = LLMObsSpanWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
         )
-        self._llmobs_writer.start()
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+        )
+        self._llmobs_span_writer.start()
+        self._llmobs_eval_metric_writer.start()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_writer)]
+            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
 
     def _stop_service(self) -> None:
@@ -319,21 +327,21 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
         if input_messages is not None:
-            if not isinstance(input_messages, Messages):
-                input_messages = Messages(input_messages)
             try:
+                if not isinstance(input_messages, Messages):
+                    input_messages = Messages(input_messages)
                 if input_messages.messages:
                     span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse input messages.")
+                log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is not None:
-            if not isinstance(output_messages, Messages):
-                output_messages = Messages(output_messages)
             try:
+                if not isinstance(output_messages, Messages):
+                    output_messages = Messages(output_messages)
                 if output_messages.messages:
                     span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse output messages.")
+                log.warning("Failed to parse output messages.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
