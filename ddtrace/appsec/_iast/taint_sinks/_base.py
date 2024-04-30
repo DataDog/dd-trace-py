@@ -249,8 +249,6 @@ class VulnerabilityBase(Operation):
             if vuln.evidence.value is not None:
                 pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
-                    vuln.evidence.pattern = pattern
-                    vuln.evidence.redacted = True
                     vuln.evidence.value = None
 
             if vuln.evidence.valueParts is None:

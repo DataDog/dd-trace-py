@@ -29,10 +29,8 @@ def _only_if_true(value):
 @attr.s(eq=False, hash=False)
 class Evidence(object):
     value = attr.ib(type=str, default=None)  # type: Optional[str]
-    pattern = attr.ib(type=str, default=None)  # type: Optional[str]
     _ranges = attr.ib(type=dict, default={})  # type: Any
     valueParts = attr.ib(type=list, default=None)  # type: Any
-    redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -47,15 +45,10 @@ class Evidence(object):
         return _hash
 
     def __hash__(self):
-        return hash((self.value, self.pattern, self._valueParts_hash(), self.redacted))
+        return hash((self.value, self._valueParts_hash()))
 
     def __eq__(self, other):
-        return (
-            self.value == other.value
-            and self.pattern == other.pattern
-            and self._valueParts_hash() == other._valueParts_hash()
-            and self.redacted == other.redacted
-        )
+        return self.value == other.value and self._valueParts_hash() == other._valueParts_hash()
 
 
 @attr.s(eq=True, hash=True)

@@ -87,7 +87,7 @@ def test_redacted_report_no_match():
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
@@ -97,46 +97,37 @@ def test_redacted_report_no_match():
 
 def test_redacted_report_source_name_match():
     ev = Evidence(value="'SomeEvidenceValue'")
-    len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="secret", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        assert v.evidence.redacted
-        assert v.evidence.pattern == "'%s'" % ("*" * len_ev)
         assert not v.evidence.value
 
 
 def test_redacted_report_source_value_match():
     ev = Evidence(value="'SomeEvidenceValue'")
-    len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="somepassword")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        assert v.evidence.redacted
-        assert v.evidence.pattern == "'%s'" % ("*" * len_ev)
         assert not v.evidence.value
 
 
 def test_redacted_report_evidence_value_match_also_redacts_source_value():
     ev = Evidence(value="'SomeSecretPassword'")
-    len_ev = len(ev.value) - 2
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeSecretPassword")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
-        assert v.evidence.redacted
-        assert v.evidence.pattern == "'%s'" % ("*" * len_ev)
         assert not v.evidence.value
     for s in redacted_report.sources:
         assert s.redacted
@@ -155,7 +146,7 @@ def test_redacted_report_valueparts():
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
@@ -179,7 +170,7 @@ def test_redacted_report_valueparts_username_not_tainted():
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
@@ -207,7 +198,7 @@ def test_redacted_report_valueparts_username_tainted():
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:
@@ -233,7 +224,7 @@ def test_regression_ci_failure():
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_SQL_INJECTION, evidence=ev, location=loc)
     s = Source(origin="SomeOrigin", name="SomeName", value="SomeValue")
-    report = IastSpanReporter(set([s]), {v})
+    report = IastSpanReporter([s], {v})
 
     redacted_report = SqlInjection._redact_report(report)
     for v in redacted_report.vulnerabilities:

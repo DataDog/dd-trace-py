@@ -97,8 +97,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -155,8 +153,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -211,8 +207,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -265,8 +259,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -420,8 +412,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -484,8 +474,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 if vulnerability["type"] == VULN_SQL_INJECTION:
                     assert vulnerability["type"] == VULN_SQL_INJECTION
                     assert vulnerability["evidence"] == {
-                        "pattern": "****** * **** *************",
-                        "redacted": True,
                         "valueParts": [
                             {"value": "SELECT "},
                             {"redacted": True},
@@ -536,8 +524,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** * **** *************",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT "},
                     {"redacted": True},
@@ -591,8 +577,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_SQL_INJECTION
             assert vulnerability["evidence"] == {
-                "pattern": "****** ******** **** ************* ***** ******** **** '********'",
-                "redacted": True,
                 "valueParts": [
                     {"value": "SELECT tbl_name FROM sqlite_"},
                     {"value": "master", "source": 0},

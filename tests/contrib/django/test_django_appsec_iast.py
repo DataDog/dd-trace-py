@@ -147,8 +147,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
         ]
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT ", "source": 0},
                 {"redacted": True},
@@ -187,8 +185,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(c
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
@@ -253,8 +249,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(cl
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
@@ -318,8 +312,6 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
         assert loaded["vulnerabilities"][0]["type"] == vuln_type
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
@@ -384,8 +376,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, t
         assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
         assert vulnerability["hash"] == hash_value
         assert vulnerability["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
@@ -448,8 +438,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, 
         assert vulnerability["type"] == "SQL_INJECTION"
         assert vulnerability["hash"] == hash_value
         assert vulnerability["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
@@ -513,8 +501,6 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
         assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
         assert loaded["vulnerabilities"][0]["hash"] == hash_value
         assert loaded["vulnerabilities"][0]["evidence"] == {
-            "pattern": "****** * **** *************",
-            "redacted": True,
             "valueParts": [
                 {"value": "SELECT "},
                 {"redacted": True},
