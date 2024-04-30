@@ -11,7 +11,7 @@ from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
-from ..constants import EVIDENCE_HEADER_INJECTION
+from ..constants import HEADER_NAME_VALUE_SEPARATOR
 from ..constants import VULN_HEADER_INJECTION
 from ..processor import AppSecIastSpanProcessor
 from ._base import VulnerabilityBase
@@ -103,7 +103,8 @@ def _iast_h(wrapped, instance, args, kwargs):
 @oce.register
 class HeaderInjection(VulnerabilityBase):
     vulnerability_type = VULN_HEADER_INJECTION
-    evidence_type = EVIDENCE_HEADER_INJECTION
+    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+    #  all vulnerabilities to use it first.
     redact_report = False
 
 
@@ -131,5 +132,5 @@ def _iast_report_header_injection(headers_args) -> None:
 
     if AppSecIastSpanProcessor.is_span_analyzed() and HeaderInjection.has_quota():
         if is_pyobject_tainted(header_name) or is_pyobject_tainted(header_value):
-            header_evidence = add_aspect(add_aspect(header_name, ": "), header_value)
+            header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
             HeaderInjection.report(evidence_value=header_evidence)

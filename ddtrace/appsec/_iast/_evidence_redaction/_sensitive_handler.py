@@ -4,7 +4,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..constants import VULN_CMDI
+from ..constants import VULN_HEADER_INJECTION
+from ..constants import VULN_SSRF
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
+from .header_injection_sensitive_analyzer import header_injection_sensitive_analyzer
+from .url_sensitive_analyzer import url_sensitive_analyzer
 
 
 log = get_logger(__name__)
@@ -24,10 +28,8 @@ class SensitiveHandler:
         self._sensitive_analyzers = {
             VULN_CMDI: command_injection_sensitive_analyzer,
             # SQL_INJECTION: sql_sensitive_analyzer,
-            # SSRF: url_sensitive_analyzer,
-            # UNVALIDATED_REDIRECT: url_sensitive_analyzer,
-            # HEADER_INJECTION: lambda evidence: header_sensitive_analyzer(evidence, self._name_pattern,
-            #                                                               self._value_pattern)
+            VULN_SSRF: url_sensitive_analyzer,
+            VULN_HEADER_INJECTION: header_injection_sensitive_analyzer,
         }
 
     @staticmethod
