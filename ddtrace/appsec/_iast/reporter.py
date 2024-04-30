@@ -30,6 +30,7 @@ def _only_if_true(value):
 class Evidence(object):
     value = attr.ib(type=str, default=None)  # type: Optional[str]
     pattern = attr.ib(type=str, default=None)  # type: Optional[str]
+    _ranges = attr.ib(type=dict, default={})  # type: Any
     valueParts = attr.ib(type=list, default=None)  # type: Any
     redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
 
@@ -90,7 +91,7 @@ class IastSpanReporter(object):
     Class representing an IAST span reporter.
     """
 
-    sources = attr.ib(type=Set[Source], factory=list)  # type: List[Source]
+    sources = attr.ib(type=List[Source], factory=list)  # type: List[Source]
     vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)  # type: Set[Vulnerability]
     _evidences_with_no_sources = [VULN_INSECURE_HASHING_TYPE, VULN_WEAK_CIPHER_TYPE, VULN_WEAK_RANDOMNESS]
 
@@ -122,18 +123,19 @@ class IastSpanReporter(object):
             return [], []
 
         for _range in tainted_ranges:
-            if _range.source not in sources:
-                sources.append(_range.source)
+            source = Source(origin=_range.source.origin, name=_range.source.name, value=_range.source.value)
+            if source not in sources:
+                sources.append(source)
 
             tainted_ranges_to_dict.append(
-                {
-                    "start": _range.start,
-                    "end": _range.start + _range.length,
-                    "length": _range.length,
-                    "source": _range.source,
-                }
+                {"start": _range.start, "end": _range.start + _range.length, "length": _range.length, "source": source}
             )
         return sources, tainted_ranges_to_dict
+
+    def add_ranges_to_evidence_and_extract_sources(self, vuln):
+        sources, tainted_ranges_to_dict = self.taint_ranges_as_evidence_info(vuln.evidence.value)
+        vuln.evidence._ranges = tainted_ranges_to_dict
+        self.sources = self.sources + sources
 
     def build_and_scrub_value_parts(self) -> Dict[str, Any]:
         """
@@ -143,10 +145,10 @@ class IastSpanReporter(object):
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
         for vuln in self.vulnerabilities:
-            sources, tainted_ranges_to_dict = self.taint_ranges_as_evidence_info(vuln.evidence.value)
-            self.sources = self.sources + [Source(origin=s.origin, name=s.name, value=s.value) for s in sources]
+            # sources, tainted_ranges_to_dict = self.taint_ranges_as_evidence_info(vuln.evidence.value)
+            # self.sources = self.sources + [Source(origin=s.origin, name=s.name, value=s.value) for s in sources]
             scrubbing_result = sensitive_handler.scrub_evidence(
-                vuln.type, vuln.evidence, tainted_ranges_to_dict, self.sources
+                vuln.type, vuln.evidence, vuln.evidence._ranges, self.sources
             )
             if scrubbing_result:
                 redacted_value_parts = scrubbing_result["redacted_value_parts"]
@@ -159,7 +161,7 @@ class IastSpanReporter(object):
                 vuln.evidence.value = None
             elif vuln.evidence.value is not None and vuln.type not in self._evidences_with_no_sources:
                 vuln.evidence.valueParts = self.get_unredacted_value_parts(
-                    vuln.evidence.value, tainted_ranges_to_dict, self.sources
+                    vuln.evidence.value, vuln.evidence._ranges, self.sources
                 )
                 vuln.evidence.value = None
         return self._to_dict()

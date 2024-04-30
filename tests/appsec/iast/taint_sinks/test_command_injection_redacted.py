@@ -84,7 +84,7 @@ def test_cmdi_redact_rel_paths_and_sudo(file_path):
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     report = IastSpanReporter(vulnerabilities={v})
-
+    report.add_ranges_to_evidence_and_extract_sources(v)
     result = report.build_and_scrub_value_parts()
 
     assert result["vulnerabilities"]
@@ -116,7 +116,7 @@ def test_cmdi_redact_sudo_command_with_options(file_path):
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     report = IastSpanReporter(vulnerabilities={v})
-
+    report.add_ranges_to_evidence_and_extract_sources(v)
     result = report.build_and_scrub_value_parts()
 
     assert result["vulnerabilities"]
@@ -148,7 +148,7 @@ def test_cmdi_redact_command_with_options(file_path):
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     report = IastSpanReporter(vulnerabilities={v})
-
+    report.add_ranges_to_evidence_and_extract_sources(v)
     result = report.build_and_scrub_value_parts()
 
     assert result["vulnerabilities"]
@@ -196,7 +196,7 @@ def test_cmdi_redact_rel_paths(file_path):
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     report = IastSpanReporter(vulnerabilities={v})
-
+    report.add_ranges_to_evidence_and_extract_sources(v)
     result = report.build_and_scrub_value_parts()
 
     assert result["vulnerabilities"]
@@ -230,7 +230,7 @@ def test_cmdi_redact_source_command(file_path):
     loc = Location(path="foobar.py", line=35, spanId=123)
     v = Vulnerability(type=VULN_CMDI, evidence=ev, location=loc)
     report = IastSpanReporter(vulnerabilities={v})
-
+    report.add_ranges_to_evidence_and_extract_sources(v)
     result = report.build_and_scrub_value_parts()
 
     assert result["vulnerabilities"]

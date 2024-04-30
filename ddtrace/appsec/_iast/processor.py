@@ -16,6 +16,7 @@ from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted
 from ._utils import _is_iast_enabled
+from .reporter import IastSpanReporter
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -78,7 +79,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        report_data = core.get_item(IAST.CONTEXT_KEY, span=span)
+        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)  # type: ignore
 
         if report_data:
             report_data.build_and_scrub_value_parts()

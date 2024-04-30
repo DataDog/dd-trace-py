@@ -19,7 +19,6 @@ from ..processor import AppSecIastSpanProcessor
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
-from ..reporter import Source
 from ..reporter import Vulnerability
 
 
@@ -89,38 +88,16 @@ class VulnerabilityBase(Operation):
             line_number = -1
 
         report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        vulnerability = Vulnerability(
+            type=vulnerability_type,
+            evidence=evidence,
+            location=Location(path=file_name, line=line_number, spanId=span.span_id),
+        )
         if report:
-            report.vulnerabilities.add(
-                Vulnerability(
-                    type=vulnerability_type,
-                    evidence=evidence,
-                    location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                )
-            )
-
+            report.vulnerabilities.add(vulnerability)
         else:
-            report = IastSpanReporter(
-                vulnerabilities={
-                    Vulnerability(
-                        type=vulnerability_type,
-                        evidence=evidence,
-                        location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                    )
-                },
-            )
-        # TODO: The below lines of this function are deprecated.
-        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-        #  all vulnerabilities to use it first.
-        if sources:
-
-            def cast_value(value):
-                if isinstance(value, (bytes, bytearray)):
-                    value_decoded = value.decode("utf-8")
-                else:
-                    value_decoded = value
-                return value_decoded
-
-            report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
+            report = IastSpanReporter(vulnerabilities={vulnerability})
+        report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         if getattr(cls, "redact_report", False):
             redacted_report = cls._redacted_report_cache.get(
@@ -134,7 +111,7 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def report(cls, evidence_value="", sources=None):
-        # type: (Any, Optional[List[Source]]) -> None
+        # type: (Any, Optional[List[Any]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         # TODO: type of evidence_value will be Text. We wait to finish the redaction refactor.
         if cls.acquire_quota():

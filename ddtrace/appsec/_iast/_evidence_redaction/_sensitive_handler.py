@@ -7,11 +7,6 @@ from ..constants import VULN_CMDI
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
 
 
-# from .header_sensitive_analyzer import header_sensitive_analyzer
-# from .json_sensitive_analyzer import json_sensitive_analyzer
-# from .ldap_sensitive_analyzer import ldap_sensitive_analyzer
-# from .sql_sensitive_analyzer import sql_sensitive_analyzer
-# from .url_sensitive_analyzer import url_sensitive_analyzer
 
 log = get_logger(__name__)
 
@@ -172,7 +167,6 @@ class SensitiveHandler:
         value_parts = []
         redacted_sources = []
         redacted_sources_context = dict()
-        sources = list(sources)
 
         start = 0
         next_tainted_index = 0
