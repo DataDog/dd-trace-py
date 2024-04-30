@@ -148,8 +148,10 @@ class VulnerabilityBase(Operation):
                     return
 
             # TODO: this if is deprecated
-            if _is_evidence_value_parts(evidence_value) or _is_evidence_value_parts(value_parts):
-                evidence = Evidence(value=evidence_value, valueParts=value_parts)
+            if _is_evidence_value_parts(evidence_value):
+                evidence = Evidence(valueParts=evidence_value)
+            elif _is_evidence_value_parts(value_parts):
+                evidence = Evidence(valueParts=value_parts)
             # Evidence is a string in weak cipher, weak hash and weak randomness
             elif isinstance(evidence_value, (str, bytes, bytearray)):
                 evidence = Evidence(value=evidence_value)  # type: ignore

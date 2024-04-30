@@ -166,7 +166,7 @@ class IastSpanReporter(object):
                 vuln.evidence.value = None
         return self._to_dict()
 
-    def get_unredacted_value_parts(self, evidence_value: str, ranges: List[Dict], sources: List[Any]) -> List[Dict]:
+    def get_unredacted_value_parts(self, evidence_value: str, ranges: List[dict], sources: List[Any]) -> List[dict]:
         """
         Gets unredacted value parts of evidence.
 
@@ -185,7 +185,7 @@ class IastSpanReporter(object):
             if from_index < range_["start"]:
                 value_parts.append({"value": evidence_value[from_index : range_["start"]]})
             value_parts.append(
-                {"value": evidence_value[range_["start"] : range_["end"]], "source": sources[range_["index"]]}
+                {"value": evidence_value[range_["start"] : range_["end"]], "source": sources.index(range_["source"])}  # type: ignore[dict-item]
             )
             from_index = range_["end"]
 

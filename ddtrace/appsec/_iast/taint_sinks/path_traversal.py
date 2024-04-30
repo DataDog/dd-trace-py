@@ -24,11 +24,7 @@ class PathTraversal(VulnerabilityBase):
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
-        if isinstance(evidence_value, (str, bytes, bytearray)):
-            from .._taint_tracking import taint_ranges_as_evidence_info
-
-            evidence_value, sources = taint_ranges_as_evidence_info(evidence_value)
-        super(PathTraversal, cls).report(evidence_value=evidence_value, sources=sources)
+        super(PathTraversal, cls).report(evidence_value=evidence_value)
 
 
 def get_version():
