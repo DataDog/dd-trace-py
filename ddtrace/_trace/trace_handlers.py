@@ -632,8 +632,9 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
     prompt = ctx["prompt"]
+    model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span):
+    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
     span.finish()
 
@@ -655,6 +656,7 @@ def _on_botocore_bedrock_process_response(
 ) -> None:
     text = formatted_response["text"]
     span = ctx[ctx["call_key"]]
+    model_name = ctx["model_name"]
     if should_set_choice_ids:
         for i in range(len(text)):
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
@@ -662,6 +664,10 @@ def _on_botocore_bedrock_process_response(
     if metadata is not None:
         for k, v in metadata.items():
             span.set_tag_str("bedrock.{}".format(k), str(v))
+    if "embed" in model_name:
+        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
+        span.finish()
+        return
     for i in range(len(formatted_response["text"])):
         if integration.is_pc_sampled_span(span):
             span.set_tag_str(
@@ -674,6 +680,11 @@ def _on_botocore_bedrock_process_response(
     if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
     span.finish()
+
+
+def _on_redis_async_command_post(span, rowcount):
+    if rowcount is not None:
+        span.set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
@@ -720,6 +731,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("redis.async_command.post", _on_redis_async_command_post)
 
     for context_name in (
         "flask.call",
