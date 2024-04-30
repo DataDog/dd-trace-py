@@ -8,6 +8,7 @@ stages:
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
   - local: ".gitlab/benchmarks.yml"
+  - local: ".gitlab/macrobenchmarks.yml"
 
 variables:
   DOWNSTREAM_BRANCH:

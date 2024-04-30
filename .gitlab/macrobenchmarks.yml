@@ -61,26 +61,26 @@ macrobenchmarks:
     matrix:
       - DD_BENCHMARKS_CONFIGURATION: baseline
         BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@main"
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
       - DD_BENCHMARKS_CONFIGURATION: only-tracing
         BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@main"
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
       - DD_BENCHMARKS_CONFIGURATION: only-tracing
         BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@main"
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
         DD_REMOTE_CONFIGURATION_ENABLED: "false"
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
 
       - DD_BENCHMARKS_CONFIGURATION: only-tracing
         BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@main"
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
         DD_REMOTE_CONFIGURATION_ENABLED: "false"
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
 
       - DD_BENCHMARKS_CONFIGURATION: only-tracing
         BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@main"
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
         DD_REMOTE_CONFIGURATION_ENABLED: "true"
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
