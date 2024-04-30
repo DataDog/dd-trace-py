@@ -86,8 +86,8 @@ def test_third_party_packages():
 
 @pytest.mark.subprocess(
     env={
-        "DD_THIRD_PARTY_DETECTION_EXCLUDES": "myfancypackage,myotherfancypackage",
-        "DD_THIRD_PARTY_DETECTION_INCLUDES": "requests",
+        "DD_THIRD_PARTY_DETECTION_INCLUDES": "myfancypackage,myotherfancypackage",
+        "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests",
     }
 )
 def test_third_party_packages_excludes_includes():
