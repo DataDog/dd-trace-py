@@ -11,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -19,6 +20,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
@@ -29,6 +31,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 
 
@@ -243,6 +246,64 @@ class LLMObs(Service):
         return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
+    def embedding(
+        cls,
+        model_name: str,
+        name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+    ) -> Optional[Span]:
+        """
+        Trace a call to an embedding model or function to create an embedding.
+
+        :param str model_name: The name of the invoked embedding model.
+        :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
+        :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
+                                   If not provided, a default value of "custom" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.embedding() cannot be used while LLMObs is disabled.")
+            return None
+        if not model_name:
+            log.warning("model_name must be the specified name of the invoked model.")
+            return None
+        if model_provider is None:
+            model_provider = "custom"
+        return cls._instance._start_span(
+            "embedding",
+            name,
+            model_name=model_name,
+            model_provider=model_provider,
+            session_id=session_id,
+            ml_app=ml_app,
+        )
+
+    @classmethod
+    def retrieval(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
+        """
+        Trace a vector search operation involving a list of documents being returned from an external knowledge base.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.retrieval() cannot be used while LLMObs is disabled.")
+            return None
+        return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
+
+    @classmethod
     def annotate(
         cls,
         span: Optional[Span] = None,
@@ -262,10 +323,15 @@ class LLMObs(Service):
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
+                           - embedding spans: accepts a string, list of strings, or a dictionary of form {"text": "...", ...}
+                                        or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
+                           - retrieval spans: a dictionary containing any of the key value pairs
+                                              {"name": str, "id": str, "text": str, "score": float},
+                                              or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
@@ -299,6 +365,10 @@ class LLMObs(Service):
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
+            elif span_kind == "embedding":
+                cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
+            elif span_kind == "retrieval":
+                cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         if metadata is not None:
@@ -342,6 +412,50 @@ class LLMObs(Service):
                     span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
             except (TypeError, AttributeError):
                 log.warning("Failed to parse output messages.", exc_info=True)
+
+    @classmethod
+    def _tag_embedding_io(cls, span, input_documents=None, output_text=None):
+        """Tags input documents and output text for embedding-kind spans.
+        Will be mapped to span's `meta.{input,output}.text` fields.
+        """
+        if input_documents is not None:
+            try:
+                if not isinstance(input_documents, Documents):
+                    input_documents = Documents(input_documents)
+                if input_documents.documents:
+                    span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents.documents))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse input documents.", exc_info=True)
+        if output_text is not None:
+            if isinstance(output_text, str):
+                span.set_tag_str(OUTPUT_VALUE, output_text)
+            else:
+                try:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                except TypeError:
+                    log.warning("Failed to parse output text. Output text must be JSON serializable.")
+
+    @classmethod
+    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
+        """Tags input text and output documents for retrieval-kind spans.
+        Will be mapped to span's `meta.{input,output}.text` fields.
+        """
+        if input_text is not None:
+            if isinstance(input_text, str):
+                span.set_tag_str(INPUT_VALUE, input_text)
+            else:
+                try:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                except TypeError:
+                    log.warning("Failed to parse input text. Input text must be JSON serializable.")
+        if output_documents is not None:
+            try:
+                if not isinstance(output_documents, Documents):
+                    output_documents = Documents(output_documents)
+                if output_documents.documents:
+                    span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(output_documents.documents))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse output documents.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
