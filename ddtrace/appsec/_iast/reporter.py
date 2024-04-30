@@ -8,7 +8,6 @@ from typing import Dict
 from typing import List
 from typing import Set
 from typing import Tuple
-import uuid
 import zlib
 
 import attr
@@ -77,10 +76,9 @@ class Source(object):
     redacted = attr.ib(type=bool, default=False, converter=_only_if_true)  # type: bool
     value = attr.ib(type=str, default=None)  # type: Optional[str]
     pattern = attr.ib(type=str, default=None)  # type: Optional[str]
-    __id = uuid.uuid4()
 
     def __hash__(self):
-        """Unique IDs for sources serve as hashes. This approach aims to mitigate false positives when searching for
+        """origin & name serve as hashes. This approach aims to mitigate false positives when searching for
         identical sources in a list, especially when sources undergo changes. The provided example illustrates how
         two sources with different attributes could actually represent the same source. For example:
         Source(origin=<OriginType.PARAMETER: 0>, name='string1', redacted=False, value="password", pattern=None)
@@ -88,7 +86,7 @@ class Source(object):
         Source(origin=<OriginType.PARAMETER: 0>, name='string1', redacted=True, value=None, pattern='ab')
         :return:
         """
-        return self.__id
+        return hash((self.origin, self.name))
 
 
 @attr.s(eq=False, hash=False)
@@ -145,6 +143,14 @@ class IastSpanReporter(object):
             if source not in self.sources:
                 self.sources = self.sources + [source]
 
+    def _get_source_index(self, sources: List[Source], source: Source) -> int:
+        i = 0
+        for source_ in sources:
+            if hash(source_) == hash(source):
+                return i
+            i += 1
+        return -1
+
     def build_and_scrub_value_parts(self) -> Dict[str, Any]:
         """
         Builds and scrubs value parts of vulnerabilities.
@@ -191,7 +197,8 @@ class IastSpanReporter(object):
             if from_index < range_["start"]:
                 value_parts.append({"value": evidence_value[from_index : range_["start"]]})
 
-            source_index = sources.index(range_["source"])
+            source_index = self._get_source_index(sources, range_["source"])
+
             value_parts.append(
                 {"value": evidence_value[range_["start"] : range_["end"]], "source": source_index}  # type: ignore[dict-item]
             )
