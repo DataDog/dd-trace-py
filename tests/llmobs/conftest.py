@@ -37,6 +37,7 @@ def mock_llmobs_span_writer():
     patcher.stop()
 
 
+@pytest.fixture
 def mock_llmobs_eval_metric_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter")
     LLMObsEvalMetricWriterMock = patcher.start()
@@ -46,6 +47,7 @@ def mock_llmobs_eval_metric_writer():
     patcher.stop()
 
 
+@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
@@ -61,6 +63,7 @@ def default_global_config():
     return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app"}
 
 
+@pytest.fixture
 def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
