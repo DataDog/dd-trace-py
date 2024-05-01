@@ -323,8 +323,8 @@ class LLMObs(Service):
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
-                           - embedding spans: accepts a string, list of strings, or a dictionary of form {"text": "...", ...}
-                                        or a list of dictionaries with the same signature.
+                           - embedding spans: accepts a string, list of strings, or a dictionary of form
+                                              {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
