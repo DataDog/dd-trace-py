@@ -55,7 +55,7 @@ assert telemetry_writer._worker is not None
 
 
 @pytest.mark.snapshot
-def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, run_python_code_in_subprocess):
+def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """assert telemetry events are generated after the first trace is flushed to the agent"""
 
     # Submit a trace to the agent in a subprocess
@@ -65,7 +65,7 @@ from ddtrace import tracer
 span = tracer.trace("test-telemetry")
 span.finish()
     """
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
