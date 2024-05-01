@@ -135,6 +135,8 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     else:
         call_name = trace_operation
 
+    child_of = parent_ctx.get_item("distributed_context")
+
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_sqs_api_call",
@@ -142,6 +144,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             span_name=call_name,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
+            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
             instance=instance,
             args=args,
