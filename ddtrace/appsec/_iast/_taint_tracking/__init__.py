@@ -177,12 +177,15 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
 
 
 def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:
+    # TODO: This function is deprecated.
+    #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+    #  all vulnerabilities to use it first.
     value_parts = []
-    sources = []
+    sources = list()
     current_pos = 0
     tainted_ranges = get_tainted_ranges(pyobject)
     if not len(tainted_ranges):
-        return ([{"value": pyobject}], [])
+        return ([{"value": pyobject}], list())
 
     for _range in tainted_ranges:
         if _range.start > current_pos:
@@ -192,7 +195,10 @@ def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[A
             sources.append(_range.source)
 
         value_parts.append(
-            {"value": pyobject[_range.start : _range.start + _range.length], "source": sources.index(_range.source)}
+            {
+                "value": pyobject[_range.start : _range.start + _range.length],
+                "source": sources.index(_range.source),
+            }
         )
         current_pos = _range.start + _range.length
 

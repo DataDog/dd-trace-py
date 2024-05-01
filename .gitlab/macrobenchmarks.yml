@@ -1,0 +1,86 @@
+variables:
+  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
+
+.macrobenchmarks:
+  stage: macrobenchmarks
+  needs: []
+  tags: ["runner:apm-k8s-same-cpu"]
+  timeout: 1h
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
+    ## Next step, enable:
+    # - if: $CI_COMMIT_REF_NAME == "main"
+    #   when: always
+  # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
+  image: $BENCHMARKS_CI_IMAGE
+  script: |
+    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
+      bp-runner bp-runner.flask-realworld.yml --debug
+    else
+      bp-runner bp-runner.simple.yml --debug
+    fi
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - platform/artifacts/
+    expire_in: 3 months
+  variables:
+    # Benchmark's env variables. Modify to tweak benchmark parameters.
+    DD_TRACE_DEBUG: "false"
+    DD_RUNTIME_METRICS_ENABLED: "true"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
+
+    K6_OPTIONS_NORMAL_OPERATION_RATE: 40
+    K6_OPTIONS_NORMAL_OPERATION_DURATION: 5m
+    K6_OPTIONS_NORMAL_OPERATION_GRACEFUL_STOP: 1m
+    K6_OPTIONS_NORMAL_OPERATION_PRE_ALLOCATED_VUS: 4
+    K6_OPTIONS_NORMAL_OPERATION_MAX_VUS: 4
+
+    K6_OPTIONS_HIGH_LOAD_RATE: 500
+    K6_OPTIONS_HIGH_LOAD_DURATION: 1m
+    K6_OPTIONS_HIGH_LOAD_GRACEFUL_STOP: 30s
+    K6_OPTIONS_HIGH_LOAD_PRE_ALLOCATED_VUS: 4
+    K6_OPTIONS_HIGH_LOAD_MAX_VUS: 4
+
+    # Gitlab and BP specific env vars. Do not modify.
+    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
+
+  # Workaround: Currently we're not running the benchmarks on every PR, but GitHub still shows them as pending.
+  # By marking the benchmarks as allow_failure, this should go away. (This workaround should be removed once the
+  # benchmarks get changed to run on every PR)
+  allow_failure: true
+
+macrobenchmarks:
+  extends: .macrobenchmarks
+  parallel:
+    matrix:
+      - DD_BENCHMARKS_CONFIGURATION: baseline
+        BP_PYTHON_SCENARIO_DIR: flask-realworld
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+
+      - DD_BENCHMARKS_CONFIGURATION: only-tracing
+        BP_PYTHON_SCENARIO_DIR: flask-realworld
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+
+      - DD_BENCHMARKS_CONFIGURATION: only-tracing
+        BP_PYTHON_SCENARIO_DIR: flask-realworld
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+        DD_REMOTE_CONFIGURATION_ENABLED: "false"
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+
+      - DD_BENCHMARKS_CONFIGURATION: only-tracing
+        BP_PYTHON_SCENARIO_DIR: flask-realworld
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+        DD_REMOTE_CONFIGURATION_ENABLED: "false"
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
+
+      - DD_BENCHMARKS_CONFIGURATION: only-tracing
+        BP_PYTHON_SCENARIO_DIR: flask-realworld
+        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+        DD_REMOTE_CONFIGURATION_ENABLED: "true"
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
