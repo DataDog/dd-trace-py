@@ -427,12 +427,14 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
 
     def _wrap(rule, endpoint=None, view_func=None, **kwargs):
-        if view_func:
+        wrapped_view = None
+        if view_func is not None:
             # TODO: `if hasattr(view_func, 'view_class')` then this was generated from a `flask.views.View`
             #   should we do something special with these views? Change the name/resource? Add tags?
-            view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
+            core.dispatch("service_entrypoint.patch", (view_func,))
+            wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
-        return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
+        return wrapped(rule, endpoint=endpoint, view_func=wrapped_view, **kwargs)
 
     return _wrap(*args, **kwargs)
 
