@@ -13,13 +13,13 @@ def test_pytest_plugin_and_gevent(tmpdir):
     """
 
     test_code = """
-    import ddtrace
+import ddtrace
 
-    import gevent
-    gevent.monkey.patch_all()
+import gevent.monkey
+gevent.monkey.patch_all()
 
-    def test_thing():
-        pass
+def test_thing():
+    pass
     """
 
     test_file = tmpdir / "test.py"
