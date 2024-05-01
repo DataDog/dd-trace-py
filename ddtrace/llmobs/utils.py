@@ -15,6 +15,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
+ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
