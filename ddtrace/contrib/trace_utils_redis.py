@@ -6,7 +6,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 deprecate(
     "The ddtrace.contrib.trace_utils_redis module is deprecated and will be removed.",
-    message="A new interface will be provided by the ddtrace.contrib.redis_utils.",
+    message="A new interface will be provided by the ddtrace.contrib.redis_utils module",
     category=DDTraceDeprecationWarning,
 )
 
