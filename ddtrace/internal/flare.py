@@ -1,4 +1,5 @@
 import binascii
+import dataclasses
 import io
 import json
 import logging
@@ -7,9 +8,7 @@ import os
 import pathlib
 import shutil
 import tarfile
-from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -19,7 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
 
-TRACER_FLARE_DIRECTORY = pathlib.Path("tracer_flare")
+TRACER_FLARE_DIRECTORY = "tracer_flare"
 TRACER_FLARE_TAR = pathlib.Path("tracer_flare.tar")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
@@ -29,111 +28,99 @@ DEFAULT_TIMEOUT_SECONDS = 5
 log = get_logger(__name__)
 
 
+@dataclasses.dataclass
+class FlareSendRequest:
+    case_id: str
+    hostname: str
+    email: str
+    source: str = "tracer_python"
+
+
 class Flare:
-    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS):
-        self.original_log_level = 0  # NOTSET
-        self.timeout = timeout_sec
+    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS, flare_dir: str = TRACER_FLARE_DIRECTORY):
+        self.original_log_level: int = logging.NOTSET
+        self.timeout: int = timeout_sec
+        self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
         self.file_handler: Optional[RotatingFileHandler] = None
 
-    def prepare(self, configs: List[dict]):
+    def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        if not os.path.exists(TRACER_FLARE_DIRECTORY):
-            try:
-                os.makedirs(TRACER_FLARE_DIRECTORY)
-                log.info("Tracer logs will now be sent to the %s directory", TRACER_FLARE_DIRECTORY)
-            except Exception as e:
-                log.error("Failed to create %s directory: %s", TRACER_FLARE_DIRECTORY, e)
-                return
-        for agent_config in configs:
-            # AGENT_CONFIG is currently being used for multiple purposes
-            # We only want to prepare for a tracer flare if the config name
-            # starts with 'flare-log-level'
-            if not agent_config.get("name", "").startswith("flare-log-level"):
-                return
+        try:
+            self.flare_dir.mkdir(exist_ok=True)
+        except Exception as e:
+            log.error("Failed to create %s directory: %s", self.flare_dir, e)
+            return
 
-            # Validate the flare log level
-            flare_log_level = agent_config.get("config", {}).get("log_level").upper()
-            flare_log_level_int = logging.getLevelName(flare_log_level)
-            if type(flare_log_level_int) != int:
-                raise TypeError("Invalid log level provided: %s", flare_log_level_int)
+        flare_log_level_int = logging.getLevelName(log_level)
+        if type(flare_log_level_int) != int:
+            raise TypeError("Invalid log level provided: %s", log_level)
 
-            ddlogger = get_logger("ddtrace")
-            pid = os.getpid()
-            flare_file_path = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_python_{pid}.log")
-            self.original_log_level = ddlogger.level
+        ddlogger = get_logger("ddtrace")
+        pid = os.getpid()
+        flare_file_path = self.flare_dir / f"tracer_python_{pid}.log"
+        self.original_log_level = ddlogger.level
 
-            # Set the logger level to the more verbose between original and flare
-            # We do this valid_original_level check because if the log level is NOTSET, the value is 0
-            # which is the minimum value. In this case, we just want to use the flare level, but still
-            # retain the original state as NOTSET/0
-            valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
-            logger_level = min(valid_original_level, flare_log_level_int)
-            ddlogger.setLevel(logger_level)
-            self.file_handler = _add_file_handler(
-                ddlogger, flare_file_path.__str__(), flare_log_level, TRACER_FLARE_FILE_HANDLER_NAME
-            )
+        # Set the logger level to the more verbose between original and flare
+        # We do this valid_original_level check because if the log level is NOTSET, the value is 0
+        # which is the minimum value. In this case, we just want to use the flare level, but still
+        # retain the original state as NOTSET/0
+        valid_original_level = (
+            logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
+        )
+        logger_level = min(valid_original_level, flare_log_level_int)
+        ddlogger.setLevel(logger_level)
+        self.file_handler = _add_file_handler(
+            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
+        )
 
-            # Create and add config file
-            self._generate_config_file(pid)
+        # Create and add config file
+        self._generate_config_file(pid)
 
-    def send(self, configs: List[Any]):
+    def send(self, flare_send_req: FlareSendRequest):
         """
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
-        for agent_task in configs:
-            # AGENT_TASK is currently being used for multiple purposes
-            # We only want to generate the tracer flare if the task_type is
-            # 'tracer_flare'
-            if type(agent_task) != dict or agent_task.get("task_type") != "tracer_flare":
-                continue
-            args = agent_task.get("args", {})
+        self.revert_configs()
 
-            self.revert_configs()
-
-            # We only want the flare to be sent once, even if there are
-            # multiple tracer instances
-            lock_path = TRACER_FLARE_DIRECTORY / TRACER_FLARE_LOCK
-            if not os.path.exists(lock_path):
-                try:
-                    open(lock_path, "w").close()
-                except Exception as e:
-                    log.error("Failed to create %s file", lock_path)
-                    raise e
-                data = {
-                    "case_id": args.get("case_id"),
-                    "source": "tracer_python",
-                    "hostname": args.get("hostname"),
-                    "email": args.get("user_handle"),
-                }
-                try:
-                    client = get_connection(config._trace_agent_url, timeout=self.timeout)
-                    headers, body = self._generate_payload(data)
-                    client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
-                    response = client.getresponse()
-                    if response.status == 200:
-                        log.info("Successfully sent the flare")
-                    else:
-                        log.error(
-                            "Upload failed with %s status code:(%s) %s",
-                            response.status,
-                            response.reason,
-                            response.read().decode(),
-                        )
-                except Exception as e:
-                    log.error("Failed to send tracer flare")
-                    raise e
-                finally:
-                    client.close()
-                    # Clean up files regardless of success/failure
-                    self.clean_up_files()
-                    return
+        # We only want the flare to be sent once, even if there are
+        # multiple tracer instances
+        lock_path = self.flare_dir / TRACER_FLARE_LOCK
+        if not os.path.exists(lock_path):
+            try:
+                open(lock_path, "w").close()
+            except Exception as e:
+                log.error("Failed to create %s file", lock_path)
+                raise e
+            try:
+                client = get_connection(config._trace_agent_url, timeout=self.timeout)
+                headers, body = self._generate_payload(flare_send_req.__dict__)
+                client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+                response = client.getresponse()
+                if response.status == 200:
+                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                else:
+                    log.error(
+                        "Tracer flare upload to Zendesk ticket %s failed with %s status code:(%s) %s",
+                        flare_send_req.case_id,
+                        response.status,
+                        response.reason,
+                        response.read().decode(),
+                    )
+            except Exception as e:
+                log.error("Failed to send tracer flare to Zendesk ticket %s", flare_send_req.case_id)
+                raise e
+            finally:
+                client.close()
+                # Clean up files regardless of success/failure
+                self.clean_up_files()
+                return
 
     def _generate_config_file(self, pid: int):
-        config_file = TRACER_FLARE_DIRECTORY / pathlib.Path(f"tracer_config_{pid}.json")
+        config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
                 tracer_configs = {
@@ -162,8 +149,7 @@ class Flare:
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-            for file_name in os.listdir(TRACER_FLARE_DIRECTORY):
-                flare_file_name = TRACER_FLARE_DIRECTORY / pathlib.Path(file_name)
+            for flare_file_name in self.flare_dir.iterdir():
                 tar.add(flare_file_name)
         tar_stream.seek(0)
 
@@ -197,6 +183,6 @@ class Flare:
 
     def clean_up_files(self):
         try:
-            shutil.rmtree(TRACER_FLARE_DIRECTORY)
+            shutil.rmtree(self.flare_dir)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)
