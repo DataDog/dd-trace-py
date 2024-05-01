@@ -3,6 +3,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace import Span
@@ -27,7 +28,9 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 
 
@@ -41,18 +44,25 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
-        self._llmobs_writer = LLMObsWriter(
+        self._llmobs_span_writer = LLMObsSpanWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
         )
-        self._llmobs_writer.start()
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+        )
+        self._llmobs_span_writer.start()
+        self._llmobs_eval_metric_writer.start()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_writer)]
+            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
 
     def _stop_service(self) -> None:
@@ -98,6 +108,32 @@ class LLMObs(Service):
         cls._instance = None
         cls.enabled = False
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
+        """Returns a simple representation of a span to export its span and trace IDs.
+        If no span is provided, the current active LLMObs-type span will be used.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.export_span() requires LLMObs to be enabled.")
+            return None
+        if span:
+            try:
+                if span.span_type != SpanTypes.LLM:
+                    log.warning("Span must be an LLMObs-generated span.")
+                    return None
+                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+            except (TypeError, AttributeError):
+                log.warning("Failed to export span. Span must be a valid Span object.")
+                return None
+        span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no active LLMObs-generated span found.")
+            return None
+        if span.span_type != SpanTypes.LLM:
+            log.warning("Span must be an LLMObs-generated span.")
+            return None
+        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
 
     def _start_span(
         self,
@@ -273,10 +309,10 @@ class LLMObs(Service):
         if span is None:
             span = cls._instance.tracer.current_span()
             if span is None:
-                log.warning("No span provided and no active span found.")
+                log.warning("No span provided and no active LLMObs-generated span found.")
                 return
         if span.span_type != SpanTypes.LLM:
-            log.warning("Span must be an LLM-type span.")
+            log.warning("Span must be an LLMObs-generated span.")
             return
         if span.finished:
             log.warning("Cannot annotate a finished span.")
@@ -319,21 +355,21 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
         if input_messages is not None:
-            if not isinstance(input_messages, Messages):
-                input_messages = Messages(input_messages)
             try:
+                if not isinstance(input_messages, Messages):
+                    input_messages = Messages(input_messages)
                 if input_messages.messages:
                     span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse input messages.")
+                log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is not None:
-            if not isinstance(output_messages, Messages):
-                output_messages = Messages(output_messages)
             try:
+                if not isinstance(output_messages, Messages):
+                    output_messages = Messages(output_messages)
                 if output_messages.messages:
                     span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse output messages.")
+                log.warning("Failed to parse output messages.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
@@ -394,3 +430,56 @@ class LLMObs(Service):
             span.set_tag_str(METRICS, json.dumps(metrics))
         except TypeError:
             log.warning("Failed to parse span metrics. Metric key-value pairs must be JSON serializable.")
+
+    @classmethod
+    def submit_evaluation(
+        cls,
+        span_context: Dict[str, str],
+        label: str,
+        metric_type: str,
+        value: Union[str, int, float],
+    ) -> None:
+        """
+        Submits a custom evaluation metric for a given span ID and trace ID.
+
+        :param span_context: A dictionary containing the span_id and trace_id of interest.
+        :param str label: The name of the evaluation metric.
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
+        :param value: The value of the evaluation metric.
+                      Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        """
+        if cls.enabled is False or cls._instance is None or cls._instance._llmobs_eval_metric_writer is None:
+            log.warning("LLMObs.submit_evaluation() requires LLMObs to be enabled.")
+            return
+        if not isinstance(span_context, dict):
+            log.warning(
+                "span_context must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+            return
+        span_id = span_context.get("span_id")
+        trace_id = span_context.get("trace_id")
+        if not (span_id and trace_id):
+            log.warning("span_id and trace_id must both be specified for the given evaluation metric to be submitted.")
+            return
+        if not label:
+            log.warning("label must be the specified name of the evaluation metric.")
+            return
+        if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
+            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            return
+        if metric_type == "categorical" and not isinstance(value, str):
+            log.warning("value must be a string for a categorical metric.")
+            return
+        if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
+            log.warning("value must be an integer or float for a numerical/score metric.")
+            return
+        cls._instance._llmobs_eval_metric_writer.enqueue(
+            {
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "label": str(label),
+                "metric_type": metric_type.lower(),
+                "{}_value".format(metric_type): value,
+            }
+        )

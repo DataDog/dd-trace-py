@@ -190,8 +190,8 @@ def _third_party_packages() -> set:
 
     return (
         set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
-        | tp_config.excludes
-    ) - tp_config.includes
+        | tp_config.includes
+    ) - tp_config.excludes
 
 
 @cached()

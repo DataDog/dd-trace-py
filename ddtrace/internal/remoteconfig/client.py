@@ -75,6 +75,7 @@ class Capabilities(enum.IntFlag):
     APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
     APM_TRACING_CUSTOM_TAGS = 1 << 15
     APM_TRACING_ENABLED = 1 << 19
+    APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
 class RemoteConfigError(Exception):
@@ -382,6 +383,7 @@ class RemoteConfigClient(object):
             | Capabilities.APM_TRACING_HTTP_HEADER_TAGS
             | Capabilities.APM_TRACING_CUSTOM_TAGS
             | Capabilities.APM_TRACING_ENABLED
+            | Capabilities.APM_TRACING_SAMPLE_RULES
         )
         return dict(
             client=dict(
@@ -544,9 +546,10 @@ class RemoteConfigClient(object):
         # type: (Mapping[str, Any]) -> None
         try:
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
-        except Exception:
+        except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
-            raise RemoteConfigError("invalid agent payload received")
+            msg = f"invalid agent payload received: {e}"
+            raise RemoteConfigError(msg)
 
         self._validate_config_exists_in_target_paths(payload.client_configs, payload.target_files)
 
