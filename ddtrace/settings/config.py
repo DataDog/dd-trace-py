@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 import os
 import re
 import sys
@@ -284,6 +285,11 @@ def _default_config():
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
         ),
+        "_trace_sampling_rules": _ConfigItem(
+            name="trace_sampling_rules",
+            default=lambda: "",
+            envs=[("DD_TRACE_SAMPLING_RULES", str)],
+        ),
         "logs_injection": _ConfigItem(
             name="logs_injection",
             default=False,
@@ -386,7 +392,6 @@ class Config(object):
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
@@ -566,7 +571,6 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
 
@@ -757,6 +761,14 @@ class Config(object):
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
 
+            if "tracing_sampling_rules" in lib_config:
+                trace_sampling_rules = lib_config["tracing_sampling_rules"]
+                if trace_sampling_rules:
+                    # returns None if no rules
+                    trace_sampling_rules = self.convert_rc_trace_sampling_rules(trace_sampling_rules)
+                    if trace_sampling_rules:
+                        base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+
             if "log_injection_enabled" in lib_config:
                 base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
 
@@ -883,3 +895,60 @@ class Config(object):
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
+
+    def _remove_invalid_rules(self, rc_rules: List) -> List:
+        """Remove invalid sampling rules from the given list"""
+        # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
+        for rule in rc_rules:
+            if (
+                ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
+                or "sample_rate" not in rule
+                or "provenance" not in rule
+            ):
+                log.debug("Invalid sampling rule from remoteconfig found, rule will be removed: %s", rule)
+                rc_rules.remove(rule)
+
+        return rc_rules
+
+    def _tags_to_dict(self, tags: List[Dict]):
+        """
+        Converts a list of tag dictionaries to a single dictionary.
+        """
+        if isinstance(tags, list):
+            return {tag["key"]: tag["value_glob"] for tag in tags}
+        return tags
+
+    def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+        """Example of an incoming rule:
+        [
+          {
+            "service": "my-service",
+            "name": "web.request",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 1.0,
+            "tags": [
+              {
+                "key": "care_about",
+                "value_glob": "yes"
+              },
+              {
+                "key": "region",
+                "value_glob": "us-*"
+              }
+            ]
+          }
+        ]
+
+                Example of a converted rule:
+                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
+        """
+        rc_rules = self._remove_invalid_rules(rc_rules)
+        for rule in rc_rules:
+            tags = rule.get("tags")
+            if tags:
+                rule["tags"] = self._tags_to_dict(tags)
+        if rc_rules:
+            return json.dumps(rc_rules)
+        else:
+            return None

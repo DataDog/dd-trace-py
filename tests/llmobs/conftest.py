@@ -38,6 +38,16 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
+def mock_llmobs_eval_metric_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsEvalMetricWriter")
+    LLMObsEvalMetricWriterMock = patcher.start()
+    m = mock.MagicMock()
+    LLMObsEvalMetricWriterMock.return_value = m
+    yield m
+    patcher.stop()
+
+
+@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
@@ -54,7 +64,7 @@ def default_global_config():
 
 
 @pytest.fixture
-def LLMObs(mock_llmobs_span_writer, ddtrace_global_config):
+def LLMObs(mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, ddtrace_global_config):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
