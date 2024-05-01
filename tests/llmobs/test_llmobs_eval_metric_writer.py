@@ -45,9 +45,7 @@ def _numerical_metric_event():
 def test_writer_start(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(site="datad0g.com", api_key=dd_api_key, interval=1000, timeout=1)
     llmobs_eval_metric_writer.start()
-    mock_writer_logs.debug.assert_has_calls(
-        [mock.call("started %r to %r", "LLMObsEvalMetricWriter", INTAKE_ENDPOINT)]
-    )
+    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsEvalMetricWriter", INTAKE_ENDPOINT)])
 
 
 def test_buffer_limit(mock_writer_logs):
