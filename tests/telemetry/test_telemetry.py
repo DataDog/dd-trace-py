@@ -55,7 +55,7 @@ assert telemetry_writer._worker is not None
 
 
 @pytest.mark.snapshot
-def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, run_python_code_in_subprocess):
     """assert telemetry events are generated after the first trace is flushed to the agent"""
 
     # Submit a trace to the agent in a subprocess
@@ -65,7 +65,7 @@ from ddtrace import tracer
 span = tracer.trace("test-telemetry")
 span.finish()
     """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
@@ -82,7 +82,7 @@ span.finish()
 
 
 @flaky(1735812000)
-def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
+def test_enable_fork(test_agent_session, ddtrace_run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
 import warnings
@@ -96,11 +96,6 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.settings import _config
 
-# We have to start before forking since fork hooks are not enabled until after enabling
-_config._telemetry_dependency_collection = False
-telemetry_writer.enable()
-telemetry_writer._app_started_event()
-
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
     telemetry_writer._app_started_event()
@@ -111,7 +106,7 @@ else:
     print(get_runtime_id())
     """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -266,12 +261,14 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
-def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
+def test_app_started_error_unhandled_exception(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = get_default_telemetry_env(
         {"DD_SPAN_SAMPLING_RULES": "invalid_rules", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"}
     )
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    # DEV: This can be an empty command because we are using ddtrace-run python, which loading ddtrace
+    # causes the unhandled exception
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("", env=env)
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
@@ -364,13 +361,10 @@ tracer.trace("hi").finish()
     assert integration_error["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
-def test_unhandled_integration_error(test_agent_session, run_python_code_in_subprocess):
+def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 import logging
 logging.basicConfig()
-
-import ddtrace
-ddtrace.patch(flask=True)
 
 import flask
 f = flask.Flask("hi")
@@ -379,7 +373,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 1, stderr
 
@@ -449,6 +443,57 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
     env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
 
     code = """
+from ddtrace import tracer
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
+"""
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+
+    events = test_agent_session.get_events()
+    assert len(events) == initial_event_count
+
+    assert status == 0, stderr
+    assert stderr == b""
+
+
+def test_instrumentation_telemetry_disabled_ddtrace_run(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Ensure no telemetry events are sent when telemetry is disabled"""
+    initial_event_count = len(test_agent_session.get_events())
+
+    env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+
+    code = """
+from ddtrace import tracer
+# Create a span to start the telemetry writer
+tracer.trace("hi").finish()
+
+# Importing ddtrace.internal.telemetry.__init__ creates the telemetry writer. This has a performance cost.
+# We want to avoid this cost when telemetry is disabled.
+import sys
+assert "ddtrace.internal.telemetry" not in sys.modules
+"""
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+
+    events = test_agent_session.get_events()
+    assert len(events) == initial_event_count
+
+    assert status == 0, stderr
+    assert stderr == b""
+
+
+def test_instrumentation_telemetry_disabled_ddtrace_auto(test_agent_session, run_python_code_in_subprocess):
+    """Ensure no telemetry events are sent when telemetry is disabled"""
+    initial_event_count = len(test_agent_session.get_events())
+
+    env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+
+    code = """
+import ddtrace.auto
 from ddtrace import tracer
 # Create a span to start the telemetry writer
 tracer.trace("hi").finish()
