@@ -665,8 +665,9 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
+    )
 
-      
+
 def test_export_span_llmobs_not_enabled_raises_warning(LLMObs, mock_logs):
     LLMObs.disable()
     LLMObs.export_span()

@@ -20,7 +20,10 @@ def mock_logs():
 
 def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     for decorator_name, decorator in (("llm", llm), ("embedding", embedding)):
-        @decorator(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
+
+        @decorator(
+            model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id"
+        )
         def f():
             pass
 
@@ -32,7 +35,11 @@ def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
 def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
     for decorator_name, decorator in (
-        ("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent), ("retrieval", retrieval),
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
     ):
 
         @decorator(name="test_function", session_id="test_session_id")
