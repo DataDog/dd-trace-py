@@ -1,4 +1,3 @@
-import os
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -10,6 +9,7 @@ import pytest
 from ddtrace.internal.module import origin
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
+import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -127,7 +128,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog,tracecontext"},
                     {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
                     {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
                     {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
@@ -141,6 +141,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
+                    {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
@@ -182,7 +183,7 @@ logging.basicConfig()
 import ddtrace.auto
     """
 
-    env = os.environ.copy()
+    env = get_default_telemetry_env()
     # Change configuration default values
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
@@ -291,11 +292,6 @@ import ddtrace.auto
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
             {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-            {
-                "name": "DD_TRACE_SAMPLING_RULES",
-                "origin": "unknown",
-                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-            },
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 1000},
@@ -309,6 +305,11 @@ import ddtrace.auto
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
+            {
+                "name": "trace_sampling_rules",
+                "origin": "env_var",
+                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+            },
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
@@ -503,7 +504,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 telemetry_writer.periodic()
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
-                    "failed to send telemetry to the Datadog Agent at %s. response: %s",
+                    "failed to send telemetry to the %s at %s. response: %s",
+                    "Datadog Agent",
                     telemetry_writer._client.url,
                     mock_status,
                 )
@@ -577,3 +579,66 @@ def _get_request_body(payload, payload_type, seq_id=1):
         "payload": payload,
         "request_type": payload_type,
     }
+
+
+def test_telemetry_writer_agent_setup():
+    with override_global_config(
+        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": False}
+    ):
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
+        assert new_telemetry_writer._client._is_agentless is False
+        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
+        assert new_telemetry_writer._client._telemetry_url == "http://localhost:9126"
+        assert "dd-api-key" not in new_telemetry_writer._client._headers
+
+
+@pytest.mark.parametrize(
+    "env_agentless,arg_agentless,expected_agentless",
+    [(True, True, True), (True, False, False), (False, True, True), (False, False, False)],
+)
+def test_telemetry_writer_agent_setup_agentless_arg_overrides_env(env_agentless, arg_agentless, expected_agentless):
+    with override_global_config(
+        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": env_agentless}
+    ):
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter(agentless=arg_agentless)
+        # Note: other tests are checking whether values bet set properly, so we're only looking at agentlessness here
+        assert new_telemetry_writer._client._is_agentless == expected_agentless
+
+
+def test_telemetry_writer_agentless_setup():
+    with override_global_config(
+        {"_dd_site": "datad0g.com", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
+    ):
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
+        assert new_telemetry_writer._client._is_agentless is True
+        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+
+
+def test_telemetry_writer_agentless_setup_eu():
+    with override_global_config(
+        {"_dd_site": "datadoghq.eu", "_dd_api_key": "foobarkey", "_ci_visibility_agentless_enabled": True}
+    ):
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
+        assert new_telemetry_writer._client._is_agentless is True
+        assert new_telemetry_writer._client._is_disabled is False
+        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+        assert (
+            new_telemetry_writer._client._telemetry_url == "https://instrumentation-telemetry-intake.eu1.datadoghq.com"
+        )
+        assert new_telemetry_writer._client._headers["dd-api-key"] == "foobarkey"
+
+
+def test_telemetry_writer_agentless_disabled_without_api_key():
+    with override_global_config(
+        {"_dd_site": "datad0g.com", "_dd_api_key": None, "_ci_visibility_agentless_enabled": True}
+    ):
+        new_telemetry_writer = ddtrace.internal.telemetry.TelemetryWriter()
+        assert new_telemetry_writer._client._is_agentless is True
+        assert new_telemetry_writer._client._is_disabled is True
+        assert new_telemetry_writer._client._endpoint == "api/v2/apmtelemetry"
+        assert new_telemetry_writer._client._telemetry_url == "https://all-http-intake.logs.datad0g.com"
+        assert "dd-api-key" not in new_telemetry_writer._client._headers

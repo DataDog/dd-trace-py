@@ -3,6 +3,8 @@ import os
 import vcr
 
 import ddtrace
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 
 
 logs_vcr = vcr.VCR(
@@ -45,6 +47,7 @@ def _expected_llmobs_llm_span_event(
     input_messages=None,
     output_messages=None,
     parameters=None,
+    metadata=None,
     token_metrics=None,
     model_name=None,
     model_provider=None,
@@ -60,6 +63,7 @@ def _expected_llmobs_llm_span_event(
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     parameters: dict of input parameters
+    metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     model_name: name of the model
     model_provider: name of the model provider
@@ -75,6 +79,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict["input"].update({"messages": input_messages})
     if output_messages is not None:
         meta_dict["output"].update({"messages": output_messages})
+    if metadata is not None:
+        meta_dict.update({"metadata": metadata})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
     if model_name is not None:
@@ -97,6 +103,7 @@ def _expected_llmobs_non_llm_span_event(
     input_value=None,
     output_value=None,
     parameters=None,
+    metadata=None,
     token_metrics=None,
     tags=None,
     session_id=None,
@@ -110,6 +117,7 @@ def _expected_llmobs_non_llm_span_event(
     input_value: input value string
     output_value: output value string
     parameters: dict of input parameters
+    metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     tags: dict of tags to add/override on span
     session_id: session ID
@@ -123,8 +131,10 @@ def _expected_llmobs_non_llm_span_event(
         meta_dict["input"].update({"value": input_value})
     if parameters is not None:
         meta_dict["input"].update({"parameters": parameters})
+    if metadata is not None:
+        meta_dict.update({"metadata": metadata})
     if output_value is not None:
-        meta_dict["output"].update({"messages": output_value})
+        meta_dict["output"].update({"value": output_value})
     if not meta_dict["input"]:
         meta_dict.pop("input")
     if not meta_dict["output"]:
@@ -147,13 +157,13 @@ def _llmobs_base_span_event(
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
-        "parent_id": "undefined",
+        "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
         "name": span.name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
-        "error": 1 if error else 0,
+        "status": "error" if error else "ok",
         "meta": {"span.kind": span_kind},
         "metrics": {},
     }
@@ -162,3 +172,26 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
     return span_event
+
+
+def _get_llmobs_parent_id(span: Span):
+    if not span._parent:
+        return "undefined"
+    parent = span._parent
+    while parent is not None:
+        if parent.span_type == SpanTypes.LLM:
+            return str(parent.span_id)
+        parent = parent._parent
+
+
+def _expected_llmobs_eval_metric_event(
+    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None
+):
+    eval_metric_event = {"span_id": span_id, "trace_id": trace_id, "metric_type": metric_type, "label": label}
+    if categorical_value is not None:
+        eval_metric_event["categorical_value"] = categorical_value
+    if score_value is not None:
+        eval_metric_event["score_value"] = score_value
+    if numerical_value is not None:
+        eval_metric_event["numerical_value"] = numerical_value
+    return eval_metric_event

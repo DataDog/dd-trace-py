@@ -145,6 +145,30 @@ def _tag_openai_token_usage(
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
 
 
+def _is_openai_llm_instance(instance):
+    """Safely check if a traced instance is an OpenAI LLM.
+    langchain_community does not automatically import submodules which may result in AttributeErrors.
+    """
+    try:
+        if langchain_openai:
+            return isinstance(instance, langchain_openai.OpenAI)
+        return isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
+    except (AttributeError, ModuleNotFoundError, ImportError):
+        return False
+
+
+def _is_openai_chat_instance(instance):
+    """Safely check if a traced instance is an OpenAI Chat Model.
+    langchain_community does not automatically import submodules which may result in AttributeErrors.
+    """
+    try:
+        if langchain_openai:
+            return isinstance(instance, langchain_openai.ChatOpenAI)
+        return isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
+    except (AttributeError, ModuleNotFoundError, ImportError):
+        return False
+
+
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
@@ -173,9 +197,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
-        ):
+        if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -253,9 +275,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.OpenAI)
-        ):
+        if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
             integration.record_usage(span, completions.llm_output)
 
@@ -346,9 +366,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
-        ):
+        if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
@@ -453,9 +471,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI) or (
-            langchain_openai and isinstance(instance, langchain_openai.ChatOpenAI)
-        ):
+        if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
             integration.record_usage(span, chat_completions.llm_output)
 
@@ -578,7 +594,13 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain",
+    )
+    inputs = None
     final_outputs = {}
     try:
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
@@ -604,6 +626,8 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -629,7 +653,13 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain",
+    )
+    inputs = None
     final_outputs = {}
     try:
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
@@ -653,6 +683,8 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("chain", span, inputs, final_outputs, error=bool(span.error))
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
         if integration.is_pc_sampled_log(span):
@@ -690,7 +722,14 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     This method captures the initial inputs to the chain, as well as the final outputs, and tags them appropriately.
     """
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain",
+    )
+    inputs = None
+    final_output = None
     try:
         inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
@@ -714,6 +753,8 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -725,7 +766,14 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     Similar to `traced_lcel_runnable_sequence`, but for async chaining calls.
     """
     integration = langchain._datadog_integration
-    span = integration.trace(pin, "%s.%s" % (instance.__module__, instance.__class__.__name__), interface_type="chain")
+    span = integration.trace(
+        pin,
+        "{}.{}".format(instance.__module__, instance.__class__.__name__),
+        submit_to_llmobs=True,
+        interface_type="chain",
+    )
+    inputs = None
+    final_output = None
     try:
         inputs = get_argument_value(args, kwargs, 0, "input")
         if integration.is_pc_sampled_span(span):
@@ -749,6 +797,8 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags("chain", span, inputs, final_output, error=bool(span.error))
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
@@ -842,9 +892,7 @@ def patch():
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
         from langchain.chains.base import Chain  # noqa:F401
-        from langchain_community import chat_models  # noqa:F401
         from langchain_community import embeddings  # noqa:F401
-        from langchain_community import llms  # noqa:F401
         from langchain_community import vectorstores  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))

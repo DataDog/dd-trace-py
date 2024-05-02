@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixed an issue with AES functions from the pycryptodome package that caused the 
+    application to crash and stop.

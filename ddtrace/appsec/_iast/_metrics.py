@@ -59,12 +59,11 @@ def metric_verbosity(lvl):
 def _set_iast_error_metric(msg):
     # type: (str) -> None
     # Due to format_exc and format_exception returns the error and the last frame
-    log.debug("IAST Error: %s", msg)
     try:
         exception_type, exception_instance, _traceback_list = sys.exc_info()
         res = []
-        # first 3 frames are this function, the exception in aspects and the error line
-        res.extend(traceback.format_stack(limit=10)[:-3])
+        # first 10 frames are this function, the exception in aspects and the error line
+        res.extend(traceback.format_stack(limit=10))
 
         # get the frame with the error and the error message
         result = traceback.format_exception(exception_type, exception_instance, _traceback_list)

@@ -16,6 +16,8 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
+from .. import trace_utils
+
 
 AIOPG_VERSION = parse_version(__version__)
 
@@ -33,9 +35,13 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             result = await method(*args, **kwargs)
             return result
-        service = pin.service
 
-        with pin.tracer.trace(self._datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
+        with pin.tracer.trace(
+            self._datadog_name,
+            service=trace_utils.ext_service(pin, config.aiopg),
+            resource=resource,
+            span_type=SpanTypes.SQL,
+        ) as s:
             s.set_tag_str(COMPONENT, config.aiopg.integration_name)
             s.set_tag_str(db.SYSTEM, "postgresql")
 

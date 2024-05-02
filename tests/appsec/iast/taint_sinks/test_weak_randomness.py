@@ -39,8 +39,6 @@ def test_weak_randomness(random_func, iast_span_defaults):
     assert vulnerability.hash == hash_value
     assert vulnerability.evidence.value == "Random.{}".format(random_func)
     assert vulnerability.evidence.valueParts is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")
@@ -73,8 +71,6 @@ def test_weak_randomness_module(random_func, iast_span_defaults):
     assert vulnerability.hash == hash_value
     assert vulnerability.evidence.value == "Random.{}".format(random_func)
     assert vulnerability.evidence.valueParts is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
 
 
 @pytest.mark.skipif(WEEK_RANDOMNESS_PY_VERSION, reason="Some random methods exists on 3.9 or higher")

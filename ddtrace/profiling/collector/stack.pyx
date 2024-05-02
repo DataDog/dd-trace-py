@@ -10,8 +10,8 @@ import attr
 import six
 
 from ddtrace import _threading as ddtrace_threading
-from ddtrace import context
-from ddtrace import span as ddspan
+from ddtrace._trace import context
+from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
