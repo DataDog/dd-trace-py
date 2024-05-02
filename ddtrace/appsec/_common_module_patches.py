@@ -8,7 +8,9 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -49,6 +51,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import is_blocked
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -66,7 +69,9 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
                 crop_trace="wrapped_open_CFDDB7ABBA9081B6",
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
-            # DEV: Next part of the exploit prevention feature: add block here
+            if is_blocked():
+                raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "lfi", filename)
+
     return original_open_callable(*args, **kwargs)
 
 
@@ -82,6 +87,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import is_blocked
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -98,7 +104,8 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     crop_trace="wrapped_open_ED4CF71136E15EBF",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-            # DEV: Next part of the exploit prevention feature: add block here
+                if is_blocked():
+                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
     return original_open_callable(*args, **kwargs)
 
 
@@ -115,6 +122,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._asm_request_context import is_blocked
             from ddtrace.appsec._constants import EXPLOIT_PREVENTION
         except ImportError:
             # open is used during module initialization
@@ -129,7 +137,9 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     crop_trace="wrapped_request_D8CB81E472AF98A2",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-            # DEV: Next part of the exploit prevention feature: add block here
+                if is_blocked():
+                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
+
     return original_request_callable(*args, **kwargs)
 
 
