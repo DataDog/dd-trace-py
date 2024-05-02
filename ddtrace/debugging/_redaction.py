@@ -100,7 +100,7 @@ REDACTED_IDENTIFIERS = (
             "xforwardedfor",
             "xrealip",
             "xsrf",
-            "xsrftoken"
+            "xsrftoken",
         }
     )
     | config.redacted_identifiers
