@@ -134,6 +134,11 @@ class Flare:
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
+                # Redact API key if present
+                api_key = config.get("_dd_api_key")
+                if api_key:
+                    config["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+
                 tracer_configs = {
                     "configs": config,
                 }
