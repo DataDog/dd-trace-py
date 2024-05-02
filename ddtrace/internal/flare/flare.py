@@ -35,6 +35,12 @@ class FlareSendRequest:
     source: str = "tracer_python"
 
 
+class TracerFlareSendError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
 class Flare:
     def __init__(
         self,
@@ -105,19 +111,17 @@ class Flare:
             try:
                 client = get_connection(self.url, timeout=self.timeout)
                 headers, body = self._generate_payload(flare_send_req.__dict__)
-                print("headers: %s", headers)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 else:
-                    log.error(
-                        "Tracer flare upload to Zendesk ticket %s failed with %s status code:(%s) %s",
-                        flare_send_req.case_id,
+                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
                         response.status,
                         response.reason,
                         response.read().decode(),
                     )
+                    raise TracerFlareSendError(msg)
             except Exception as e:
                 log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise e
@@ -125,7 +129,6 @@ class Flare:
                 client.close()
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
-                return
 
     def _generate_config_file(self, config: dict, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
@@ -166,16 +169,15 @@ class Flare:
         boundary = binascii.hexlify(os.urandom(16))
         body = io.BytesIO()
         for key, value in params.items():
-            print(key, value)
             encoded_key = key.encode()
             encoded_value = value.encode()
             body.write(b"--" + boundary + newline)
-            body.write(b'Content-Disposition: form-data; name="{%s}"{%s}{%s}' % (encoded_key, newline, newline))
-            body.write(b"{%s}{%s}" % (encoded_value, newline))
+            body.write(b'Content-Disposition: form-data; name="%s"%s%s' % (encoded_key, newline, newline))
+            body.write(b"%s%s" % (encoded_value, newline))
 
         body.write(b"--" + boundary + newline)
-        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"{%s}' % newline))
-        body.write(b"Content-Type: application/octet-stream{%s}{%s}" % (newline, newline))
+        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"%s' % newline))
+        body.write(b"Content-Type: application/octet-stream%s%s" % (newline, newline))
         body.write(tar_stream.getvalue() + newline)
         body.write(b"--" + boundary + b"--")
         headers = {
