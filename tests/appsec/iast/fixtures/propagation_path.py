@@ -5,6 +5,7 @@ make some changes
 import os
 import sys
 
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -140,7 +141,7 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string9 = "notainted#{}".format(string8)
     # notainted#TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string10 = string9.split('#')[1]
+    string10 = string9.split("#")[1]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string11 = "notainted#{}".format(string10)
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
@@ -153,7 +154,7 @@ def propagation_memory_check(origin_string1, tainted_string_2):
     # /foo/bar/TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
     string16 = os.path.split(string15)[1]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
-    string17 = string16 + '.jpg'
+    string17 = string16 + ".jpg"
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted.jpg
     string18 = os.path.splitext(string17)[0]
     # TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE2-TAINTSOURCE1TAINTSOURCE_notainted
