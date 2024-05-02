@@ -427,7 +427,7 @@ class TelemetryWriter(PeriodicService):
             inst_config_id_entry = (
                 "instrumentation_config_id",
                 os.environ["DD_INSTRUMENTATION_CONFIG_ID"],
-                "environment",
+                "env_var",
             )
 
         self.add_configurations(
