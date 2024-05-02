@@ -192,7 +192,7 @@ def _wsgi_make_block_content(ctx, construct_url):
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
+    resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
 
@@ -240,7 +240,7 @@ def _asgi_make_block_content(ctx, url):
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
+    resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
 

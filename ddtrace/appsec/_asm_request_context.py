@@ -542,6 +542,7 @@ def _on_block_decided(callback):
         return
 
     set_value(_CALLBACKS, "flask_block", callback)
+    core.on("flask.block.request.content", callback, "block_requested")
 
 
 def _get_headers_if_appsec():

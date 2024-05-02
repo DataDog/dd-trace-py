@@ -483,6 +483,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
+                response["Content-Length"] = len(content.encode())
             utils._after_request_tags(pin, ctx["call"], request, response)
             return response
 
