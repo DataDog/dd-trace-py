@@ -22,6 +22,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -467,7 +468,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -510,7 +511,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response = blocked_response()
                 return response
 
-            response = func(*args, **kwargs)
+            try:
+                response = func(*args, **kwargs)
+            except BlockingException as e:
+                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                response = blocked_response()
+                return response
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
