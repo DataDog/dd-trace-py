@@ -4,7 +4,6 @@ import os
 import sys
 import time
 from types import ModuleType
-from typing import cast
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -423,11 +422,13 @@ class TelemetryWriter(PeriodicService):
         if register_app_shutdown:
             atexit.register(self.app_shutdown)
 
-        package_source_entry = ["instrumentation_config_id", "", "default"]
+        inst_config_id_entry = ("instrumentation_config_id", "", "default")
         if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
-            package_source_entry[1] = os.environ["DD_INSTRUMENTATION_CONFIG_ID"]
-            package_source_entry[2] = "environment"
-        package_source_entry_t = cast(Tuple[str, str, str], tuple(package_source_entry))
+            inst_config_id_entry = (
+                "instrumentation_config_id",
+                os.environ["DD_INSTRUMENTATION_CONFIG_ID"],
+                "environment",
+            )
 
         self.add_configurations(
             [
@@ -442,7 +443,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
                 self._telemetry_entry("_tracing_enabled"),
-                package_source_entry_t,
+                inst_config_id_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),
