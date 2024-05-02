@@ -15,6 +15,7 @@ REDACTED_IDENTIFIERS = (
         {
             "2fa",
             "accesstoken",
+            "address",
             "aiohttpsession",
             "apikey",
             "apisecret",
@@ -30,6 +31,7 @@ REDACTED_IDENTIFIERS = (
             "clientid",
             "clientsecret",
             "config",
+            "connectionstring",
             "connectsid",
             "cookie",
             "credentials",
@@ -42,7 +44,9 @@ REDACTED_IDENTIFIERS = (
             "encryptionkey",
             "encryptionkeyid",
             "env",
+            "geolocation",
             "gpgkey",
+            "ipaddress",
             "jti",
             "jwt",
             "licensekey",
@@ -62,9 +66,6 @@ REDACTED_IDENTIFIERS = (
             "pin",
             "pincode",
             "pkcs8",
-            "plateno",
-            "platenum",
-            "platenumber",
             "privatekey",
             "publickey",
             "pwd",
@@ -98,7 +99,8 @@ REDACTED_IDENTIFIERS = (
             "xcsrftoken",
             "xforwardedfor",
             "xrealip",
-            "xsrftoken",
+            "xsrf",
+            "xsrftoken"
         }
     )
     | config.redacted_identifiers
