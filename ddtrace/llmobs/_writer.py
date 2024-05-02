@@ -66,7 +66,7 @@ class BaseLLMObsWriter(PeriodicService):
 
     def start(self, *args, **kwargs):
         super(BaseLLMObsWriter, self).start()
-        logger.debug("started %r to %r", (self.__class__.__name__, self._url))
+        logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
     def on_shutdown(self):
@@ -76,7 +76,7 @@ class BaseLLMObsWriter(PeriodicService):
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
-                    "%r event buffer full (limit is %d), dropping event", (self.__class__.__name__, self._buffer_limit)
+                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
                 return
             self._buffer.append(event)
@@ -92,7 +92,7 @@ class BaseLLMObsWriter(PeriodicService):
         try:
             enc_llm_events = json.dumps(data)
         except TypeError:
-            logger.error("failed to encode %d LLMObs %s events", (len(events), self._event_type), exc_info=True)
+            logger.error("failed to encode %d LLMObs %s events", len(events), self._event_type, exc_info=True)
             return
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
@@ -101,19 +101,17 @@ class BaseLLMObsWriter(PeriodicService):
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
-                    (
-                        len(events),
-                        self._event_type,
-                        self._url,
-                        resp.status,
-                        resp.read(),
-                    ),
+                    len(events),
+                    self._event_type,
+                    self._url,
+                    resp.status,
+                    resp.read(),
                 )
             else:
-                logger.debug("sent %d LLMObs %s events to %s", (len(events), self._event_type, self._url))
+                logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
         except Exception:
             logger.error(
-                "failed to send %d LLMObs %s events to %s", (len(events), self._event_type, self._intake), exc_info=True
+                "failed to send %d LLMObs %s events to %s", len(events), self._event_type, self._intake, exc_info=True
             )
         finally:
             conn.close()

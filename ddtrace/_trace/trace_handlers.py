@@ -6,9 +6,10 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._trace.span import Span
+from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils import set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags
+from ddtrace._trace.utils import set_botocore_response_metadata_tags
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -107,6 +108,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
+    distributed_context = ctx.get_item("distributed_context", traverse=True)
+    if distributed_context and not call_trace:
+        span_kwargs["child_of"] = distributed_context
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
@@ -569,20 +573,20 @@ def _on_botocore_patched_api_call_started(ctx):
         span.start_ns = start_ns
 
 
-def _on_botocore_patched_api_call_exception(ctx, response, exception_type, set_response_metadata_tags):
+def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
     span = ctx.get_item(ctx.get_item("call_key"))
     # `ClientError.response` contains the result, so we can still grab response metadata
-    set_response_metadata_tags(span, response)
+    set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
 
     # If we have a status code, and the status code is not an error,
     #   then ignore the exception being raised
     status_code = span.get_tag(http.STATUS_CODE)
-    if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+    if status_code and not is_error_code_fn(int(status_code)):
         span._ignore_exception(exception_type)
 
 
-def _on_botocore_patched_api_call_success(ctx, response, set_response_metadata_tags):
-    set_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
+def _on_botocore_patched_api_call_success(ctx, response):
+    set_botocore_response_metadata_tags(ctx.get_item(ctx.get_item("call_key")), response)
 
 
 def _on_botocore_trace_context_injection_prepared(
@@ -632,8 +636,9 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx[ctx["call_key"]]
     span.set_exc_info(*exc_info)
     prompt = ctx["prompt"]
+    model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
-    if integration.is_pc_sampled_llmobs(span):
+    if integration.is_pc_sampled_llmobs(span) and "embed" not in model_name:
         integration.llmobs_set_tags(span, formatted_response=None, prompt=prompt, err=True)
     span.finish()
 
@@ -655,6 +660,7 @@ def _on_botocore_bedrock_process_response(
 ) -> None:
     text = formatted_response["text"]
     span = ctx[ctx["call_key"]]
+    model_name = ctx["model_name"]
     if should_set_choice_ids:
         for i in range(len(text)):
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
@@ -662,6 +668,10 @@ def _on_botocore_bedrock_process_response(
     if metadata is not None:
         for k, v in metadata.items():
             span.set_tag_str("bedrock.{}".format(k), str(v))
+    if "embed" in model_name:
+        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
+        span.finish()
+        return
     for i in range(len(formatted_response["text"])):
         if integration.is_pc_sampled_span(span):
             span.set_tag_str(
@@ -674,6 +684,31 @@ def _on_botocore_bedrock_process_response(
     if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, formatted_response=formatted_response, prompt=ctx["prompt"])
     span.finish()
+
+
+def _on_botocore_sqs_recvmessage_post(
+    ctx: core.ExecutionContext, _, result: Dict, propagate: bool, message_parser: Callable
+) -> None:
+    if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
+        ctx.set_item("message_received", True)
+        if propagate:
+            ctx.set_safe("distributed_context", extract_DD_context_from_messages(result["Messages"], message_parser))
+
+
+def _on_botocore_kinesis_getrecords_post(
+    ctx: core.ExecutionContext,
+    _,
+    __,
+    ___,
+    ____,
+    result,
+    propagate: bool,
+    message_parser: Callable,
+):
+    if result is not None and "Records" in result and len(result["Records"]) >= 1:
+        ctx.set_item("message_received", True)
+        if propagate:
+            ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
 def _on_redis_async_command_post(span, rowcount):
@@ -721,10 +756,14 @@ def listen():
     core.on("botocore.patched_stepfunctions_api_call.started", _on_botocore_patched_api_call_started)
     core.on("botocore.patched_stepfunctions_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.stepfunctions.update_messages", _on_botocore_update_messages)
+    core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
+    core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
+    core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_async_command_post)
 
     for context_name in (

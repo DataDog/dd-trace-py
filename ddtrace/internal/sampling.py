@@ -62,6 +62,16 @@ class SamplingMechanism(object):
     REMOTE_RATE_USER = 6
     REMOTE_RATE_DATADOG = 7
     SPAN_SAMPLING_RULE = 8
+    REMOTE_USER_RULE = 11
+    REMOTE_DYNAMIC_RULE = 12
+
+
+class PriorityCategory(object):
+    DEFAULT = "default"
+    AUTO = "auto"
+    RULE_DEFAULT = "rule_default"
+    RULE_CUSTOMER = "rule_customer"
+    RULE_DYNAMIC = "rule_dynamic"
 
 
 # Use regex to validate trace tag value
@@ -278,11 +288,17 @@ def is_single_span_sampled(span):
 def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     # type: (Span, bool, float, str) -> None
     mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
-    if priority_category == "rule":
+    if priority_category == PriorityCategory.RULE_DEFAULT:
         span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
-    elif priority_category == "default":
+    if priority_category == PriorityCategory.RULE_CUSTOMER:
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        mechanism = SamplingMechanism.REMOTE_USER_RULE
+    if priority_category == PriorityCategory.RULE_DYNAMIC:
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        mechanism = SamplingMechanism.REMOTE_DYNAMIC_RULE
+    elif priority_category == PriorityCategory.DEFAULT:
         mechanism = SamplingMechanism.DEFAULT
-    elif priority_category == "auto":
+    elif priority_category == PriorityCategory.AUTO:
         mechanism = SamplingMechanism.AGENT_RATE
         span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
     priorities = _CATEGORY_TO_PRIORITIES[priority_category]

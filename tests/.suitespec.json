@@ -141,6 +141,7 @@
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
+            "ddtrace/contrib/trace_utils_redis.py",
             "ddtrace/ext/redis.py"
         ],
         "mongo": [

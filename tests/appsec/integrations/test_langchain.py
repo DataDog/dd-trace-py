@@ -33,21 +33,23 @@ def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
     assert span_report
-
-    vulnerability = list(span_report.vulnerabilities)[0]
-    source = span_report.sources[0]
-    assert vulnerability.type == VULN_CMDI
-    assert vulnerability.evidence.valueParts == [
-        {"value": "echo Hello World", "source": 0},
+    data = span_report.build_and_scrub_value_parts()
+    vulnerability = data["vulnerabilities"][0]
+    source = data["sources"][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"source": 0, "value": "echo "},
+        {"pattern": "", "redacted": True, "source": 0},
+        {"source": 0, "value": "Hello World"},
     ]
-    assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
-    assert source.name == "test_openai_llm_appsec_iast_cmdi"
-    assert source.origin == OriginType.PARAMETER
-    assert source.value == string_to_taint
+    assert "value" not in vulnerability["evidence"].keys()
+    assert vulnerability["evidence"].get("pattern") is None
+    assert vulnerability["evidence"].get("redacted") is None
+    assert source["name"] == "test_openai_llm_appsec_iast_cmdi"
+    assert source["origin"] == OriginType.PARAMETER
+    assert "value" not in source.keys()
 
     line, hash_value = get_line_and_hash("test_openai_llm_appsec_iast_cmdi", VULN_CMDI, filename=FIXTURES_PATH)
-    assert vulnerability.location.path == FIXTURES_PATH
-    assert vulnerability.location.line == line
-    assert vulnerability.hash == hash_value
+    assert vulnerability["location"]["path"] == FIXTURES_PATH
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["hash"] == hash_value
