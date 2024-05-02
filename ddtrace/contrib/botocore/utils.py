@@ -8,13 +8,11 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import Span
 from ddtrace import config
+from ddtrace.internal import core
 from ddtrace.internal.core import ExecutionContext
 
-from ...ext import http
 from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -66,11 +64,7 @@ def get_kinesis_data_object(data: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     return None, None
 
 
-def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
-    """
-    Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
-    Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
-    """
+def update_eventbridge_detail(ctx: ExecutionContext) -> None:
     params = ctx["params"]
     if "Entries" not in params:
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
@@ -86,8 +80,7 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
                 continue
 
         detail["_datadog"] = {}
-        span = ctx[ctx["call_key"]]
-        HTTPPropagator.inject(span.context, detail["_datadog"])
+        core.dispatch("botocore.eventbridge.update_messages", [ctx, None, None, detail["_datadog"], None])
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -99,12 +92,11 @@ def inject_trace_to_eventbridge_detail(ctx: ExecutionContext) -> None:
         entry["Detail"] = detail_json
 
 
-def inject_trace_to_client_context(ctx):
+def update_client_context(ctx: ExecutionContext) -> None:
     trace_headers = {}
-    span = ctx[ctx["call_key"]]
-    params = ctx["params"]
-    HTTPPropagator.inject(span.context, trace_headers)
+    core.dispatch("botocore.client_context.update_messages", [ctx, None, None, trace_headers, None])
     client_context_object = {}
+    params = ctx["params"]
     if "ClientContext" in params:
         try:
             client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
@@ -131,39 +123,7 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def set_response_metadata_tags(span: Span, result: Dict[str, Any]) -> None:
-    if not result or not result.get("ResponseMetadata"):
-        return
-    response_meta = result["ResponseMetadata"]
-
-    if "HTTPStatusCode" in response_meta:
-        status_code = response_meta["HTTPStatusCode"]
-        span.set_tag(http.STATUS_CODE, status_code)
-
-        # Mark this span as an error if requested
-        if config.botocore.operations[span.resource].is_error_code(int(status_code)):
-            span.error = 1
-
-    if "RetryAttempts" in response_meta:
-        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
-
-    if "RequestId" in response_meta:
-        span.set_tag_str("aws.requestid", response_meta["RequestId"])
-
-
-def extract_DD_context(messages):
-    ctx = None
-    if len(messages) >= 1:
-        message = messages[0]
-        context_json = extract_trace_context_json(message)
-        if context_json is not None:
-            child_of = HTTPPropagator.extract(context_json)
-            if child_of.trace_id is not None:
-                ctx = child_of
-    return ctx
-
-
-def extract_trace_context_json(message):
+def extract_DD_json(message):
     context_json = None
     try:
         if message and message.get("Type") == "Notification":
@@ -200,7 +160,7 @@ def extract_trace_context_json(message):
             if "Body" in message:
                 try:
                     body = json.loads(message["Body"])
-                    return extract_trace_context_json(body)
+                    return extract_DD_json(body)
                 except ValueError:
                     log.debug("Unable to parse AWS message body.")
     except Exception:
