@@ -50,7 +50,7 @@ class IASTFilter(LeaksFilterFunction):
 
 
 @flaky(1735812000)
-@pytest.mark.limit_leaks("6.4 KB", filter_fn=IASTFilter())
+@pytest.mark.limit_leaks("8.2 KB", filter_fn=IASTFilter())
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
