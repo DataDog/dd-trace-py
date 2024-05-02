@@ -695,13 +695,13 @@ class Contrib_TestClass_For_Threats:
                 )
                 assert self.headers(response)["content-type"] == "text/json"
                 for k in headers:
-                    assert k not in response.headers
+                    assert k not in self.headers(response)
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
-            assert "content-length" in response.headers
-            assert int(response.headers["content-length"]) == len(self.body(response).encode())
+            assert "content-length" in self.headers(response)
+            assert int(self.headers(response)["content-length"]) == len(self.body(response).encode())
 
     LARGE_BODY = {
         f"key_{i}": {f"key_{i}_{j}": {f"key_{i}_{j}_{k}": f"value_{i}_{j}_{k}" for k in range(4)} for j in range(4)}
