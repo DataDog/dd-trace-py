@@ -11,6 +11,7 @@ RULES_SRB_RESPONSE = os.path.join(ROOT_DIR, "rules-suspicious-requests-response.
 RULES_SRB_METHOD = os.path.join(ROOT_DIR, "rules-suspicious-requests-get.json")
 RULES_BAD_VERSION = os.path.join(ROOT_DIR, "rules-bad_version.json")
 RULES_EXPLOIT_PREVENTION = os.path.join(ROOT_DIR, "rules-rasp.json")
+RULES_EXPLOIT_PREVENTION_BLOCKING = os.path.join(ROOT_DIR, "rules-rasp-blocking.json")
 
 RESPONSE_CUSTOM_JSON = os.path.join(ROOT_DIR, "response-custom.json")
 RESPONSE_CUSTOM_HTML = os.path.join(ROOT_DIR, "response-custom.html")
