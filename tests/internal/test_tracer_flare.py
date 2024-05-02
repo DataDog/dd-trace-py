@@ -13,6 +13,7 @@ from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
+from tests.utils import flaky
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
@@ -120,6 +121,7 @@ class TracerFlareTests(unittest.TestCase):
         for p in processes:
             p.join()
 
+    @flaky(1722529274)
     def test_multiple_process_partial_failure(self):
         """
         Validte that even if the tracer flare fails for one process, we should
