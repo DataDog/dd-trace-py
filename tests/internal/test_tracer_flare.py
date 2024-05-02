@@ -189,17 +189,14 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         },
     ]
 
-    def test_process_flare_request_success(self):
-        """
-        Ensure a full successful tracer flare process
-        """
+    def setUp(self):
         from ddtrace import config
 
-        tracer_flare_sub = TracerFlareSubscriber(
+        self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=PublisherSubscriberConnector(), callback=config._handle_tracer_flare
         )
 
-        # Generate an AGENT_CONFIG product to trigger a request
+    def generate_agent_config(self):
         with mock.patch(
             "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
         ) as mock_pubsub_conn:
@@ -207,12 +204,9 @@ class TracerFlareSubscriberTests(unittest.TestCase):
                 "metadata": [{"product_name": "AGENT_CONFIG"}],
                 "config": self.agent_config,
             }
-            tracer_flare_sub._get_data_from_connector_and_exec()
+            self.tracer_flare_sub._get_data_from_connector_and_exec()
 
-        assert len(os.listdir(TRACER_FLARE_DIRECTORY)) == 2
-        assert tracer_flare_sub.current_request_start is not None
-
-        # Generate an AGENT_TASK product to complete the request
+    def generate_agent_task(self):
         with mock.patch(
             "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
         ) as mock_pubsub_conn:
@@ -220,44 +214,51 @@ class TracerFlareSubscriberTests(unittest.TestCase):
                 "metadata": [{"product_name": "AGENT_TASK"}],
                 "config": self.agent_task,
             }
-            tracer_flare_sub._get_data_from_connector_and_exec()
+            self.tracer_flare_sub._get_data_from_connector_and_exec()
 
-        # Everything is cleaned up, reverted, and no current tracer flare
-        # timestamp
-        assert tracer_flare_sub.current_request_start is None
+    def test_process_flare_request_success(self):
+        """
+        Ensure a full successful tracer flare process
+        """
+        assert self.tracer_flare_sub.stale_tracer_flare_num_mins == 20
+        # Generate an AGENT_CONFIG product to trigger a request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
+
+        assert self.tracer_flare_sub.current_request_start is not None
+
+        # Generate an AGENT_TASK product to complete the request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.send") as mock_flare_send:
+            self.generate_agent_task()
+            mock_flare_send.assert_called_once()
+
+        # Timestamp cleared after request completed
+        assert self.tracer_flare_sub.current_request_start is None
 
     def test_detect_stale_flare(self):
         """
         Ensure we clean up and revert configurations if a tracer
         flare job has gone stale
         """
-        from ddtrace import config
-
-        tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=PublisherSubscriberConnector(), callback=config._handle_tracer_flare, stale_flare_age=0
-        )
+        # Set this to 0 so all requests are stale
+        self.tracer_flare_sub.stale_tracer_flare_num_mins = 0
 
         # Generate an AGENT_CONFIG product to trigger a request
-        with mock.patch(
-            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
-        ) as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = {
-                "metadata": [{"product_name": "AGENT_CONFIG"}],
-                "config": self.agent_config,
-            }
-            tracer_flare_sub._get_data_from_connector_and_exec()
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
 
-        assert len(os.listdir(TRACER_FLARE_DIRECTORY)) == 2
-        assert tracer_flare_sub.current_request_start is not None
+        assert self.tracer_flare_sub.current_request_start is not None
 
         # Setting this to 0 minutes so all jobs are considered stale
-        assert tracer_flare_sub.has_stale_flare()
+        assert self.tracer_flare_sub.has_stale_flare()
 
-        tracer_flare_sub._get_data_from_connector_and_exec()
+        self.generate_agent_config()
 
         # Everything is cleaned up, reverted, and no current tracer flare
         # timestamp
-        assert tracer_flare_sub.current_request_start is None
+        assert self.tracer_flare_sub.current_request_start is None
 
     def test_no_overlapping_requests(self):
         """
@@ -265,39 +266,20 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         a pre-existing request, we will continue processing the current
         one while disregarding the new request(s)
         """
-        from ddtrace import config
-
-        tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=PublisherSubscriberConnector(), callback=config._handle_tracer_flare
-        )
-
         # Generate initial AGENT_CONFIG product to trigger a request
-        with mock.patch(
-            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
-        ) as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = {
-                "metadata": [{"product_name": "AGENT_CONFIG"}],
-                "config": [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}],
-            }
-            tracer_flare_sub._get_data_from_connector_and_exec()
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
 
-        files = os.listdir(TRACER_FLARE_DIRECTORY)
-        assert len(files) == 2
-        original_request_start = tracer_flare_sub.current_request_start
+        original_request_start = self.tracer_flare_sub.current_request_start
         assert original_request_start is not None
 
         # Generate another AGENT_CONFIG product to trigger a request
         # This should not be processed
-        with mock.patch(
-            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
-        ) as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = {
-                "metadata": [{"product_name": "AGENT_CONFIG"}],
-                "config": self.agent_config,
-            }
-            tracer_flare_sub._get_data_from_connector_and_exec()
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_not_called()
 
         # Nothing should have changed, and we should still be processing
         # only the original request
-        assert tracer_flare_sub.current_request_start == original_request_start
-        assert len(os.listdir(TRACER_FLARE_DIRECTORY)) == 2
+        assert self.tracer_flare_sub.current_request_start == original_request_start
