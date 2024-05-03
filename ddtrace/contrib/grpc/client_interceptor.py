@@ -173,8 +173,10 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
                 "grpc.response_message",
                 (n,),
             )
-            if result and result.get("response"):
-                n = result["response"].value
+            if result:
+                response_value = result.get("response")
+                if response_value:
+                    n = response_value
         return n
 
     next = __next__
