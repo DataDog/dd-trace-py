@@ -85,8 +85,10 @@ def _handle_response(span, response):
             "grpc.response_message",
             (response._response,),
         )
-        if result and "response" in result:
-            response._response = result["response"].value
+        if result:
+            response_value = result.get("response")
+            if response_value:
+                response._response = response_value
 
     if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
@@ -173,8 +175,10 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
                 "grpc.response_message",
                 (n,),
             )
-            if result and "response" in result:
-                n = result["response"].value
+            if result:
+                response_value = result.get("response")
+                if response_value:
+                    n = response_value
         return n
 
     next = __next__
