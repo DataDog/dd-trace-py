@@ -680,7 +680,7 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 }
 
 TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
-    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-00",
     _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
@@ -1761,7 +1761,7 @@ EXTRACT_FIXTURES = [
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        ALL_HEADERS,
+        DATADOG_HEADERS_VALID | TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
@@ -1772,8 +1772,8 @@ EXTRACT_FIXTURES = [
                 SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                    flags=1,
+                    tracestate="dd=o:rum",
+                    flags=0,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
@@ -1824,7 +1824,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "dd_origin": "rum",
             "meta": {
                 "tracestate": "dd=o:rum",
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
                 LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
