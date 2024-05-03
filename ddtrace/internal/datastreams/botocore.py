@@ -172,7 +172,7 @@ def get_datastreams_context(message):
     return context_json
 
 
-def handle_sqs_receive(params, result):
+def handle_sqs_receive(_, params, result, *args):
     from . import data_streams_processor as processor
 
     queue_name = get_queue_name(params)
@@ -206,7 +206,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
     )
 
 
-def handle_kinesis_receive(params, time_estimate, context_json, record):
+def handle_kinesis_receive(_, params, time_estimate, context_json, record, *args):
     try:
         record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:

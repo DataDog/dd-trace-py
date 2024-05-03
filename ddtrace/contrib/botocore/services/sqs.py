@@ -7,14 +7,14 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
-from ddtrace.contrib.botocore.utils import extract_DD_context
-from ddtrace.contrib.botocore.utils import set_response_metadata_tags
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+
+from ..utils import extract_DD_json
 
 
 log = get_logger(__name__)
@@ -83,16 +83,19 @@ def _ensure_datadog_messageattribute_enabled(params):
 
 
 def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
+    with core.context_with_data("botocore.patched_sqs_api_call.propagated") as parent_ctx:
+        return _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars)
+
+
+def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
     pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    message_received = False
     func_has_run = False
     func_run_err = None
-    child_of = None
     result = None
 
     if operation == "ReceiveMessage":
@@ -103,16 +106,15 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
             # run the function to extract possible parent context before creating ExecutionContext
             result = original_func(*args, **kwargs)
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+            core.dispatch(
+                f"botocore.{endpoint_name}.{operation}.post",
+                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
+            )
         except Exception as e:
             func_run_err = e
-        if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
-            message_received = True
-            if config.botocore.propagation_enabled:
-                child_of = extract_DD_context(result["Messages"])
 
     function_is_not_recvmessage = not func_has_run
-    received_message_when_polling = func_has_run and message_received
+    received_message_when_polling = func_has_run and parent_ctx.get_item("message_received")
     instrument_empty_poll_calls = config.botocore.empty_poll_enabled
     should_instrument = (
         received_message_when_polling or instrument_empty_poll_calls or function_is_not_recvmessage or func_run_err
@@ -133,9 +135,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
     else:
         call_name = trace_operation
 
+    child_of = parent_ctx.get_item("distributed_context")
+
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_sqs_api_call",
+            parent=parent_ctx,
             span_name=call_name,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             span_type=SpanTypes.HTTP,
@@ -161,7 +166,7 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
                     result = original_func(*args, **kwargs)
                     core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
 
-                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result, set_response_metadata_tags])
+                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
 
                 if func_run_err:
                     raise func_run_err
@@ -169,7 +174,12 @@ def patched_sqs_api_call(original_func, instance, args, kwargs, function_vars):
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_sqs_api_call.exception",
-                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                    [
+                        ctx,
+                        e.response,
+                        botocore.exceptions.ClientError,
+                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                    ],
                 )
                 raise
     elif func_has_run:

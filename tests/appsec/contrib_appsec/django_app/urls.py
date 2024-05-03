@@ -71,6 +71,7 @@ def rasp(request, endpoint: str):
                     res.append(f"File: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\br>\n".join(res))
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
@@ -98,7 +99,9 @@ def rasp(request, endpoint: str):
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
+    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
 
