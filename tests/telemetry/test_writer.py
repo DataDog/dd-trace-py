@@ -146,6 +146,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "tracing_enabled", "origin": "default", "value": "true"},
+                    {"name": "instrumentation_config_id", "origin": "default", "value": ""},
                 ],
                 key=lambda x: x["name"],
             ),
@@ -229,6 +230,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
+    env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
     env[env_var] = value
 
     file = tmpdir.join("moon_ears.json")
@@ -314,6 +316,7 @@ import ddtrace.auto
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
             {"name": "tracing_enabled", "origin": "env_var", "value": "false"},
+            {"name": "instrumentation_config_id", "origin": "env_var", "value": "abcedf123"},
         ],
         key=lambda x: x["name"],
     )
