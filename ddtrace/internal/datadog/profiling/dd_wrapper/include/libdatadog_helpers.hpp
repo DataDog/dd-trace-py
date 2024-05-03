@@ -45,10 +45,7 @@ namespace Datadog {
     X(trace_endpoint, "trace endpoint")                                                                                \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")                                                                                          \
-    X(gpu_device_name, "gpu device name")                                                                              \
-    X(end_timestamp_ns, "end timestamp ns")
-
-// TODO: the end_timestamp_ns will have to be factored out when timeline support is added
+    X(gpu_device_name, "gpu device name")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
