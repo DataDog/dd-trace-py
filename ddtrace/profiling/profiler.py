@@ -24,6 +24,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
+from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
@@ -117,6 +118,7 @@ class _ProfilerInstance(service.Service):
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
+    _pytorch_collector_enabled = attr.ib(type=bool, default=config.pytorch.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
@@ -190,6 +192,8 @@ class _ProfilerInstance(service.Service):
             configured_features.append("mem")
         if config.heap.sample_size > 0:
             configured_features.append("heap")
+        if self._pytorch_collector_enabled:
+            configured_features.append("pytorch")
 
         if self._export_libdd_enabled:
             configured_features.append("exp_dd")
@@ -319,6 +323,10 @@ class _ProfilerInstance(service.Service):
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
 
+        if self._pytorch_collector_enabled:
+            # TODO: How to finish connecting this?
+            add_pytorch_profiler(None)
+
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
@@ -352,6 +360,9 @@ class _ProfilerInstance(service.Service):
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
+
+    def add_pytorch_profiler(self, torch_prof):
+        torch_prof.on_trace_ready = pytorch.handle_torch_trace
 
     def _start_service(self):
         # type: (...) -> None

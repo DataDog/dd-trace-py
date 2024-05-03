@@ -236,7 +236,7 @@ class ProfilingConfig(En):
     class Heap(En):
         __item__ = __prefix__ = "heap"
 
-        enabled = En.v(
+        _enabled = En.v(
             bool,
             "enabled",
             default=True,
@@ -252,6 +252,18 @@ class ProfilingConfig(En):
             help="",
         )
         sample_size = En.d(int, _derive_default_heap_sample_size)
+
+    class Pytorch(En):
+        __item__ = __prefix__ = "pytorch"
+
+        # TODO should make libdd required
+        enabled = En.v(
+            bool,
+            "enabled",
+            default=True,
+            help_type="Boolean",
+            help="Whether to enable the PyTorch profiler",
+        )
 
     class Export(En):
         __item__ = __prefix__ = "export"
@@ -288,4 +300,4 @@ config = ProfilingConfig()
 
 if config.export.libdd_required and not config.export.libdd_enabled:
     logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
-    config.enabled = False
+    _config.enabled = False
