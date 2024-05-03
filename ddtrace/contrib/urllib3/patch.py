@@ -51,7 +51,7 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    _w("urllib3", "_request_methods.RequestMethods.request", _wrap_request)
+    _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
