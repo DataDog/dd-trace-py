@@ -2,7 +2,9 @@ import mock
 import pytest
 
 from ddtrace.llmobs.decorators import agent
+from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
+from ddtrace.llmobs.decorators import retrieval
 from ddtrace.llmobs.decorators import task
 from ddtrace.llmobs.decorators import tool
 from ddtrace.llmobs.decorators import workflow
@@ -17,17 +19,28 @@ def mock_logs():
 
 
 def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
-    @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
-    def f():
-        pass
+    for decorator_name, decorator in (("llm", llm), ("embedding", embedding)):
 
-    LLMObs.disable()
-    f()
-    mock_logs.warning.assert_called_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
+        @decorator(
+            model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id"
+        )
+        def f():
+            pass
+
+        LLMObs.disable()
+        f()
+        mock_logs.warning.assert_called_with("LLMObs.%s() cannot be used while LLMObs is disabled.", decorator_name)
+        mock_logs.reset_mock()
 
 
 def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
-    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)]:
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+    ):
 
         @decorator(name="test_function", session_id="test_session_id")
         def f():
@@ -35,7 +48,7 @@ def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
         LLMObs.disable()
         f()
-        mock_logs.warning.assert_called_with("LLMObs.{}() cannot be used while LLMObs is disabled.", decorator_name)
+        mock_logs.warning.assert_called_with("LLMObs.%s() cannot be used while LLMObs is disabled.", decorator_name)
         mock_logs.reset_mock()
 
 
@@ -71,6 +84,64 @@ def test_llm_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "llm", model_name="test_model", model_provider="custom")
     )
+
+
+def test_embedding_decorator(LLMObs, mock_llmobs_span_writer):
+    @embedding(
+        model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id"
+    )
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
+        )
+    )
+
+
+def test_embedding_decorator_no_model_name_raises_error(LLMObs):
+    with pytest.raises(TypeError):
+
+        @embedding(model_provider="test_provider", name="test_function", session_id="test_session_id")
+        def f():
+            pass
+
+
+def test_embedding_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @embedding(model_name="test_model")
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="custom")
+    )
+
+
+def test_retrieval_decorator(LLMObs, mock_llmobs_span_writer):
+    @retrieval(name="test_function", session_id="test_session_id")
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "retrieval", session_id="test_session_id")
+    )
+
+
+def test_retrieval_decorator_default_kwargs(LLMObs, mock_llmobs_span_writer):
+    @retrieval()
+    def f():
+        pass
+
+    f()
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_non_llm_span_event(span, "retrieval"))
 
 
 def test_task_decorator(LLMObs, mock_llmobs_span_writer):
@@ -265,7 +336,13 @@ def test_llm_annotate_raw_string_io(LLMObs, mock_llmobs_span_writer):
 
 def test_non_llm_decorators_no_args(LLMObs, mock_llmobs_span_writer):
     """Test that using the decorators without any arguments, i.e. @tool, works the same as @tool(...)."""
-    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
+    for decorator_name, decorator in [
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("agent", agent),
+        ("retrieval", retrieval),
+    ]:
 
         @decorator
         def f():
@@ -314,12 +391,14 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
         )
     )
 
-    @agent(ml_app="test_ml_app")
+    @embedding(model_name="test_model", ml_app="test_ml_app")
     def h():
         pass
 
     h()
     span = LLMObs._instance.tracer.pop()[0]
     mock_llmobs_span_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_ml_app"})
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
+        )
     )
