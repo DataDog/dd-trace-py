@@ -172,16 +172,34 @@ ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unuse
 }
 
 void
+ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_gputime(time, count);
+}
+
+void
+ddup_push_gpu_memory(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_memory(size, count);
+}
+
+void
+ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_flops(flops, count);
+}
+
+void
 ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppcheck-suppress unusedFunction
 {
     sample->push_lock_name(lock_name);
 }
 
 void
-ddup_push_threadinfo(Datadog::Sample* sample,
+ddup_push_threadinfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                      int64_t thread_id,
                      int64_t thread_native_id,
-                     std::string_view thread_name) // cppcheck-suppress unusedFunction
+                     std::string_view thread_name)
 {
     sample->push_threadinfo(thread_id, thread_native_id, thread_name);
 }
@@ -217,16 +235,16 @@ ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type) // cp
 }
 
 void
-ddup_push_trace_resource_container(Datadog::Sample* sample,
-                                   std::string_view trace_resource_container) // cppcheck-suppress unusedFunction
+ddup_push_trace_resource_container(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
+                                   std::string_view trace_resource_container)
 {
     sample->push_trace_resource_container(trace_resource_container);
 }
 
 void
-ddup_push_exceptioninfo(Datadog::Sample* sample,
+ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                         std::string_view exception_type,
-                        int64_t count) // cppcheck-suppress unusedFunction
+                        int64_t count)
 {
     sample->push_exceptioninfo(exception_type, count);
 }
@@ -238,6 +256,12 @@ ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cp
 }
 
 void
+ddup_push_gpu_device_name(Datadog::Sample* sample, std::string_view gpu_device_name) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_device_name(gpu_device_name);
+}
+
+void
 ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 std::string_view _name,
                 std::string_view _filename,
@@ -245,6 +269,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppcheck-suppress unusedFunction
+{
+    sample->push_monotonic_ns(monotonic_ns);
 }
 
 void

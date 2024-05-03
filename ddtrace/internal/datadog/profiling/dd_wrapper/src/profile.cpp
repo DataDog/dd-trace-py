@@ -89,6 +89,23 @@ Datadog::Profile::setup_samplers()
     if (0U != (type_mask & SampleType::Heap)) {
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
+    if (0U != (type_mask & SampleType::GPUTime)) {
+        val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
+        val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+    }
+    if (0U != (type_mask & SampleType::GPUMemory)) {
+        // In the backend the unit is called 'gpu-space', but maybe for consistency
+        // it should be gpu-alloc-space
+        // gpu-alloc-samples may be unused, but it's passed along for scaling purposes
+        val_idx.gpu_alloc_space = get_value_idx("gpu-space", "bytes");
+        val_idx.gpu_alloc_count = get_value_idx("gpu-alloc-samples", "count");
+    }
+    if (0U != (type_mask & SampleType::GPUFlops)) {
+        // Technically "FLOPS" is a unit, but we call it a 'count' because no
+        // other profiler uses it as a unit.
+        val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
+        val_idx.gpu_flops_samples = get_value_idx("gpu-flops-samples", "count");
+    }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
@@ -184,11 +201,11 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::collect(const ddog_prof_Sample& sample)
+Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 {
     // TODO this should propagate some kind of timestamp for timeline support
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto res = ddog_prof_Profile_add(&cur_profile, sample, 0);
+    auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");

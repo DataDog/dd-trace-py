@@ -63,6 +63,18 @@ except Exception as e:
             pass
 
         @not_implemented
+        def push_gpu_gputime(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_gpu_memory(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
+        def push_gpu_flops(self, value, count):  # type: (int, int) -> None
+            pass
+
+        @not_implemented
         def push_lock_name(self, lock_name):  # type: (str) -> None
             pass
 
@@ -88,6 +100,14 @@ except Exception as e:
 
         @not_implemented
         def push_span(self, span, endpoint_collection_enabled):  # type: (Optional[Span], bool) -> None
+            pass
+
+        @not_implemented
+        def push_gpu_device_name(self, device_name):  # type: (str) -> None
+            pass
+
+        @not_implemented
+        def push_monotonic_ns(self, monotonic_ns):  # type: (int) -> None
             pass
 
         @not_implemented

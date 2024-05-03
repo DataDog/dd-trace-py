@@ -53,6 +53,9 @@ cdef extern from "interface.hpp":
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
     void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
+    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -63,7 +66,9 @@ cdef extern from "interface.hpp":
     void ddup_push_trace_resource_container(Sample *sample, string_view trace_resource_container)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
+    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
+    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
@@ -201,6 +206,18 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
 
+    def push_gpu_gputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_memory(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_flops(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
             lock_name_bytes = ensure_binary_or_empty(lock_name)
@@ -261,6 +278,11 @@ cdef class SampleHandle:
             class_name_bytes = ensure_binary_or_empty(class_name)
             ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
+    def push_gpu_device_name(self, device_name: StringType) -> None:
+        if self.ptr is not NULL:
+            device_name_bytes = ensure_binary_or_empty(device_name)
+            ddup_push_gpu_device_name(self.ptr, string_view(<const char*>device_name_bytes, len(device_name_bytes)))
+
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         if self.ptr is NULL:
             return
@@ -281,6 +303,10 @@ cdef class SampleHandle:
                     self.ptr,
                     string_view(<const char*>root_service_bytes, len(root_service_bytes))
             )
+
+    def push_monotonic_ns(self, value: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_monotonic_ns(self.ptr, clamp_to_int64_unsigned(value))
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
