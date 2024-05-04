@@ -336,7 +336,8 @@ def test_startup_logs_sampling_rules():
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
-        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE', tags='NO_RULE')"
+        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE',"
+        " tags='NO_RULE', provenance='default')"
     ]
 
     sampler = ddtrace.sampler.DatadogSampler(
@@ -346,7 +347,8 @@ def test_startup_logs_sampling_rules():
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
-        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE', tags='NO_RULE')"
+        "SamplingRule(sample_rate=1.0, service='xyz', name='abc', resource='NO_RULE',"
+        " tags='NO_RULE', provenance='default')"
     ]
 
 

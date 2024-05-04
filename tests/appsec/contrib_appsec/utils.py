@@ -1183,11 +1183,32 @@ class Contrib_TestClass_For_Threats:
             )
         ],
     )
+    @pytest.mark.parametrize(
+        ("rule_file", "blocking"),
+        [
+            (rules.RULES_EXPLOIT_PREVENTION, False),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, True),
+        ],
+    )
     def test_exploit_prevention(
-        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_functions
+        self,
+        interface,
+        root_span,
+        get_tag,
+        asm_enabled,
+        ep_enabled,
+        endpoint,
+        parameters,
+        rule,
+        top_functions,
+        rule_file,
+        blocking,
     ):
+        from unittest.mock import patch as mock_patch
+
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
+        from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.contrib.requests import patch as patch_requests
         from ddtrace.contrib.requests import unpatch as unpatch_requests
         from ddtrace.ext import http
@@ -1195,16 +1216,18 @@ class Contrib_TestClass_For_Threats:
         try:
             patch_requests()
             with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
-                dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
-            ):
+                dict(DD_APPSEC_RULES=rule_file)
+            ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
                 patch_common_modules()
                 self.update_tracer(interface)
                 response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
-                assert self.status(response) == 200
-                assert get_tag(http.STATUS_CODE) == "200"
-                assert self.body(response).startswith(f"{endpoint} endpoint")
+                code = 403 if blocking and asm_enabled and ep_enabled else 200
+                assert self.status(response) == code
+                assert get_tag(http.STATUS_CODE) == str(code)
+                if code == 200:
+                    assert self.body(response).startswith(f"{endpoint} endpoint")
                 if asm_enabled and ep_enabled:
-                    self.check_rules_triggered([rule] * 2, root_span)
+                    self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
                     assert self.check_for_stack_trace(root_span)
                     for trace in self.check_for_stack_trace(root_span):
                         assert "frames" in trace
@@ -1212,9 +1235,28 @@ class Contrib_TestClass_For_Threats:
                         assert any(
                             function.endswith(top_function) for top_function in top_functions
                         ), f"unknown top function {function}"
+                    # assert mocked.call_args_list == []
+                    telemetry_calls = {
+                        (c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
+                    }
+                    assert (
+                        "CountMetric",
+                        "appsec.rasp.rule.match",
+                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                    ) in telemetry_calls
+                    assert (
+                        "CountMetric",
+                        "appsec.rasp.rule.eval",
+                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                    ) in telemetry_calls
+                    if blocking:
+                        assert get_tag("rasp.request.done") is None
+                    else:
+                        assert get_tag("rasp.request.done") == endpoint
                 else:
                     assert get_triggers(root_span()) is None
                     assert self.check_for_stack_trace(root_span) == []
+                    assert get_tag("rasp.request.done") == endpoint
         finally:
             unpatch_common_modules()
             unpatch_requests()

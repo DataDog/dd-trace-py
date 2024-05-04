@@ -5,6 +5,11 @@ import sys
 import aioredis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _trace_redis_cmd
+from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
+from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.redis_utils import _run_redis_command_async
+from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
@@ -25,11 +30,6 @@ from ...internal.utils.formats import CMD_MAX_LEN
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from .. import trace_utils
-from ..trace_utils_redis import ROW_RETURNING_COMMANDS
-from ..trace_utils_redis import _run_redis_command_async
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
-from ..trace_utils_redis import determine_row_count
 
 
 try:
@@ -175,7 +175,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             redis_command = span.resource.split(" ")[0]
             future.result()
             if redis_command in ROW_RETURNING_COMMANDS:
-                determine_row_count(redis_command=redis_command, span=span, result=future.result())
+                span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=future.result()))
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except (Exception, aioredis.CancelledError):
             span.set_exc_info(*sys.exc_info())

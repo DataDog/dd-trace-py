@@ -16,6 +16,17 @@ from ddtrace.appsec._constants import IAST
 
 from .._taint_tracking import TagMappingMode
 from .._taint_tracking import TaintRange
+from .._taint_tracking import _aspect_ospathbasename
+from .._taint_tracking import _aspect_ospathdirname
+from .._taint_tracking import _aspect_ospathjoin
+from .._taint_tracking import _aspect_ospathnormcase
+from .._taint_tracking import _aspect_ospathsplit
+from .._taint_tracking import _aspect_ospathsplitdrive
+from .._taint_tracking import _aspect_ospathsplitext
+from .._taint_tracking import _aspect_ospathsplitroot
+from .._taint_tracking import _aspect_rsplit
+from .._taint_tracking import _aspect_split
+from .._taint_tracking import _aspect_splitlines
 from .._taint_tracking import _convert_escaped_text_to_tainted_text
 from .._taint_tracking import _format_aspect
 from .._taint_tracking import are_all_text_all_ranges
@@ -44,7 +55,26 @@ _index_aspect = aspects.index_aspect
 _join_aspect = aspects.join_aspect
 _slice_aspect = aspects.slice_aspect
 
-__all__ = ["add_aspect", "str_aspect", "bytearray_extend_aspect", "decode_aspect", "encode_aspect"]
+__all__ = [
+    "add_aspect",
+    "str_aspect",
+    "bytearray_extend_aspect",
+    "decode_aspect",
+    "encode_aspect",
+    "_aspect_ospathjoin",
+    "_aspect_split",
+    "_aspect_rsplit",
+    "_aspect_splitlines",
+    "_aspect_ospathbasename",
+    "_aspect_ospathdirname",
+    "_aspect_ospathnormcase",
+    "_aspect_ospathsplit",
+    "_aspect_ospathsplitext",
+    "_aspect_ospathsplitdrive",
+    "_aspect_ospathsplitroot",
+]
+
+# TODO: Factorize the "flags_added_args" copypasta into a decorator
 
 
 def add_aspect(op1, op2):
@@ -55,6 +85,45 @@ def add_aspect(op1, op2):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. add_aspect. {}".format(e))
     return op1 + op2
+
+
+def split_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_split(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. split_aspect. {}".format(e))
+        return args[0].split(*args[1:], **kwargs)
+
+
+def rsplit_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_rsplit(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. rsplit_aspect. {}".format(e))
+        return args[0].rsplit(*args[1:], **kwargs)
+
+
+def splitlines_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
+    if orig_function:
+        if orig_function != builtin_str:
+            if flag_added_args > 0:
+                args = args[flag_added_args:]
+            return orig_function(*args, **kwargs)
+    try:
+        return _aspect_splitlines(*args, **kwargs)
+    except Exception as e:
+        iast_taint_log_error("IAST propagation error. splitlines_aspect. {}".format(e))
+        return args[0].splitlines(*args[1:], **kwargs)
 
 
 def str_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> str:
@@ -216,12 +285,14 @@ def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
                 tag_mapping_function=TagMappingMode.Mapper,
             )
             % tuple(
-                as_formatted_evidence(
-                    parameter,
-                    tag_mapping_function=TagMappingMode.Mapper,
+                (
+                    as_formatted_evidence(
+                        parameter,
+                        tag_mapping_function=TagMappingMode.Mapper,
+                    )
+                    if isinstance(parameter, IAST.TEXT_TYPES)
+                    else parameter
                 )
-                if isinstance(parameter, IAST.TEXT_TYPES)
-                else parameter
                 for parameter in parameter_list
             ),
             ranges_orig=ranges_orig,
@@ -382,9 +453,11 @@ def format_map_aspect(
                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
             ).format_map(
                 {
-                    key: as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
-                    if isinstance(value, IAST.TEXT_TYPES)
-                    else value
+                    key: (
+                        as_formatted_evidence(value, tag_mapping_function=TagMappingMode.Mapper)
+                        if isinstance(value, IAST.TEXT_TYPES)
+                        else value
+                    )
                     for key, value in mapping.items()
                 }
             ),
@@ -440,6 +513,8 @@ def format_value_aspect(
     else:
         new_text = element
     if not isinstance(new_text, IAST.TEXT_TYPES):
+        if format_spec:
+            return format(new_text, format_spec)
         return format(new_text)
 
     try:

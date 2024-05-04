@@ -133,7 +133,7 @@ venv = Venv(
         Venv(
             name="appsec_iast",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "pycryptodome": latest,
@@ -146,6 +146,7 @@ venv = Venv(
                 "grpcio": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -165,6 +166,7 @@ venv = Venv(
                 "git+https://github.com/gnufede/pytest-memray.git@24a3c0735db99eedf57fb36c573680f9bab7cd73": "",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -178,6 +180,7 @@ venv = Venv(
                 "flask": "~=3.0",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -210,6 +213,7 @@ venv = Venv(
                 "sqlparse": ">=0.2.2",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
             },
@@ -223,6 +227,7 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
@@ -795,6 +800,7 @@ venv = Venv(
                 "django-q": latest,
             },
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
@@ -2194,6 +2200,7 @@ venv = Venv(
             },
             pys=select_pys(),
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
@@ -2201,6 +2208,7 @@ venv = Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
             env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={

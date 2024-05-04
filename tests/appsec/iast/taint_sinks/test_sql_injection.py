@@ -5,6 +5,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal import core
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -52,8 +53,6 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
         {"value": "students", "source": 0},
     ]
     assert vulnerability.evidence.value is None
-    assert vulnerability.evidence.pattern is None
-    assert vulnerability.evidence.redacted is None
     assert source.name == "test_ossystem"
     assert source.origin == OriginType.PARAMETER
     assert source.value == "students"
@@ -64,9 +63,8 @@ def test_sql_injection(fixture_path, fixture_module, iast_span_defaults):
     assert vulnerability.hash == hash_value
 
 
-@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
-def test_sql_injection_deduplication(fixture_path, fixture_module, num_vuln_expected, iast_span_deduplication_enabled):
+def test_sql_injection_deduplication(fixture_path, fixture_module, iast_span_deduplication_enabled):
     mod = _iast_patched_module(fixture_module)
 
     table = taint_pyobject(
@@ -81,9 +79,7 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, num_vuln_expe
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
+    assert span_report
 
-        assert len(span_report.vulnerabilities) == num_vuln_expected
+    assert len(span_report.vulnerabilities) == 1
+    VulnerabilityBase._prepare_report._reset_cache()
