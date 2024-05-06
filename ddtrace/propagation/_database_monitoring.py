@@ -23,6 +23,7 @@ DBM_PARENT_SERVICE_NAME_KEY = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY = "dddbs"
 DBM_PEER_HOSTNAME_KEY = "ddh"
 DBM_PEER_DB_NAME_KEY = "dddb"
+DBM_PEER_SERVICE_KEY = "ddprs"
 DBM_ENVIRONMENT_KEY = "dde"
 DBM_VERSION_KEY = "ddpv"
 DBM_TRACE_PARENT_KEY = "traceparent"
@@ -56,12 +57,14 @@ class _DBM_Propagator(object):
         sql_injector=default_sql_injector,
         peer_hostname_tag="out.host",
         peer_db_name_tag="db.name",
+        peer_service_tag="peer.service",
     ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
         self.sql_injector = sql_injector
         self.peer_hostname_tag = peer_hostname_tag
         self.peer_db_name_tag = peer_db_name_tag
+        self.peer_service_tag = peer_service_tag
 
     def inject(self, dbspan, args, kwargs):
         # run sampling before injection to propagate correct sampling priority
@@ -113,6 +116,10 @@ class _DBM_Propagator(object):
         peer_hostname = db_span.get_tag(self.peer_hostname_tag)
         if peer_hostname:
             dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
+
+        peer_service = db_span.get_tag(self.peer_service_tag)
+        if peer_service:
+            dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
 
         if dbm_config.propagation_mode == "full":
             db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
