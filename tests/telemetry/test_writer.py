@@ -315,7 +315,6 @@ import ddtrace.auto
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
-            {"name": "tracing_enabled", "origin": "env_var", "value": "false"},
             {"name": "instrumentation_config_id", "origin": "env_var", "value": "abcedf123"},
         ],
         key=lambda x: x["name"],

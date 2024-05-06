@@ -122,9 +122,9 @@ with tracer.trace("test") as span:
         "origin": "code",
     } in events_trace_tags
 
-    events_tracing_enabled = _get_telemetry_config_items(events, "tracing_enabled")
+    events_tracing_enabled = _get_telemetry_config_items(events, "trace_enabled")
     assert {
-        "name": "tracing_enabled",
+        "name": "trace_enabled",
         "value": "false",
         "origin": "code",
     } in events_tracing_enabled
