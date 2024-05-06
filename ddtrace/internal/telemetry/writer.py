@@ -395,7 +395,7 @@ class TelemetryWriter(PeriodicService):
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
         elif cfg_name == "_tracing_enabled":
-            name = "tracing_enabled"
+            name = "trace_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_sca_enabled":
             name = "DD_APPSEC_SCA_ENABLED"
