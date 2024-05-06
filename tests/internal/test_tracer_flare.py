@@ -193,7 +193,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         from ddtrace import config
 
         self.tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=PublisherSubscriberConnector(), callback=config._handle_tracer_flare
+            data_connector=PublisherSubscriberConnector(), callback=config.flare._handle_tracer_flare
         )
 
     def generate_agent_config(self):
