@@ -8,6 +8,7 @@ from typing import Union
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
@@ -44,6 +45,11 @@ class LLMObs(Service):
     _instance = None
     enabled = False
 
+    # SUPPORTED INTEGRATIONS
+    langchain = "langchain"
+    openai = "openai"
+    botocore = "botocore"
+
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
@@ -75,10 +81,30 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
-    def enable(cls, tracer=None):
+    def enable(
+        cls,
+        ml_app: Optional[str] = None,
+        integrations: Optional[list[str]] = None,
+        dd_site: Optional[str] = None,
+        dd_api_key: Optional[str] = None,
+        apm_enabled=False,
+        tracer=None,
+    ):
+        """
+        Enable LLM Observability tracing.
+
+        :param str ml_app: The name of your ml application.
+        :param list[str] integrations: A list of integrations to enable auto-tracing for.
+        :param str dd_site Your datadog site.
+        :param str dd_api_key: Your datadog api key.
+        :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled.
+        """
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
+
+        if dd_api_key:
+            config._dd_api_key = dd_api_key
 
         if not config._dd_api_key:
             cls.enabled = False
@@ -86,12 +112,48 @@ class LLMObs(Service):
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
+
+        if not apm_enabled:
+            os.environ.update(
+                {
+                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": os.getenv(
+                        "DD_INSTRUMENTATION_TELEMETRY_ENABLED", default="0"
+                    ),
+                    "DD_REMOTE_CONFIGURATION_ENABLED": os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default="0"),
+                    "DD_OPENAI_METRICS_ENABLED": os.getenv("DD_OPENAI_METRICS_ENABLED", default="0"),
+                    "DD_LANGCHAIN_METRICS_ENABLED": os.getenv("DD_LANGCHAIN_METRICS_ENABLED", default="0"),
+                    "DD_LLMOBS_NO_APM": os.getenv("DD_LLMOBS_NO_APM", default="1"),
+                }
+            )
+
+        if ml_app:
+            config._llmobs_ml_app = ml_app
+        if dd_site:
+            config._dd_site = dd_site
+        if dd_api_key:
+            config._dd_api_key = dd_api_key
+
         if not config._llmobs_ml_app:
             cls.enabled = False
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
+
+        # enable LLMObs integations
+        LLMOBS_INTEGRATIONS = {
+            LLMObs.langchain: lambda: patch(langchain=True),
+            LLMObs.openai: lambda: patch(openai=True),
+            LLMObs.botocore: lambda: patch(botocore=True),
+        }
+        if integrations:
+            for integration in integrations:
+                if integration in LLMOBS_INTEGRATIONS:
+                    LLMOBS_INTEGRATIONS[integration]()
+                else:
+                    log.warning(
+                        "%s is unsupported - LLMObs currently supports %s", integration, str(LLMOBS_INTEGRATIONS)
+                    )
 
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
