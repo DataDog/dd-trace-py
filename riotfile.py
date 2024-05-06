@@ -2615,6 +2615,7 @@ venv = Venv(
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
+                "gevent": latest,
             },
         ),
         Venv(
