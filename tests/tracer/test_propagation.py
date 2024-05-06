@@ -937,7 +937,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         (
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin, parent id
-            (None, {}, None, None),
+            (None, {}, None, "0000000000000000"),
             None,
             None,
         ),

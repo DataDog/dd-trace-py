@@ -38,6 +38,7 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import DEFAULT_LAST_PARENT_ID
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -700,7 +701,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
+        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], str]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -727,7 +728,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
 
             # Get last datadog parent id, this field is used to reconnect traces with missing spans
-            lpid = dd.get("p", "0000000000000000")
+            lpid = dd.get("p", DEFAULT_LAST_PARENT_ID)
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
@@ -736,7 +737,7 @@ class _TraceContext:
 
             return sampling_priority_ts_int, other_propagated_tags, origin, lpid
         else:
-            return None, {}, None, None
+            return None, {}, None, DEFAULT_LAST_PARENT_ID
 
     @staticmethod
     def _get_sampling_priority(
@@ -820,8 +821,7 @@ class _TraceContext:
                 if tracestate_values:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
-                    if lpid:
-                        meta[LAST_DD_PARENT_ID_KEY] = lpid
+                    meta[LAST_DD_PARENT_ID_KEY] = lpid
 
                     sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
@@ -921,8 +921,10 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
-                    # W3C Phase 3: Ensure the last datadog parent id is always set on the primary context
-                    primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
+                # W3C Phase 3: Ensure the last datadog parent id is always set on the primary context
+                primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta.get(
+                    LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID
+                )
         primary_context._span_links = links
         return primary_context
 
