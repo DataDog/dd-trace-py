@@ -312,7 +312,7 @@ class BotocoreTest(TracerTestCase):
     @mock_s3
     def test_s3_head_404_default(self):
         """
-        By default we attach exception information to s3 HeadObject
+        By default we do not attach exception information to s3 HeadObject
         API calls with a 404 response
         """
         s3 = self.session.create_client("s3", region_name="us-west-2")
