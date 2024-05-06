@@ -268,7 +268,8 @@ tracer.trace("hello").finish()
 
 @pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env({"DD_SPAN_SAMPLING_RULES": "invalid_rules"})
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 1, stderr
@@ -364,7 +365,8 @@ tracer.trace("hi").finish()
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = get_default_telemetry_env({"DD_PATCH_MODULES": "jinja2:False,subprocess:False"})
+    env = os.environ.copy()
+    env["DD_PATCH_MODULES"] = "jinja2:False,subprocess:False"
     code = """
 import logging
 logging.basicConfig()
