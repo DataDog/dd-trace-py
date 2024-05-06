@@ -3,6 +3,7 @@ import itertools
 import json
 from typing import Dict
 from typing import List
+from urllib.parse import quote
 from urllib.parse import urlencode
 
 import pytest
@@ -661,16 +662,16 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
-        ("uri", "blocked"),
+        ("uri", "headers", "blocked"),
         [
-            ("/asm/1/a", False),
-            ("/asm/1/a?headers=header_name=MagicKey_Al4h7iCFep9s1", "tst-037-009"),
-            ("/asm/1/a?headers=key=anythin,header_name=HiddenMagicKey_Al4h7iCFep9s1Value", "tst-037-009"),
-            ("/asm/1/a?headers=header_name=NoWorryBeHappy", None),
+            ("/asm/1/a", {}, False),
+            ("/asm/1/a", {"header_name": "MagicKey_Al4h7iCFep9s1"}, "tst-037-009"),
+            ("/asm/1/a", {"key": "anything", "header_name": "HiddenMagicKey_Al4h7iCFep9s1Value"}, "tst-037-009"),
+            ("/asm/1/a", {"header_name": "NoWorryBeHappy"}, None),
         ],
     )
     def test_request_suspicious_request_block_match_response_headers(
-        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, headers, blocked
     ):
         from ddtrace.ext import http
 
@@ -678,6 +679,8 @@ class Contrib_TestClass_For_Threats:
             dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
+            if headers:
+                uri += "?headers=" + quote(",".join(f"{k}={v}" for k, v in headers.items()))
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
             assert get_tag(http.URL) == "http://localhost:8000" + uri
@@ -691,10 +694,14 @@ class Contrib_TestClass_For_Threats:
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
                 assert self.headers(response)["content-type"] == "text/json"
+                for k in headers:
+                    assert k not in self.headers(response)
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
+            assert "content-length" in self.headers(response)
+            assert int(self.headers(response)["content-length"]) == len(self.body(response).encode())
 
     LARGE_BODY = {
         f"key_{i}": {f"key_{i}_{j}": {f"key_{i}_{j}_{k}": f"value_{i}_{j}_{k}" for k in range(4)} for j in range(4)}
