@@ -22,7 +22,8 @@ class SSRF(VulnerabilityBase):
 
 
 def _iast_report_ssrf(func: Callable, *args, **kwargs):
-    report_ssrf = kwargs.get("url", False)
+    report_ssrf = args[1] if len(args) > 1 else kwargs.get("url", None)
+
     if report_ssrf:
         from .._metrics import _set_metric_iast_executed_sink
 
