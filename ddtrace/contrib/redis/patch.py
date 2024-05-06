@@ -3,11 +3,11 @@ import os
 import redis
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _trace_redis_cmd
-from ddtrace._trace.utils_redis import _trace_redis_execute_pipeline
+from ddtrace._trace.utils_redis import _instrument_redis_cmd
+from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.redis_utils import determine_row_count
-from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -46,44 +46,44 @@ def patch():
     _w = wrapt.wrap_function_wrapper
 
     if redis.VERSION < (3, 0, 0):
-        _w("redis", "StrictRedis.execute_command", traced_execute_command(config.redis))
-        _w("redis", "StrictRedis.pipeline", traced_pipeline)
-        _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "BasePipeline.execute", traced_execute_pipeline(config.redis, False))
-        _w("redis.client", "BasePipeline.immediate_execute_command", traced_execute_command(config.redis))
+        _w("redis", "StrictRedis.execute_command", instrumented_execute_command(config.redis))
+        _w("redis", "StrictRedis.pipeline", instrumented_pipeline)
+        _w("redis", "Redis.pipeline", instrumented_pipeline)
+        _w("redis.client", "BasePipeline.execute", instrumented_execute_pipeline(config.redis, False))
+        _w("redis.client", "BasePipeline.immediate_execute_command", instrumented_execute_command(config.redis))
     else:
-        _w("redis", "Redis.execute_command", traced_execute_command(config.redis))
-        _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "Pipeline.execute", traced_execute_pipeline(config.redis, False))
-        _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command(config.redis))
+        _w("redis", "Redis.execute_command", instrumented_execute_command(config.redis))
+        _w("redis", "Redis.pipeline", instrumented_pipeline)
+        _w("redis.client", "Pipeline.execute", instrumented_execute_pipeline(config.redis, False))
+        _w("redis.client", "Pipeline.immediate_execute_command", instrumented_execute_command(config.redis))
         if redis.VERSION >= (4, 1):
             # Redis v4.1 introduced support for redis clusters and rediscluster package was deprecated.
             # https://github.com/redis/redis-py/commit/9db1eec71b443b8e7e74ff503bae651dc6edf411
-            _w("redis.cluster", "RedisCluster.execute_command", traced_execute_command(config.redis))
-            _w("redis.cluster", "RedisCluster.pipeline", traced_pipeline)
-            _w("redis.cluster", "ClusterPipeline.execute", traced_execute_pipeline(config.redis, True))
+            _w("redis.cluster", "RedisCluster.execute_command", instrumented_execute_command(config.redis))
+            _w("redis.cluster", "RedisCluster.pipeline", instrumented_pipeline)
+            _w("redis.cluster", "ClusterPipeline.execute", instrumented_execute_pipeline(config.redis, True))
             Pin(service=None).onto(redis.cluster.RedisCluster)
         # Avoid mypy invalid syntax errors when parsing Python 2 files
         if redis.VERSION >= (4, 2, 0):
-            from .asyncio_patch import traced_async_execute_command
-            from .asyncio_patch import traced_async_execute_pipeline
+            from .asyncio_patch import instrumented_async_execute_command
+            from .asyncio_patch import instrumented_async_execute_pipeline
 
-            _w("redis.asyncio.client", "Redis.execute_command", traced_async_execute_command)
-            _w("redis.asyncio.client", "Redis.pipeline", traced_pipeline)
-            _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
-            _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
+            _w("redis.asyncio.client", "Redis.execute_command", instrumented_async_execute_command)
+            _w("redis.asyncio.client", "Redis.pipeline", instrumented_pipeline)
+            _w("redis.asyncio.client", "Pipeline.execute", instrumented_async_execute_pipeline)
+            _w("redis.asyncio.client", "Pipeline.immediate_execute_command", instrumented_async_execute_command)
             Pin(service=None).onto(redis.asyncio.Redis)
 
         if redis.VERSION >= (4, 3, 0):
-            from .asyncio_patch import traced_async_execute_command
+            from .asyncio_patch import instrumented_async_execute_command
 
-            _w("redis.asyncio.cluster", "RedisCluster.execute_command", traced_async_execute_command)
+            _w("redis.asyncio.cluster", "RedisCluster.execute_command", instrumented_async_execute_command)
 
             if redis.VERSION >= (4, 3, 2):
-                from .asyncio_patch import traced_async_execute_cluster_pipeline
+                from .asyncio_patch import instrumented_async_execute_cluster_pipeline
 
-                _w("redis.asyncio.cluster", "RedisCluster.pipeline", traced_pipeline)
-                _w("redis.asyncio.cluster", "ClusterPipeline.execute", traced_async_execute_cluster_pipeline)
+                _w("redis.asyncio.cluster", "RedisCluster.pipeline", instrumented_pipeline)
+                _w("redis.asyncio.cluster", "ClusterPipeline.execute", instrumented_async_execute_cluster_pipeline)
 
             Pin(service=None).onto(redis.asyncio.RedisCluster)
 
@@ -121,36 +121,40 @@ def unpatch():
                 unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
 
 
-def _run_redis_command(span, func, args, kwargs):
+def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
+    rowcount = None
     try:
         result = func(*args, **kwargs)
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=result))
         return result
     except Exception:
-        if redis_command in ROW_RETURNING_COMMANDS:
-            span.set_metric(db.ROWCOUNT, 0)
+        rowcount = 0
         raise
+    finally:
+        if rowcount is None:
+            rowcount = determine_row_count(redis_command=redis_command, result=result)
+        if redis_command not in ROW_RETURNING_COMMANDS:
+            rowcount = None
+        core.dispatch("redis.command.post", [ctx, rowcount])
 
 
 #
 # tracing functions
 #
-def traced_execute_command(integration_config):
-    def _traced_execute_command(func, instance, args, kwargs):
+def instrumented_execute_command(integration_config):
+    def _instrumented_execute_command(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with _trace_redis_cmd(pin, integration_config, instance, args) as span:
-            return _run_redis_command(span=span, func=func, args=args, kwargs=kwargs)
+        with _instrument_redis_cmd(pin, integration_config, instance, args) as ctx:
+            return _run_redis_command(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
-    return _traced_execute_command
+    return _instrumented_execute_command
 
 
-def traced_pipeline(func, instance, args, kwargs):
+def instrumented_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
@@ -158,8 +162,8 @@ def traced_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-def traced_execute_pipeline(integration_config, is_cluster=False):
-    def _traced_execute_pipeline(func, instance, args, kwargs):
+def instrumented_execute_pipeline(integration_config, is_cluster=False):
+    def _instrumented_execute_pipeline(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
@@ -174,7 +178,7 @@ def traced_execute_pipeline(integration_config, is_cluster=False):
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
                 for c, _ in instance.command_stack
             ]
-        with _trace_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
+        with _instrument_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
             return func(*args, **kwargs)
 
-    return _traced_execute_pipeline
+    return _instrumented_execute_pipeline

@@ -711,9 +711,9 @@ def _on_botocore_kinesis_getrecords_post(
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
-def _on_redis_async_command_post(span, rowcount):
+def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        span.set_metric(db.ROWCOUNT, rowcount)
+        ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
@@ -764,7 +764,8 @@ def listen():
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
-    core.on("redis.async_command.post", _on_redis_async_command_post)
+    core.on("redis.async_command.post", _on_redis_command_post)
+    core.on("redis.command.post", _on_redis_command_post)
 
     for context_name in (
         "flask.call",
@@ -782,6 +783,7 @@ def listen():
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
+        "redis.command",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
