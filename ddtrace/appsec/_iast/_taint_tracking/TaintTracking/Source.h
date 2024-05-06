@@ -24,6 +24,7 @@ enum class OriginType
     PATH_PARAMETER,
     COOKIE,
     COOKIE_NAME,
+    GRPC_BODY,
     EMPTY
 };
 
@@ -93,6 +94,8 @@ origin_to_str(OriginType origin_type)
             return "http.request.cookie.name";
         case OriginType::COOKIE:
             return "http.request.cookie.value";
+        case OriginType::GRPC_BODY:
+            return "http.request.grpc_body";
         default:
             return "";
     }
@@ -122,6 +125,8 @@ str_to_origin(const string& origin_type_str)
         return OriginType::COOKIE_NAME;
     if (origin_type_str == "http.request.cookie.value")
         return OriginType::COOKIE;
+    if (origin_type_str == "http.request.grpc_body")
+        return OriginType::GRPC_BODY;
 
     return OriginType::PARAMETER;
 }

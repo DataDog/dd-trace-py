@@ -4,7 +4,6 @@
 #include "profile.hpp"
 #include "types.hpp"
 
-#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,8 +31,7 @@ class Sample
     uint64_t samples = 0;
 
     // Storage for labels
-    std::array<ddog_prof_Label, static_cast<size_t>(ExportLabelKey::Length_)> labels{};
-    size_t cur_label = 0;
+    std::vector<ddog_prof_Label> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
@@ -50,8 +48,8 @@ class Sample
     bool push_cputime(int64_t cputime, int64_t count);
     bool push_acquire(int64_t acquire_time, int64_t count);
     bool push_release(int64_t lock_time, int64_t count);
-    bool push_alloc(uint64_t size, uint64_t count);
-    bool push_heap(uint64_t size);
+    bool push_alloc(int64_t size, int64_t count);
+    bool push_heap(int64_t size);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);

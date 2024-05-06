@@ -1,0 +1,13 @@
+experiments:
+  - name: run-microbenchmarks
+    setup:
+      - name: datadog-agent
+        run: datadog_agent
+        cpus: 24-25
+        config_sh: ./steps/update-dd-agent-config.sh
+
+    steps:
+      - name: benchmarks
+        cpus: 26-47
+        run: shell
+        script: export SCENARIO=$BP_SCENARIO && ./steps/run-benchmarks.sh

@@ -58,10 +58,11 @@ def multi_view(request, param_int=0, param_str=""):
     return json_response
 
 
+@csrf_exempt
 def rasp(request, endpoint: str):
     query_params = request.GET.dict()
     if endpoint == "lfi":
-        res = []
+        res = ["lfi endpoint"]
         for param in query_params:
             if param.startswith("filename"):
                 filename = query_params[param]
@@ -70,8 +71,37 @@ def rasp(request, endpoint: str):
                     res.append(f"File: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\br>\n".join(res))
+    elif endpoint == "ssrf":
+        res = ["ssrf endpoint"]
+        for param in query_params:
+            if param.startswith("url"):
+                urlname = query_params[param]
+                if not urlname.startswith("http"):
+                    urlname = f"http://{urlname}"
+                try:
+                    if param.startswith("url_urlopen_request"):
+                        import urllib.request
 
+                        request = urllib.request.Request(urlname)
+                        with urllib.request.urlopen(request, timeout=0.15) as f:
+                            res.append(f"Url: {f.read()}")
+                    elif param.startswith("url_urlopen_string"):
+                        import urllib.request
+
+                        with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                            res.append(f"Url: {f.read()}")
+                    elif param.startswith("url_requests"):
+                        import requests
+
+                        r = requests.get(urlname, timeout=0.15)
+                        res.append(f"Url: {r.text}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
+    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
 

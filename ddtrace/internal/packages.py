@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import sysconfig
 from types import ModuleType
 import typing as t
@@ -8,12 +9,11 @@ from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
 
-if t.TYPE_CHECKING:
-    import pathlib  # noqa
 
 try:
     fspath = os.fspath
@@ -50,10 +50,6 @@ except AttributeError:
         )
 
 
-# We don't store every file of every package but filter commonly used extensions
-SUPPORTED_EXTENSIONS = (".py", ".so", ".dll", ".pyc")
-
-
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
 
@@ -81,33 +77,100 @@ def get_distributions():
     return pkgs
 
 
-def _is_python_source_file(path):
-    # type: (pathlib.PurePath) -> bool
-    return os.path.splitext(path.name)[-1].lower() in SUPPORTED_EXTENSIONS
+@cached()
+def get_version_for_package(name):
+    # type: (str) -> str
+    """returns the version of a package"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return importlib_metadata.version(name)
+    except Exception:
+        return ""
+
+
+def _effective_root(rel_path: Path, parent: Path) -> str:
+    base = rel_path.parts[0]
+    root = parent / base
+    return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
+
+
+def _root_module(path: Path) -> str:
+    # Try the most likely prefixes first
+    for parent_path in (purelib_path, platlib_path):
+        try:
+            return _effective_root(path.relative_to(parent_path), parent_path)
+        except ValueError:
+            # Not relative to this path
+            pass
+
+    # Try to resolve the root module using sys.path. We keep the shortest
+    # relative path as the one more likely to give us the root module.
+    min_relative_path = max_parent_path = None
+    for parent_path in (Path(_).resolve() for _ in sys.path):
+        try:
+            relative = path.relative_to(parent_path)
+            if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
+                min_relative_path, max_parent_path = relative, parent_path
+        except ValueError:
+            pass
+
+    if min_relative_path is not None:
+        try:
+            return _effective_root(min_relative_path, t.cast(Path, max_parent_path))
+        except IndexError:
+            pass
+
+    msg = f"Could not find root module for path {path}"
+    raise ValueError(msg)
 
 
 @callonce
-def _package_file_mapping():
-    # type: (...) -> t.Optional[t.Dict[str, Distribution]]
+def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
-        import importlib.metadata as il_md
+        import importlib.metadata as metadata
     except ImportError:
-        import importlib_metadata as il_md  # type: ignore[no-redef]
+        import importlib_metadata as metadata  # type: ignore[no-redef]
+
+    namespaces: t.Dict[str, bool] = {}
+
+    def is_namespace(f: metadata.PackagePath):
+        root = f.parts[0]
+        try:
+            return namespaces[root]
+        except KeyError:
+            pass
+
+        if len(f.parts) < 2:
+            namespaces[root] = False
+            return False
+
+        located_f = t.cast(Path, f.locate())
+        parent = located_f.parents[len(f.parts) - 2]
+        if parent.is_dir() and not (parent / "__init__.py").exists():
+            namespaces[root] = True
+            return True
+
+        namespaces[root] = False
+        return False
 
     try:
         mapping = {}
 
-        for ilmd_d in il_md.distributions():
-            if ilmd_d is not None and ilmd_d.files is not None:
-                d = Distribution(name=ilmd_d.metadata["name"], version=ilmd_d.version, path=None)
-                for f in ilmd_d.files:
-                    if _is_python_source_file(f):
-                        # mapping[fspath(f.locate())] = d
-                        _path = fspath(f.locate())
-                        mapping[_path] = d
-                        _realp = os.path.realpath(_path)
-                        if _realp != _path:
-                            mapping[_realp] = d
+        for dist in metadata.distributions():
+            if dist is not None and dist.files is not None:
+                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
+                for f in dist.files:
+                    root = f.parts[0]
+                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                        continue
+                    if is_namespace(f):
+                        root = "/".join(f.parts[:2])
+                    if root not in mapping:
+                        mapping[root] = d
 
         return mapping
 
@@ -120,23 +183,35 @@ def _package_file_mapping():
         return None
 
 
-def filename_to_package(filename):
-    # type: (str) -> t.Optional[Distribution]
+@callonce
+def _third_party_packages() -> set:
+    from gzip import decompress
+    from importlib.resources import read_binary
 
-    mapping = _package_file_mapping()
+    return (
+        set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
+        | tp_config.includes
+    ) - tp_config.excludes
+
+
+@cached()
+def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
+    mapping = _package_for_root_module_mapping()
     if mapping is None:
         return None
 
-    if filename not in mapping and filename.endswith(".pyc"):
-        # Replace .pyc by .py
-        filename = filename[:-1]
+    try:
+        path = Path(filename) if isinstance(filename, str) else filename
+        return mapping.get(_root_module(path.resolve()))
+    except ValueError:
+        return None
 
-    return mapping.get(filename)
 
-
+@cached()
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
-    return filename_to_package(str(origin(module)))
+    module_origin = origin(module)
+    return filename_to_package(module_origin) if module_origin is not None else None
 
 
 stdlib_path = Path(sysconfig.get_path("stdlib")).resolve()
@@ -152,6 +227,20 @@ def is_stdlib(path: Path) -> bool:
     return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
         rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
     )
+
+
+@cached()
+def is_third_party(path: Path) -> bool:
+    package = filename_to_package(str(path))
+    if package is None:
+        return False
+
+    return package.name in _third_party_packages()
+
+
+@cached()
+def is_user_code(path: Path) -> bool:
+    return not (is_stdlib(path) or is_third_party(path))
 
 
 @cached()

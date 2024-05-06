@@ -12,7 +12,7 @@ namespace Datadog {
 
 class UploaderBuilder
 {
-    using ExporterTagset = std::unordered_map<std::string_view, std::string_view>;
+    using ExporterTagset = std::unordered_map<std::string, std::string>;
     static inline std::mutex tag_mutex{};
 
     // Building parameters
@@ -31,7 +31,7 @@ class UploaderBuilder
     static constexpr std::string_view family{ "python" };
 
   public:
-    static void set_env(std::string_view dd_env_);
+    static void set_env(std::string_view _dd_env);
     static void set_service(std::string_view _service);
     static void set_version(std::string_view _version);
     static void set_runtime(std::string_view _runtime);

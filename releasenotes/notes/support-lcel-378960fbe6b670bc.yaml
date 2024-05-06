@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    langchain: This adds tracing support for LCEL (LangChain Expression Language) chaining syntax. 
+    This change specifically adds synchronous and asynchronous tracing support for the `invoke` and `batch` methods.

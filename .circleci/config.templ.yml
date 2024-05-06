@@ -14,7 +14,7 @@ mysql_image: &mysql_image mysql:5.7@sha256:03b6dcedf5a2754da00e119e2cc6094ed3c88
 postgres_image: &postgres_image postgres:12-alpine@sha256:c6704f41eb84be53d5977cb821bf0e5e876064b55eafef1e260c2574de40ad9a
 mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184cd57d9bb922efdd2a8eca514af8
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
-vertica_image: &vertica_image sumitchawla/vertica:latest
+vertica_image: &vertica_image vertica/vertica-ce:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.16.0
 
@@ -63,6 +63,7 @@ commands:
       - run: |
           set -ex
           mkdir coverage
+          touch ./coverage/empty.$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
           if [ -f .coverage ];
           then
             cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage
@@ -146,7 +147,17 @@ commands:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>> 1
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - unless:
           condition:
               << parameters.snapshot >>
@@ -171,12 +182,20 @@ commands:
                 environment:
                   RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite '<<parameters.pattern>>' <<pipeline.parameters.coverage>>
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - when:
           condition:
-            and:
-              - << pipeline.parameters.coverage >>
-              - << parameters.store_coverage >>
+            << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -258,7 +277,17 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: << parameters.trace_agent_url >>
                 command: |
+                  ulimit -c unlimited
                   ./scripts/run-test-suite-hatch '<<parameters.env>>' 1
+            - run:
+                command: |
+                  mkdir -p /tmp/core_dumps
+                  cp core.* /tmp/core_dumps || true
+                  ./scripts/bt
+                when: on_fail
+            - store_artifacts:
+                name: "Store core dumps"
+                path: /tmp/core_dumps
       - unless:
           condition:
               << parameters.snapshot >>
@@ -269,9 +298,7 @@ commands:
                   hatch env show --json | jq -r 'keys[] | select(. | contains("<< parameters.env >>"))' | sort | circleci tests split | xargs -n 1 -I {} hatch run {}:test
       - when:
           condition:
-            and:
-              - << pipeline.parameters.coverage >>
-              - << parameters.store_coverage >>
+            << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -384,43 +411,34 @@ jobs:
   coverage_report:
     executor: python310
     steps:
-      - when:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - checkout
-            - attach_workspace:
-                at: .
-            - run: pip install -r ci/coverage/requirements.txt
-            - run: ls -hal *.coverage 2>/dev/null || true
-            # Combine all job coverage reports into one
-            - run: coverage combine *.coverage
-            # Upload coverage report to Codecov
-            # DEV: Do not use the bash uploader, it cannot be trusted
-            - run: codecov
-            # Generate and save xml report
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage xml --ignore-errors
-            - store_artifacts:
-                path: coverage.xml
-            # Generate and save JSON report
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage json --ignore-errors
-            - store_artifacts:
-                path: coverage.json
-            # Print ddtrace/ report to stdout
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage report --ignore-errors --omit=tests/
-            # Print tests/ report to stdout
-            # DEV: "--ignore-errors" to skip over files that are missing
-            - run: coverage report --ignore-errors --omit=ddtrace/
-            # Print diff-cover report to stdout (compares against origin/1.x)
-            - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
-      - unless:
-          condition:
-            << pipeline.parameters.coverage >>
-          steps:
-            - run: echo "No coverage data collected. Set run workflow manually with pipeline parameter 'coverage=true'."
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: pip install -r ci/coverage/requirements.txt
+      - run: rm -f empty.*.coverage
+      # Combine all job coverage reports into one
+      - run: ls -hal *.coverage 2>/dev/null && coverage combine *.coverage || true
+      # Upload coverage report to Codecov
+      # DEV: Do not use the bash uploader, it cannot be trusted
+      - run: codecov
+      # Generate and save xml report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage xml --ignore-errors || true
+      - store_artifacts:
+          path: coverage.xml
+      # Generate and save JSON report
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage json --ignore-errors || true
+      - store_artifacts:
+          path: coverage.json
+      # Print ddtrace/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=tests/ || true
+      # Print tests/ report to stdout
+      # DEV: "--ignore-errors" to skip over files that are missing
+      - run: coverage report --ignore-errors --omit=ddtrace/ || true
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml || true
 
 
   build_base_venvs:
@@ -484,6 +502,7 @@ jobs:
           pattern: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
+          docker_services: "pygoat"
 
   appsec_threats_django:
     parallelism: 12
@@ -532,7 +551,6 @@ jobs:
     <<: *contrib_job_small
     steps:
       - run_test:
-          store_coverage: false
           pattern: "datastreams"
 
   tracer:
@@ -575,7 +593,6 @@ jobs:
       - run_test:
           pattern: "telemetry"
           snapshot: true
-          store_coverage: false
 
   debugger:
     <<: *contrib_job
@@ -612,7 +629,6 @@ jobs:
     parallelism: 16
     steps:
       - run_test:
-          store_coverage: false
           # We don't want to run the profile-diff venvs
           pattern: 'profile$'
           trace_agent_url: ""
@@ -631,14 +647,23 @@ jobs:
           environment:
             RIOT_RUN_RECOMPILE_REQS: "<< pipeline.parameters.riot_run_latest >>"
           command: |
+            ulimit -c unlimited
             ./scripts/run-test-suite 'integration-latest*' <<pipeline.parameters.coverage>> 1
+      - run:
+          command: |
+            mkdir -p /tmp/core_dumps
+            cp core.* /tmp/core_dumps || true
+            ./scripts/bt
+          when: on_fail
+      - store_artifacts:
+          name: "Store core dumps"
+          path: /tmp/core_dumps
 
   integration_testagent:
     <<: *machine_executor
     steps:
       - run_test:
           snapshot: true
-          store_coverage: false
           pattern: 'integration-snapshot*'
           trace_agent_url: ""
 
@@ -667,7 +692,6 @@ jobs:
       - image: *redis_image
     steps:
       - run_test:
-          store_coverage: false
           pattern: 'ddtracerun'
           trace_agent_url: ""
 
@@ -766,7 +790,6 @@ jobs:
         - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
-          store_coverage: false
           pattern: 'celery'
 
   cherrypy:
@@ -839,6 +862,15 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
+  dramatiq:
+    <<: *machine_executor
+    parallelism: 2
+    steps:
+      - run_test:
+          pattern: "dramatiq"
+          snapshot: true
+          docker_services: "redis"
+
   fastapi:
     <<: *machine_executor
     parallelism: 2
@@ -854,7 +886,6 @@ jobs:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
-          store_coverage: false
           snapshot: true
           pattern: "flask"
           docker_services: "memcached redis"
@@ -1136,6 +1167,7 @@ jobs:
 
   aiopg:
     <<: *contrib_job_small
+    parallelism: 4
     docker:
       - image: *ddtrace_dev_image
       - *postgres_server
@@ -1194,21 +1226,6 @@ jobs:
           pattern: 'urllib3'
           snapshot: true
           docker_services: "httpbin_local"
-
-  vertica:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - image: *vertica_image
-        environment:
-          - VP_TEST_USER=dbadmin
-          - VP_TEST_PASSWORD=abc123
-          - VP_TEST_DATABASE=docker
-    steps:
-      - run_test:
-          wait: vertica
-          pattern: 'vertica'
 
   wsgi:
     <<: *machine_executor

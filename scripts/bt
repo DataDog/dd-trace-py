@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+for core in core.*
+do
+    echo "========  Core dump: ${core}  ========"
+    binary=$(echo ${core} | sed -e 's/core\.[0-9]*\.//' -e 's/!/\//g')
+    echo "Binary: ${binary}"
+    echo "Backtrace:"
+    gdb -q -batch -ex "bt full" -ex q ${binary} ${core}
+done

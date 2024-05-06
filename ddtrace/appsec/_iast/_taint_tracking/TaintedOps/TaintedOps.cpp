@@ -1,10 +1,12 @@
 #include "TaintedOps/TaintedOps.h"
 
 PyObject*
-api_new_pyobject_id(PyObject* Py_UNUSED(module), PyObject* args)
+api_new_pyobject_id(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
-    PyObject* tainted_object;
-    PyArg_ParseTuple(args, "O", &tainted_object);
+    if (nargs != 1 or !args) {
+        throw py::value_error(MSG_ERROR_N_PARAMS);
+    }
+    PyObject* tainted_object = args[0];
     return new_pyobject_id(tainted_object);
 }
 
@@ -22,12 +24,12 @@ bool
 api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
-        auto ctx_map = initializer->get_tainting_map();
-        if (not ctx_map or ctx_map->empty()) {
+        TaintRangeMapType* tx_map = initializer->get_tainting_map();
+        if (not tx_map or tx_map->empty()) {
             return false;
         }
 
-        if (is_tainted(tainted_object.ptr(), ctx_map)) {
+        if (is_tainted(tainted_object.ptr(), tx_map)) {
             return true;
         }
     }

@@ -77,12 +77,12 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
+def mock_llmobs_span_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
-        LLMObsWriterMock = patcher.start()
+        LLMObsSpanWriterMock = patcher.start()
         m = mock.MagicMock()
-        LLMObsWriterMock.return_value = m
+        LLMObsSpanWriterMock.return_value = m
         yield m
     finally:
         patcher.stop()
@@ -117,6 +117,14 @@ def langchain_community(ddtrace_global_config, ddtrace_config_langchain, mock_lo
     import langchain_community
 
     yield langchain_community
+
+
+@pytest.fixture
+def langchain_core(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+    import langchain_core
+    import langchain_core.prompts  # noqa: F401
+
+    yield langchain_core
 
 
 @pytest.fixture

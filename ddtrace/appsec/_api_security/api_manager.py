@@ -14,13 +14,11 @@ from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
 
 
@@ -55,7 +53,6 @@ class APIManager(Service):
 
         asm_config._api_security_active = True
         log.debug("Enabling %s", cls.__name__)
-        metrics.enable()
         cls._instance = cls()
         cls._instance.start()
         log.debug("%s enabled", cls.__name__)
@@ -70,13 +67,11 @@ class APIManager(Service):
         log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
-        metrics.disable()
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self) -> None:
         super(APIManager, self).__init__()
 
-        self._schema_meter = metrics.get_meter("schema")
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
@@ -178,8 +173,7 @@ class APIManager(Service):
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLargeSchemaException
                 root._meta[meta] = b64_gzip_content
-            except Exception as e:
-                self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
+            except Exception:
                 self._log_limiter.limit(
                     log.warning,
                     "Failed to get schema from %r [schema length=%d]:\n%s",
@@ -188,4 +182,3 @@ class APIManager(Service):
                     repr(value)[:256],
                     exc_info=True,
                 )
-        self._schema_meter.increment("spans")

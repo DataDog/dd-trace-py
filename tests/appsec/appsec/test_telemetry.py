@@ -126,10 +126,18 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
                 )
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "WAF run. Timeout errors"
-        assert list_metrics_logs[0].get("stack_trace") is None
-        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+        assert len(list_metrics_logs) == 0
+
+        generate_metrics = telemetry_writer._namespace._metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
+            TELEMETRY_NAMESPACE_TAG_APPSEC
+        ]
+
+        timeout_found = False
+        for _metric_id, metric in generate_metrics.items():
+            if metric.name == "waf.requests":
+                assert ("waf_timeout", "true") in metric._tags
+                timeout_found = True
+        assert timeout_found
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):

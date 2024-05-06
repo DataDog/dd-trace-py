@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
+import logging
+
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -11,6 +16,7 @@ from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from tests.utils import override_env
 
 
 @pytest.mark.parametrize(
@@ -301,3 +307,100 @@ def test_taint_ranges_as_evidence_info_different_tainted_op1_and_op3_add():
         {"value": tainted_text2, "source": 1},
     ]
     assert sources == [input_info1, input_info2]
+
+
+@pytest.mark.skip_iast_check_logs
+@pytest.mark.parametrize(
+    "log_level, iast_debug, expected_log_msg",
+    [
+        (logging.DEBUG, "", ""),
+        (logging.WARNING, "", ""),
+        (logging.DEBUG, "false", ""),
+        (logging.WARNING, "false", ""),
+        (logging.DEBUG, "true", "_iast/_taint_tracking/__init__.py"),
+        (logging.WARNING, "true", ""),
+    ],
+)
+def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_msg, caplog):
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
+        result = taint_pyobject(
+            pyobject=string_to_taint,
+            source_name="test_add_aspect_tainting_left_hand",
+            source_value=string_to_taint,
+            source_origin=OriginType.PARAMETER,
+        )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 0
+
+    if expected_log_msg:
+        assert any(expected_log_msg in record.message for record in caplog.records), [
+            record.message for record in caplog.records
+        ]
+    else:
+        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 1
+
+
+@pytest.mark.skip_iast_check_logs
+def test_get_ranges_from_object_with_no_context():
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    destroy_context()
+    ranges_result = get_tainted_ranges(result)
+    assert len(ranges_result) == 0
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context(caplog):
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    string_to_taint = "my_string"
+    create_context()
+    result = taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result_2 = add_aspect(result, "another_string")
+
+    create_context()
+    ranges_result = get_tainted_ranges(result_2)
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert len(ranges_result) == 0

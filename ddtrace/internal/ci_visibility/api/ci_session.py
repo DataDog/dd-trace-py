@@ -1,8 +1,12 @@
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
+from ddtrace.ext import test
 from ddtrace.ext.ci_visibility.api import CIModuleId
 from ddtrace.ext.ci_visibility.api import CISessionId
 from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilityParentItem
@@ -10,6 +14,7 @@ from ddtrace.internal.ci_visibility.api.ci_base import CIVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api.ci_module import CIVisibilityModule
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
+from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.logger import get_logger
 
 
@@ -24,6 +29,7 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
     """
 
     event_type = SESSION_TYPE
+    event_type_metric_name = EVENT_TYPES.SESSION
 
     def __init__(
         self,
@@ -51,3 +57,11 @@ class CIVisibilitySession(CIVisibilityParentItem[CISessionId, CIModuleId, CIVisi
 
     def get_session_settings(self):
         return self._session_settings
+
+    def _set_itr_tags(self):
+        """Module (and session) items get a tag for skipping type"""
+        super()._set_itr_tags()
+        self.set_tag(test.ITR_TEST_SKIPPING_TYPE, self._session_settings.itr_test_skipping_level)
+
+    def add_coverage_data(self, coverage_data: Dict[Path, List[Tuple[int, int]]]):
+        raise NotImplementedError("Coverage data cannot be added to sessions.")

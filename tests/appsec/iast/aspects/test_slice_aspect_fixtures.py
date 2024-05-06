@@ -1,12 +1,17 @@
 # -*- encoding: utf-8 -*-
+import logging
 import sys
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import override_env
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.str_methods")
@@ -262,3 +267,60 @@ def test_string_slice_with_none_params(input_str, start_pos, end_pos, step, expe
         assert len(tainted_ranges) == 1
         assert tainted_ranges[0].start == 0
         assert tainted_ranges[0].length == len(expected_result)
+
+
+def test_string_slice_and_unpack():
+    """This test verify that site-packages/Crypto/Util/number.py:bytes_to_long is correctly instrumented with no
+    errors.
+    """
+    for _ in range(10):
+        input_str = b"\xcch\x08A\x93;\xa9:\xa9*\n\xeaA]\x13\xec"
+        expected_result = 271702677468084275015420463885508744172
+        result = mod.do_slice_complex(input_str)
+        assert result == expected_result
+
+        tainted_input = taint_pyobject(
+            pyobject=input_str,
+            source_name="input_str",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+        result = mod.do_slice_complex(tainted_input)
+        assert result == expected_result
+
+
+def test_string_slice_negative():
+    """This test verify that site-packages/Crypto/Util/number.py:bytes_to_long is correctly instrumented with no
+    errors.
+    """
+    input_str = b"\xc1\xd6/q\x85\n\xd40\xb6\x93\xbd* {\xb3\xaa"
+    expected_result = b"\xc1\xd6/q\x85\n\xd40\xb6\x93\xbd* {\xb3\xaa"
+    result = mod.do_slice_negative(input_str)
+    assert result == expected_result
+
+    tainted_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="input_str",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_slice_negative(tainted_input)
+    assert result == expected_result
+
+
+@pytest.mark.skip_iast_check_logs
+def test_propagate_ranges_with_no_context(caplog):
+    create_context()
+    tainted_input = taint_pyobject(
+        pyobject="abcde",
+        source_name="input_str",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result = mod.do_slice(tainted_input, 0, 3, None)
+        assert result == "abc"
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages

@@ -1,11 +1,36 @@
 import os
-import pathlib
 
-import mock
 import pytest
 
-from ddtrace.internal import packages
+from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.utils.cache import cached
+
+
+@cached()
+def _cached_sentinel():
+    pass
+
+
+@pytest.fixture
+def packages():
+    from ddtrace.internal import packages as _p
+
+    yield _p
+
+    # Clear caches
+
+    try:
+        del _p._package_for_root_module_mapping.__closure__[0].cell_contents.__callonce_result__
+    except AttributeError:
+        pass
+
+    for f in _p.__dict__.values():
+        try:
+            if f.__code__ is _cached_sentinel.__code__:
+                f.invalidate()
+        except AttributeError:
+            pass
 
 
 def test_get_distributions():
@@ -34,55 +59,39 @@ def test_get_distributions():
     assert pkg_resources_ws == importlib_pkgs
 
 
-@pytest.mark.parametrize(
-    "filename,result",
-    (
-        ("toto.py", True),
-        ("blabla/toto.py", True),
-        ("/usr/blabla/toto.py", True),
-        ("foo.pyc", True),
-        ("/usr/foo.pyc", True),
-        ("something", False),
-        ("/something/", False),
-        ("/something/nop", False),
-        ("/something/yes.DLL", True),
-    ),
-)
-def test_is_python_source_file(
-    filename,  # type: str
-    result,  # type: bool
-):
-    # type: (...) -> None
-    assert packages._is_python_source_file(pathlib.Path(filename)) == result
-
-
-@mock.patch.object(packages, "_is_python_source_file")
-def test_filename_to_package_failure(_is_python_source_file):
-    # type: (mock.MagicMock) -> None
-    def _raise():
-        raise RuntimeError("boom")
-
-    _is_python_source_file.side_effect = _raise
-
-    # type: (...) -> None
-    assert packages.filename_to_package(packages.__file__) is None
-
-
-def test_filename_to_package():
+def test_filename_to_package(packages):
     # type: (...) -> None
     package = packages.filename_to_package(packages.__file__)
     assert package is None or package.name == "ddtrace"
     package = packages.filename_to_package(pytest.__file__)
-    assert package is None or package.name == "pytest"
+    assert package.name == "pytest"
 
     import six
 
     package = packages.filename_to_package(six.__file__)
-    assert package is None or package.name == "six"
+    assert package.name == "six"
 
     import google.protobuf.internal as gp
 
     package = packages.filename_to_package(gp.__file__)
-    assert package is None or package.name == "protobuf"
+    assert package.name == "protobuf"
 
-    del packages._package_file_mapping.__closure__[0].cell_contents.__callonce_result__
+
+def test_third_party_packages():
+    assert 4000 < len(_third_party_packages()) < 5000
+
+    assert "requests" in _third_party_packages()
+    assert "nota3rdparty" not in _third_party_packages()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_THIRD_PARTY_DETECTION_INCLUDES": "myfancypackage,myotherfancypackage",
+        "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests",
+    }
+)
+def test_third_party_packages_excludes_includes():
+    from ddtrace.internal.packages import _third_party_packages
+
+    assert {"myfancypackage", "myotherfancypackage"} < _third_party_packages()
+    assert "requests" not in _third_party_packages()

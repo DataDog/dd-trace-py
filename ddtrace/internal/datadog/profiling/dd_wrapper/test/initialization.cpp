@@ -31,18 +31,6 @@ TEST(DD_WrapperTest, TestInitWithEmpty)
 }
 
 void
-null_init()
-{
-    configure(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
-    std::exit(0);
-}
-
-TEST(DD_WrapperTest, TestInitWithNull)
-{
-    EXPECT_EXIT(null_init(), ::testing::ExitedWithCode(0), "");
-}
-
-void
 minimal_init()
 {
     std::exit(0);
