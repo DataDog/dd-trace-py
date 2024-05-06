@@ -226,7 +226,9 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             self.generate_agent_config()
             mock_flare_prep.assert_called_once()
 
-        assert self.tracer_flare_sub.current_request_start is not None
+        assert (
+            self.tracer_flare_sub.current_request_start is not None
+        ), "current_request_start should be a non-None value after request is received"
 
         # Generate an AGENT_TASK product to complete the request
         with mock.patch("ddtrace.internal.flare.flare.Flare.send") as mock_flare_send:
@@ -234,7 +236,9 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             mock_flare_send.assert_called_once()
 
         # Timestamp cleared after request completed
-        assert self.tracer_flare_sub.current_request_start is None
+        assert (
+            self.tracer_flare_sub.current_request_start is None
+        ), "current_request_start timestamp should have been reset after request was completed"
 
     def test_detect_stale_flare(self):
         """
@@ -256,9 +260,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
 
         self.generate_agent_config()
 
-        # Everything is cleaned up, reverted, and no current tracer flare
-        # timestamp
-        assert self.tracer_flare_sub.current_request_start is None
+        assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
 
     def test_no_overlapping_requests(self):
         """
@@ -280,6 +282,6 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             self.generate_agent_config()
             mock_flare_prep.assert_not_called()
 
-        # Nothing should have changed, and we should still be processing
-        # only the original request
-        assert self.tracer_flare_sub.current_request_start == original_request_start
+        assert (
+            self.tracer_flare_sub.current_request_start == original_request_start
+        ), "Original request should not have been updated with newer request start time"
