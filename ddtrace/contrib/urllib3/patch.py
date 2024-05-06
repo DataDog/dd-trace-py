@@ -3,6 +3,7 @@ import os
 import urllib3
 
 from ddtrace import config
+from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.pin import Pin
@@ -50,6 +51,11 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
+    if hasattr(urllib3, "_request_methods"):
+        _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
+    else:
+        # Old version before https://github.com/urllib3/urllib3/pull/2398
+        _w("urllib3.request", "RequestMethods.request", _wrap_request)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
 
