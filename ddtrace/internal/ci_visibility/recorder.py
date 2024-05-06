@@ -1155,7 +1155,7 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 def _register_itr_handlers():
     log.debug("Registering ITR-related handlers")
     core.on("ci_visibility.itr.finish_skipped_by_itr", _on_itr_finish_item_skipped)
-    core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable)
+    core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable, "is_item_skippable")
     core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
     core.on("ci_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
 
