@@ -1761,7 +1761,7 @@ EXTRACT_FIXTURES = [
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        DATADOG_HEADERS_VALID | TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
+        {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
