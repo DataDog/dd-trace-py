@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Callable
+from typing import Optional
 from typing import Text
 
 from ddtrace import tracer
@@ -88,7 +89,7 @@ class VulnerabilityBase(Operation):
         return True
 
     @classmethod
-    def report(cls, evidence_value: Text = "") -> None:
+    def report(cls, evidence_value: Text = "", dialect: Optional[Text] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         # TODO: type of evidence_value will be Text. We wait to finish the redaction refactor.
         if cls.acquire_quota():
@@ -125,10 +126,10 @@ class VulnerabilityBase(Operation):
                     return
             # Evidence is a string in weak cipher, weak hash and weak randomness
             if isinstance(evidence_value, (str, bytes, bytearray)):
-                evidence = Evidence(value=evidence_value)
+                evidence = Evidence(value=evidence_value, dialect=dialect)
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
-                evidence = Evidence(value="")
+                evidence = Evidence(value="", dialect=dialect)
 
             result = cls._prepare_report(span, cls.vulnerability_type, evidence, file_name, line_number)
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,

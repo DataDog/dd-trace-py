@@ -82,3 +82,8 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
     "tarfile": {"open"},
     "zipfile": {"ZipFile"},
 }
+DBAPI_SQLITE = "sqlite"
+DBAPI_PSYCOPG = "psycopg"
+DBAPI_MYSQL = "mysql"
+DBAPI_MARIADB = "mariadb"
+DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MARIADB)

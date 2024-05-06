@@ -1,5 +1,9 @@
 import re
 
+from ddtrace.appsec._iast.constants import DBAPI_MARIADB
+from ddtrace.appsec._iast.constants import DBAPI_MYSQL
+from ddtrace.appsec._iast.constants import DBAPI_PSYCOPG
+from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.internal.logger import get_logger
 
 
@@ -26,10 +30,10 @@ patterns = {
     "ANSI": re.compile(
         f"({NUMERIC_LITERAL})|({STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})", re.IGNORECASE | re.MULTILINE
     ),
-    "MYSQL": re.compile(
+    DBAPI_MYSQL: re.compile(
         f"({NUMERIC_LITERAL})|({MYSQL_STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})", re.IGNORECASE | re.MULTILINE
     ),
-    "POSTGRES": re.compile(
+    DBAPI_PSYCOPG: re.compile(
         f"({NUMERIC_LITERAL})|({POSTGRESQL_ESCAPED_LITERAL})|({STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})",
         re.IGNORECASE | re.MULTILINE,
     ),
@@ -38,8 +42,8 @@ patterns = {
         re.IGNORECASE | re.MULTILINE,
     ),
 }
-patterns["SQLITE"] = patterns["MYSQL"]
-patterns["MARIADB"] = patterns["MYSQL"]
+patterns[DBAPI_SQLITE] = patterns[DBAPI_MYSQL]
+patterns[DBAPI_MARIADB] = patterns[DBAPI_MYSQL]
 
 
 def sql_sensitive_analyzer(evidence, name_pattern, value_pattern):
