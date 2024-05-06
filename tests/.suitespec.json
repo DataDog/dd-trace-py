@@ -34,6 +34,7 @@
         ],
         "core": [
             "ddtrace/internal/__init__.py",
+            "ddtrace/internal/_exceptions.py",
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
@@ -141,6 +142,7 @@
             "ddtrace/contrib/yaaredis/*",
             "ddtrace/_trace/utils_redis.py",
             "ddtrace/contrib/redis_utils.py",
+            "ddtrace/contrib/trace_utils_redis.py",
             "ddtrace/ext/redis.py"
         ],
         "mongo": [
