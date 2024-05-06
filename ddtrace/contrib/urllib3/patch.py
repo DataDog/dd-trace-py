@@ -51,7 +51,7 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    if hasattr(urllib3, '_request_methods'):
+    if hasattr(urllib3, "_request_methods"):
         _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
     else:
         # Old version before https://github.com/urllib3/urllib3/pull/2398
