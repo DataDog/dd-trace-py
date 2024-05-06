@@ -8,6 +8,7 @@ from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
+from tests.utils import flaky
 
 from . import test_collector
 
@@ -315,6 +316,7 @@ def test_lock_acquire_release_speed(benchmark):
     benchmark(_lock_acquire_release, threading.Lock())
 
 
+@flaky(1719591602)
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(
     ddtrace_run=True,
