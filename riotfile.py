@@ -136,6 +136,7 @@ venv = Venv(
             command="pytest -v {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
+                "urllib3": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -2603,6 +2604,7 @@ venv = Venv(
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
+                "gevent": latest,
             },
         ),
         Venv(
