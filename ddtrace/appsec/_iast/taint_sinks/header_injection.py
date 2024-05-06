@@ -103,9 +103,6 @@ def _iast_h(wrapped, instance, args, kwargs):
 @oce.register
 class HeaderInjection(VulnerabilityBase):
     vulnerability_type = VULN_HEADER_INJECTION
-    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    redact_report = False
 
 
 def _iast_report_header_injection(headers_args) -> None:
