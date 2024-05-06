@@ -109,23 +109,28 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
         if not core.get_item(HTTP_REQUEST_BLOCKED):
             headers_from_context = ""
-            result = core.dispatch_with_results("flask.start_response", ("Flask",)).waf
-            if result:
-                headers_from_context = result.value
+            result_waf = core.dispatch_with_results("flask.start_response", ("Flask",)).waf
+            if result_waf:
+                headers_from_context = result_waf.value
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 # response code must be set here, or it will be too late
-                block_config = core.get_item(HTTP_REQUEST_BLOCKED)
-                desired_type = block_config.get("type", "auto")
-                status = block_config.get("status_code", 403)
-                if desired_type == "none":
-                    response_headers = []
+                result_content = core.dispatch_with_results("flask.block.request.content", ()).block_requested
+                if result_content:
+                    _, status, response_headers = result_content.value
+                    result = start_response(str(status), response_headers)
                 else:
-                    if block_config.get("type", "auto") == "auto":
-                        ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                    block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+                    desired_type = block_config.get("type", "auto")
+                    status = block_config.get("status_code", 403)
+                    if desired_type == "none":
+                        response_headers = []
                     else:
-                        ctype = "text/" + block_config["type"]
-                    response_headers = [("content-type", ctype)]
-                result = start_response(str(status), response_headers)
+                        if block_config.get("type", "auto") == "auto":
+                            ctype = "text/html" if "text/html" in headers_from_context else "text/json"
+                        else:
+                            ctype = "text/" + block_config["type"]
+                        response_headers = [("content-type", ctype)]
+                    result = start_response(str(status), response_headers)
                 core.dispatch("flask.start_response.blocked", (ctx, config.flask, response_headers, status))
             else:
                 result = start_response(status_code, headers)
