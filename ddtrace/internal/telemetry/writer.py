@@ -370,10 +370,7 @@ class TelemetryWriter(PeriodicService):
 
     def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
         item = config._config[cfg_name]
-        if cfg_name == "_trace_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_profiling_enabled":
+        if cfg_name == "_profiling_enabled":
             name = "profiling_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
@@ -432,7 +429,6 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_sca_enabled"),
