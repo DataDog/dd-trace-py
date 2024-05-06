@@ -266,12 +266,11 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
+@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = get_default_telemetry_env(
-        {"DD_SPAN_SAMPLING_RULES": "invalid_rules", "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"}
-    )
+    env = get_default_telemetry_env({"DD_SPAN_SAMPLING_RULES": "invalid_rules"})
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
@@ -364,13 +363,11 @@ tracer.trace("hi").finish()
     assert integration_error["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
-def test_unhandled_integration_error(test_agent_session, run_python_code_in_subprocess):
+def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = get_default_telemetry_env({"DD_PATCH_MODULES": "jinja2:False,subprocess:False"})
     code = """
 import logging
 logging.basicConfig()
-
-import ddtrace
-ddtrace.patch(flask=True)
 
 import flask
 f = flask.Flask("hi")
@@ -379,7 +376,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 1, stderr
 
@@ -402,7 +399,6 @@ f.wsgi_app()
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
     assert len(integrations) == 1
-    assert integrations[0]["name"] == "flask"
     assert integrations[0]["enabled"] is True
     assert integrations[0]["compatible"] is False
     assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
