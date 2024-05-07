@@ -175,7 +175,7 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
             results = body.get("results", [])
             if results:
                 text = results[0].get("outputText")
-                finish_reason = results.get("completionReason")
+                finish_reason = results[0].get("completionReason")
         elif provider == _ANTHROPIC:
             text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
