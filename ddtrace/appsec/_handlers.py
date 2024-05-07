@@ -410,7 +410,6 @@ def _on_grpc_response(response):
 
     msg_cls = type(response)
     _patch_protobuf_class(msg_cls)
-    return response
 
 
 def listen():
@@ -425,4 +424,4 @@ core.on("django.patch", _on_django_patch)
 core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
-core.on("grpc.response_message", _on_grpc_response, "response")
+core.on("grpc.response_message", _on_grpc_response)

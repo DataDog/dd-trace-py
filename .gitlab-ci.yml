@@ -3,10 +3,12 @@ stages:
   - deploy
   - benchmarks
   - benchmarks-pr-comment
+  - macrobenchmarks
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
   - local: ".gitlab/benchmarks.yml"
+  - local: ".gitlab/macrobenchmarks.yml"
 
 variables:
   DOWNSTREAM_BRANCH:
@@ -30,6 +32,7 @@ package:
     when: on_success
   script:
     - ../.gitlab/build-deb-rpm.sh
+    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
 
 package-arm:
   extends: .package-arm
@@ -40,6 +43,7 @@ package-arm:
     when: on_success
   script:
     - ../.gitlab/build-deb-rpm.sh
+    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
 
 .release-package:
   stage: deploy
@@ -126,3 +130,20 @@ deploy_latest_tag_to_docker_registries:
     # See above note in the `deploy_to_docker_registries` job.
     RETRY_DELAY: 14400
     RETRY_COUNT: 3
+
+package-oci:
+  stage: package
+  extends: .package-oci
+  rules:
+  - if: $PYTHON_PACKAGE_VERSION
+    when: on_success
+  - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-prerelease)?$/'
+    when: manual
+    allow_failure: false
+  script:
+    - ../.gitlab/build-oci.sh
+  parallel:
+    matrix:
+      - ARCH:
+        - arm64
+        - amd64

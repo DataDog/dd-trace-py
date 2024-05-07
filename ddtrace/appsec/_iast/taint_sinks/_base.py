@@ -19,7 +19,6 @@ from ..processor import AppSecIastSpanProcessor
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
-from ..reporter import Source
 from ..reporter import Vulnerability
 
 
@@ -62,7 +61,8 @@ class VulnerabilityBase(Operation):
     _redacted_report_cache = LFUCache()
 
     @classmethod
-    def _reset_cache(cls):
+    def _reset_cache_for_testing(cls):
+        """Reset the redacted reports and deduplication cache. For testing purposes only."""
         cls._redacted_report_cache.clear()
 
     @classmethod
@@ -88,35 +88,16 @@ class VulnerabilityBase(Operation):
             line_number = -1
 
         report = core.get_item(IAST.CONTEXT_KEY, span=span)
+        vulnerability = Vulnerability(
+            type=vulnerability_type,
+            evidence=evidence,
+            location=Location(path=file_name, line=line_number, spanId=span.span_id),
+        )
         if report:
-            report.vulnerabilities.add(
-                Vulnerability(
-                    type=vulnerability_type,
-                    evidence=evidence,
-                    location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                )
-            )
-
+            report.vulnerabilities.add(vulnerability)
         else:
-            report = IastSpanReporter(
-                vulnerabilities={
-                    Vulnerability(
-                        type=vulnerability_type,
-                        evidence=evidence,
-                        location=Location(path=file_name, line=line_number, spanId=span.span_id),
-                    )
-                }
-            )
-        if sources:
-
-            def cast_value(value):
-                if isinstance(value, (bytes, bytearray)):
-                    value_decoded = value.decode("utf-8")
-                else:
-                    value_decoded = value
-                return value_decoded
-
-            report.sources = [Source(origin=x.origin, name=x.name, value=cast_value(x.value)) for x in sources]
+            report = IastSpanReporter(vulnerabilities={vulnerability})
+        report.add_ranges_to_evidence_and_extract_sources(vulnerability)
 
         if getattr(cls, "redact_report", False):
             redacted_report = cls._redacted_report_cache.get(
@@ -129,9 +110,10 @@ class VulnerabilityBase(Operation):
         return True
 
     @classmethod
-    def report(cls, evidence_value="", sources=None):
-        # type: (Union[Text|List[Dict[str, Any]]], Optional[List[Source]]) -> None
+    def report(cls, evidence_value="", value_parts=None, sources=None):
+        # type: (Any, Any, Optional[List[Any]]) -> None
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
+        # TODO: type of evidence_value will be Text. We wait to finish the redaction refactor.
         if cls.acquire_quota():
             if not tracer or not hasattr(tracer, "current_root_span"):
                 log.debug(
@@ -153,7 +135,7 @@ class VulnerabilityBase(Operation):
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
                 frame_info = get_info_frame(CWD)
-                if not frame_info:
+                if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
                     return None
 
                 file_name, line_number = frame_info
@@ -165,11 +147,12 @@ class VulnerabilityBase(Operation):
                 if not cls.is_not_reported(file_name, line_number):
                     return
 
-            if _is_evidence_value_parts(evidence_value):
-                evidence = Evidence(valueParts=evidence_value)
+            # TODO: This function is deprecated, but we need to migrate all vulnerabilities first before deleting it
+            if _is_evidence_value_parts(evidence_value) or _is_evidence_value_parts(value_parts):
+                evidence = Evidence(value=evidence_value, valueParts=value_parts)
             # Evidence is a string in weak cipher, weak hash and weak randomness
             elif isinstance(evidence_value, (str, bytes, bytearray)):
-                evidence = Evidence(value=evidence_value)
+                evidence = Evidence(value=evidence_value)  # type: ignore
             else:
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="")
@@ -183,11 +166,17 @@ class VulnerabilityBase(Operation):
     @classmethod
     def _extract_sensitive_tokens(cls, report):
         # type: (Dict[Vulnerability, str]) -> Dict[int, Dict[str, Any]]
+        # TODO: This function is deprecated.
+        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+        #  all vulnerabilities to use it first.
         log.debug("Base class VulnerabilityBase._extract_sensitive_tokens called")
         return {}
 
     @classmethod
     def _get_vulnerability_text(cls, vulnerability):
+        # TODO: This function is deprecated.
+        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+        #  all vulnerabilities to use it first.
         if vulnerability and vulnerability.evidence.value is not None:
             return vulnerability.evidence.value
 
@@ -208,6 +197,9 @@ class VulnerabilityBase(Operation):
         vulns_to_tokens,
         has_range=False,
     ):
+        # TODO: This function is deprecated.
+        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+        #  all vulnerabilities to use it first.
         ret = vuln.evidence.value
         replaced = False
 
@@ -221,10 +213,16 @@ class VulnerabilityBase(Operation):
     def _custom_edit_valueparts(cls, vuln):
         # Subclasses could optionally implement this to add further processing to the
         # vulnerability valueParts
+        # TODO: This function is deprecated.
+        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+        #  all vulnerabilities to use it first.
         return
 
     @classmethod
     def _redact_report(cls, report):  # type: (IastSpanReporter) -> IastSpanReporter
+        # TODO: This function is deprecated.
+        #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
+        #  all vulnerabilities to use it first.
         if not asm_config._iast_redaction_enabled:
             return report
 
@@ -238,8 +236,8 @@ class VulnerabilityBase(Operation):
         for source in report.sources:
             # Join them so we only run the regexps once for each source
             # joined_fields = "%s%s" % (source.name, source.value)
-            if _has_to_scrub(source.name) or _has_to_scrub(source.value):
-                scrubbed = _scrub(source.value, has_range=True)
+            if _has_to_scrub(source.name) or _has_to_scrub(source.value):  # type: ignore
+                scrubbed = _scrub(source.value, has_range=True)  # type: ignore
                 already_scrubbed[source.value] = scrubbed
                 source.redacted = True
                 sources_values_to_scrubbed[source.value] = scrubbed
@@ -251,8 +249,6 @@ class VulnerabilityBase(Operation):
             if vuln.evidence.value is not None:
                 pattern, replaced = cls.replace_tokens(vuln, vulns_to_tokens, hasattr(vuln.evidence.value, "source"))
                 if replaced:
-                    vuln.evidence.pattern = pattern
-                    vuln.evidence.redacted = True
                     vuln.evidence.value = None
 
             if vuln.evidence.valueParts is None:

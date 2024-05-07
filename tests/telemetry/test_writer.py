@@ -128,7 +128,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "datadog,tracecontext"},
                     {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 100},
                     {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": False},
-                    {"name": "DD_TRACE_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v0"},
                     {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
@@ -142,10 +141,12 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
+                    {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
                     {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "tracing_enabled", "origin": "default", "value": "true"},
+                    {"name": "instrumentation_config_id", "origin": "default", "value": ""},
                 ],
                 key=lambda x: x["name"],
             ),
@@ -229,6 +230,7 @@ import ddtrace.auto
     env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
+    env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
     env[env_var] = value
 
     file = tmpdir.join("moon_ears.json")
@@ -292,11 +294,6 @@ import ddtrace.auto
             {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "unknown", "value": "tracecontext"},
             {"name": "DD_TRACE_RATE_LIMIT", "origin": "unknown", "value": 50},
             {"name": "DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", "origin": "unknown", "value": True},
-            {
-                "name": "DD_TRACE_SAMPLING_RULES",
-                "origin": "unknown",
-                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
-            },
             {"name": "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "origin": "unknown", "value": "v1"},
             {"name": "DD_TRACE_STARTUP_LOGS", "origin": "unknown", "value": True},
             {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "unknown", "value": 1000},
@@ -310,10 +307,16 @@ import ddtrace.auto
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
+            {
+                "name": "trace_sampling_rules",
+                "origin": "env_var",
+                "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
+            },
             {"name": "logs_injection_enabled", "origin": "env_var", "value": "true"},
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
             {"name": "tracing_enabled", "origin": "env_var", "value": "false"},
+            {"name": "instrumentation_config_id", "origin": "env_var", "value": "abcedf123"},
         ],
         key=lambda x: x["name"],
     )
