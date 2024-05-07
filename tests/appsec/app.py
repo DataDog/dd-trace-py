@@ -17,6 +17,7 @@ from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_d
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
 from tests.appsec.iast_packages.packages.pkg_urllib3 import pkg_urllib3
+import tests.appsec.integrations.module_with_import_errors as module_with_import_errors
 
 
 app = Flask(__name__)
@@ -57,6 +58,11 @@ def iast_cmdi_vulnerability():
     resp = Response("OK")
     resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
     return resp
+
+
+@app.route("/iast-ast-patching-import-error", methods=["GET"])
+def iast_ast_patching_import_error():
+    return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): When loading a Python module, AST patching was catching the ImportError exception and not 
+    propagating it correctly, causing if one wanted to catch this exception, it couldn't be done, 
+    generating unexpected effects as in the BeautifulSoup4 package."
