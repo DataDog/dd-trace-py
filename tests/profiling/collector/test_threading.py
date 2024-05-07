@@ -217,7 +217,6 @@ def test_lock_release_events():
     assert event.sampling_pct == 100
 
 
-@pytest.mark.skip(reason="Reliable failure")
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_lock_gevent_tasks():
@@ -255,7 +254,7 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 237, "play_with_lock", "")
+            assert event.frames[0] == ("tests/profiling/collector/test_threading.py", 238, "play_with_lock", "")
             assert event.sampling_pct == 100
             break
     else:
