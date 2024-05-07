@@ -159,6 +159,7 @@ def _patch_server():
     Pin().onto(constants.GRPC_PIN_MODULE_SERVER)
 
     _w("grpc", "server", _server_constructor_interceptor)
+    _w("grpc._server", "_receive_message", _server_receive_message)
 
 
 def _patch_aio_server():
@@ -250,6 +251,38 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
         kwargs["interceptors"] = (interceptor,)
 
     return wrapped(*args, **kwargs)
+
+
+def _server_receive_message(wrapped, instance, args, kwargs):
+    closure = wrapped(*args, **kwargs)
+    state = args[0]
+    call = args[1]
+
+    def wrapped_closure(*call_args, **call_kwargs):
+        initial_exit = state.condition.__class__.__exit__
+
+        def patched_exit(*args, **kwargs):
+            nonlocal state
+            nonlocal call
+
+            ## DEV: POC, testing with `test_insecure_channel_using_args_parameter`
+            if state.request.name == "test":
+                from grpc._cython import cygrpc
+                from grpc._server import _abort
+
+                state.condition.__class__.__exit__ = initial_exit
+                _abort(state, call, cygrpc.StatusCode.internal, "test123")
+
+            return initial_exit(*args, **kwargs)
+
+        state.condition.__class__.__exit__ = patched_exit
+
+        result = closure(*call_args, **call_kwargs)
+        state.condition.__class__.__exit__ = initial_exit
+
+        return result
+
+    return wrapped_closure
 
 
 def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
