@@ -12,9 +12,6 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.flare.flare import Flare
-from ddtrace.internal.flare.handler import _handle_tracer_flare
-from ddtrace.internal.flare.handler import _tracerFlarePubSub
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -811,6 +808,9 @@ class Config(object):
     def enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
+        from ddtrace.internal.flare.flare import Flare
+        from ddtrace.internal.flare.handler import _handle_tracer_flare
+        from ddtrace.internal.flare.handler import _tracerFlarePubSub
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
