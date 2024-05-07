@@ -59,8 +59,8 @@ with tracer.trace("test") as span:
     events_trace_tags = _get_telemetry_config_items(events, "trace_tags")
     assert {"name": "trace_tags", "value": "team:apm,component:web", "origin": "env_var"} in events_trace_tags
 
-    events_tracing_enabled = _get_telemetry_config_items(events, "tracing_enabled")
-    assert {"name": "tracing_enabled", "value": "true", "origin": "env_var"} in events_tracing_enabled
+    events_tracing_enabled = _get_telemetry_config_items(events, "trace_enabled")
+    assert {"name": "trace_enabled", "value": "true", "origin": "env_var"} in events_tracing_enabled
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -122,9 +122,9 @@ with tracer.trace("test") as span:
         "origin": "code",
     } in events_trace_tags
 
-    events_tracing_enabled = _get_telemetry_config_items(events, "tracing_enabled")
+    events_tracing_enabled = _get_telemetry_config_items(events, "trace_enabled")
     assert {
-        "name": "tracing_enabled",
+        "name": "trace_enabled",
         "value": "false",
         "origin": "code",
     } in events_tracing_enabled
