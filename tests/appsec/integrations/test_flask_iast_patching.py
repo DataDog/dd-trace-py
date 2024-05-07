@@ -11,9 +11,7 @@ def test_flask_iast_ast_patching_import_error():
         # They don't have html5lib installed.
         pass
     """
-    with flask_server(
-        app="/home/alberto.vara/projects/dd-python/dd-trace-py/tests/appsec/app.py", iast_enabled="true", token=None
-    ) as context:
+    with flask_server(iast_enabled="true", token=None) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-ast-patching-import-error")
