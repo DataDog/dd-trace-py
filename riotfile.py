@@ -440,7 +440,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
             },
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -1698,7 +1698,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
                 "pytest-randomly": latest,
@@ -2604,6 +2604,7 @@ venv = Venv(
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
+                "gevent": latest,
             },
         ),
         Venv(
