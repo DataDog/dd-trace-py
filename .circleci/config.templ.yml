@@ -501,7 +501,6 @@ jobs:
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
-          run_agent_checks: false
           docker_services: "pygoat"
 
   appsec_threats_django:
