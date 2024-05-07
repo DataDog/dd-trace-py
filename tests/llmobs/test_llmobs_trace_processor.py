@@ -29,14 +29,13 @@ def mock_logs():
         yield mock_logs
 
 
-def test_processor_does_not_submit_apm_traces_if_no_apm_env_var_is_true(monkeypatch):
-    """Test that the LLMObsTraceProcessor does not submit APM traces by default."""
-    monkeypatch.setenv("DD_LLMOBS_NO_APM", "1")
+def test_processor_returns_all_traces_by_default(monkeypatch):
+    """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
     root_llm_span.set_tag_str(SPAN_KIND, "llm")
     trace1 = [root_llm_span]
-    assert trace_filter.process_trace(trace1) is None
+    assert trace_filter.process_trace(trace1) == trace1
 
 
 def test_processor_returns_all_traces_if_no_apm_env_var_is_false(monkeypatch):
