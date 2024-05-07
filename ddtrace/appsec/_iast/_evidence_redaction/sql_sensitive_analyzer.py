@@ -23,8 +23,6 @@ BIN_NUMBER = r"b'[0-9a-f]+'|0b[0-9a-f]+"
 NUMERIC_LITERAL = (
     r"[-+]?(?:" + "|".join([HEX_NUMBER, BIN_NUMBER, DECIMAL_NUMBER + EXPONENT, INTEGER_NUMBER + EXPONENT]) + r")"
 )
-# ORACLE_ESCAPED_LITERAL = r"q'<.*?>'|q'\(.*?\)'|q'\{.*?\}'|q'\[.*?\]'|q'(?\<ESCAPE>.).*?\\k<ESCAPE>'"
-ORACLE_ESCAPED_LITERAL = r"q'<.*?>'|q'\(.*?\)'|q'\{.*?\}'|q'\[.*?\]'|q'([^']*)'"
 
 patterns = {
     DBAPI_MYSQL: re.compile(
