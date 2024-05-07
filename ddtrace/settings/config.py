@@ -12,6 +12,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import get_mp_context
+from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.flare.handler import _tracerFlarePubSub
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
@@ -813,7 +814,8 @@ class Config(object):
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
-        tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare)
+        flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key)
+        tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
