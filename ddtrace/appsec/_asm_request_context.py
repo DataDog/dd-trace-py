@@ -13,12 +13,14 @@ from urllib import parse
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _handlers
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -139,6 +141,7 @@ class _DataHandler:
         env = ASM_Environment(True)
 
         self._id = _DataHandler.main_id
+        self._root = not in_context()
         self.active = True
         self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
@@ -147,6 +150,12 @@ class _DataHandler:
             "triggered": False,
             "timeout": False,
             "version": None,
+            "rasp": {
+                "called": False,
+                "eval": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+                "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+                "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
+            },
         }
         env.callbacks[_CONTEXT_CALL] = []
 
@@ -330,15 +339,27 @@ def asm_request_context_set(
 
 
 def set_waf_telemetry_results(
-    rules_version: Optional[str], is_triggered: bool, is_blocked: bool, is_timeout: bool
+    rules_version: Optional[str],
+    is_triggered: bool,
+    is_blocked: bool,
+    is_timeout: bool,
+    rule_type: Optional[str],
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
     if result is not None:
-        result["triggered"] |= is_triggered
-        result["blocked"] |= is_blocked
-        result["timeout"] |= is_timeout
-        if rules_version is not None:
-            result["version"] = rules_version
+        if rule_type is None:
+            # Request Blocking telemetry
+            result["triggered"] |= is_triggered
+            result["blocked"] |= is_blocked
+            result["timeout"] |= is_timeout
+            if rules_version is not None:
+                result["version"] = rules_version
+        else:
+            # Exploit Prevention telemetry
+            result["rasp"]["called"] = True
+            result["rasp"]["eval"][rule_type] += 1
+            result["rasp"]["match"][rule_type] += int(is_triggered)
+            result["rasp"]["timeout"][rule_type] += int(is_timeout)
 
 
 def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
@@ -374,6 +395,12 @@ def asm_request_context_manager(
     if resources is not None:
         try:
             yield resources
+        except BlockingException as e:
+            # ensure that the BlockingRequest that is never raised outside a context
+            # is also never propagated outside the context
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, e.args[0])
+            if not resources._root:
+                raise
         finally:
             _end_context(resources)
     else:
@@ -523,6 +550,7 @@ def _on_block_decided(callback):
         return
 
     set_value(_CALLBACKS, "flask_block", callback)
+    core.on("flask.block.request.content", callback, "block_requested")
 
 
 def _get_headers_if_appsec():

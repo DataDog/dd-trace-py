@@ -10,7 +10,6 @@ from opentelemetry.trace.span import TraceState
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal import core
 from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
@@ -58,9 +57,6 @@ class Span(OtelSpan):
     TODO: Add mapping table from otel to datadog
     """
 
-    _RECORD_EXCEPTION_KEY = "_dd.otel.record_exception"
-    _SET_EXCEPTION_STATUS_KEY = "_dd.otel.set_status_on_exception"
-
     def __init__(
         self,
         datadog_span,  # type: DDSpan
@@ -92,23 +88,23 @@ class Span(OtelSpan):
     def _record_exception(self):
         # type: () -> bool
         # default value is True, if record exception key is not set return True
-        return core.get_item(self._RECORD_EXCEPTION_KEY, span=self._ddspan) is not False
+        return self._ddspan._get_ctx_item("_dd.otel.record_exception") is not False
 
     @_record_exception.setter
     def _record_exception(self, value):
         # type: (bool) -> None
-        core.set_item(self._RECORD_EXCEPTION_KEY, value, span=self._ddspan)
+        self._ddspan._set_ctx_item("_dd.otel.record_exception", value)
 
     @property
     def _set_status_on_exception(self):
         # type: () -> bool
         # default value is True, if set status on exception key is not set return True
-        return core.get_item(self._SET_EXCEPTION_STATUS_KEY, span=self._ddspan) is not False
+        return self._ddspan._get_ctx_item("_dd.otel.set_status_on_exception") is not False
 
     @_set_status_on_exception.setter
     def _set_status_on_exception(self, value):
         # type: (bool) -> None
-        core.set_item(self._SET_EXCEPTION_STATUS_KEY, value, span=self._ddspan)
+        self._ddspan._set_ctx_item("_dd.otel.set_status_on_exception", value)
 
     def end(self, end_time=None):
         # type: (Optional[int]) -> None

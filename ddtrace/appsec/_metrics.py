@@ -105,6 +105,21 @@ def _set_waf_request_metrics(*args):
                     1.0,
                     tags=tags_request,
                 )
+                rasp = result["rasp"]
+                if rasp["called"]:
+                    for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
+                        for rule_type, value in rasp[t].items():
+                            if value:
+                                telemetry.telemetry_writer.add_count_metric(
+                                    TELEMETRY_NAMESPACE_TAG_APPSEC,
+                                    n,
+                                    float(value),
+                                    tags=(
+                                        ("rule_type", rule_type),
+                                        ("waf_version", DDWAF_VERSION),
+                                    ),
+                                )
+
         except Exception:
             log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
         finally:
