@@ -136,7 +136,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
                     {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
                     {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
-                    {"name": "trace_enabled", "origin": "default", "value": "true"},
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
