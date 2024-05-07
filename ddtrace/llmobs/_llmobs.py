@@ -99,11 +99,11 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[list[str]] = None,
-        apm_enabled=True,
-        dd_env: Optional[str] = None,
-        dd_service: Optional[str] = None,
+        dd_apm_enabled=True,
         dd_site: Optional[str] = None,
         dd_api_key: Optional[str] = None,
+        dd_env: Optional[str] = None,
+        dd_service: Optional[str] = None,
         tracer=None,
     ):
         """
@@ -111,9 +111,11 @@ class LLMObs(Service):
 
         :param str ml_app: The name of your ml application.
         :param list[str] integrations: A list of integrations to enable auto-tracing for.
-        :param str dd_site Your datadog site.
-        :param str dd_api_key: Your datadog api key.
         :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled.
+        :param str dd_site: Your datadog site.
+        :param str dd_api_key: Your datadog api key.
+        :param str dd_env: Your environment name.
+        :param str dd_service: Your service name.
         """
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
@@ -139,7 +141,7 @@ class LLMObs(Service):
             )
 
         # update environment config based on APM enabled/disabled
-        os.environ.update(cls._apm_env_config if apm_enabled else cls._no_apm_env_config)
+        os.environ.update(cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config)
 
         if ml_app:
             config._llmobs_ml_app = ml_app
