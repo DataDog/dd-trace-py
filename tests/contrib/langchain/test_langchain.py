@@ -1598,6 +1598,7 @@ class TestLLMObsLangchain:
             ],
         )
 
+    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_chain_schema_io(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         model = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
         prompt = langchain.prompts.ChatPromptTemplate.from_messages(
