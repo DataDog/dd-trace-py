@@ -1737,7 +1737,7 @@ venv = Venv(
                 "pytest-randomly": latest,
             },
             # grpc.aio support is broken and disabled by default
-            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"}, 
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
