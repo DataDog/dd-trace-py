@@ -20,7 +20,7 @@ from tests.utils import flaky
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
-TRACE_AGENT_URL = "http://localhost:9126"
+TRACE_AGENT_URL = "http://localhost:8126"
 
 
 class TracerFlareTests(unittest.TestCase):
