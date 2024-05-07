@@ -45,10 +45,24 @@ class LLMObs(Service):
     _instance = None
     enabled = False
 
-    # SUPPORTED INTEGRATIONS
+    # Support llmobs python integrations
     langchain = "langchain"
     openai = "openai"
     botocore = "botocore"
+
+    # APM enabled env var config:
+    _apm_env_config = {
+        "DD_LLMOBS_NO_APM": "0",
+    }
+
+    # APM disabled env var config:
+    _no_apm_env_config = {
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+        "DD_REMOTE_CONFIGURATION_ENABLED": "0",
+        "DD_OPENAI_METRICS_ENABLED": "0",
+        "DD_LANGCHAIN_METRICS_ENABLED": "0",
+        "DD_LLMOBS_NO_APM": "1",
+    }
 
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
@@ -85,9 +99,11 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[list[str]] = None,
+        apm_enabled=False,
+        dd_env: Optional[str] = None,
+        dd_service: Optional[str] = None,
         dd_site: Optional[str] = None,
         dd_api_key: Optional[str] = None,
-        apm_enabled=False,
         tracer=None,
     ):
         """
@@ -113,18 +129,8 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
-        if not apm_enabled:
-            os.environ.update(
-                {
-                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": os.getenv(
-                        "DD_INSTRUMENTATION_TELEMETRY_ENABLED", default="0"
-                    ),
-                    "DD_REMOTE_CONFIGURATION_ENABLED": os.getenv("DD_REMOTE_CONFIGURATION_ENABLED", default="0"),
-                    "DD_OPENAI_METRICS_ENABLED": os.getenv("DD_OPENAI_METRICS_ENABLED", default="0"),
-                    "DD_LANGCHAIN_METRICS_ENABLED": os.getenv("DD_LANGCHAIN_METRICS_ENABLED", default="0"),
-                    "DD_LLMOBS_NO_APM": os.getenv("DD_LLMOBS_NO_APM", default="1"),
-                }
-            )
+        # update environment config based on APM enabled/disabled
+        os.environ.update(cls._apm_env_config if apm_enabled else cls._no_apm_env_config)
 
         if ml_app:
             config._llmobs_ml_app = ml_app
@@ -132,6 +138,10 @@ class LLMObs(Service):
             config._dd_site = dd_site
         if dd_api_key:
             config._dd_api_key = dd_api_key
+        if dd_env:
+            config.env = dd_env
+        if dd_service:
+            config.service = dd_service
 
         if not config._llmobs_ml_app:
             cls.enabled = False
@@ -141,15 +151,15 @@ class LLMObs(Service):
             )
 
         # enable LLMObs integations
-        LLMOBS_INTEGRATIONS = {
-            LLMObs.langchain: lambda: patch(langchain=True),
-            LLMObs.openai: lambda: patch(openai=True),
-            LLMObs.botocore: lambda: patch(botocore=True),
+        llmobs_integrations = {
+            LLMObs.langchain: lambda: LLMObs.patch_langchain(),
+            LLMObs.openai: lambda: LLMObs.patch_openai(),
+            LLMObs.botocore: lambda: LLMObs.patch_bedrock(),
         }
         if integrations:
             for integration in integrations:
-                if integration in LLMOBS_INTEGRATIONS:
-                    LLMOBS_INTEGRATIONS[integration]()
+                if integration in llmobs_integrations:
+                    llmobs_integrations[integration]()
                 else:
                     log.warning(
                         "%s is unsupported - LLMObs currently supports %s", integration, str(LLMOBS_INTEGRATIONS)
@@ -160,6 +170,27 @@ class LLMObs(Service):
         cls._instance.start()
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
+
+    @classmethod
+    def patch_langchain(cls) -> None:
+        if cls._instance is None:
+            log.warning("%s not enabled, cannot patch langchain", cls.__name__)
+            return
+        patch(langchain=True)
+
+    @classmethod
+    def patch_openai(cls) -> None:
+        if cls._instance is None:
+            log.warning("%s not enabled, cannot patch openai", cls.__name__)
+            return
+        patch(openai=True)
+
+    @classmethod
+    def patch_bedrock(cls) -> None:
+        if cls._instance is None:
+            log.warning("%s not enabled, cannot patch bedrock", cls.__name__)
+            return
+        patch(bedrock=True)
 
     @classmethod
     def disable(cls) -> None:
