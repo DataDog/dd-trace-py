@@ -1736,6 +1736,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},  # needed until grpcaio support is patched
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
