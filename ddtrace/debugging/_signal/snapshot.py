@@ -38,6 +38,7 @@ CAPTURE_TIME_BUDGET = 0.2  # seconds
 def _capture_context(
     arguments: List[Tuple[str, Any]],
     _locals: List[Tuple[str, Any]],
+    _globals: List[Tuple[str, Any]],
     throwable: ExcInfoType,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
 ) -> Dict[str, Any]:
@@ -50,18 +51,29 @@ def _capture_context(
             "arguments": utils.capture_pairs(
                 arguments, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
             )
-            if arguments is not None
+            if arguments
             else {},
             "locals": utils.capture_pairs(
                 _locals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
             )
-            if _locals is not None
+            if _locals
+            else {},
+            "statics": utils.capture_pairs(
+                _globals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+            )
+            if _globals
             else {},
             "throwable": utils.capture_exc_info(throwable),
         }
 
 
-_EMPTY_CAPTURED_CONTEXT = _capture_context([], [], (None, None, None), DEFAULT_CAPTURE_LIMITS)
+_EMPTY_CAPTURED_CONTEXT = _capture_context(
+    arguments=[],
+    _locals=[],
+    _globals=[],
+    throwable=(None, None, None),
+    limits=DEFAULT_CAPTURE_LIMITS,
+)
 
 
 @attr.s
@@ -121,6 +133,7 @@ class Snapshot(LogSignal):
             self.entry_capture = _capture_context(
                 _args,
                 [],
+                [],
                 (None, None, None),
                 limits=probe.limits,
             )
@@ -154,7 +167,7 @@ class Snapshot(LogSignal):
 
         if probe.take_snapshot:
             self.return_capture = _capture_context(
-                self.args or _safety.get_args(self.frame), _locals, exc_info, limits=probe.limits
+                self.args or _safety.get_args(self.frame), _locals, [], exc_info, limits=probe.limits
             )
         self.duration = duration
         self.state = SignalState.DONE
@@ -179,6 +192,7 @@ class Snapshot(LogSignal):
             self.line_capture = _capture_context(
                 self.args or _safety.get_args(frame),
                 _safety.get_locals(frame),
+                _safety.get_globals(frame),
                 sys.exc_info(),
                 limits=probe.limits,
             )
