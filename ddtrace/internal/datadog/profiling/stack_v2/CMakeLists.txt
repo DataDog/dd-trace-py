@@ -26,10 +26,11 @@ if (NOT Python3_INCLUDE_DIRS)
 endif()
 
 # Add echion
+set(ECHION_COMMIT "d69048b63e7d49091659964915eb52ff0ced9fc8" CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
     GIT_REPOSITORY "https://github.com/sanchda/echion.git"
-    GIT_TAG "sanchda/more_rendering"
+    GIT_TAG ${ECHION_COMMIT}
 )
 FetchContent_GetProperties(echion)
 if(NOT echion_POPULATED)
