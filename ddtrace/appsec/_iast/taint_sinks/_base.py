@@ -113,7 +113,7 @@ class VulnerabilityBase(Operation):
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
                 frame_info = get_info_frame(CWD)
-                if not frame_info:
+                if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
                     return None
 
                 file_name, line_number = frame_info
