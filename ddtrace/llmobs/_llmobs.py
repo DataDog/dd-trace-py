@@ -99,7 +99,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[list[str]] = None,
-        apm_enabled=False,
+        apm_enabled=True,
         dd_env: Optional[str] = None,
         dd_service: Optional[str] = None,
         dd_site: Optional[str] = None,
@@ -119,6 +119,8 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        if dd_site:
+            config._dd_site = dd_site
         if dd_api_key:
             config._dd_api_key = dd_api_key
 
@@ -129,15 +131,18 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
+        if not config._dd_site:
+            cls.enabled = False
+            raise ValueError(
+                "DD_SITE is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+
         # update environment config based on APM enabled/disabled
         os.environ.update(cls._apm_env_config if apm_enabled else cls._no_apm_env_config)
 
         if ml_app:
             config._llmobs_ml_app = ml_app
-        if dd_site:
-            config._dd_site = dd_site
-        if dd_api_key:
-            config._dd_api_key = dd_api_key
         if dd_env:
             config.env = dd_env
         if dd_service:

@@ -57,21 +57,21 @@ def test_service_enable():
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
         assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
-        assert run_llmobs_trace_filter(dummy_tracer) is None
+        assert run_llmobs_trace_filter(dummy_tracer) is not None
 
         llmobs_service.disable()
 
 
-def test_service_enable_with_apm():
+def test_service_enable_with_apm_disabled():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer, apm_enabled=True)
+        llmobs_service.enable(tracer=dummy_tracer, apm_enabled=False)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
         assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
-        assert run_llmobs_trace_filter(dummy_tracer) is not None
+        assert run_llmobs_trace_filter(dummy_tracer) is None
 
         llmobs_service.disable()
 
