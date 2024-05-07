@@ -62,7 +62,7 @@ def traced_init(wrapped, instance, args, kwargs):
 def traced_route_init(wrapped, _instance, args, kwargs):
     handler = get_argument_value(args, kwargs, 1, "endpoint")
 
-    core.dispatch("service_entrypoint.patch", (handler,))
+    core.dispatch("service_entrypoint.patch", (inspect.unwrap(handler),))
 
     return wrapped(*args, **kwargs)
 

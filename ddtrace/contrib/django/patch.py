@@ -10,6 +10,7 @@ import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+from inspect import unwrap
 import os
 
 from ddtrace import Pin
@@ -634,7 +635,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
             view = args[1]
             from_args = True
 
-        core.dispatch("service_entrypoint.patch", (view,))
+        core.dispatch("service_entrypoint.patch", (unwrap(view),))
 
         if from_args:
             args = list(args)
