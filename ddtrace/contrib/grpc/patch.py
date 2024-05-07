@@ -266,7 +266,7 @@ def _server_receive_message(wrapped, instance, args, kwargs):
             nonlocal call
 
             ## DEV: POC, testing with `test_insecure_channel_using_args_parameter`
-            if state.request.name == "test":
+            if state.request.name == "test" and False:
                 from grpc._cython import cygrpc
                 from grpc._server import _abort
 
