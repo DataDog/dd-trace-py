@@ -543,6 +543,8 @@ jobs:
 
   internal:
     <<: *contrib_job_small
+    docker:
+      - *testagent
     steps:
       - run_test:
           pattern: "internal"
