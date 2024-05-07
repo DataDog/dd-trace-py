@@ -26,23 +26,6 @@ DEFAULT_TIMEOUT_SECONDS = 5
 
 log = get_logger(__name__)
 
-test_log = logging.getLogger("example_logger")
-test_log.setLevel(logging.INFO)  # Set logger level to INFO
-
-# Create handlers
-file_handler = logging.FileHandler("my_log_file.log")
-file_handler.setLevel(logging.DEBUG)
-
-
-# Create formatter (optional)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-# Set formatter for handlers
-file_handler.setFormatter(formatter)
-
-# Attach handlers to logger
-test_log.addHandler(file_handler)
-
 
 @dataclasses.dataclass
 class FlareSendRequest:
@@ -129,7 +112,6 @@ class Flare:
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
-                    test_log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 else:
                     msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
@@ -137,17 +119,13 @@ class Flare:
                         response.reason,
                         response.read().decode(),
                     )
-                    test_log.info(msg)
                     raise TracerFlareSendError(msg)
             except Exception as e:
-                test_log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise e
             finally:
-                test_log.info("closing")
                 client.close()
                 # Clean up files regardless of success/failure
-                test_log.info("cleaning up files")
                 self.clean_up_files()
 
     def _generate_config_file(self, config: dict, pid: int):
@@ -222,79 +200,3 @@ class Flare:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)
-
-    # def _tracerFlarePubSub(self):
-    #     from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
-    #     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-    #     from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-    #     from ddtrace.internal.remoteconfig._pubsub import PubSub
-
-    #     class _TracerFlarePubSub(PubSub):
-    #         __publisher_class__ = RemoteConfigPublisher
-    #         __subscriber_class__ = TracerFlareSubscriber
-    #         __shared_data__ = PublisherSubscriberConnector()
-
-    #         def __init__(self, callback):
-    #             self._publisher = self.__publisher_class__(self.__shared_data__, None)
-    #             self._subscriber = self.__subscriber_class__(self.__shared_data__, callback)
-
-    #     return _TracerFlarePubSub
-
-    # def _handle_tracer_flare(self, data: dict, cleanup: bool = False):
-    #     if cleanup:
-    #         self.revert_configs()
-    #         self.clean_up_files()
-    #         return
-
-    #     if "config" not in data:
-    #         log.warning("Unexpected tracer flare RC payload %r", data)
-    #         return
-    #     if len(data["config"]) == 0:
-    #         log.warning("Unexpected number of tracer flare RC payloads %r", data)
-    #         return
-
-    #     product_type = data.get("metadata", [{}])[0].get("product_name")
-    #     configs = data.get("config", [{}])
-    #     if product_type == "AGENT_CONFIG":
-    #         self._prepare_tracer_flare(configs)
-    #     elif product_type == "AGENT_TASK":
-    #         self._generate_tracer_flare(configs)
-    #     else:
-    #         log.warning("Received unexpected tracer flare product type: %s", product_type)
-
-    # def _prepare_tracer_flare(self, configs: List[dict]):
-    #     """
-    #     Update configurations to start sending tracer logs to a file
-    #     to be sent in a flare later.
-    #     """
-    #     for c in configs:
-    #         # AGENT_CONFIG is currently being used for multiple purposes
-    #         # We only want to prepare for a tracer flare if the config name
-    #         # starts with 'flare-log-level'
-    #         if not c.get("name", "").startswith("flare-log-level"):
-    #             return
-
-    #         flare_log_level = c.get("config", {}).get("log_level").upper()
-    #         self.prepare(self.__dict__, flare_log_level)
-    #         return
-
-    # def _generate_tracer_flare(self, configs: List[Any]):
-    #     """
-    #     Revert tracer flare configurations back to original state
-    #     before sending the flare.
-    #     """
-    #     for c in configs:
-    #         # AGENT_TASK is currently being used for multiple purposes
-    #         # We only want to generate the tracer flare if the task_type is
-    #         # 'tracer_flare'
-    #         if type(c) != dict or c.get("task_type") != "tracer_flare":
-    #             continue
-    #         args = c.get("args", {})
-    #         flare_request = FlareSendRequest(
-    #             case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
-    #         )
-
-    #         self.revert_configs()
-
-    #         self.send(flare_request)
-    #         return
