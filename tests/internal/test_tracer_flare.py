@@ -13,12 +13,14 @@ from ddtrace.internal.flare.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
+from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from tests.utils import flaky
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
+TRACE_AGENT_URL = "http://localhost:9126"
 
 
 class TracerFlareTests(unittest.TestCase):
@@ -31,7 +33,7 @@ class TracerFlareTests(unittest.TestCase):
     def setUp(self):
         self.flare_uuid = uuid.uuid4()
         self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
-        self.flare = Flare(trace_agent_url="http://localhost:9126", flare_dir=pathlib.Path(self.flare_dir))
+        self.flare = Flare(trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir))
         self.pid = os.getpid()
         self.flare_file_path = f"{self.flare_dir}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{self.flare_dir}/tracer_config_{self.pid}.json"
@@ -190,10 +192,10 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     ]
 
     def setUp(self):
-        from ddtrace import config
-
         self.tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=PublisherSubscriberConnector(), callback=config.flare._handle_tracer_flare
+            data_connector=PublisherSubscriberConnector(),
+            callback=_handle_tracer_flare,
+            flare=Flare(trace_agent_url=TRACE_AGENT_URL),
         )
 
     def generate_agent_config(self):

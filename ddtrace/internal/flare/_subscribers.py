@@ -3,6 +3,7 @@ import os
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
+from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
@@ -18,11 +19,13 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         self,
         data_connector: PublisherSubscriberConnector,
         callback: Callable,
+        flare: Flare,
         stale_flare_age: int = DEFAULT_STALE_FLARE_DURATION_MINS,
     ):
         super().__init__(data_connector, callback, "TracerFlareConfig")
         self.current_request_start: Optional[datetime] = None
         self.stale_tracer_flare_num_mins = stale_flare_age
+        self.flare = flare
 
     def has_stale_flare(self) -> bool:
         if self.current_request_start:
@@ -40,7 +43,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 self.current_request_start,
             )
             self.current_request_start = None
-            self._callback({}, True)
+            self._callback(self.flare, {}, True)
             return
 
         data = self._data_connector.read()
@@ -62,6 +65,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 return
             self.current_request_start = None
         else:
+            log.warning("Received unexpected product type for tracer flare: {}", product_type)
             return
         log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
-        self._callback(data)
+        self._callback(self.flare, data)

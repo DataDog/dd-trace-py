@@ -12,7 +12,8 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.flare.flare import Flare
+from ddtrace.internal.flare.handler import _handle_tracer_flare
+from ddtrace.internal.flare.handler import _tracerFlarePubSub
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -565,7 +566,7 @@ class Config(object):
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
         self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
 
-        self.flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key)
+        # self.flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -808,89 +809,13 @@ class Config(object):
             pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
         return {k: v for k, v in pairs}
 
-    # def _tracerFlarePubSub(self):
-    #     from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
-    #     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-    #     from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-    #     from ddtrace.internal.remoteconfig._pubsub import PubSub
-
-    #     class _TracerFlarePubSub(PubSub):
-    #         __publisher_class__ = RemoteConfigPublisher
-    #         __subscriber_class__ = TracerFlareSubscriber
-    #         __shared_data__ = PublisherSubscriberConnector()
-
-    #         def __init__(self, callback):
-    #             self._publisher = self.__publisher_class__(self.__shared_data__, None)
-    #             self._subscriber = self.__subscriber_class__(self.__shared_data__, callback)
-
-    #     return _TracerFlarePubSub
-
-    # def _handle_tracer_flare(self, data: dict, cleanup: bool = False):
-    #     if cleanup:
-    #         self.flare.revert_configs()
-    #         self.flare.clean_up_files()
-    #         return
-
-    #     if "config" not in data:
-    #         log.warning("Unexpected tracer flare RC payload %r", data)
-    #         return
-    #     if len(data["config"]) == 0:
-    #         log.warning("Unexpected number of tracer flare RC payloads %r", data)
-    #         return
-
-    #     product_type = data.get("metadata", [{}])[0].get("product_name")
-    #     configs = data.get("config", {})
-    #     if product_type == "AGENT_CONFIG":
-    #         self._prepare_tracer_flare(configs)
-    #     elif product_type == "AGENT_TASK":
-    #         self._generate_tracer_flare(configs)
-    #     else:
-    #         log.warning("Received unexpected tracer flare product type: %s", product_type)
-
-    # def _prepare_tracer_flare(self, configs: List[dict]):
-    #     """
-    #     Update configurations to start sending tracer logs to a file
-    #     to be sent in a flare later.
-    #     """
-    #     for c in configs:
-    #         # AGENT_CONFIG is currently being used for multiple purposes
-    #         # We only want to prepare for a tracer flare if the config name
-    #         # starts with 'flare-log-level'
-    #         if not c.get("name", "").startswith("flare-log-level"):
-    #             return
-
-    #         flare_log_level = c.get("config", {}).get("log_level").upper()
-    #         self.flare.prepare(self.__dict__, flare_log_level)
-    #         return
-
-    # def _generate_tracer_flare(self, configs: List[Any]):
-    #     """
-    #     Revert tracer flare configurations back to original state
-    #     before sending the flare.
-    #     """
-    #     for c in configs:
-    #         # AGENT_TASK is currently being used for multiple purposes
-    #         # We only want to generate the tracer flare if the task_type is
-    #         # 'tracer_flare'
-    #         if type(c) != dict or c.get("task_type") != "tracer_flare":
-    #             continue
-    #         args = c.get("args", {})
-    #         flare_request = FlareSendRequest(
-    #             case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
-    #         )
-
-    #         self.flare.revert_configs()
-
-    #         self.flare.send(flare_request)
-    #         return
-
     def enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
-        tracerflare_pubsub = self.flare._tracerFlarePubSub()(self.flare._handle_tracer_flare)
+        tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare)
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
