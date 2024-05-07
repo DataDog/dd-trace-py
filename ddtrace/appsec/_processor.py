@@ -260,7 +260,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
-        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        span: Span,
+        ctx: ddwaf_context_capsule,
+        custom_data: Optional[Dict[str, Any]] = None,
+        crop_trace: Optional[str] = None,
+        rule_type: Optional[str] = None,
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -327,7 +332,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 
                 stack_trace_id = parameters["stack_id"]
-                report_stack("exploit detected", span, kwargs.get("crop_trace"), stack_id=stack_trace_id)
+                report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
@@ -335,7 +340,11 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
+            self._ddwaf.info.version,
+            bool(waf_results.data),
+            bool(blocked),
+            waf_results.timeout,
+            rule_type,
         )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
