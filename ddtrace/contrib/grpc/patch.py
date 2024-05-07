@@ -70,6 +70,7 @@ config._add(
     dict(
         _default_service=schematize_service_name(constants.GRPC_SERVICE_CLIENT),
         distributed_tracing_enabled=True,
+        # TODO: Remove this configuration when grpc.aio support is fixed
         _grpc_aio_enabled=asbool(os.getenv("_DD_TRACE_GRPC_AIO_ENABLED", False)),
     ),
 )
