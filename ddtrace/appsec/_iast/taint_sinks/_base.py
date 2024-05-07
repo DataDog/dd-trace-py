@@ -27,7 +27,7 @@ CWD = os.path.abspath(os.getcwd())
 
 class taint_sink_deduplication(deduplication):
     def _extract(self, args):
-        # we skip 0, 1 and last position because its the cls, span and sources respectively
+        # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
         return args[2:]
 
 

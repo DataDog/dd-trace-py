@@ -27,18 +27,11 @@ NUMERIC_LITERAL = (
 ORACLE_ESCAPED_LITERAL = r"q'<.*?>'|q'\(.*?\)'|q'\{.*?\}'|q'\[.*?\]'|q'([^']*)'"
 
 patterns = {
-    "ANSI": re.compile(
-        f"({NUMERIC_LITERAL})|({STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})", re.IGNORECASE | re.MULTILINE
-    ),
     DBAPI_MYSQL: re.compile(
         f"({NUMERIC_LITERAL})|({MYSQL_STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})", re.IGNORECASE | re.MULTILINE
     ),
     DBAPI_PSYCOPG: re.compile(
         f"({NUMERIC_LITERAL})|({POSTGRESQL_ESCAPED_LITERAL})|({STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})",
-        re.IGNORECASE | re.MULTILINE,
-    ),
-    "ORACLE": re.compile(
-        f"({NUMERIC_LITERAL})|({ORACLE_ESCAPED_LITERAL})|({STRING_LITERAL})|({LINE_COMMENT})|({BLOCK_COMMENT})",
         re.IGNORECASE | re.MULTILINE,
     ),
 }
@@ -47,7 +40,7 @@ patterns[DBAPI_MARIADB] = patterns[DBAPI_MYSQL]
 
 
 def sql_sensitive_analyzer(evidence, name_pattern, value_pattern):
-    pattern = patterns.get(evidence.dialect, patterns["ANSI"])
+    pattern = patterns.get(evidence.dialect, patterns[DBAPI_MYSQL])
     tokens = []
 
     regex_result = pattern.search(evidence.value)

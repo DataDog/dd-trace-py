@@ -27,6 +27,9 @@ def _only_if_true(value):
     return value if value else None
 
 
+ATTRS_TO_SKIP = frozenset({"_ranges", "_evidences_with_no_sources", "dialect"})
+
+
 @attr.s(eq=False, hash=False)
 class Evidence(object):
     dialect = attr.ib(type=str, default=None)  # type: Optional[str]
@@ -213,10 +216,7 @@ class IastSpanReporter(object):
         """
         return attr.asdict(
             self,
-            filter=lambda attr, x: x is not None
-            and attr.name != "_ranges"
-            and attr.name != "_evidences_with_no_sources"
-            and attr.name != "dialect",
+            filter=lambda attr, x: x is not None and attr.name not in ATTRS_TO_SKIP,
         )
 
     def _to_str(self) -> str:
