@@ -273,11 +273,6 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
-        "_trace_enabled": _ConfigItem(
-            name="trace_enabled",
-            default=True,
-            envs=[("DD_TRACE_ENABLED", asbool)],
-        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
