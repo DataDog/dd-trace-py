@@ -256,7 +256,6 @@ class LangChainIntegration(BaseLLMIntegration):
         if isinstance(messages, list):
             return [self.format_io(message) for message in messages]
         return self.get_content_from_message(messages)
-        
 
     def get_content_from_message(self, message) -> str:
         """Extracts the content from a message (AIMessage, HumanMessage, SystemMessage) object."""

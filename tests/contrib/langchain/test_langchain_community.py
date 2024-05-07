@@ -1576,14 +1576,16 @@ class TestLLMObsLangchain:
         chain = prompt | model
 
         self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: chain.invoke({
-                "ability": "world capitals",
-                "history": [
-                    langchain.schema.HumanMessage(content="Can you be my science teacher instead?"),
-                    langchain.schema.AIMessage(content="Yes")
-                ],
-                "input": "What's the powerhouse of the cell?"
-            }),
+            generate_trace=lambda inputs: chain.invoke(
+                {
+                    "ability": "world capitals",
+                    "history": [
+                        langchain.schema.HumanMessage(content="Can you be my science teacher instead?"),
+                        langchain.schema.AIMessage(content="Yes"),
+                    ],
+                    "input": "What's the powerhouse of the cell?",
+                }
+            ),
             request_vcr=request_vcr,
             mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
@@ -1592,14 +1594,25 @@ class TestLLMObsLangchain:
                 (
                     "chain",
                     {
-                        "input_value": json.dumps([{
-                            "ability": "world capitals",
-                            "history": ["Can you be my science teacher instead?", "Yes"],
-                            "input": "What's the powerhouse of the cell?",
-                        }]),
+                        "input_value": json.dumps(
+                            [
+                                {
+                                    "ability": "world capitals",
+                                    "history": ["Can you be my science teacher instead?", "Yes"],
+                                    "input": "What's the powerhouse of the cell?",
+                                }
+                            ]
+                        ),
                         "output_value": "Mitochondria.",
                     },
                 ),
-                ("llm", {"provider": "openai", "input_roles": ["system", "user", "assistant", "user"], "output_role": "assistant"}),
+                (
+                    "llm",
+                    {
+                        "provider": "openai",
+                        "input_roles": ["system", "user", "assistant", "user"],
+                        "output_role": "assistant",
+                    },
+                ),
             ],
         )
