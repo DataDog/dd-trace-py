@@ -152,9 +152,9 @@ class LLMObs(Service):
 
         # enable LLMObs integations
         llmobs_integrations = {
-            LLMObs.langchain: lambda: LLMObs.patch_langchain(),
-            LLMObs.openai: lambda: LLMObs.patch_openai(),
-            LLMObs.botocore: lambda: LLMObs.patch_bedrock(),
+            LLMObs.langchain: lambda: LLMObs._patch_langchain(),
+            LLMObs.openai: lambda: LLMObs._patch_openai(),
+            LLMObs.botocore: lambda: LLMObs._patch_bedrock(),
         }
         if integrations:
             for integration in integrations:
@@ -162,7 +162,7 @@ class LLMObs(Service):
                     llmobs_integrations[integration]()
                 else:
                     log.warning(
-                        "%s is unsupported - LLMObs currently supports %s", integration, str(LLMOBS_INTEGRATIONS)
+                        "%s is unsupported - LLMObs currently supports %s", integration, str(llmobs_integrations)
                     )
 
         cls._instance = cls(tracer=tracer)
@@ -172,21 +172,21 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def patch_langchain(cls) -> None:
+    def _patch_langchain(cls) -> None:
         if cls._instance is None:
             log.warning("%s not enabled, cannot patch langchain", cls.__name__)
             return
         patch(langchain=True)
 
     @classmethod
-    def patch_openai(cls) -> None:
+    def _patch_openai(cls) -> None:
         if cls._instance is None:
             log.warning("%s not enabled, cannot patch openai", cls.__name__)
             return
         patch(openai=True)
 
     @classmethod
-    def patch_bedrock(cls) -> None:
+    def _patch_bedrock(cls) -> None:
         if cls._instance is None:
             log.warning("%s not enabled, cannot patch bedrock", cls.__name__)
             return
