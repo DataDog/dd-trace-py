@@ -16,11 +16,25 @@ def _base_rc_config(cfg):
     return {
         "metadata": [],
         "config": [
+            # this flare data can often come in and we want to make sure we're pulling the
+            # actual lib_config data out correctly regardless
+            {
+                "internal_order": [
+                    "flare-log-level.trace",
+                    "flare-log-level.debug",
+                    "flare-log-level.info",
+                    "flare-log-level.warn",
+                    "flare-log-level.error",
+                    "flare-log-level.critical",
+                    "flare-log-level.off",
+                ],
+                "order": [],
+            },
             {
                 "action": "enable",
                 "service_target": {"service": None, "env": None},
                 "lib_config": cfg,
-            }
+            },
         ],
     }
 
