@@ -156,7 +156,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 else:
                     span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(inputs)))
             except TypeError:
-                log.warning("Failed to serialize chain input data to JSON: %s", inputs)
+                log.warning("Failed to serialize chain output data to JSON")
         if error:
             span.set_tag_str(OUTPUT_VALUE, "")
         elif outputs is not None:
@@ -167,7 +167,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 else:
                     span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
             except TypeError:
-                log.warning("Failed to serialize chain output data to JSON: %s", outputs)
+                log.warning("Failed to serialize chain output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
