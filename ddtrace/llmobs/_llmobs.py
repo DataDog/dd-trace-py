@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -98,7 +99,7 @@ class LLMObs(Service):
     def enable(
         cls,
         ml_app: Optional[str] = None,
-        integrations: Optional[list[str]] = None,
+        integrations: Optional[List[str]] = None,
         dd_apm_enabled=True,
         dd_site: Optional[str] = None,
         dd_api_key: Optional[str] = None,
@@ -110,7 +111,7 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: The name of your ml application.
-        :param list[str] integrations: A list of integrations to enable auto-tracing for.
+        :param List[str] integrations: A list of integrations to enable auto-tracing for.
         :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled.
         :param str dd_site: Your datadog site.
         :param str dd_api_key: Your datadog api key.
