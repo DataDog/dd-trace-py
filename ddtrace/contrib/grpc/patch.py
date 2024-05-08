@@ -2,6 +2,7 @@ import grpc
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -264,13 +265,19 @@ class PatchedCondition(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.state.request and self.state.request.name == "test" and False:
-            from grpc._cython import cygrpc
-            from grpc._server import _abort
+        if self.state.request and _is_iast_enabled():
+            from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 
-            self.state.condition = self.condition
+            from ...internal import core
 
-            _abort(self.state, self.call, cygrpc.StatusCode.internal, "test123")
+            core.dispatch("grpc.request", (self.state.request,))
+            if core.get_item(HTTP_REQUEST_BLOCKED):
+                from grpc._cython import cygrpc
+                from grpc._server import _abort
+
+                self.state.condition = self.condition
+
+                _abort(self.state, self.call, cygrpc.StatusCode.internal, "test123")
 
         self.condition.__exit__(exc_type, exc_val, exc_tb)
 

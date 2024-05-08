@@ -390,6 +390,11 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     )
 
 
+def _on_grpc_request(request_message):
+    # TODO
+    pass
+
+
 def _cookies_from_response_headers(response_headers):
     cookies = {}
     for header_tuple in response_headers:
@@ -766,6 +771,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("grpc.request", _on_grpc_request)
 
     for context_name in (
         "flask.call",
