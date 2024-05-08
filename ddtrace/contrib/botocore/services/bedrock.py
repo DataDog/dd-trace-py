@@ -185,26 +185,32 @@ def _extract_response(span: Span, body: Dict[str, Any]) -> Dict[str, List[str]]:
     provider = span.get_tag("bedrock.request.model_provider")
     try:
         if provider == _AI21:
-            text = body.get("completions")[0].get("data").get("text")
-            finish_reason = body.get("completions")[0].get("finishReason")
+            completions = body.get("completions", [])
+            if completions:
+                data = completions[0].get("data", {})
+                text = data.get("text")
+                finish_reason = completions[0].get("finishReason")
+        elif provider == _AMAZON and "embed" in model_name:
+            text = [body.get("embedding", [])]
         elif provider == _AMAZON:
-            text = body.get("results")[0].get("outputText")
-            finish_reason = body.get("results")[0].get("completionReason")
+            results = body.get("results", [])
+            if results:
+                text = results[0].get("outputText")
+                finish_reason = results[0].get("completionReason")
         elif provider == _ANTHROPIC:
             text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
         elif provider == _COHERE:
-            text = [generation["text"] for generation in body.get("generations")]
-            finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
-            for i in range(len(text)):
-                span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body.get("generations")[i]["id"]))
+            generations = body.get("generations", [])
+            text = [generation["text"] for generation in generations]
+            finish_reason = [generation["finish_reason"] for generation in generations]
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
         elif provider == _STABILITY:
             # TODO: request/response formats are different for image-based models. Defer for now
             pass
-    except (IndexError, AttributeError):
+    except (IndexError, AttributeError, TypeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):
