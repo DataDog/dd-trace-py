@@ -304,6 +304,9 @@ def _server_receive_message(wrapped, instance, args, kwargs):
 
         result = closure(*call_args, **call_kwargs)
 
+        if isinstance(state.condition, PatchedCondition):
+            state.condition = state.condition.condition
+
         return result
 
     return wrapped_closure
