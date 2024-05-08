@@ -255,7 +255,11 @@ class LangChainIntegration(BaseLLMIntegration):
         return self.get_content_from_message(messages)
 
     def get_content_from_message(self, message) -> str:
-        """Extracts the content from a message (AIMessage, HumanMessage, SystemMessage) object."""
+        """
+        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+        """
         if isinstance(message, str):
             return message
-        return getattr(message, "__dict__", {}).get("content", str(message))
+        content = getattr(message, "__dict__", {}).get("content", str(message))
+        role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
+        return (role, content) if role else content

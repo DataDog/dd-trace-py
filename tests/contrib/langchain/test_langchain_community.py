@@ -1598,12 +1598,15 @@ class TestLLMObsLangchain:
                             [
                                 {
                                     "ability": "world capitals",
-                                    "history": ["Can you be my science teacher instead?", "Yes"],
+                                    "history": [
+                                        ["user", "Can you be my science teacher instead?"],
+                                        ["assistant", "Yes"],
+                                    ],
                                     "input": "What's the powerhouse of the cell?",
                                 }
                             ]
                         ),
-                        "output_value": "Mitochondria.",
+                        "output_value": json.dumps(["assistant", "Mitochondria."]),
                     },
                 ),
                 (
