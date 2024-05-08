@@ -24,6 +24,9 @@ def get_version() -> str:
 
 
 def patch():
+    if asm_config._ep_enabled:
+        core.dispatch("exploit.prevention.ssrf.patch.urllib")
+
     if not asm_config._iast_enabled:
         return
 
@@ -38,9 +41,6 @@ def patch():
 
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
-
-    if asm_config._ep_enabled:
-        core.dispatch("exploit.prevention.ssrf.patch.urllib")
 
 
 def unpatch() -> None:
