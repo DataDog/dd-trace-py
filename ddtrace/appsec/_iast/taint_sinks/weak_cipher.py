@@ -15,7 +15,6 @@ from .._patch import try_wrap_function_wrapper
 from ..constants import BLOWFISH_DEF
 from ..constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
 from ..constants import DES_DEF
-from ..constants import EVIDENCE_ALGORITHM_TYPE
 from ..constants import RC2_DEF
 from ..constants import RC4_DEF
 from ..constants import VULN_WEAK_CIPHER_TYPE
@@ -44,7 +43,6 @@ def get_weak_cipher_algorithms():
 @oce.register
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
-    evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def unpatch_iast():
