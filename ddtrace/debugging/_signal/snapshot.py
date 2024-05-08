@@ -58,7 +58,7 @@ def _capture_context(
             )
             if _locals
             else {},
-            "statics": utils.capture_pairs(
+            "staticFields": utils.capture_pairs(
                 _globals, limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
             )
             if _globals
