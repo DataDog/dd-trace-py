@@ -174,7 +174,7 @@ def test_capture_context_exc():
         assert context == {
             "arguments": {},
             "locals": {},
-            "statics": {},
+            "staticFields": {},
         }
         assert exc["message"] == "'test', 'me'"
         assert exc["type"] == "Exception"

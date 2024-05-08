@@ -1197,7 +1197,7 @@ def test_debugger_redacted_identifiers():
                     "size": 3,
                 },
             },
-            "statics": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
+            "staticFields": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
             "throwable": None,
         }
 
