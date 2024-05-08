@@ -248,10 +248,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if isinstance(messages, dict):
             formatted = {}
             for key, value in messages.items():
-                if isinstance(value, list):
-                    formatted[key] = [self.format_io(item) for item in value]
-                else:
-                    formatted[key] = self.format_io(value)
+                formatted[key] = self.format_io(value)
             return formatted
         if isinstance(messages, list):
             return [self.format_io(message) for message in messages]
@@ -261,4 +258,4 @@ class LangChainIntegration(BaseLLMIntegration):
         """Extracts the content from a message (AIMessage, HumanMessage, SystemMessage) object."""
         if isinstance(message, str):
             return message
-        return message.__dict__.get("content", "")
+        return getattr(message, "__dict__", {}).get("content", str(message))
