@@ -192,7 +192,7 @@ def _wsgi_make_block_content(ctx, construct_url):
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
+    resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
 
@@ -240,7 +240,7 @@ def _asgi_make_block_content(ctx, url):
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
         log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
-
+    resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
 
@@ -711,9 +711,9 @@ def _on_botocore_kinesis_getrecords_post(
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
-def _on_redis_async_command_post(span, rowcount):
+def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
-        span.set_metric(db.ROWCOUNT, rowcount)
+        ctx[ctx["call_key"]].set_metric(db.ROWCOUNT, rowcount)
 
 
 def listen():
@@ -764,7 +764,8 @@ def listen():
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
-    core.on("redis.async_command.post", _on_redis_async_command_post)
+    core.on("redis.async_command.post", _on_redis_command_post)
+    core.on("redis.command.post", _on_redis_command_post)
 
     for context_name in (
         "flask.call",
@@ -782,6 +783,7 @@ def listen():
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
+        "redis.command",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

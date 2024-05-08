@@ -14,7 +14,6 @@ from .._patch import set_module_unpatched
 from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
 from ..constants import DEFAULT_WEAK_HASH_ALGORITHMS
-from ..constants import EVIDENCE_ALGORITHM_TYPE
 from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
@@ -42,7 +41,6 @@ def get_weak_hash_algorithms():
 @oce.register
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
-    evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def unpatch_iast():
