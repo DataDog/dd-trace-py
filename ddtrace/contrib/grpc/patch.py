@@ -253,32 +253,56 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
+class PatchedCondition(object):
+    def __init__(self, state, call, condition):
+        self.state = state
+        self.call = call
+        self.condition = condition
+
+    def __enter__(self):
+        self.condition.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.state.request and self.state.request.name == "test" and False:
+            from grpc._cython import cygrpc
+            from grpc._server import _abort
+
+            self.state.condition = self.condition
+
+            _abort(self.state, self.call, cygrpc.StatusCode.internal, "test123")
+
+        self.condition.__exit__(exc_type, exc_val, exc_tb)
+
+    def acquire(self, blocking=True, timeout=None):
+        return self.condition.acquire(blocking, timeout)
+
+    def release(self):
+        return self.condition.release()
+
+    def wait(self, timeout=None):
+        return self.condition.wait(timeout)
+
+    def notify(self, n=1):
+        return self.condition.notify(n)
+
+    def notify_all(self):
+        return self.condition.notify_all()
+
+    def __str__(self):
+        return str(self.condition)
+
+
 def _server_receive_message(wrapped, instance, args, kwargs):
     closure = wrapped(*args, **kwargs)
     state = args[0]
     call = args[1]
 
     def wrapped_closure(*call_args, **call_kwargs):
-        initial_exit = state.condition.__class__.__exit__
-
-        def patched_exit(*args, **kwargs):
-            nonlocal state
-            nonlocal call
-
-            ## DEV: POC, testing with `test_insecure_channel_using_args_parameter`
-            if state.request.name == "test" and False:
-                from grpc._cython import cygrpc
-                from grpc._server import _abort
-
-                state.condition.__class__.__exit__ = initial_exit
-                _abort(state, call, cygrpc.StatusCode.internal, "test123")
-
-            return initial_exit(*args, **kwargs)
-
-        state.condition.__class__.__exit__ = patched_exit
+        if not isinstance(state.condition, PatchedCondition):
+            state.condition = PatchedCondition(state, call, state.condition)
 
         result = closure(*call_args, **call_kwargs)
-        state.condition.__class__.__exit__ = initial_exit
 
         return result
 
