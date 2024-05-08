@@ -260,6 +260,9 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         if isinstance(message, str):
             return message
-        content = getattr(message, "__dict__", {}).get("content", str(message))
-        role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
-        return (role, content) if role else content
+        try:
+            content = getattr(message, "__dict__", {}).get("content", str(message))
+            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
+            return (role, content) if role else content
+        except AttributeError:
+            return str(message)
