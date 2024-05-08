@@ -144,6 +144,11 @@ class LLMObs(Service):
         # update environment config based on APM enabled/disabled
         os.environ.update(cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config)
 
+        if not dd_apm_enabled:
+            # make sure config values are updated
+            config._remote_config_enabled = False
+            config._telemetry_enabled = False
+
         if ml_app:
             config._llmobs_ml_app = ml_app
         if dd_env:
