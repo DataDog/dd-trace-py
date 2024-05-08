@@ -61,7 +61,7 @@ def _prepare_tracer_flare(flare: Flare, configs: List[dict]):
         # We only want to prepare for a tracer flare if the config name
         # starts with 'flare-log-level'
         if not c.get("name", "").startswith("flare-log-level"):
-            return
+            continue
 
         flare_log_level = c.get("config", {}).get("log_level").upper()
         flare.prepare(c, flare_log_level)
