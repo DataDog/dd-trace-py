@@ -44,7 +44,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
                 _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV):
@@ -77,7 +76,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
@@ -128,7 +127,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             resp = self.client.post(
@@ -377,7 +376,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
                 _deduplication_enabled=False,
             )
         ), override_env(IAST_ENV):
@@ -444,7 +442,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
@@ -505,6 +503,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             resp = self.client.get("/sqli/parameter/?table=sqlite_master")
@@ -610,7 +609,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _asm_enabled=True,
+                _deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})

@@ -506,7 +506,6 @@ def format_value_aspect(
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
-        # TODO: use our repr once we have implemented it
         new_text = repr_aspect(repr, 0, element)
     elif options == 97:
         new_text = ascii(element)

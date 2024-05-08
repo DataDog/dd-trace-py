@@ -74,9 +74,6 @@ def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
 @oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
-    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    redact_report = False
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
