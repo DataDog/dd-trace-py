@@ -169,8 +169,8 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
         if provider == _AI21:
             completions = body.get("completions", [])
             if completions:
-                text = body.get("completions")[0].get("data").get("text")
-                finish_reason = body.get("completions")[0].get("finishReason")
+                text = completions[0].get("data").get("text")
+                finish_reason = completions[0].get("finishReason")
         elif provider == _AMAZON and "embed" in model_name:
             text = [body.get("embedding", [])]
         elif provider == _AMAZON:
