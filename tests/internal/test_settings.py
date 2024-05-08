@@ -196,7 +196,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
     base_rc_config = _base_rc_config({})
 
     # Delete "lib_config" from the remote config
-    del base_rc_config["config"][0]["lib_config"]
+    del base_rc_config["config"][1]["lib_config"]
     assert "lib_config" not in base_rc_config["config"][0]
 
     config._handle_remoteconfig(base_rc_config, None)

@@ -744,9 +744,11 @@ class Config(object):
             return
 
         # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
+        config = None
         for config_item in data["config"]:
-            if "lib_config" in config_item:
-                config = config_item
+            if isinstance(config_item, Dict):
+                if "lib_config" in config_item:
+                    config = config_item
 
         # If no data is submitted then the RC config has been deleted. Revert the settings.
         base_rc_config = {n: None for n in self._config}
