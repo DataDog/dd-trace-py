@@ -187,6 +187,8 @@ class TraceSamplingProcessor(TraceProcessor):
                                 # due to single spans sampling, we set all of these spans to manual keep.
                                 if config._trace_compute_stats:
                                     span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                                if self.apm_opt_out:
+                                    span.set_metric(MK_APM_ENABLED, 0)
                                 break
 
             return trace
