@@ -232,7 +232,9 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
-        self._sampler: BaseSampler = DatadogSampler()
+        self._asm_enabled = asm_config._asm_enabled
+        sampler_sample_rate = 0.0000001 if (self._asm_enabled and not self.enabled) else None
+        self._sampler: BaseSampler = DatadogSampler(default_sample_rate=sampler_sample_rate)
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -253,7 +255,6 @@ class Tracer(object):
         self._writer: TraceWriter = writer
         self._partial_flush_enabled = config._partial_flush_enabled
         self._partial_flush_min_spans = config._partial_flush_min_spans
-        self._asm_enabled = asm_config._asm_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
         self._iast_enabled = asm_config._iast_enabled
@@ -811,7 +812,7 @@ class Tracer(object):
             self._services.add(service)
 
         # Only call span processors if the tracer is enabled
-        if self.enabled:
+        if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
@@ -828,7 +829,7 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled
-        if self.enabled:
+        if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 
