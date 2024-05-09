@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 import functools
 import io
 import json
@@ -17,6 +18,13 @@ from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import when_imported
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
+
+MessageMapContainer = None
+try:
+    from google._upb._message import MessageMapContainer  # type: ignore[no-redef]
+except ImportError:
+    pass
 
 
 log = get_logger(__name__)
@@ -359,8 +367,6 @@ def _on_django_patch():
 
 
 def _custom_protobuf_getattribute(self, name):
-    from collections.abc import MutableMapping
-
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_utils import taint_structure
@@ -374,18 +380,16 @@ def _custom_protobuf_getattribute(self, name):
             source_origin=OriginType.GRPC_BODY,
         )
     elif isinstance(ret, MutableMapping):
-        try:
-            from google._upb._message import MessageMapContainer
+        if MessageMapContainer is None:
+            return ret
 
-            if isinstance(ret, MessageMapContainer) and len(ret):
-                # Patch the message-values class
-                first_key = next(iter(ret))
-                value_type = type(ret[first_key])
-                _patch_protobuf_class(value_type)
-            else:
-                ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
-        except ImportError:
-            log.debug("Unable to import MessageMapContainer, so not tainting", exc_info=True)
+        if isinstance(ret, MessageMapContainer) and len(ret):
+            # Patch the message-values class
+            first_key = next(iter(ret))
+            value_type = type(ret[first_key])
+            _patch_protobuf_class(value_type)
+        else:
+            ret = taint_structure(ret, OriginType.GRPC_BODY, OriginType.GRPC_BODY)
 
     return ret
 
