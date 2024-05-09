@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: avoid crashing if ``MessageMapContainer`` import fails.
