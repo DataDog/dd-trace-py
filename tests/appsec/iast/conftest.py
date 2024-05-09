@@ -29,6 +29,18 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import reset_context
 
 
+@pytest.fixture
+def no_request_sampling(tracer):
+    with override_env(
+            {
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
+            }
+    ):
+        oce.reconfigure()
+        yield
+
+
 def iast_span(tracer, env, request_sampling="100", deduplication=False):
     try:
         from ddtrace.contrib.langchain.patch import patch as langchain_patch

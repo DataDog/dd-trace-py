@@ -44,10 +44,11 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-def test_metric_executed_sink(telemetry_writer):
+def test_metric_executed_sink(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
+        import os
         patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
@@ -75,8 +76,7 @@ def test_metric_executed_sink(telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
-@flaky(1735812000)
-def test_metric_instrumented_propagation(telemetry_writer):
+def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -84,12 +84,12 @@ def test_metric_instrumented_propagation(telemetry_writer):
 
     metrics_result = telemetry_writer._namespace._metrics_data
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
+    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
 
 
-@flaky(1735812000)
-def test_metric_request_tainted(telemetry_writer):
+def test_metric_request_tainted(no_request_sampling, telemetry_writer):
+    import os
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -106,8 +106,8 @@ def test_metric_request_tainted(telemetry_writer):
     metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
+    assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
