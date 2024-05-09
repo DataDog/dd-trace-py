@@ -18,8 +18,23 @@ class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
 
 
+_FUNC_TO_URL_ARGUMENT = {
+    'http.client.request': (1, 'url'),
+    'requests.sessions.request': (1, 'url'),
+    'urllib3._request_methods.request': (1, 'url'),
+    'urllib3.request.request': (1, 'url'),
+    'webbrowser.open': (0, 'url'),
+}
+
+
 def _iast_report_ssrf(func: Callable, *args, **kwargs):
-    report_ssrf = args[1] if len(args) > 1 else kwargs.get("url", None)
+    func_key = func.__module__ + '.' + func.__name__
+    arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(func_key, (None, None))
+    if not arg_pos:
+        log.debug("%s not found in list of functions supported for SSRF", func_key)
+        return
+
+    report_ssrf = args[arg_pos] if len(args) >= arg_pos else kwargs.get(kwarg_name, None)
 
     if report_ssrf:
         from .._metrics import _set_metric_iast_executed_sink
