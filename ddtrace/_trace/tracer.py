@@ -257,7 +257,6 @@ class Tracer(object):
         self._writer: TraceWriter = writer
         self._partial_flush_enabled = config._partial_flush_enabled
         self._partial_flush_min_spans = config._partial_flush_min_spans
-        self._asm_enabled = asm_config._asm_enabled
         # Direct link to the appsec processor
         self._appsec_processor = None
         self._iast_enabled = asm_config._iast_enabled
@@ -827,7 +826,7 @@ class Tracer(object):
             self._services.add(service)
 
         # Only call span processors if the tracer is enabled
-        if self.enabled:
+        if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
@@ -844,7 +843,7 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled
-        if self.enabled:
+        if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 
