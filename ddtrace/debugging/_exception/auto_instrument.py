@@ -1,5 +1,6 @@
 from collections import deque
 from itertools import count
+from pathlib import Path
 import sys
 from threading import current_thread
 from types import FrameType
@@ -16,6 +17,7 @@ from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
@@ -176,8 +178,8 @@ class SpanExceptionProcessor(SpanProcessor):
                 code = frame.f_code
                 seq_nr = next(seq)
 
-                # TODO: Check if it is user code; if not, skip. We still
-                #       generate a sequence number.
+                if not is_user_code(Path(frame.f_code.co_filename)):
+                    continue
 
                 snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
                 if snapshot_id is None:
