@@ -115,6 +115,7 @@ def _default_span_processors_factory(
     agent_url: str,
     trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
+    apm_opt_out: bool = False,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
@@ -122,7 +123,7 @@ def _default_span_processors_factory(
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules),
+        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules, apm_opt_out),
         TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
@@ -234,7 +235,8 @@ class Tracer(object):
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._asm_enabled = asm_config._asm_enabled
         self._sampler: BaseSampler = DatadogSampler()
-        if self._asm_enabled and not self.enabled:
+        self._apm_opt_out = self._asm_enabled and not self.enabled
+        if self._apm_opt_out:
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
             # for the backend to consider the service as alive.
@@ -254,7 +256,7 @@ class Tracer(object):
                 priority_sampling=config._priority_sampling,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
+                headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
                 response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
@@ -277,6 +279,7 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
+            self._apm_opt_out,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -567,6 +570,7 @@ class Tracer(object):
                 self._agent_url,
                 self._sampler,
                 self._endpoint_call_counter_span_processor,
+                self._apm_opt_out,
             )
 
         if context_provider is not None:
