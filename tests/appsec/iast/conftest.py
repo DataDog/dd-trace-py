@@ -32,10 +32,10 @@ with override_env({"DD_IAST_ENABLED": "True"}):
 @pytest.fixture
 def no_request_sampling(tracer):
     with override_env(
-            {
-                "DD_IAST_REQUEST_SAMPLING": "100",
-                "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
-            }
+        {
+            "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
+        }
     ):
         oce.reconfigure()
         yield

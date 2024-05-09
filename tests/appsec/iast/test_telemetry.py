@@ -17,7 +17,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
-from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -88,7 +87,6 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer):
-    import os
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
