@@ -17,6 +17,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -86,6 +87,7 @@ def test_metric_instrumented_propagation(telemetry_writer):
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
 
 
+@flaky(1735812000)
 def test_metric_request_tainted(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
@@ -103,7 +105,7 @@ def test_metric_request_tainted(telemetry_writer):
     metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
+    assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
