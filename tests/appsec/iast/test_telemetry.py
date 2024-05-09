@@ -75,6 +75,7 @@ def test_metric_executed_sink(telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
+@flaky(1735812000)
 def test_metric_instrumented_propagation(telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
