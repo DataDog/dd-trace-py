@@ -402,10 +402,14 @@ def _patch_protobuf_class(cls):
         return
 
     if not hasattr(getattr_method, "__datadog_custom"):
-        # Replace the class __getattribute__ method with our custom one
-        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
-        cls.__saved_getattr = getattr_method
-        cls.__getattribute__ = _custom_protobuf_getattribute
+        try:
+            # Replace the class __getattribute__ method with our custom one
+            # (replacement is done at the class level because it would incur on a recursive loop with the instance)
+            cls.__saved_getattr = getattr_method
+            cls.__getattribute__ = _custom_protobuf_getattribute
+        except TypeError:
+            # Avoid failing on Python 3.12 while patching immutable types
+            pass
 
 
 def _on_grpc_response(response):
