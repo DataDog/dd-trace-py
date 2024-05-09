@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 import functools
 import io
 import json
@@ -17,6 +18,13 @@ from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import when_imported
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+
+
+MessageMapContainer = None
+try:
+    from google._upb._message import MessageMapContainer  # type: ignore[no-redef]
+except ImportError:
+    pass
 
 
 log = get_logger(__name__)
@@ -359,10 +367,6 @@ def _on_django_patch():
 
 
 def _custom_protobuf_getattribute(self, name):
-    from collections.abc import MutableMapping
-
-    from google._upb._message import MessageMapContainer
-
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
     from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_utils import taint_structure
@@ -375,7 +379,7 @@ def _custom_protobuf_getattribute(self, name):
             source_value=ret,
             source_origin=OriginType.GRPC_BODY,
         )
-    elif isinstance(ret, MutableMapping):
+    elif MessageMapContainer is not None and isinstance(ret, MutableMapping):
         if isinstance(ret, MessageMapContainer) and len(ret):
             # Patch the message-values class
             first_key = next(iter(ret))
@@ -398,10 +402,14 @@ def _patch_protobuf_class(cls):
         return
 
     if not hasattr(getattr_method, "__datadog_custom"):
-        # Replace the class __getattribute__ method with our custom one
-        # (replacement is done at the class level because it would incur on a recursive loop with the instance)
-        cls.__saved_getattr = getattr_method
-        cls.__getattribute__ = _custom_protobuf_getattribute
+        try:
+            # Replace the class __getattribute__ method with our custom one
+            # (replacement is done at the class level because it would incur on a recursive loop with the instance)
+            cls.__saved_getattr = getattr_method
+            cls.__getattribute__ = _custom_protobuf_getattribute
+        except TypeError:
+            # Avoid failing on Python 3.12 while patching immutable types
+            pass
 
 
 def _on_grpc_response(response):
