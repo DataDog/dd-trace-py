@@ -19,16 +19,16 @@ class SSRF(VulnerabilityBase):
 
 
 _FUNC_TO_URL_ARGUMENT = {
-    'http.client.request': (1, 'url'),
-    'requests.sessions.request': (1, 'url'),
-    'urllib3._request_methods.request': (1, 'url'),
-    'urllib3.request.request': (1, 'url'),
-    'webbrowser.open': (0, 'url'),
+    "http.client.request": (1, "url"),
+    "requests.sessions.request": (1, "url"),
+    "urllib3._request_methods.request": (1, "url"),
+    "urllib3.request.request": (1, "url"),
+    "webbrowser.open": (0, "url"),
 }
 
 
 def _iast_report_ssrf(func: Callable, *args, **kwargs):
-    func_key = func.__module__ + '.' + func.__name__
+    func_key = func.__module__ + "." + func.__name__
     arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(func_key, (None, None))
     if arg_pos is None:
         log.debug("%s not found in list of functions supported for SSRF", func_key)

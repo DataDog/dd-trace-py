@@ -8,8 +8,8 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.contrib.httplib.patch import patch as httplib_patch
 from ddtrace.contrib.requests.patch import patch as requests_patch
-from ddtrace.contrib.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
+from ddtrace.contrib.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.internal import core
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
