@@ -34,7 +34,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         log.debug("%s not found in list of functions supported for SSRF", func_key)
         return
 
-    report_ssrf = args[arg_pos] if len(args) >= arg_pos else kwargs.get(kwarg_name, None)
+    report_ssrf = args[arg_pos] if len(args) >= arg_pos else kwargs.get(kwarg_name, None)  # type: ignore[arg_type]
 
     if report_ssrf:
         from .._metrics import _set_metric_iast_executed_sink
