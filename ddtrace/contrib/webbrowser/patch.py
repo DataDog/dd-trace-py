@@ -2,12 +2,7 @@ import webbrowser
 
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_open
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ...internal.compat import httplib
-from ...internal.logger import get_logger
 from ..trace_utils import unwrap as _u
-
-
-log = get_logger(__name__)
 
 
 def get_version():
@@ -17,7 +12,7 @@ def get_version():
 
 def patch():
     """patch the built-in webbrowser methods for tracing"""
-    if getattr(httplib, "__datadog_patch", False):
+    if getattr(webbrowser, "__datadog_patch", False):
         return
     webbrowser.__datadog_patch = True
 
@@ -26,7 +21,7 @@ def patch():
 
 def unpatch():
     """unpatch any previously patched modules"""
-    if not getattr(httplib, "__datadog_patch", False):
+    if not getattr(webbrowser, "__datadog_patch", False):
         return
     webbrowser.__datadog_patch = False
 
