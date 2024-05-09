@@ -48,7 +48,6 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-        import os
         patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
