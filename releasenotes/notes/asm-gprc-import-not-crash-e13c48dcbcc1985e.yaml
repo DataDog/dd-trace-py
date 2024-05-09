@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: avoid crashing if ``MessageMapContainer`` import fails.
+    Code Security: Avoid an ``ImportError`` at patching stage if ``google._upb`` module is not available.
