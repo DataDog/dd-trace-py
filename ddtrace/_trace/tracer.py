@@ -235,9 +235,12 @@ class Tracer(object):
         self._asm_enabled = asm_config._asm_enabled
         self._sampler: BaseSampler = DatadogSampler()
         if self._asm_enabled and not self.enabled:
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
             from .internal.rate_limiter import RateLimiter
 
-            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
+            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
