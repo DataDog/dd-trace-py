@@ -6,6 +6,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.contrib.httplib.patch import patch as httplib_patch
 from ddtrace.contrib.requests.patch import patch as requests_patch
 from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
 from ddtrace.internal import core
@@ -86,6 +87,25 @@ def test_ssrf_urllib3(tracer, iast_span_defaults):
         span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
         assert span_report
         _check_report(span_report, tainted_path, "test_ssrf_urllib3")
+
+
+def test_ssrf_httplib(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        httplib_patch()
+        import http.client
+
+        tainted_url, tainted_path = _get_tainted_url()
+        try:
+            conn = http.client.HTTPConnection("localhost")
+            # label test_ssrf_httplib
+            conn.request("GET", tainted_url)
+            conn.getresponse()
+        except ConnectionError:
+            pass
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+        _check_report(span_report, tainted_path, "test_ssrf_httplib")
 
 
 def _check_no_report_if_deduplicated(span_report, num_vuln_expected):
