@@ -1,5 +1,7 @@
+from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.wrapt.importer import when_imported
 
 from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
@@ -8,7 +10,6 @@ from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from .._patch import try_wrap_function_wrapper
 from ..constants import HEADER_NAME_VALUE_SEPARATOR
 from ..constants import VULN_HEADER_INJECTION
 from ..processor import AppSecIastSpanProcessor
@@ -32,40 +33,23 @@ def patch():
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
         return
 
-    try_wrap_function_wrapper(
-        "wsgiref.headers",
-        "Headers.add_header",
-        _iast_h,
-    )
-    try_wrap_function_wrapper(
-        "wsgiref.headers",
-        "Headers.__setitem__",
-        _iast_h,
-    )
-    try_wrap_function_wrapper(
-        "werkzeug.datastructures",
-        "Headers.set",
-        _iast_h,
-    )
-    try_wrap_function_wrapper(
-        "werkzeug.datastructures",
-        "Headers.add",
-        _iast_h,
-    )
+    @when_imported("wsgiref.headers")
+    def _(m):
+        trace_utils.wrap(m, "Headers.add_header", _iast_h)
+        trace_utils.wrap(m, "Headers.__setitem__", _iast_h)
 
-    # Django
-    try_wrap_function_wrapper(
-        "django.http.response",
-        "HttpResponseBase.__setitem__",
-        _iast_h,
-    )
-    try_wrap_function_wrapper(
-        "django.http.response",
-        "ResponseHeaders.__setitem__",
-        _iast_h,
-    )
+    @when_imported("werkzeug.datastructures")
+    def _(m):
+        trace_utils.wrap(m, "Headers.add", _iast_h)
+        trace_utils.wrap(m, "Headers.set", _iast_h)
 
-    _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION, 1)
+    @when_imported("django.http.response")
+    def _(m):
+        trace_utils.wrap(m, "HttpResponse.__setitem__", _iast_h)
+        trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
+        trace_utils.wrap(m, "HttpResponseBase.__setitem__", _iast_h)
+
+    _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
 
 def unpatch():
