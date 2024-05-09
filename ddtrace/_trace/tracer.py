@@ -233,8 +233,11 @@ class Tracer(object):
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
         self._asm_enabled = asm_config._asm_enabled
-        sampler_sample_rate = 0.0000001 if (self._asm_enabled and not self.enabled) else None
-        self._sampler: BaseSampler = DatadogSampler(default_sample_rate=sampler_sample_rate)
+        self._sampler: BaseSampler = DatadogSampler()
+        if self._asm_enabled and not self.enabled:
+            from .internal.rate_limiter import RateLimiter
+
+            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
