@@ -249,7 +249,7 @@ class AstVisitor(ast.NodeTransformer):
             and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
         )
 
-    def _should_replace_with_taint_sink(self, call_node, is_function):  # type: (ast.Call, bool) -> bool
+    def _should_replace_with_taint_sink(self, call_node: ast.Call, is_function: bool) -> bool:
         function_name = self._get_function_name(call_node, is_function)
 
         if function_name in self._taint_sink_replace_disabled:
