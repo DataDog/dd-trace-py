@@ -122,10 +122,10 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        if dd_site:
-            config._dd_site = dd_site
-        if dd_api_key:
-            config._dd_api_key = dd_api_key
+        if dd_site and not config._dd_site:
+            config._dd_site = dd_site or os.getenv("DD_SITE", None)
+        if dd_api_key and not config._dd_site:
+            config._dd_api_key = dd_api_key or os.getenv("DD_API_KEY", None)
 
         if not config._dd_api_key:
             cls.enabled = False
