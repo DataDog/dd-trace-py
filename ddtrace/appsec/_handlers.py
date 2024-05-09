@@ -379,10 +379,7 @@ def _custom_protobuf_getattribute(self, name):
             source_value=ret,
             source_origin=OriginType.GRPC_BODY,
         )
-    elif isinstance(ret, MutableMapping):
-        if MessageMapContainer is None:
-            return ret
-
+    elif MessageMapContainer is not None and isinstance(ret, MutableMapping):
         if isinstance(ret, MessageMapContainer) and len(ret):
             # Patch the message-values class
             first_key = next(iter(ret))
