@@ -150,3 +150,22 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
     _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+    httplib_patch()
+    import http.client
+
+    tainted_url, tainted_path = _get_tainted_url()
+    for _ in range(0, 5):
+        try:
+            conn = http.client.HTTPConnection("localhost")
+            # label test_ssrf_httplib_deduplication
+            conn.request("GET", tainted_url)
+            conn.getresponse()
+        except ConnectionError:
+            pass
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    _check_no_report_if_deduplicated(span_report, num_vuln_expected)
