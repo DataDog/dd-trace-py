@@ -16,7 +16,7 @@ def patch():
         return
     webbrowser.__datadog_patch = True
 
-    _w("webbrowser", "BaseBrowser.open", _wrap_open)
+    _w("webbrowser", "open", _wrap_open)
 
 
 def unpatch():
@@ -25,4 +25,4 @@ def unpatch():
         return
     webbrowser.__datadog_patch = False
 
-    _u(webbrowser.BaseBrowser, "open")
+    _u(webbrowser, "open")

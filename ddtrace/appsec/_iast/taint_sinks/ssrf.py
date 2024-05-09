@@ -30,7 +30,7 @@ _FUNC_TO_URL_ARGUMENT = {
 def _iast_report_ssrf(func: Callable, *args, **kwargs):
     func_key = func.__module__ + '.' + func.__name__
     arg_pos, kwarg_name = _FUNC_TO_URL_ARGUMENT.get(func_key, (None, None))
-    if not arg_pos:
+    if arg_pos is None:
         log.debug("%s not found in list of functions supported for SSRF", func_key)
         return
 
