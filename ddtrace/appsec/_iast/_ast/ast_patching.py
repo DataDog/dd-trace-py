@@ -6,7 +6,7 @@ import os
 import re
 from sys import builtin_module_names
 from types import ModuleType
-from typing import Optional  # noqa:F401
+from typing import Optional
 from typing import Set
 from typing import Text
 from typing import Tuple
