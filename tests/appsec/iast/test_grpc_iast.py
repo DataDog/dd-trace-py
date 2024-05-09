@@ -79,15 +79,13 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
             from collections import UserDict
 
             from ddtrace.appsec._handlers import _custom_protobuf_getattribute
-
-            def __saved_getattr(self, name):
-                return self
+            from ddtrace.appsec._handlers import _patch_protobuf_class
 
             class MyUserDict(UserDict):
                 pass
 
-            setattr(MyUserDict, "__saved_getattr", __saved_getattr)
+            _patch_protobuf_class(MyUserDict)
             original_dict = {"apple": 1, "banana": 2}
             mutable_mapping = MyUserDict(original_dict)
 
-            _custom_protobuf_getattribute(mutable_mapping, "apple")
+            _custom_protobuf_getattribute(mutable_mapping, "data")
