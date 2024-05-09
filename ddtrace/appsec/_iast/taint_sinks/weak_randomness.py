@@ -1,5 +1,4 @@
 from .. import oce
-from ..constants import EVIDENCE_WEAK_RANDOMNESS
 from ..constants import VULN_WEAK_RANDOMNESS
 from ._base import VulnerabilityBase
 
@@ -7,7 +6,6 @@ from ._base import VulnerabilityBase
 @oce.register
 class WeakRandomness(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_RANDOMNESS
-    evidence_type = EVIDENCE_WEAK_RANDOMNESS
 
     @classmethod
     def report(cls, evidence_value=None, sources=None):
