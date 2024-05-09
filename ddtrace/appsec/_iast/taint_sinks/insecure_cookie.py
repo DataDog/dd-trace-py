@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
@@ -8,11 +9,6 @@ from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
 from ..constants import VULN_NO_SAMESITE_COOKIE
 from ..taint_sinks._base import VulnerabilityBase
-
-
-if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
-    from typing import Optional  # noqa:F401
 
 
 @oce.register
@@ -34,7 +30,7 @@ class NoSameSite(VulnerabilityBase):
     skip_location = True
 
 
-def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
+def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
 
