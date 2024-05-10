@@ -9,8 +9,8 @@ from typing import Optional  # noqa:F401
 import attr
 
 from ..internal import compat
-from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal._core import RateLimiter as _RateLimiter
+from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 
 
 class RateLimiter(_RateLimiter):

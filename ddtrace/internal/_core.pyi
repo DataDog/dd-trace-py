@@ -2,6 +2,7 @@ class RateLimiter:
     """
     A token bucket rate limiter implementation
     """
+
     def __init__(self, rate_limit: int, time_window: float = 1e9):
         """
         Constructor for RateLimiter
@@ -14,7 +15,6 @@ class RateLimiter:
         :param time_window: The time window where the rate limit applies in nanoseconds. default value is 1 second.
         :type time_window: :obj:`float`
         """
-
     def is_allowed(self, timestamp_ns: int) -> bool:
         """
         Check whether the current request is allowed or not
@@ -25,7 +25,6 @@ class RateLimiter:
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-
     @property
     def rate_limit(self) -> int:
         """
@@ -34,7 +33,6 @@ class RateLimiter:
         :returns: The rate limit value
         :rtype: :obj:`int`
         """
-
     @property
     def effective_rate(self) -> float:
         """

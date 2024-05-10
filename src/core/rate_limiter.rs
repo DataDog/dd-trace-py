@@ -33,15 +33,15 @@ impl RateLimiter {
     }
 
     pub fn is_allowed(&mut self, timestamp_ns: f64) -> bool {
+        if self.rate_limit == 0 {
+            return false;
+        } else if self.rate_limit < 0 {
+            return true;
+        }
+
         let mut _lock = self._lock.lock().unwrap();
 
         let allowed = {
-            if self.rate_limit == 0 {
-                return false;
-            } else if self.rate_limit < 0 {
-                return true;
-            }
-
             if self.tokens < self.max_tokens {
                 let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
                 self.tokens = cmp::min(
@@ -101,7 +101,7 @@ impl RateLimiter {
     }
 }
 
-#[pyclass(name = "RateLimiter", subclass)]
+#[pyclass(name = "RateLimiter", subclass, module = "ddtrace.internal._core")]
 pub struct RateLimiterPy {
     rate_limiter: RateLimiter,
 }
