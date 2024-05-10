@@ -41,7 +41,7 @@ impl RateLimiter {
 
         let mut _lock = self._lock.lock().unwrap();
 
-        let allowed = {
+        let allowed = (|| -> bool {
             if self.tokens < self.max_tokens {
                 let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
                 self.tokens = cmp::min(
@@ -50,7 +50,6 @@ impl RateLimiter {
                 );
             }
 
-            // We have to ALWAYS update the last update time, but we need to do so after our calculations
             self.last_update_ns = timestamp_ns;
 
             if self.tokens >= 1 {
@@ -59,7 +58,7 @@ impl RateLimiter {
             }
 
             false
-        };
+        })();
 
         // If we are in a new window, update the window rate
         if self.current_window_ns == 0.0 {
