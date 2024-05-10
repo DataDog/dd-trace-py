@@ -72,8 +72,8 @@ def test_common_replace_tainted_bytearray():
     assert get_ranges(s2) == [_RANGE1, _RANGE2]
 
 
-def _build_sample_range(start, length, name):  # type: (int, int) -> TaintRange
-    return TaintRange(start, length, Source(name, "sample_value", OriginType.PARAMETER))
+def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
+    return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
 
 
 def test_as_formatted_evidence():  # type: () -> None
