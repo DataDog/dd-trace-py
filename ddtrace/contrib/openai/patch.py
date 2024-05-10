@@ -149,7 +149,11 @@ def patch():
         return
 
     if config._llmobs_enabled:
-        LLMObs.enable()
+        try:
+            LLMObs.enable()
+        except ValueError:
+            # we don't want to crash on patching for APM spans
+            pass
 
     Pin().onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)

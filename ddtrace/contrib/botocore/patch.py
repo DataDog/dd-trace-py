@@ -87,7 +87,11 @@ def patch():
     botocore.client._datadog_patch = True
 
     if config._llmobs_enabled:
-        LLMObs.enable()
+        try:
+            LLMObs.enable()
+        except ValueError:
+            # we don't want to crash on patching for APM spans
+            pass
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))

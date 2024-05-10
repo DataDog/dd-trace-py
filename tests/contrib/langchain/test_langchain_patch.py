@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.langchain import get_version
 from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
@@ -5,6 +7,20 @@ from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from tests.contrib.patch import PatchTestCase
+from tests.utils import override_global_config
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_enabled=True, _llmobs_ml_app=None)],
+)
+def test_patch_when_llmobs_errors(ddtrace_global_config):
+    with override_global_config(ddtrace_global_config):
+        try:
+            patch()
+            unpatch()
+        except ValueError:
+            assert False, "patch() should not error if LLMObs.enable() raises an exception"
 
 
 class TestLangchainPatch(PatchTestCase.Base):

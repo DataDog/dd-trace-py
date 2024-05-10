@@ -2,9 +2,11 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
+import pytest
 
 from ddtrace.contrib.botocore import get_version
 from ddtrace.contrib.botocore.patch import patch
+from tests.utils import override_global_config
 
 
 try:
@@ -12,6 +14,19 @@ try:
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_enabled=True, _llmobs_ml_app=None)],
+)
+def test_patch_when_llmobs_errors(ddtrace_global_config):
+    with override_global_config(ddtrace_global_config):
+        try:
+            patch()
+            unpatch()
+        except ValueError:
+            assert False, "patch() should not error if LLMObs.enable() raises an exception"
 
 
 class TestBotocorePatch(PatchTestCase.Base):
