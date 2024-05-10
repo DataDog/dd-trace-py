@@ -34,6 +34,7 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
+from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -377,6 +378,7 @@ class Config(object):
     def __init__(self):
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
+        _otel_remapping()
 
         # use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
