@@ -123,6 +123,11 @@ def test_slow_imports(monkeypatch):
     deleted_modules = {}
 
     for mod in sys.modules.copy():
+        # ImportError: PyO3 modules compiled for CPython 3.8 or older may only be initialized
+        #   once per interpreter process
+        if sys.version_info >= (3, 8) and mod == "ddtrace.internal._core":
+            continue
+
         if mod.startswith("ddtrace") or mod in blocklist:
             deleted_modules[mod] = sys.modules[mod]
             del sys.modules[mod]
