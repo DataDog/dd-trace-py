@@ -64,19 +64,22 @@ def _check_report(span_report, tainted_path, label):
 def test_ssrf_requests(tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         requests_patch()
-        import requests
-        from requests.exceptions import ConnectionError
-
-        tainted_url, tainted_path = _get_tainted_url()
         try:
-            # label test_ssrf_requests
-            requests.get(tainted_url)
-        except ConnectionError:
-            pass
+            import requests
+            from requests.exceptions import ConnectionError
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert span_report
-        _check_report(span_report, tainted_path, "test_ssrf_requests")
+            tainted_url, tainted_path = _get_tainted_url()
+            try:
+                # label test_ssrf_requests
+                requests.get(tainted_url)
+            except ConnectionError:
+                pass
+
+            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            assert span_report
+            _check_report(span_report, tainted_path, "test_ssrf_requests")
+        finally:
+            requests_unpatch()
 
 
 def test_ssrf_urllib3(tracer, iast_span_defaults):
@@ -124,18 +127,21 @@ def test_ssrf_httplib(tracer, iast_span_defaults):
 def test_ssrf_webbrowser(tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         webbrowser_patch()
-        import webbrowser
-
-        tainted_url, tainted_path = _get_tainted_url()
         try:
-            # label test_ssrf_webbrowser
-            webbrowser.open(tainted_url)
-        except ConnectionError:
-            pass
+            import webbrowser
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert span_report
-        _check_report(span_report, tainted_path, "test_ssrf_webbrowser")
+            tainted_url, tainted_path = _get_tainted_url()
+            try:
+                # label test_ssrf_webbrowser
+                webbrowser.open(tainted_url)
+            except ConnectionError:
+                pass
+
+            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            assert span_report
+            _check_report(span_report, tainted_path, "test_ssrf_webbrowser")
+        finally:
+            webbrowser_unpatch()
 
 
 def test_urllib_request(tracer, iast_span_defaults):
@@ -211,20 +217,23 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
     httplib_patch()
-    import http.client
+    try:
+        import http.client
 
-    tainted_url, tainted_path = _get_tainted_url()
-    for _ in range(0, 5):
-        try:
-            conn = http.client.HTTPConnection("localhost")
-            # label test_ssrf_httplib_deduplication
-            conn.request("GET", tainted_url)
-            conn.getresponse()
-        except ConnectionError:
-            pass
+        tainted_url, tainted_path = _get_tainted_url()
+        for _ in range(0, 5):
+            try:
+                conn = http.client.HTTPConnection("localhost")
+                # label test_ssrf_httplib_deduplication
+                conn.request("GET", tainted_url)
+                conn.getresponse()
+            except ConnectionError:
+                pass
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
-    _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+    finally:
+        httplib_unpatch()
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
