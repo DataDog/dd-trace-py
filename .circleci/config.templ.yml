@@ -85,7 +85,7 @@ commands:
     description: "Install rust toolchain"
     steps:
       -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
-      -  run: . "$HOME/.cargo/env"
+      -  run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
 
   setup_hatch:
     description: "Install hatch"
