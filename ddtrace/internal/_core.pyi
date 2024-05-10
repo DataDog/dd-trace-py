@@ -7,8 +7,8 @@ class RateLimiter:
 
     rate_limit: int
     time_window: float
-    tokens: int
-    max_tokens: int
+    tokens: float
+    max_tokens: float
     last_update_ns: float
     current_window_ns: float
     tokens_allowed: int

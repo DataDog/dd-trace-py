@@ -1,13 +1,12 @@
 use pyo3::prelude::*;
-use std::cmp;
 use std::sync::Mutex;
 
 // Token bucket rate limiter
 struct RateLimiter {
     rate_limit: i32,
     time_window: f64,
-    tokens: i32,
-    max_tokens: i32,
+    tokens: f64,
+    max_tokens: f64,
     last_update_ns: f64,
     current_window_ns: f64,
     tokens_allowed: i32,
@@ -21,8 +20,8 @@ impl RateLimiter {
         RateLimiter {
             rate_limit,
             time_window,
-            tokens: 0,
-            max_tokens: rate_limit,
+            tokens: rate_limit as f64,
+            max_tokens: rate_limit as f64,
             last_update_ns: 0.0,
             current_window_ns: 0.0,
             tokens_allowed: 0,
@@ -44,16 +43,16 @@ impl RateLimiter {
         let allowed = (|| -> bool {
             if self.tokens < self.max_tokens {
                 let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
-                self.tokens = cmp::min(
-                    self.max_tokens,
-                    (self.tokens as f64 + (elapsed * self.max_tokens as f64)).ceil() as i32,
-                );
+                self.tokens += elapsed * self.max_tokens;
+                if self.tokens > self.max_tokens {
+                    self.tokens = self.max_tokens;
+                }
             }
 
             self.last_update_ns = timestamp_ns;
 
-            if self.tokens >= 1 {
-                self.tokens -= 1;
+            if self.tokens >= 1.0 {
+                self.tokens -= 1.0;
                 return true;
             }
 
@@ -86,7 +85,7 @@ impl RateLimiter {
             return current_rate;
         }
 
-        current_rate + self.prev_window_rate.unwrap() / 2.0
+        (current_rate + self.prev_window_rate.unwrap()) / 2.0
     }
 
     fn current_window_rate(&self) -> f64 {
@@ -134,12 +133,12 @@ impl RateLimiterPy {
     }
 
     #[getter]
-    pub fn tokens(&self) -> i32 {
+    pub fn tokens(&self) -> f64 {
         self.rate_limiter.tokens
     }
 
     #[getter]
-    pub fn max_tokens(&self) -> i32 {
+    pub fn max_tokens(&self) -> f64 {
         self.rate_limiter.max_tokens
     }
 
