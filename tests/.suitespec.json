@@ -265,7 +265,7 @@
         "webbrowser": [
             "ddtrace/contrib/webbrowser/*"
         ],
-        "w@ebbrowser": [
+        "urllib": [
             "ddtrace/contrib/urllib/*"
         ],
         "rq": [
