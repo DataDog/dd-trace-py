@@ -274,4 +274,3 @@ def test_ssrf_urllib_deduplication(num_vuln_expected, tracer, iast_span_deduplic
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         urllib_unpatch()
-
