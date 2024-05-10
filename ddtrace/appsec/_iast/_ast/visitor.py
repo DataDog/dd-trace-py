@@ -65,9 +65,6 @@ class AstVisitor(ast.NodeTransformer):
                 "format_map": "ddtrace_aspects.format_map_aspect",
                 "zfill": "ddtrace_aspects.zfill_aspect",
                 "ljust": "ddtrace_aspects.ljust_aspect",
-                "split": "ddtrace_aspects.split_aspect",
-                "rsplit": "ddtrace_aspects.rsplit_aspect",
-                "splitlines": "ddtrace_aspects.splitlines_aspect",
             },
             # Replacement function for indexes and ranges
             "slices": {

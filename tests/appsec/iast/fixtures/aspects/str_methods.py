@@ -1000,36 +1000,13 @@ def do_rsplit_no_args(s):  # type: (str) -> List[str]
     return s.rsplit()
 
 
-def do_split_maxsplit(s, maxsplit=-1):  # type: (str, int) -> List[str]
-    return s.split(maxsplit=maxsplit)
+def do_split(s, sep, maxsplit=-1):  # type: (str, str, int) -> List[str]
+    return s.split(sep, maxsplit)
 
 
-def do_rsplit_maxsplit(s, maxsplit=-1):  # type: (str, int) -> List[str]
-    return s.rsplit(maxsplit=maxsplit)
-
-
-def do_split_separator(s, separator):  # type: (str, str) -> List[str]
-    return s.split(separator)
-
-
-def do_rsplit_separator(s, separator):  # type: (str, str) -> List[str]
-    return s.rsplit(separator)
-
-
-def do_split_separator_and_maxsplit(s, separator, maxsplit):  # type: (str, str, int) -> List[str]
-    return s.split(separator, maxsplit)
-
-
-def do_rsplit_separator_and_maxsplit(s, separator, maxsplit):  # type: (str, str, int) -> List[str]
-    return s.rsplit(separator, maxsplit)
-
-
-def do_splitlines_no_arg(s):  # type: (str) -> List[str]
+# foosep is just needed so it has the signature expected by _test_somesplit_impl
+def do_splitlines(s, foosep):  # type: (str, str) -> List[str]
     return s.splitlines()
-
-
-def do_splitlines_keepends(s, keepends):  # type: (str, bool) -> List[str]
-    return s.splitlines(keepends=keepends)
 
 
 def do_partition(s, sep):  # type: (str, str) -> Tuple[str, str, str]
