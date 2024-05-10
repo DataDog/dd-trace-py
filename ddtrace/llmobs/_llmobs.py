@@ -123,9 +123,9 @@ class LLMObs(Service):
             return
 
         if dd_site and not config._dd_site:
-            config._dd_site = dd_site or os.getenv("DD_SITE", None)
+            config._dd_site = dd_site or os.getenv("DD_SITE", "")
         if dd_api_key and not config._dd_site:
-            config._dd_api_key = dd_api_key or os.getenv("DD_API_KEY", None)
+            config._dd_api_key = dd_api_key or os.getenv("DD_API_KEY", "")
 
         if not config._dd_api_key:
             cls.enabled = False
