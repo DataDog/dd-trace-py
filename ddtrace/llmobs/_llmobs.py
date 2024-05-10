@@ -14,6 +14,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -96,6 +97,13 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
+    def _toggle(cls, switch: bool) -> None:
+        # _toggle is a helper function to ensure the state of config._llmobs_enabled is in sync with the class attribute
+        # since our integrations depend on config._llmobs_enabled to set llmobs data
+        config._llmobs_enabled = switch
+        cls.enabled = switch
+
+    @classmethod
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -112,8 +120,8 @@ class LLMObs(Service):
 
         :param str ml_app: The name of your ml application.
         :param List[str] integrations: A list of integrations to enable auto-tracing for.
-        :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled.
-        :param str dd_site: Your datadog site.
+        :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled
+        :param str dd_site: Your datadog site, override by DD_SITE.
         :param str dd_api_key: Your datadog api key.
         :param str dd_env: Your environment name.
         :param str dd_service: Your service name.
@@ -122,46 +130,46 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
-        if dd_site and not config._dd_site:
-            config._dd_site = dd_site or os.getenv("DD_SITE", "")
-        if dd_api_key and not config._dd_site:
-            config._dd_api_key = dd_api_key or os.getenv("DD_API_KEY", "")
+        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+            LLMObs._toggle(False)
+            log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false, not starting LLMObs service")
+            return
 
+        # grab required values for LLMObs
+        # reading from environment variables is needed in case preload script wasn't called.
+        config._dd_site = config._dd_site or os.getenv("DD_SITE") or dd_site
+        config._dd_api_key = config._dd_api_key or os.getenv("DD_API_KEY") or dd_api_key
+        config._llmobs_ml_app = config._llmobs_ml_app or os.getenv("DD_LLMOBS_APP_NAME") or ml_app
+
+        # validate required values for LLMObs
         if not config._dd_api_key:
-            cls.enabled = False
+            LLMObs._toggle(False)
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
-
         if not config._dd_site:
-            cls.enabled = False
+            LLMObs._toggle(False)
             raise ValueError(
                 "DD_SITE is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
-
-        # update environment config based on APM enabled/disabled
-        os.environ.update(cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config)
-
-        if not dd_apm_enabled:
-            # make sure config values are updated
-            config._remote_config_enabled = False
-            config._telemetry_enabled = False
-
-        if ml_app:
-            config._llmobs_ml_app = ml_app
-        if dd_env:
-            config.env = dd_env
-        if dd_service:
-            config.service = dd_service
-
         if not config._llmobs_ml_app:
-            cls.enabled = False
+            LLMObs._toggle(False)
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
+
+        # grab optional values
+        config.env = dd_env or config.env
+        config.service = dd_service or config.service
+
+        # update environment config based on whether APM is enabled/disabled
+        os.environ.update(cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config)
+        if not dd_apm_enabled:
+            config._remote_config_enabled = False
+            config._telemetry_enabled = False
 
         # enable LLMObs integations
         llmobs_integrations = {
@@ -179,7 +187,7 @@ class LLMObs(Service):
                     )
 
         cls._instance = cls(tracer=tracer)
-        cls.enabled = True
+        LLMObs._toggle(True)
         cls._instance.start()
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
