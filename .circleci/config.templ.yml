@@ -136,7 +136,10 @@ commands:
       - restore_cache:
           name: Restore riot cache
           keys:
-            - riot-<<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+            - <<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+      - restore_cache:
+          name: Restore last success
+          keys:
             - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - when:
           condition:
@@ -200,7 +203,7 @@ commands:
       - save_cache:
           name: Save riot cache
           key:
-            - riot-<<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+            - <<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
           paths:
             - .riot
       - when:
