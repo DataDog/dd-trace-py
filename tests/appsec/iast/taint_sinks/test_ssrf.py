@@ -80,18 +80,21 @@ def test_ssrf_requests(tracer, iast_span_defaults):
 def test_ssrf_urllib3(tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         urllib3_patch()
-        import urllib3
-
-        tainted_url, tainted_path = _get_tainted_url()
         try:
-            # label test_ssrf_urllib3
-            urllib3.request(method="GET", url=tainted_url)
-        except urllib3.exceptions.HTTPError:
-            pass
+            import urllib3
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
-        assert span_report
-        _check_report(span_report, tainted_path, "test_ssrf_urllib3")
+            tainted_url, tainted_path = _get_tainted_url()
+            try:
+                # label test_ssrf_urllib3
+                urllib3.request(method="GET", url=tainted_url)
+            except urllib3.exceptions.HTTPError:
+                pass
+
+            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            assert span_report
+            _check_report(span_report, tainted_path, "test_ssrf_urllib3")
+        finally:
+            urllib3_unpatch()
 
 
 def test_ssrf_httplib(tracer, iast_span_defaults):
