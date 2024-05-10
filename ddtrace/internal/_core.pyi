@@ -5,6 +5,7 @@ class RateLimiter:
     A token bucket rate limiter implementation
     """
 
+    effective_rate: float
     rate_limit: int
     time_window: float
     tokens: float
