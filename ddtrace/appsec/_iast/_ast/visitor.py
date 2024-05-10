@@ -3,7 +3,6 @@ from _ast import Expr
 from _ast import ImportFrom
 import ast
 import copy
-import os
 import sys
 from typing import Any
 from typing import List
@@ -79,12 +78,7 @@ class AstVisitor(ast.NodeTransformer):
             # Replacement functions for modules
             "module_functions": {
                 "os.path": {
-                    "basename": "ddtrace_aspects._aspect_ospathbasename",
-                    "dirname": "ddtrace_aspects._aspect_ospathdirname",
                     "join": "ddtrace_aspects._aspect_ospathjoin",
-                    "normcase": "ddtrace_aspects._aspect_ospathnormcase",
-                    "split": "ddtrace_aspects._aspect_ospathsplit",
-                    "splitext": "ddtrace_aspects._aspect_ospathsplitext",
                 }
             },
             "operators": {
@@ -134,13 +128,6 @@ class AstVisitor(ast.NodeTransformer):
                 },
             },
         }
-
-        if sys.version_info >= (3, 12):
-            self._aspects_spec["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
-
-        if sys.version_info >= (3, 12) or os.name == "nt":
-            self._aspects_spec["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"
-
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
