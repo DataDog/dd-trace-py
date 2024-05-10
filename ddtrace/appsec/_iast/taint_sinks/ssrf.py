@@ -1,6 +1,6 @@
 from typing import Callable
 
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import get_argument_value, ArgumentError
 
 from ddtrace.internal.utils.importlib import func_name
 
@@ -38,7 +38,12 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         log.debug("%s not found in list of functions supported for SSRF", func_key)
         return
 
-    report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kwarg_name)
+    try:
+        report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kwarg_name)
+    except ArgumentError:
+        log.debug("Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function %s", func_key)
+        return
+
     if report_ssrf:
         from .._metrics import _set_metric_iast_executed_sink
 
