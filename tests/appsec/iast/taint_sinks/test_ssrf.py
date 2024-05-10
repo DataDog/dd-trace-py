@@ -6,6 +6,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.contrib.httplib.patch import patch as httplib_patch
 from ddtrace.contrib.requests.patch import patch as requests_patch
 from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
 from ddtrace.internal import core
@@ -88,6 +89,25 @@ def test_ssrf_urllib3(tracer, iast_span_defaults):
         _check_report(span_report, tainted_path, "test_ssrf_urllib3")
 
 
+def test_ssrf_httplib(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        httplib_patch()
+        import http.client
+
+        tainted_url, tainted_path = _get_tainted_url()
+        try:
+            conn = http.client.HTTPConnection("localhost")
+            # label test_ssrf_httplib
+            conn.request("GET", tainted_url)
+            conn.getresponse()
+        except ConnectionError:
+            pass
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report
+        _check_report(span_report, tainted_path, "test_ssrf_httplib")
+
+
 def _check_no_report_if_deduplicated(span_report, num_vuln_expected):
     if num_vuln_expected == 0:
         assert span_report is None
@@ -126,6 +146,25 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
             # label test_ssrf_urllib3_deduplication
             urllib3.request(method="GET", url=tainted_url)
         except urllib3.exceptions.HTTPError:
+            pass
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+    httplib_patch()
+    import http.client
+
+    tainted_url, tainted_path = _get_tainted_url()
+    for _ in range(0, 5):
+        try:
+            conn = http.client.HTTPConnection("localhost")
+            # label test_ssrf_httplib_deduplication
+            conn.request("GET", tainted_url)
+            conn.getresponse()
+        except ConnectionError:
             pass
 
     span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
