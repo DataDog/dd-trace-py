@@ -65,11 +65,10 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
         metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST].values()
+    assert len(generate_metrics) >= 1
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [
-        metric for metric in generate_metrics if metric._tags[0] != (("vulnerability_type", "WEAK_HASH"),)
-    ]
+    filtered_metrics = [metric for metric in generate_metrics if metric._tags[0] == ("vulnerability_type", "WEAK_HASH")]
     assert [metric._tags for metric in filtered_metrics] == [(("vulnerability_type", "WEAK_HASH"),)]
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") > 0
     # request.tainted metric is None because AST is not running in this test
