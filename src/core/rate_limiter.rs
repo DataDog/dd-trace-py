@@ -32,15 +32,16 @@ impl RateLimiter {
     }
 
     pub fn is_allowed(&mut self, timestamp_ns: f64) -> bool {
-        if self.rate_limit == 0 {
-            return false;
-        } else if self.rate_limit < 0 {
-            return true;
-        }
-
         let mut _lock = self._lock.lock().unwrap();
 
         let allowed = (|| -> bool {
+            // Rate limit of 0 is always disallowed. Negative rate limits are always allowed.
+            if self.rate_limit == 0 {
+                return false;
+            } else if self.rate_limit < 0 {
+                return true;
+            }
+
             if self.tokens < self.max_tokens {
                 let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
                 self.tokens += elapsed * self.max_tokens;
@@ -120,6 +121,11 @@ impl RateLimiterPy {
     #[getter]
     pub fn effective_rate(&self) -> f64 {
         self.rate_limiter.effective_rate()
+    }
+
+    #[getter]
+    pub fn current_window_rate(&self) -> f64 {
+        self.rate_limiter.current_window_rate()
     }
 
     #[getter]

@@ -5,16 +5,17 @@ class RateLimiter:
     A token bucket rate limiter implementation
     """
 
-    effective_rate: float
     rate_limit: int
     time_window: float
+    effective_rate: float
+    current_window_rate: float
+    prev_window_rate: typing.Optional[float]
     tokens: float
     max_tokens: float
-    last_update_ns: float
-    current_window_ns: float
     tokens_allowed: int
     tokens_total: int
-    prev_window_rate: typing.Optional[float]
+    last_update_ns: float
+    current_window_ns: float
 
     def __init__(self, rate_limit: int, time_window: float = 1e9):
         """
