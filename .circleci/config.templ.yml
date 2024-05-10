@@ -133,6 +133,7 @@ commands:
           at: .
       - restore_cache:
           keys:
+            - riot-<<parameters.pattern>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
             - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - when:
           condition:
@@ -193,6 +194,12 @@ commands:
             - store_artifacts:
                 name: "Store core dumps"
                 path: /tmp/core_dumps
+      - save_cache:
+          name: Save riot cache
+          key:
+            - riot-<<parameters.pattern>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+          paths:
+            - .riot
       - when:
           condition:
             << parameters.store_coverage >>
@@ -471,102 +478,48 @@ jobs:
   appsec:
     <<: *machine_executor
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec$'
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_iast:
     <<: *machine_executor
     parallelism: 6
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec_iast-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec_iast$'
           snapshot: true
           docker_services: "postgres"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec_iast-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_iast_tdd_propagation:
     <<: *machine_executor
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec_iast_tdd_propagation-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec_iast_tdd_propagation'
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec_iast_tdd_propagation-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_iast_memcheck:
     <<: *machine_executor
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec_iast_memcheck-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec_iast_memcheck'
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec_iast_memcheck-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_iast_packages:
     <<: *machine_executor
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec_iast_packages-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec_iast_packages'
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec_iast_packages-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_integrations:
     <<: *machine_executor
     parallelism: 7
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-appsec_integrations-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-appsec_integrations-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   appsec_threats_django:
     parallelism: 12
@@ -601,96 +554,42 @@ jobs:
   aws_lambda:
     <<: *machine_executor
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-aws_lambda-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'aws_lambda'
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-aws_lambda-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   internal:
     <<: *contrib_job_small
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-internal-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "internal"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-internal-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   datastreams:
     <<: *contrib_job_small
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-datastreams-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "datastreams"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-datastreams-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   tracer:
     <<: *contrib_job_large
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-tracer-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "tracer"
           trace_agent_url: ""
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-tracer-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   ci_visibility:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-ci_visibility-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "ci_visibility"
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-ci_visibility-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   llmobs:
     <<: *contrib_job
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-llmobs-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "llmobs"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-llmobs-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   subprocess:
     <<: *contrib_job_small
@@ -722,18 +621,9 @@ jobs:
     <<: *machine_executor
     parallelism: 10
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-openai-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'openai'
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-openai-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   opentracer:
     <<: *contrib_job_large
@@ -968,19 +858,10 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-django-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'django($|_celery)'
           snapshot: true
           docker_services: "memcached redis postgres"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-django-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   django_hosts:
     <<: *machine_executor
@@ -993,19 +874,10 @@ jobs:
     <<: *machine_executor
     parallelism: 2
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-djangorf-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: 'djangorestframework'
           snapshot: true
           docker_services: "memcached redis"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-djangorf-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   dramatiq:
     <<: *machine_executor
@@ -1020,38 +892,20 @@ jobs:
     <<: *machine_executor
     parallelism: 2
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-fastapi-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           pattern: "fastapi"
           snapshot: true
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-fastapi-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   flask:
     <<: *machine_executor
     parallelism: 10
     steps:
-      - restore_cache:
-          name: Restore Riot Venvs Cache
-          keys:
-            - riot-flask-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           snapshot: true
           pattern: "flask"
           docker_services: "memcached redis"
-      - save_cache:
-          name: Cache Riot Venvs
-          key: riot-flask-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
-          paths:
-            - .riot
 
   gevent:
     <<: *contrib_job_small
