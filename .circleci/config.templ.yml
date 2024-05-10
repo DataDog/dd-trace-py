@@ -81,6 +81,11 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.19.0
 
+  setup_rust:
+    description: "Install rust toolchain"
+    steps:
+      -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+
   setup_hatch:
     description: "Install hatch"
     steps:
@@ -1321,6 +1326,7 @@ jobs:
     executor: python310
     steps:
       - checkout
+      - setup_rust
       - setup_hatch
       - run: hatch run slotscheck:_
 
@@ -1328,6 +1334,7 @@ jobs:
     executor: python310
     steps:
       - checkout
+      - setup_rust
       - setup_hatch
       - run: hatch run meta-testing:meta-testing
 
