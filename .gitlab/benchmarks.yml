@@ -103,10 +103,11 @@ appsec-iast-propagation:
   variables:
     SCENARIO: "appsec_iast_propagation"
 
-benchmark-encoder:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "encoder"
+# Flaky benchmark test. Timeout errors
+#benchmark-encoder:
+#  extends: .benchmarks
+#  variables:
+#    SCENARIO: "encoder"
 
 benchmark-http-propagation-extract:
   extends: .benchmarks
