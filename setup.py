@@ -9,6 +9,8 @@ import sysconfig
 import tarfile
 
 import cmake
+from setuptools_rust import Binding
+from setuptools_rust import RustExtension
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -549,4 +551,13 @@ setup(
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal._core",
+            path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )
