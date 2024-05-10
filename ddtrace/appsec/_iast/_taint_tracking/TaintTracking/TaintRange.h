@@ -73,13 +73,7 @@ using TaintRangePtr = shared_ptr<TaintRange>;
 using TaintRangeRefs = vector<TaintRangePtr>;
 
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length);
-
-inline TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length)
-{
-    return shift_taint_range(source_taint_range, offset, new_length);
-}
+api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length);
 
 TaintRangeRefs
 shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, RANGE_START offset, RANGE_LENGTH new_length);
@@ -97,7 +91,7 @@ py::object
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges);
 
 TaintRangeRefs
-api_get_ranges(const py::object& string_input);
+api_get_ranges(py::object& string_input);
 
 void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2);
