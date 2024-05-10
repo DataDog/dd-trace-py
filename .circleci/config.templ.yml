@@ -449,10 +449,19 @@ jobs:
     steps:
       - checkout
       - setup_riot
+      - restore_cache:
+          name: Restore Riot Venvs Cache
+          keys:
+            - riot-venvs-{{ checksum "riotfile.py" }}
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
           command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+      - save_cache:
+          name: Cache Riot Venvs
+          key: riot-venvs-{{ checksum "riotfile.py" }}
+          paths:
+            - .riot
       - persist_to_workspace:
           root: .
           paths:
