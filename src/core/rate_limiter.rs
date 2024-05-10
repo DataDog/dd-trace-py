@@ -101,7 +101,7 @@ impl RateLimiter {
     }
 }
 
-#[pyclass(name = "RateLimiter")]
+#[pyclass(name = "RateLimiter", subclass)]
 pub struct RateLimiterPy {
     rate_limiter: RateLimiter,
 }
@@ -109,9 +109,9 @@ pub struct RateLimiterPy {
 #[pymethods]
 impl RateLimiterPy {
     #[new]
-    fn new(rate_limit: i32, time_window: f64) -> Self {
+    fn new(rate_limit: i32, time_window: Option<f64>) -> Self {
         RateLimiterPy {
-            rate_limiter: RateLimiter::new(rate_limit, time_window),
+            rate_limiter: RateLimiter::new(rate_limit, time_window.unwrap_or(1e9)),
         }
     }
 
