@@ -1,7 +1,7 @@
 def get_version():
     # type: () -> str
     try:
-        from ._version import version
+        from ddtrace._version import version
 
         return version
     except ImportError:
