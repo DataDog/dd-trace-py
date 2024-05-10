@@ -456,7 +456,9 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+          command: |
+            export DD_COMPILE_DEBUG=1
+            riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY
       - save_cache:
           name: Cache Riot Venvs
           key: riot-venvs-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
