@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Text
 
 from ddtrace.internal.logger import get_logger
 
@@ -21,18 +22,15 @@ class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> Text:
     return ""
 
 
 def unpatch_iast():
-    # type: () -> None
     set_module_unpatched("builtins", default_attr="_datadog_path_traversal_patch")
 
 
 def patch():
-    # type: () -> None
     """Wrap functions which interact with file system."""
     if not set_and_check_module_is_patched("builtins", default_attr="_datadog_path_traversal_patch"):
         return

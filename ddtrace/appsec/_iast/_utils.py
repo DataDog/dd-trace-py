@@ -1,11 +1,12 @@
 import sys
 from typing import List
+from typing import Text
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 
-def _is_python_version_supported():  # type: () -> bool
+def _is_python_version_supported() -> bool:
     # IAST supports Python versions 3.6 to 3.12
     return (3, 6, 0) <= sys.version_info < (3, 13, 0)
 
@@ -31,7 +32,7 @@ def _get_source_index(sources: List, source) -> int:
     return -1
 
 
-def _get_patched_code(module_path, module_name):  # type: (str, str) -> str
+def _get_patched_code(module_path: Text, module_name: Text) -> str:
     """
     Print the patched code to stdout, for debugging purposes.
     """

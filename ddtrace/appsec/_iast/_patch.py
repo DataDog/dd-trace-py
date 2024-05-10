@@ -1,10 +1,7 @@
 import sys
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Callable
+from typing import Text
 
-from ddtrace.appsec._common_module_patches import try_unwrap  # noqa:F401
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
@@ -15,8 +12,7 @@ from ._utils import _is_iast_enabled
 log = get_logger(__name__)
 
 
-def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
-    # type: (str, str) -> Optional[bool]
+def set_and_check_module_is_patched(module_str: Text, default_attr: Text = "_datadog_patch") -> bool:
     try:
         __import__(module_str)
         module = sys.modules[module_str]
@@ -28,8 +24,7 @@ def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
     return True
 
 
-def set_module_unpatched(module_str, default_attr="_datadog_patch"):
-    # type: (str, str) -> None
+def set_module_unpatched(module_str: Text, default_attr: Text = "_datadog_patch"):
     try:
         __import__(module_str)
         module = sys.modules[module_str]
@@ -38,8 +33,7 @@ def set_module_unpatched(module_str, default_attr="_datadog_patch"):
         pass
 
 
-def try_wrap_function_wrapper(module, name, wrapper):
-    # type: (str, str, Callable) -> None
+def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
