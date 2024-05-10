@@ -265,6 +265,9 @@
         "webbrowser": [
             "ddtrace/contrib/webbrowser/*"
         ],
+        "w@ebbrowser": [
+            "ddtrace/contrib/urllib/*"
+        ],
         "rq": [
             "ddtrace/contrib/rq/*"
         ],
@@ -1296,6 +1299,14 @@
             "@contrib",
             "@tracing",
             "@webbrowser",
+            "tests/appsec/iast/taint_sinks/test_ssrf.py"
+        ],
+        "urllib": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@urllib",
             "tests/appsec/iast/taint_sinks/test_ssrf.py"
         ],
         "vertica": [
