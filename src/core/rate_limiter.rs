@@ -127,4 +127,44 @@ impl RateLimiterPy {
     pub fn rate_limit(&self) -> i32 {
         self.rate_limiter.rate_limit
     }
+
+    #[getter]
+    pub fn time_window(&self) -> f64 {
+        self.rate_limiter.time_window
+    }
+
+    #[getter]
+    pub fn tokens(&self) -> i32 {
+        self.rate_limiter.tokens
+    }
+
+    #[getter]
+    pub fn max_tokens(&self) -> i32 {
+        self.rate_limiter.max_tokens
+    }
+
+    #[getter]
+    pub fn last_update_ns(&self) -> f64 {
+        self.rate_limiter.last_update_ns
+    }
+
+    #[getter]
+    pub fn current_window_ns(&self) -> f64 {
+        self.rate_limiter.current_window_ns
+    }
+
+    #[getter]
+    pub fn prev_window_rate(&self) -> Option<f64> {
+        self.rate_limiter.prev_window_rate
+    }
+
+    #[getter]
+    pub fn tokens_allowed(&self) -> i32 {
+        self.rate_limiter.tokens_allowed
+    }
+
+    #[getter]
+    pub fn tokens_total(&self) -> i32 {
+        self.rate_limiter.tokens_total
+    }
 }

@@ -1,7 +1,19 @@
+import typing
+
 class RateLimiter:
     """
     A token bucket rate limiter implementation
     """
+
+    rate_limit: int
+    time_window: float
+    tokens: int
+    max_tokens: int
+    last_update_ns: float
+    current_window_ns: float
+    tokens_allowed: int
+    tokens_total: int
+    prev_window_rate: typing.Optional[float]
 
     def __init__(self, rate_limit: int, time_window: float = 1e9):
         """
@@ -24,20 +36,4 @@ class RateLimiter:
         :param int timestamp_ns: timestamp in nanoseconds for the current request.
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
-        """
-    @property
-    def rate_limit(self) -> int:
-        """
-        Return the rate limit value
-
-        :returns: The rate limit value
-        :rtype: :obj:`int`
-        """
-    @property
-    def effective_rate(self) -> float:
-        """
-        Return the effective sample rate of this rate limiter
-
-        :returns: Effective sample rate value 0.0 <= rate <= 1.0
-        :rtype: :obj:`float``
         """
