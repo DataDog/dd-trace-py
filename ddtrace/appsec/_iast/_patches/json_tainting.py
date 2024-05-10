@@ -1,9 +1,11 @@
+from typing import Text
+
+from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
 
 
@@ -13,13 +15,11 @@ log = get_logger(__name__)
 _DEFAULT_ATTR = "_datadog_json_tainting_patch"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> Text:
     return ""
 
 
 def unpatch_iast():
-    # type: () -> None
     set_module_unpatched("json", default_attr=_DEFAULT_ATTR)
     try_unwrap("json", "loads")
     if asm_config._iast_lazy_taint:
@@ -28,7 +28,6 @@ def unpatch_iast():
 
 
 def patch():
-    # type: () -> None
     """Wrap functions which interact with file system."""
     if not set_and_check_module_is_patched("json", default_attr=_DEFAULT_ATTR):
         return
