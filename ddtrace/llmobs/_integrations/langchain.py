@@ -149,23 +149,25 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            if isinstance(inputs, str):
-                span.set_tag_str(INPUT_VALUE, inputs)
-            else:
-                try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(inputs))
-                except TypeError:
-                    log.warning("Failed to serialize chain input data to JSON: %s", inputs)
+            try:
+                formatted_inputs = self.format_io(inputs)
+                if isinstance(formatted_inputs, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                else:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(inputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain input data to JSON")
         if error:
             span.set_tag_str(OUTPUT_VALUE, "")
         elif outputs is not None:
-            if isinstance(outputs, str):
-                span.set_tag_str(OUTPUT_VALUE, str(outputs))
-            else:
-                try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(outputs))
-                except TypeError:
-                    log.warning("Failed to serialize chain output data to JSON: %s", outputs)
+            try:
+                formatted_outputs = self.format_io(outputs)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
@@ -234,3 +236,33 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def format_io(
+        self,
+        messages,
+    ):
+        """
+        Formats input and output messages for serialization to JSON.
+        Specifically, makes sure that any schema messages are converted to strings appropriately.
+        """
+        if isinstance(messages, dict):
+            formatted = {}
+            for key, value in messages.items():
+                formatted[key] = self.format_io(value)
+            return formatted
+        if isinstance(messages, list):
+            return [self.format_io(message) for message in messages]
+        return self.get_content_from_message(messages)
+
+    def get_content_from_message(self, message) -> str:
+        """
+        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+        """
+        if isinstance(message, str):
+            return message
+        try:
+            content = getattr(message, "__dict__", {}).get("content", str(message))
+            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
+            return (role, content) if role else content
+        except AttributeError:
+            return str(message)
