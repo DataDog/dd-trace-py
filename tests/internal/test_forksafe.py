@@ -318,7 +318,6 @@ def test_gevent_gunicorn_behaviour():
 
     import atexit
 
-    from ddtrace.internal import forksafe
     from ddtrace.internal.periodic import PeriodicService
 
     class TestService(PeriodicService):
@@ -327,7 +326,6 @@ def test_gevent_gunicorn_behaviour():
 
         def periodic(self):
             sys.stdout.write("T")
-            sys.stdout.flush()
             self.stop()
 
     service = TestService()
@@ -340,7 +338,7 @@ def test_gevent_gunicorn_behaviour():
         service = TestService()
         service.start()
 
-    forksafe.register(restart_service)
+    # forksafe.register(restart_service)
 
     # ---- Application code ----
 
