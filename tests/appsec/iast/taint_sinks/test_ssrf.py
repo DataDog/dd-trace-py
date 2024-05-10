@@ -10,6 +10,8 @@ from ddtrace.contrib.httplib.patch import patch as httplib_patch
 from ddtrace.contrib.httplib.patch import unpatch as httplib_unpatch
 from ddtrace.contrib.requests.patch import patch as requests_patch
 from ddtrace.contrib.requests.patch import unpatch as requests_unpatch
+from ddtrace.contrib.urllib.patch import patch as urllib_patch
+from ddtrace.contrib.urllib.patch import unpatch as urllib_unpatch
 from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.contrib.webbrowser.patch import patch as webbrowser_patch
@@ -136,6 +138,26 @@ def test_ssrf_webbrowser(tracer, iast_span_defaults):
         _check_report(span_report, tainted_path, "test_ssrf_webbrowser")
 
 
+def test_urllib_request(tracer, iast_span_defaults):
+    with override_global_config(dict(_iast_enabled=True)):
+        urllib_patch()
+        try:
+            import urllib.request
+
+            tainted_url, tainted_path = _get_tainted_url()
+            try:
+                # label test_urllib_request
+                urllib.request.urlopen(tainted_url)
+            except urllib.error.URLError:
+                pass
+
+            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            assert span_report
+            _check_report(span_report, tainted_path, "test_urllib_request")
+        finally:
+            urllib_unpatch()
+
+
 def _check_no_report_if_deduplicated(span_report, num_vuln_expected):
     if num_vuln_expected == 0:
         assert span_report is None
@@ -223,3 +245,24 @@ def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_span_dedu
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         webbrowser_unpatch()
+
+
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
+def test_ssrf_urllib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
+    urllib_patch()
+    try:
+        import urllib.request
+
+        tainted_url, tainted_path = _get_tainted_url()
+        for _ in range(0, 5):
+            try:
+                # label test_urllib_request_deduplication
+                urllib.request.urlopen(tainted_url)
+            except urllib.error.URLError:
+                pass
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        _check_no_report_if_deduplicated(span_report, num_vuln_expected)
+    finally:
+        urllib_unpatch()
+
