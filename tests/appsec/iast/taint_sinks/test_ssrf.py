@@ -186,6 +186,7 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
         requests_unpatch()
 
 
+@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
     httplib_patch()
     import http.client
