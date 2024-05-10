@@ -327,6 +327,7 @@ def test_gevent_gunicorn_behaviour():
 
         def periodic(self):
             sys.stdout.write("T")
+            sys.stdout.flush()
             self.stop()
 
     service = TestService()
