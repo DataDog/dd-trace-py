@@ -127,8 +127,6 @@ commands:
       run_agent_checks:
         type: boolean
         default: true
-      identifier:
-        type: string
     steps:
       - checkout
       - attach_workspace:
@@ -136,7 +134,7 @@ commands:
       - restore_cache:
           name: Restore riot cache
           keys:
-            - <<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+            - <<parameters.pattern>>-{{ checksum "riotfile.py" }}
       - restore_cache:
           name: Restore last success
           keys:
@@ -203,7 +201,7 @@ commands:
       - save_cache:
           name: Save riot cache
           key:
-            - <<parameters.identifier>>-{{ checksum "riotfile.py" }}-{{ .Environment.CIRCLE_NODE_INDEX }}
+            - <<parameters.pattern>>-{{ checksum "riotfile.py" }}
           paths:
             - .riot
       - when:
@@ -477,7 +475,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec$'
-          identifier: 'appsec'
           snapshot: true
 
   appsec_iast:
@@ -486,7 +483,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec_iast$'
-          identifier: 'appsec_iast'
           snapshot: true
           docker_services: "postgres"
 
@@ -495,14 +491,12 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec_iast_tdd_propagation'
-          identifier: 'appsec_iast_tdd_propagation'
 
   appsec_iast_memcheck:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'appsec_iast_memcheck'
-          identifier: 'appsec_iast_memcheck'
           snapshot: true
 
   appsec_iast_packages:
@@ -510,7 +504,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec_iast_packages'
-          identifier: 'appsec_iast_packages'
           snapshot: true
 
   appsec_integrations:
@@ -519,7 +512,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec_integrations'
-          identifier: 'appsec_integrations'
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
@@ -559,7 +551,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'aws_lambda'
-          identifier: 'aws_lambda'
           snapshot: true
 
   internal:
@@ -567,21 +558,18 @@ jobs:
     steps:
       - run_test:
           pattern: "internal"
-          identifier: "internal"
 
   datastreams:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "datastreams"
-          identifier: "datastreams"
 
   tracer:
     <<: *contrib_job_large
     steps:
       - run_test:
           pattern: "tracer"
-          identifier: "tracer"
           trace_agent_url: ""
 
   ci_visibility:
@@ -590,7 +578,6 @@ jobs:
     steps:
       - run_test:
           pattern: "ci_visibility"
-          identifier: "ci_visibility"
           snapshot: true
 
   llmobs:
@@ -598,21 +585,18 @@ jobs:
     steps:
       - run_test:
           pattern: "llmobs"
-          identifier: "llmobs"
 
   subprocess:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "subprocess"
-          identifier: "subprocess"
 
   sourcecode:
     <<: *contrib_job_small
     steps:
       - run_test:
           pattern: "sourcecode"
-          identifier: "sourcecode"
 
   telemetry:
     parallelism: 6
@@ -620,7 +604,6 @@ jobs:
     steps:
       - run_test:
           pattern: "telemetry"
-          identifier: "telemetry"
           snapshot: true
 
   debugger:
@@ -628,7 +611,6 @@ jobs:
     steps:
       - run_test:
           pattern: "debugger"
-          identifier: "debugger"
 
   openai:
     <<: *machine_executor
@@ -636,7 +618,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'openai'
-          identifier: 'openai'
           snapshot: true
 
   opentracer:
@@ -644,7 +625,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'opentracer'
-          identifier: 'opentracer'
 
   opentelemetry:
     parallelism: 4
@@ -652,7 +632,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'opentelemetry'
-          identifier: 'opentelemetry'
           snapshot: true
 
   profile:
@@ -664,7 +643,6 @@ jobs:
       - run_test:
           # We don't want to run the profile-diff venvs
           pattern: 'profile$'
-          identifier: 'profile'
           trace_agent_url: ""
 
   integration_agent:
@@ -699,7 +677,6 @@ jobs:
       - run_test:
           snapshot: true
           pattern: 'integration-snapshot*'
-          identifier: 'integration-snapshot'
           trace_agent_url: ""
 
   vendor:
@@ -709,7 +686,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'vendor'
-          identifier: 'vendor'
 
   botocore:
     <<: *machine_executor
@@ -717,7 +693,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'botocore'
-          identifier: 'botocore'
           snapshot: true
           docker_services: "localstack"
 
@@ -730,7 +705,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'ddtracerun'
-          identifier: 'ddtracerun'
           trace_agent_url: ""
 
   test_logging:
@@ -741,7 +715,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'test_logging'
-          identifier: 'test_logging'
 
   stdlib:
     <<: *contrib_job
@@ -751,14 +724,12 @@ jobs:
     steps:
       - run_test:
           pattern: 'asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$'
-          identifier: "stdlib"
 
   asyncpg:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'asyncpg'
-          identifier: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
 
@@ -768,7 +739,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
-          identifier: 'aiohttp'
           snapshot: true
           docker_services: 'httpbin_local'
 
@@ -780,7 +750,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'asgi$'
-          identifier: 'asgi'
 
   tornado:
     <<: *contrib_job
@@ -790,7 +759,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'tornado'
-          identifier: 'tornado'
 
   bottle:
     <<: *contrib_job_small
@@ -800,7 +768,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'bottle'
-          identifier: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -817,7 +784,6 @@ jobs:
       - run_test:
           wait: cassandra
           pattern: 'cassandra'
-          identifier: 'cassandra'
 
   celery:
     <<: *contrib_job_large
@@ -837,7 +803,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'celery'
-          identifier: 'celery'
 
   cherrypy:
     <<: *machine_executor
@@ -845,7 +810,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'cherrypy'
-          identifier: 'cherrypy'
           snapshot: true
 
   consul:
@@ -857,7 +821,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'consul'
-          identifier: 'consul'
 
   dogpile_cache:
     <<: *contrib_job
@@ -867,7 +830,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'dogpile_cache'
-          identifier: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
@@ -875,7 +837,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'elasticsearch'
-          identifier: 'elasticsearch'
           snapshot: true
           docker_services: 'elasticsearch opensearch'
 
@@ -887,7 +848,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'falcon'
-          identifier: 'falcon'
 
   django:
     <<: *machine_executor
@@ -895,7 +855,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'django($|_celery)'
-          identifier: 'django'
           snapshot: true
           docker_services: "memcached redis postgres"
 
@@ -904,7 +863,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'django_hosts$'
-          identifier: 'django_hosts'
           snapshot: true
 
   djangorestframework:
@@ -913,7 +871,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'djangorestframework'
-          identifier: 'djangorestframework'
           snapshot: true
           docker_services: "memcached redis"
 
@@ -923,7 +880,6 @@ jobs:
     steps:
       - run_test:
           pattern: "dramatiq"
-          identifier: "dramatiq"
           snapshot: true
           docker_services: "redis"
 
@@ -933,7 +889,6 @@ jobs:
     steps:
       - run_test:
           pattern: "fastapi"
-          identifier: "fastapi"
           snapshot: true
 
   flask:
@@ -945,7 +900,6 @@ jobs:
           # TODO: Re-enable coverage for Flask tests
           snapshot: true
           pattern: "flask"
-          identifier: "flask"
           docker_services: "memcached redis"
 
   gevent:
@@ -956,14 +910,12 @@ jobs:
     steps:
       - run_test:
           pattern: 'gevent'
-          identifier: 'gevent'
 
   graphene:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: "graphene"
-          identifier: "graphene"
           snapshot: true
 
   graphql:
@@ -972,7 +924,6 @@ jobs:
     steps:
       - run_test:
           pattern: "graphql"
-          identifier: "graphql"
           snapshot: true
 
   grpc:
@@ -981,7 +932,6 @@ jobs:
     steps:
       - run_test:
           pattern: "grpc"
-          identifier: "grpc"
           snapshot: true
 
   gunicorn:
@@ -990,7 +940,6 @@ jobs:
     steps:
       - run_test:
           pattern: "gunicorn"
-          identifier: "gunicorn"
           snapshot: true
           docker_services: 'ddagent'
 
@@ -999,7 +948,6 @@ jobs:
     steps:
       - run_test:
           pattern: "httplib"
-          identifier: "httplib"
           snapshot: true
           docker_services: 'httpbin_local'
 
@@ -1009,7 +957,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'httpx'
-          identifier: 'httpx'
           snapshot: true
           docker_services: 'httpbin_local'
 
@@ -1019,7 +966,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'mariadb$'
-          identifier: 'mariadb'
           snapshot: true
           docker_services: "mariadb"
 
@@ -1031,7 +977,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'molten'
-          identifier: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -1043,7 +988,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'mysql$'
-          identifier: 'mysql'
 
   mysqlpython:
     <<: *contrib_job
@@ -1055,7 +999,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'mysqldb$'
-          identifier: 'mysqldb'
 
   pymysql:
     <<: *contrib_job
@@ -1067,7 +1010,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'pymysql$'
-          identifier: 'pymysql'
 
   pylibmc:
     <<: *contrib_job_small
@@ -1078,7 +1020,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pylibmc'
-          identifier: 'pylibmc'
 
   pytest:
     <<: *machine_executor
@@ -1086,7 +1027,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'pytest'
-          identifier: 'pytest'
           snapshot: true
 
   unittest:
@@ -1094,7 +1034,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'unittest'
-          identifier: 'unittest'
           snapshot: true
 
   asynctest:
@@ -1102,7 +1041,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'asynctest$'
-          identifier: 'asynctest'
 
   pymemcache:
     <<: *contrib_job
@@ -1113,16 +1051,14 @@ jobs:
     steps:
       - run_test:
           pattern: "pymemcache"
-          identifier: "pymemcache"
 
   mongoengine:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'mongoengine'
-          identifier: 'mongoengine'
           snapshot: true
-          docker_services: 'mongo'
+          docker_services: mongo
 
   pymongo:
     <<: *contrib_job
@@ -1133,7 +1069,6 @@ jobs:
     steps:
       - run_test:
           pattern: "pymongo"
-          identifier: "pymongo"
 
   pynamodb:
     <<: *contrib_job
@@ -1143,7 +1078,6 @@ jobs:
     steps:
       - run_test:
           pattern: "pynamodb"
-          identifier: "pynamodb"
 
   pyodbc:
     <<: *contrib_job
@@ -1153,14 +1087,12 @@ jobs:
     steps:
       - run_test:
           pattern: 'pyodbc'
-          identifier: 'pyodbc'
 
   pyramid:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'pyramid'
-          identifier: 'pyramid'
           snapshot: true
 
   requests:
@@ -1172,7 +1104,6 @@ jobs:
     steps:
       - run_test:
           pattern: "requests"
-          identifier: "requests"
 
   sanic:
     <<: *machine_executor
@@ -1180,7 +1111,6 @@ jobs:
     steps:
       - run_test:
           pattern: "sanic"
-          identifier: "sanic"
           snapshot: true
 
   snowflake:
@@ -1189,7 +1119,6 @@ jobs:
     steps:
       - run_test:
           pattern: "snowflake"
-          identifier: "snowflake"
           snapshot: true
 
   starlette:
@@ -1198,7 +1127,6 @@ jobs:
     steps:
       - run_test:
           pattern: "starlette"
-          identifier: "starlette"
           snapshot: true
 
   structlog:
@@ -1206,7 +1134,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'structlog'
-          identifier: 'structlog'
           snapshot: true
 
   sqlalchemy:
@@ -1220,7 +1147,6 @@ jobs:
       - run_test:
           wait: postgres mysql
           pattern: "sqlalchemy"
-          identifier: "sqlalchemy"
 
   psycopg:
     <<: *machine_executor
@@ -1229,7 +1155,6 @@ jobs:
       - run_test:
           # We want psycopg and psycopg2 collected
           pattern: "psycopg"
-          identifier: "psycopg"
           snapshot: true
           docker_services: "postgres"
 
@@ -1242,7 +1167,6 @@ jobs:
     steps:
        - run_test:
           pattern: 'aiobotocore'
-          identifier: 'aiobotocore'
 
   aiomysql:
     <<: *machine_executor
@@ -1251,7 +1175,6 @@ jobs:
           docker_services: 'mysql'
           wait: mysql
           pattern: 'aiomysql'
-          identifier: 'aiomysql'
           snapshot: true
 
   aiopg:
@@ -1265,7 +1188,6 @@ jobs:
       - run_test:
           wait: postgres
           pattern: 'aiopg'
-          identifier: 'aiopg'
 
   aredis:
     <<: *machine_executor
@@ -1273,7 +1195,6 @@ jobs:
       - run_test:
           docker_services: 'redis'
           pattern: 'aredis$'
-          identifier: 'aredis'
           snapshot: true
 
   yaaredis:
@@ -1282,7 +1203,6 @@ jobs:
       - run_test:
           docker_services: 'redis'
           pattern: 'yaaredis$'
-          identifier: 'yaaredis'
           snapshot: true
 
   redis:
@@ -1292,7 +1212,6 @@ jobs:
       - run_test:
           docker_services: 'redis rediscluster'
           pattern: 'redis$'
-          identifier: 'redis'
           snapshot: true
 
   rediscluster:
@@ -1300,7 +1219,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'rediscluster'
-          identifier: 'rediscluster'
           docker_services: 'rediscluster'
           snapshot: true
 
@@ -1310,7 +1228,6 @@ jobs:
     steps:
       - run_test:
           pattern: "rq"
-          identifier: "rq"
           snapshot: true
           docker_services: "redis"
 
@@ -1319,7 +1236,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'urllib3'
-          identifier: 'urllib3'
           snapshot: true
           docker_services: "httpbin_local"
 
@@ -1328,7 +1244,6 @@ jobs:
     steps:
       - run_test:
           pattern: "wsgi"
-          identifier: "wsgi"
           snapshot: true
 
   kafka:
@@ -1337,7 +1252,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'kafka'
-          identifier: 'kafka'
           snapshot: true
           docker_services: 'kafka'
 
@@ -1351,7 +1265,6 @@ jobs:
       - run_test:
           wait: rabbitmq
           pattern: 'kombu'
-          identifier: 'kombu'
 
   jinja2:
     <<: *contrib_job_small
@@ -1361,7 +1274,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'jinja2'
-          identifier: 'jinja2'
 
   mako:
     <<: *contrib_job
@@ -1371,7 +1283,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'mako'
-          identifier: 'mako'
 
   algoliasearch:
     <<: *contrib_job
@@ -1381,7 +1292,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'algoliasearch'
-          identifier: 'algoliasearch'
 
   langchain:
     <<: *machine_executor
@@ -1389,7 +1299,6 @@ jobs:
     steps:
       - run_test:
           pattern: "langchain"
-          identifier: "langchain"
           snapshot: true
 
   logbook:
@@ -1397,7 +1306,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'logbook'
-          identifier: 'logbook'
           snapshot: true
 
   loguru:
@@ -1405,7 +1313,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'loguru'
-          identifier: 'loguru'
           snapshot: true
 
   build_docs:
