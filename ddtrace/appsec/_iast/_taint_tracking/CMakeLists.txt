@@ -22,17 +22,6 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    message("Release mode: using abseil")
-        FetchContent_Declare(
-                absl
-                URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip"
-        )
-        FetchContent_MakeAvailable(absl)
-else()
-    message("Debug mode: not using abseil")
-endif()
-
 include_directories(".")
 
 file(GLOB SOURCE_FILES "*.cpp"
@@ -64,10 +53,6 @@ set_target_properties(
         PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
 )
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
-endif()
 
 install(TARGETS _native DESTINATION
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
