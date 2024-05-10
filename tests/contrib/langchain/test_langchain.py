@@ -1296,10 +1296,11 @@ class TestLLMObsLangchain:
         )
 
     @staticmethod
-    def _expected_llmobs_llm_call(span, provider="openai", input_role=None, output_role=None):
-        input_meta = {"content": mock.ANY}
-        if input_role is not None:
-            input_meta["role"] = input_role
+    def _expected_llmobs_llm_call(span, provider="openai", input_roles=[None], output_role=None):
+        input_meta = [{"content": mock.ANY} for _ in input_roles]
+        for idx, role in enumerate(input_roles):
+            if role is not None:
+                input_meta[idx]["role"] = role
 
         output_meta = {"content": mock.ANY}
         if output_role is not None:
@@ -1326,7 +1327,7 @@ class TestLLMObsLangchain:
             span,
             model_name=span.get_tag("langchain.request.model"),
             model_provider=span.get_tag("langchain.request.provider"),
-            input_messages=[input_meta],
+            input_messages=input_meta,
             output_messages=[output_meta],
             metadata=metadata,
             token_metrics={},
@@ -1341,10 +1342,10 @@ class TestLLMObsLangchain:
         provider,
         generate_trace,
         request_vcr,
-        mock_llmobs_writer,
+        mock_llmobs_span_writer,
         mock_tracer,
         cassette_name,
-        input_role=None,
+        input_roles=[None],
         output_role=None,
         different_py39_cassette=False,
     ):
@@ -1363,24 +1364,24 @@ class TestLLMObsLangchain:
                 cls._expected_llmobs_llm_call(
                     span,
                     provider=provider,
-                    input_role=input_role,
+                    input_roles=input_roles,
                     output_role=output_role,
                 )
             ),
         ]
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.assert_has_calls(expected_llmons_writer_calls)
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        mock_llmobs_span_writer.assert_has_calls(expected_llmons_writer_calls)
 
     @classmethod
     def _test_llmobs_chain_invoke(
         cls,
         generate_trace,
         request_vcr,
-        mock_llmobs_writer,
+        mock_llmobs_span_writer,
         mock_tracer,
         cassette_name,
-        expected_spans_data=[("llm", {"provider": "openai", "input_role": None, "output_role": None})],
+        expected_spans_data=[("llm", {"provider": "openai", "input_roles": [None], "output_role": None})],
         different_py39_cassette=False,
     ):
         # disable the service before re-enabling it, as it was enabled in another test
@@ -1396,48 +1397,48 @@ class TestLLMObsLangchain:
         expected_llmobs_writer_calls = cls._expected_llmobs_chain_calls(
             trace=trace, expected_spans_data=expected_spans_data
         )
-        assert mock_llmobs_writer.enqueue.call_count == len(expected_spans_data)
-        mock_llmobs_writer.assert_has_calls(expected_llmobs_writer_calls)
+        assert mock_llmobs_span_writer.enqueue.call_count == len(expected_spans_data)
+        mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
 
-    def test_llmobs_openai_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_openai_llm(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         llm = langchain.llms.OpenAI()
 
         self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_completion_sync.yaml",
             different_py39_cassette=True,
             provider="openai",
         )
 
-    def test_llmobs_cohere_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_cohere_llm(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         llm = langchain.llms.Cohere(model="cohere.command-light-text-v14")
 
         self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="cohere_completion_sync.yaml",
             provider="cohere",
         )
 
-    def test_llmobs_ai21_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_ai21_llm(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         llm = langchain.llms.AI21()
 
         self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="ai21_completion_sync.yaml",
             provider="ai21",
             different_py39_cassette=True,
         )
 
-    def test_llmobs_huggingfacehub_llm(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_huggingfacehub_llm(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         llm = langchain.llms.HuggingFaceHub(
             repo_id="google/flan-t5-xxl",
             model_kwargs={"temperature": 0.0, "max_tokens": 256},
@@ -1447,49 +1448,49 @@ class TestLLMObsLangchain:
         self._test_llmobs_llm_invoke(
             generate_trace=llm,
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="huggingfacehub_completion_sync.yaml",
             provider="huggingface_hub",
         )
 
-    def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_llm_invoke(
             generate_trace=lambda prompt: chat([langchain.schema.HumanMessage(content=prompt)]),
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
             provider="openai",
-            input_role="user",
+            input_roles=["user"],
             output_role="assistant",
             different_py39_cassette=True,
         )
 
-    def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
 
         self._test_llmobs_llm_invoke(
             generate_trace=lambda prompt: chat([langchain.schema.ChatMessage(content=prompt, role="custom")]),
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
             provider="openai",
-            input_role="custom",
+            input_roles=["custom"],
             output_role="assistant",
             different_py39_cassette=True,
         )
 
-    def test_llmobs_chain(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_chain(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0, max_tokens=256))
 
         self._test_llmobs_chain_invoke(
             generate_trace=lambda prompt: chain.run("what is two raised to the fifty-fourth power?"),
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_math_chain_sync.yaml",
             expected_spans_data=[
@@ -1523,13 +1524,13 @@ class TestLLMObsLangchain:
                         ),
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+                ("llm", {"provider": "openai", "input_roles": [None], "output_role": None}),
             ],
             different_py39_cassette=True,
         )
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
-    def test_llmobs_chain_nested(self, langchain, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_llmobs_chain_nested(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
         template = """Paraphrase this text:
 
             {input_text}
@@ -1567,7 +1568,7 @@ class TestLLMObsLangchain:
         self._test_llmobs_chain_invoke(
             generate_trace=lambda prompt: sequential_chain.run({"input_text": input_text}),
             request_vcr=request_vcr,
-            mock_llmobs_writer=mock_llmobs_writer,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
             cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
             expected_spans_data=[
@@ -1585,7 +1586,7 @@ class TestLLMObsLangchain:
                         "output_value": mock.ANY,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+                ("llm", {"provider": "openai", "input_roles": [None], "output_role": None}),
                 (
                     "chain",
                     {
@@ -1593,6 +1594,68 @@ class TestLLMObsLangchain:
                         "output_value": mock.ANY,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+                ("llm", {"provider": "openai", "input_roles": [None], "output_role": None}),
+            ],
+        )
+
+    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
+    def test_llmobs_chain_schema_io(self, langchain, mock_llmobs_span_writer, mock_tracer, request_vcr):
+        model = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+        prompt = langchain.prompts.ChatPromptTemplate.from_messages(
+            [
+                langchain.prompts.SystemMessagePromptTemplate.from_template(
+                    "You're an assistant who's good at {ability}. Respond in 20 words or fewer"
+                ),
+                langchain.prompts.MessagesPlaceholder(variable_name="history"),
+                langchain.prompts.HumanMessagePromptTemplate.from_template("{input}"),
+            ]
+        )
+
+        chain = langchain.chains.LLMChain(prompt=prompt, llm=model)
+
+        self._test_llmobs_chain_invoke(
+            generate_trace=lambda input_text: chain.run(
+                {
+                    "ability": "world capitals",
+                    "history": [
+                        langchain.schema.HumanMessage(content="Can you be my science teacher instead?"),
+                        langchain.schema.AIMessage(content="Yes"),
+                    ],
+                    "input": "What's the powerhouse of the cell?",
+                }
+            ),
+            request_vcr=request_vcr,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="openai_chain_schema_io.yaml",
+            expected_spans_data=[
+                (
+                    "chain",
+                    {
+                        "input_value": json.dumps(
+                            {
+                                "ability": "world capitals",
+                                "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                                "input": "What's the powerhouse of the cell?",
+                            }
+                        ),
+                        "output_value": json.dumps(
+                            {
+                                "ability": "world capitals",
+                                "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                                "input": "What's the powerhouse of the cell?",
+                                "text": "Mitochondria.",
+                            }
+                        ),
+                    },
+                ),
+                (
+                    "llm",
+                    {
+                        "provider": "openai",
+                        "input_roles": ["system", "user", "assistant", "user"],
+                        "output_role": "assistant",
+                    },
+                ),
             ],
         )

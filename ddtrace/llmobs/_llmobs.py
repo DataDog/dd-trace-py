@@ -3,6 +3,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace import Span
@@ -11,6 +12,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -19,6 +21,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
@@ -27,7 +30,10 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
-from ddtrace.llmobs._writer import LLMObsWriter
+from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs.utils import Documents
+from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 
 
@@ -41,18 +47,25 @@ class LLMObs(Service):
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
-        self._llmobs_writer = LLMObsWriter(
+        self._llmobs_span_writer = LLMObsSpanWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
         )
-        self._llmobs_writer.start()
+        self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
+            site=config._dd_site,
+            api_key=config._dd_api_key,
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+        )
+        self._llmobs_span_writer.start()
+        self._llmobs_eval_metric_writer.start()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
-            tracer_filters += [LLMObsTraceProcessor(self._llmobs_writer)]
+            tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
 
     def _stop_service(self) -> None:
@@ -98,6 +111,32 @@ class LLMObs(Service):
         cls._instance = None
         cls.enabled = False
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
+        """Returns a simple representation of a span to export its span and trace IDs.
+        If no span is provided, the current active LLMObs-type span will be used.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.export_span() requires LLMObs to be enabled.")
+            return None
+        if span:
+            try:
+                if span.span_type != SpanTypes.LLM:
+                    log.warning("Span must be an LLMObs-generated span.")
+                    return None
+                return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+            except (TypeError, AttributeError):
+                log.warning("Failed to export span. Span must be a valid Span object.")
+                return None
+        span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no active LLMObs-generated span found.")
+            return None
+        if span.span_type != SpanTypes.LLM:
+            log.warning("Span must be an LLMObs-generated span.")
+            return None
+        return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
 
     def _start_span(
         self,
@@ -235,6 +274,64 @@ class LLMObs(Service):
         return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
+    def embedding(
+        cls,
+        model_name: str,
+        name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+    ) -> Optional[Span]:
+        """
+        Trace a call to an embedding model or function to create an embedding.
+
+        :param str model_name: The name of the invoked embedding model.
+        :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
+        :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
+                                   If not provided, a default value of "custom" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.embedding() cannot be used while LLMObs is disabled.")
+            return None
+        if not model_name:
+            log.warning("model_name must be the specified name of the invoked model.")
+            return None
+        if model_provider is None:
+            model_provider = "custom"
+        return cls._instance._start_span(
+            "embedding",
+            name,
+            model_name=model_name,
+            model_provider=model_provider,
+            session_id=session_id,
+            ml_app=ml_app,
+        )
+
+    @classmethod
+    def retrieval(
+        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+    ) -> Optional[Span]:
+        """
+        Trace a vector search operation involving a list of documents being returned from an external knowledge base.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value DD_LLMOBS_APP_NAME will be set.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False or cls._instance is None:
+            log.warning("LLMObs.retrieval() cannot be used while LLMObs is disabled.")
+            return None
+        return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
+
+    @classmethod
     def annotate(
         cls,
         span: Optional[Span] = None,
@@ -254,10 +351,15 @@ class LLMObs(Service):
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
+                           - embedding spans: accepts a string, list of strings, or a dictionary of form
+                                              {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature.
+                           - retrieval spans: a dictionary containing any of the key value pairs
+                                              {"name": str, "id": str, "text": str, "score": float},
+                                              or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
@@ -273,10 +375,10 @@ class LLMObs(Service):
         if span is None:
             span = cls._instance.tracer.current_span()
             if span is None:
-                log.warning("No span provided and no active span found.")
+                log.warning("No span provided and no active LLMObs-generated span found.")
                 return
         if span.span_type != SpanTypes.LLM:
-            log.warning("Span must be an LLM-type span.")
+            log.warning("Span must be an LLMObs-generated span.")
             return
         if span.finished:
             log.warning("Cannot annotate a finished span.")
@@ -291,6 +393,10 @@ class LLMObs(Service):
         if input_data or output_data:
             if span_kind == "llm":
                 cls._tag_llm_io(span, input_messages=input_data, output_messages=output_data)
+            elif span_kind == "embedding":
+                cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
+            elif span_kind == "retrieval":
+                cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         if metadata is not None:
@@ -319,21 +425,65 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
         if input_messages is not None:
-            if not isinstance(input_messages, Messages):
-                input_messages = Messages(input_messages)
             try:
+                if not isinstance(input_messages, Messages):
+                    input_messages = Messages(input_messages)
                 if input_messages.messages:
                     span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse input messages.")
+                log.warning("Failed to parse input messages.", exc_info=True)
         if output_messages is not None:
-            if not isinstance(output_messages, Messages):
-                output_messages = Messages(output_messages)
             try:
+                if not isinstance(output_messages, Messages):
+                    output_messages = Messages(output_messages)
                 if output_messages.messages:
                     span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages.messages))
             except (TypeError, AttributeError):
-                log.warning("Failed to parse output messages.")
+                log.warning("Failed to parse output messages.", exc_info=True)
+
+    @classmethod
+    def _tag_embedding_io(cls, span, input_documents=None, output_text=None):
+        """Tags input documents and output text for embedding-kind spans.
+        Will be mapped to span's `meta.{input,output}.text` fields.
+        """
+        if input_documents is not None:
+            try:
+                if not isinstance(input_documents, Documents):
+                    input_documents = Documents(input_documents)
+                if input_documents.documents:
+                    span.set_tag_str(INPUT_DOCUMENTS, json.dumps(input_documents.documents))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse input documents.", exc_info=True)
+        if output_text is not None:
+            if isinstance(output_text, str):
+                span.set_tag_str(OUTPUT_VALUE, output_text)
+            else:
+                try:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(output_text))
+                except TypeError:
+                    log.warning("Failed to parse output text. Output text must be JSON serializable.")
+
+    @classmethod
+    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None):
+        """Tags input text and output documents for retrieval-kind spans.
+        Will be mapped to span's `meta.{input,output}.text` fields.
+        """
+        if input_text is not None:
+            if isinstance(input_text, str):
+                span.set_tag_str(INPUT_VALUE, input_text)
+            else:
+                try:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(input_text))
+                except TypeError:
+                    log.warning("Failed to parse input text. Input text must be JSON serializable.")
+        if output_documents is not None:
+            try:
+                if not isinstance(output_documents, Documents):
+                    output_documents = Documents(output_documents)
+                if output_documents.documents:
+                    span.set_tag_str(OUTPUT_DOCUMENTS, json.dumps(output_documents.documents))
+            except (TypeError, AttributeError):
+                log.warning("Failed to parse output documents.", exc_info=True)
 
     @classmethod
     def _tag_text_io(cls, span, input_value=None, output_value=None):
@@ -394,3 +544,56 @@ class LLMObs(Service):
             span.set_tag_str(METRICS, json.dumps(metrics))
         except TypeError:
             log.warning("Failed to parse span metrics. Metric key-value pairs must be JSON serializable.")
+
+    @classmethod
+    def submit_evaluation(
+        cls,
+        span_context: Dict[str, str],
+        label: str,
+        metric_type: str,
+        value: Union[str, int, float],
+    ) -> None:
+        """
+        Submits a custom evaluation metric for a given span ID and trace ID.
+
+        :param span_context: A dictionary containing the span_id and trace_id of interest.
+        :param str label: The name of the evaluation metric.
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
+        :param value: The value of the evaluation metric.
+                      Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        """
+        if cls.enabled is False or cls._instance is None or cls._instance._llmobs_eval_metric_writer is None:
+            log.warning("LLMObs.submit_evaluation() requires LLMObs to be enabled.")
+            return
+        if not isinstance(span_context, dict):
+            log.warning(
+                "span_context must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+            return
+        span_id = span_context.get("span_id")
+        trace_id = span_context.get("trace_id")
+        if not (span_id and trace_id):
+            log.warning("span_id and trace_id must both be specified for the given evaluation metric to be submitted.")
+            return
+        if not label:
+            log.warning("label must be the specified name of the evaluation metric.")
+            return
+        if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
+            log.warning("metric_type must be one of 'categorical', 'numerical', or 'score'.")
+            return
+        if metric_type == "categorical" and not isinstance(value, str):
+            log.warning("value must be a string for a categorical metric.")
+            return
+        if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
+            log.warning("value must be an integer or float for a numerical/score metric.")
+            return
+        cls._instance._llmobs_eval_metric_writer.enqueue(
+            {
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "label": str(label),
+                "metric_type": metric_type.lower(),
+                "{}_value".format(metric_type): value,
+            }
+        )

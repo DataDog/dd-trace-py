@@ -190,8 +190,8 @@ def _third_party_packages() -> set:
 
     return (
         set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
-        | tp_config.excludes
-    ) - tp_config.includes
+        | tp_config.includes
+    ) - tp_config.excludes
 
 
 @cached()
@@ -236,6 +236,11 @@ def is_third_party(path: Path) -> bool:
         return False
 
     return package.name in _third_party_packages()
+
+
+@cached()
+def is_user_code(path: Path) -> bool:
+    return not (is_stdlib(path) or is_third_party(path))
 
 
 @cached()

@@ -42,19 +42,16 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
                 formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
+                model_provider = self._execution_ctx["model_provider"]
+                model_name = self._execution_ctx["model_name"]
+                should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
                 core.dispatch(
                     "botocore.bedrock.process_response",
-                    [
-                        self._execution_ctx,
-                        formatted_response,
-                        None,
-                        self._body[0],
-                        self._execution_ctx["model_provider"] == _COHERE,
-                    ],
+                    [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
                 )
             return body
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_context, sys.exc_info()])
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
             raise
 
     def readlines(self):
@@ -64,15 +61,12 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             for line in lines:
                 self._body.append(json.loads(line))
             formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
+            model_provider = self._execution_ctx["model_provider"]
+            model_name = self._execution_ctx["model_name"]
+            should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [
-                    self._execution_ctx,
-                    formatted_response,
-                    None,
-                    self._body[0],
-                    self._execution_ctx["model_provider"] == _COHERE,
-                ],
+                [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
             )
             return lines
         except Exception:
@@ -87,15 +81,14 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
                 yield line
             metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
+            model_provider = self._execution_ctx["model_provider"]
+            model_name = self._execution_ctx["model_name"]
+            should_set_choice_ids = (
+                model_provider == _COHERE and "is_finished" not in self._body[0] and "embed" not in model_name
+            )
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [
-                    self._execution_ctx,
-                    formatted_response,
-                    metadata,
-                    self._body,
-                    self._execution_ctx["model_provider"] == _COHERE and "is_finished" not in self._body[0],
-                ],
+                [self._execution_ctx, formatted_response, metadata, self._body, should_set_choice_ids],
             )
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
@@ -107,6 +100,7 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
     """
     request_body = json.loads(params.get("body"))
+    model_id = params.get("modelId")
     if provider == _AI21:
         return {
             "prompt": request_body.get("prompt"),
@@ -115,6 +109,8 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "max_tokens": request_body.get("maxTokens", ""),
             "stop_sequences": request_body.get("stopSequences", []),
         }
+    elif provider == _AMAZON and "embed" in model_id:
+        return {"prompt": request_body.get("inputText")}
     elif provider == _AMAZON:
         text_generation_config = request_body.get("textGenerationConfig", {})
         return {
@@ -134,6 +130,12 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
             "top_k": request_body.get("top_k", ""),
             "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
+        }
+    elif provider == _COHERE and "embed" in model_id:
+        return {
+            "prompt": request_body.get("texts"),
+            "input_type": request_body.get("input_type", ""),
+            "truncate": request_body.get("truncate", ""),
         }
     elif provider == _COHERE:
         return {
@@ -161,27 +163,38 @@ def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, 
 
 def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
+    model_name = ctx["model_name"]
     provider = ctx["model_provider"]
     try:
         if provider == _AI21:
-            text = body.get("completions")[0].get("data").get("text")
-            finish_reason = body.get("completions")[0].get("finishReason")
+            completions = body.get("completions", [])
+            if completions:
+                data = completions[0].get("data", {})
+                text = data.get("text")
+                finish_reason = completions[0].get("finishReason")
+        elif provider == _AMAZON and "embed" in model_name:
+            text = [body.get("embedding", [])]
         elif provider == _AMAZON:
-            text = body.get("results")[0].get("outputText")
-            finish_reason = body.get("results")[0].get("completionReason")
+            results = body.get("results", [])
+            if results:
+                text = results[0].get("outputText")
+                finish_reason = results[0].get("completionReason")
         elif provider == _ANTHROPIC:
             text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
+        elif provider == _COHERE and "embed" in model_name:
+            text = body.get("embeddings", [[]])
         elif provider == _COHERE:
-            text = [generation["text"] for generation in body.get("generations")]
-            finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
+            generations = body.get("generations", [])
+            text = [generation["text"] for generation in generations]
+            finish_reason = [generation["finish_reason"] for generation in generations]
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
         elif provider == _STABILITY:
             # TODO: request/response formats are different for image-based models. Defer for now
             pass
-    except (IndexError, AttributeError):
+    except (IndexError, AttributeError, TypeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):
@@ -194,10 +207,13 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
 
 def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
+    model_name = ctx["model_name"]
     provider = ctx["model_provider"]
     try:
         if provider == _AI21:
-            pass  # note: ai21 does not support streamed responses
+            pass  # DEV: ai21 does not support streamed responses
+        elif provider == _AMAZON and "embed" in model_name:
+            pass  # DEV: amazon embed models do not support streamed responses
         elif provider == _AMAZON:
             text = "".join([chunk["outputText"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["completionReason"]
@@ -211,7 +227,9 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
                     text += chunk["delta"].get("text", "")
                     if "stop_reason" in chunk["delta"]:
                         finish_reason = str(chunk["delta"]["stop_reason"])
-        elif provider == _COHERE and streamed_body:
+        elif provider == _COHERE and "embed" in model_name:
+            pass  # DEV: cohere embed models do not support streamed responses
+        elif provider == _COHERE:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
                     num_generations = int(ctx.get_item("num_generations") or 0)
@@ -230,8 +248,7 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
             text = "".join([chunk["generation"] for chunk in streamed_body])
             finish_reason = streamed_body[-1]["stop_reason"]
         elif provider == _STABILITY:
-            # We do not yet support image modality models
-            pass
+            pass  # DEV: we do not yet support image modality models
     except (IndexError, AttributeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
@@ -306,7 +323,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name("{}.{}".format(pin.service, function_vars.get("endpoint_name"))),
         resource=function_vars.get("operation"),
-        span_type=SpanTypes.LLM,
+        span_type=SpanTypes.LLM if "embed" not in model_name else None,
         call_key="instrumented_bedrock_call",
         call_trace=True,
         bedrock_integration=function_vars.get("integration"),

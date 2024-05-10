@@ -3,10 +3,12 @@ from _ast import Expr
 from _ast import ImportFrom
 import ast
 import copy
+import os
 import sys
-from typing import Any  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Set  # noqa:F401
+from typing import Any
+from typing import List
+from typing import Set
+from typing import Text
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -65,6 +67,9 @@ class AstVisitor(ast.NodeTransformer):
                 "format_map": "ddtrace_aspects.format_map_aspect",
                 "zfill": "ddtrace_aspects.zfill_aspect",
                 "ljust": "ddtrace_aspects.ljust_aspect",
+                "split": "ddtrace_aspects.split_aspect",
+                "rsplit": "ddtrace_aspects.rsplit_aspect",
+                "splitlines": "ddtrace_aspects.splitlines_aspect",
             },
             # Replacement function for indexes and ranges
             "slices": {
@@ -73,10 +78,14 @@ class AstVisitor(ast.NodeTransformer):
             },
             # Replacement functions for modules
             "module_functions": {
-                # "BytesIO": "ddtrace_aspects.stringio_aspect",
-                # "StringIO": "ddtrace_aspects.stringio_aspect",
-                # "format": "ddtrace_aspects.format_aspect",
-                # "format_map": "ddtrace_aspects.format_map_aspect",
+                "os.path": {
+                    "basename": "ddtrace_aspects._aspect_ospathbasename",
+                    "dirname": "ddtrace_aspects._aspect_ospathdirname",
+                    "join": "ddtrace_aspects._aspect_ospathjoin",
+                    "normcase": "ddtrace_aspects._aspect_ospathnormcase",
+                    "split": "ddtrace_aspects._aspect_ospathsplit",
+                    "splitext": "ddtrace_aspects._aspect_ospathsplitext",
+                }
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
@@ -125,6 +134,13 @@ class AstVisitor(ast.NodeTransformer):
                 },
             },
         }
+
+        if sys.version_info >= (3, 12):
+            self._aspects_spec["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
+
+        if sys.version_info >= (3, 12) or os.name == "nt":
+            self._aspects_spec["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"
+
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
@@ -184,7 +200,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return merged_set
 
-    def _is_string_node(self, node):  # type: (Any) -> bool
+    @staticmethod
+    def _is_string_node(node: Any) -> bool:
         if PY30_37 and isinstance(node, ast.Bytes):
             return True
 
@@ -193,7 +210,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return False
 
-    def _is_numeric_node(self, node):  # type: (Any) -> bool
+    @staticmethod
+    def _is_numeric_node(node: Any) -> bool:
         if PY30_37 and isinstance(node, ast.Num):
             return True
 
@@ -202,27 +220,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return False
 
-    def _is_node_constant_or_binop(self, node):  # type: (Any) -> bool
-        return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
-
-    def _is_call_excluded(self, func_name_node):  # type: (str) -> bool
-        if not self.excluded_functions:
-            return False
-        excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
-            "", tuple()
-        )
-        return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
-
-    def _is_string_format_with_literals(self, call_node):
-        # type: (ast.Call) -> bool
-        return (
-            self._is_string_node(call_node.func.value)  # type: ignore[attr-defined]
-            and call_node.func.attr == "format"  # type: ignore[attr-defined]
-            and all(map(self._is_node_constant_or_binop, call_node.args))
-            and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
-        )
-
-    def _get_function_name(self, call_node, is_function):  # type: (ast.Call, bool) -> str
+    @staticmethod
+    def _get_function_name(call_node: ast.Call, is_function: bool) -> Text:
         if is_function:
             return call_node.func.id  # type: ignore[attr-defined]
         # If the call is to a method
@@ -231,7 +230,26 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node.func.attr  # type: ignore[attr-defined]
 
-    def _should_replace_with_taint_sink(self, call_node, is_function):  # type: (ast.Call, bool) -> bool
+    def _is_node_constant_or_binop(self, node: Any) -> bool:
+        return self._is_string_node(node) or self._is_numeric_node(node) or isinstance(node, ast.BinOp)
+
+    def _is_call_excluded(self, func_name_node: Text) -> bool:
+        if not self.excluded_functions:
+            return False
+        excluded_for_caller = self.excluded_functions.get(func_name_node, tuple()) + self.excluded_functions.get(
+            "", tuple()
+        )
+        return "" in excluded_for_caller or self._current_function_name in excluded_for_caller
+
+    def _is_string_format_with_literals(self, call_node: ast.Call) -> bool:
+        return (
+            self._is_string_node(call_node.func.value)  # type: ignore[attr-defined]
+            and call_node.func.attr == "format"  # type: ignore[attr-defined]
+            and all(map(self._is_node_constant_or_binop, call_node.args))
+            and all(map(lambda x: self._is_node_constant_or_binop(x.value), call_node.keywords))
+        )
+
+    def _should_replace_with_taint_sink(self, call_node: ast.Call, is_function: bool) -> bool:
         function_name = self._get_function_name(call_node, is_function)
 
         if function_name in self._taint_sink_replace_disabled:
@@ -239,7 +257,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return any(allowed in function_name for allowed in self._taint_sink_replace_any)
 
-    def _add_original_function_as_arg(self, call_node, is_function):  # type: (ast.Call, bool) -> Any
+    def _add_original_function_as_arg(self, call_node: ast.Call, is_function: bool) -> Any:
         """
         Creates the arguments for the original function
         """
@@ -258,8 +276,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return new_args
 
-    def _node(self, type_, pos_from_node, **kwargs):
-        # type: (Any, Any, Any) -> Any
+    @staticmethod
+    def _node(type_: Any, pos_from_node: Any, **kwargs: Any) -> Any:
         """
         Abstract some basic differences in node structure between versions
         """
@@ -280,8 +298,7 @@ class AstVisitor(ast.NodeTransformer):
             lineno=lineno, end_lineno=end_lineno, col_offset=col_offset, end_col_offset=end_col_offset, **kwargs
         )
 
-    def _name_node(self, from_node, _id, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, str, Any) -> ast.Name
+    def _name_node(self, from_node: Any, _id: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         return self._node(
             ast.Name,
             from_node,
@@ -289,8 +306,7 @@ class AstVisitor(ast.NodeTransformer):
             ctx=ctx,
         )
 
-    def _attr_node(self, from_node, attr, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, str, Any) -> ast.Name
+    def _attr_node(self, from_node: Any, attr: Text, ctx: Any = ast.Load()) -> ast.Name:  # noqa: B008
         attr_attr = ""
         name_attr = ""
         if attr:
@@ -302,7 +318,7 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node, targets, value):  # type: (Any, List[Any], Any) -> Any
+    def _assign_node(self, from_node: Any, targets: List[Any], value: Any) -> Any:
         return self._node(
             ast.Assign,
             from_node,
@@ -311,7 +327,8 @@ class AstVisitor(ast.NodeTransformer):
             type_comment=None,
         )
 
-    def find_insert_position(self, module_node):  # type: (ast.Module) -> int
+    @staticmethod
+    def find_insert_position(module_node: ast.Module) -> int:
         insert_position = 0
         from_future_import_found = False
         import_found = False
@@ -344,8 +361,8 @@ class AstVisitor(ast.NodeTransformer):
 
         return insert_position
 
-    def _none_constant(self, from_node, ctx=ast.Load()):  # noqa: B008
-        # type: (Any, Any) -> Any
+    @staticmethod
+    def _none_constant(from_node: Any) -> Any:  # noqa: B008
         if PY30_37:
             return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
 
@@ -359,7 +376,8 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _int_constant(self, from_node, value):
+    @staticmethod
+    def _int_constant(from_node, value):
         return ast.Constant(
             lineno=from_node.lineno,
             col_offset=from_node.col_offset,
@@ -369,11 +387,10 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node, func, args):  # type: (Any, Any, List[Any]) -> Any
+    def _call_node(self, from_node: Any, func: Any, args: List[Any]) -> Any:
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
-    def visit_Module(self, module_node):
-        # type: (ast.Module) -> Any
+    def visit_Module(self, module_node: ast.Module) -> Any:
         """
         Insert the import statement for the replacements module
         """
@@ -413,8 +430,7 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(module_node)
         return module_node
 
-    def visit_FunctionDef(self, def_node):
-        # type: (ast.FunctionDef) -> Any
+    def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
         Special case for some tests which would enter in a patching
         loop otherwise when visiting the check functions
@@ -451,7 +467,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return def_node
 
-    def visit_Call(self, call_node):  # type: (ast.Call) -> Any
+    def visit_Call(self, call_node: ast.Call) -> Any:
         """
         Replace a call or method
         """
@@ -492,30 +508,46 @@ class AstVisitor(ast.NodeTransformer):
             if self._is_string_format_with_literals(call_node):
                 return call_node
 
-            aspect = self._aspect_methods.get(method_name)
+            # This resolve moduleparent.modulechild.name
+            # TODO: use the better Hdiv method with a decorator
+            func_value = getattr(func_member, "value", None)
+            func_value_value = getattr(func_value, "value", None) if func_value else None
+            func_value_value_id = getattr(func_value_value, "id", None) if func_value_value else None
+            func_value_attr = getattr(func_value, "attr", None) if func_value else None
+            func_attr = getattr(func_member, "attr", None)
+            aspect = None
+            if func_value_value_id or func_attr:
+                if func_value_value_id and func_value_attr:
+                    # e.g. "os.path" or "one.two.three.whatever" (all dotted previous tokens with be in the id)
+                    key = func_value_value_id + "." + func_value_attr
+                elif func_value_attr:
+                    # e.g os
+                    key = func_attr
+                else:
+                    key = None
 
-            if aspect:
-                # Move the Attribute.value to 'args'
-                new_arg = func_member.value
-                call_node.args.insert(0, new_arg)
-                # Send 1 as flag_added_args value
-                call_node.args.insert(0, self._int_constant(call_node, 1))
-
-                # Insert None as first parameter instead of a.b.c.method
-                # to avoid unexpected side effects such as a.b.read(4).method
-                call_node.args.insert(0, self._none_constant(call_node))
-
-                # Create a new Name node for the replacement and set it as node.func
-                call_node.func = self._attr_node(call_node, aspect)
-                self.ast_modified = call_modified = True
-
-            elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
-                aspect = self._aspect_modules.get(method_name, None)
+                if key:
+                    module_dict = self._aspect_modules.get(key, None)
+                    aspect = module_dict.get(func_attr, None) if module_dict else None
                 if aspect:
-                    # Send 0 as flag_added_args value
-                    call_node.args.insert(0, self._int_constant(call_node, 0))
-                    # Move the Function to 'args'
-                    call_node.args.insert(0, call_node.func)
+                    # Create a new Name node for the replacement and set it as node.func
+                    call_node.func = self._attr_node(call_node, aspect)
+                    self.ast_modified = call_modified = True
+
+            if not aspect:
+                # Not a module symbol, check if it's a known method
+                aspect = self._aspect_methods.get(method_name)
+
+                if aspect:
+                    # Move the Attribute.value to 'args'
+                    new_arg = func_member.value
+                    call_node.args.insert(0, new_arg)
+                    # Send 1 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 1))
+
+                    # Insert None as first parameter instead of a.b.c.method
+                    # to avoid unexpected side effects such as a.b.read(4).method
+                    call_node.args.insert(0, self._none_constant(call_node))
 
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
@@ -548,7 +580,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_BinOp(self, call_node):  # type: (ast.BinOp) -> Any
+    def visit_BinOp(self, call_node: ast.BinOp) -> Any:
         """
         Replace a binary operator
         """
@@ -564,7 +596,7 @@ class AstVisitor(ast.NodeTransformer):
 
         return call_node
 
-    def visit_FormattedValue(self, fmt_value_node):  # type: (ast.FormattedValue) -> Any
+    def visit_FormattedValue(self, fmt_value_node: ast.FormattedValue) -> Any:
         """
         Visit a FormattedValue node which are the constituent atoms for the
         JoinedStr which are used to implement f-strings.
@@ -595,7 +627,7 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
-    def visit_JoinedStr(self, joinedstr_node):  # type: (ast.JoinedStr) -> Any
+    def visit_JoinedStr(self, joinedstr_node: ast.JoinedStr) -> Any:
         """
         Replaced the JoinedStr AST node with a Call to the replacement function. Most of
         the work inside fstring is done by visit_FormattedValue above.
@@ -625,7 +657,7 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
-    def visit_AugAssign(self, augassign_node):  # type: (ast.AugAssign) -> Any
+    def visit_AugAssign(self, augassign_node: ast.AugAssign) -> Any:
         """Replace an inplace add or multiply."""
         if isinstance(augassign_node.target, ast.Subscript):
             # Can't augassign to function call, ignore this node
@@ -636,7 +668,7 @@ class AstVisitor(ast.NodeTransformer):
         # TODO: Replace an inplace add or multiply (+= / *=)
         return augassign_node
 
-    def visit_Assign(self, assign_node):  # type: (ast.Assign) -> Any
+    def visit_Assign(self, assign_node: ast.Assign) -> Any:
         """
         Add the ignore marks for left-side subscripts or list/tuples to avoid problems
         later with the visit_Subscript node.
@@ -673,7 +705,7 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(assign_node)
         return assign_node
 
-    def visit_Delete(self, assign_node):  # type: (ast.Delete) -> Any
+    def visit_Delete(self, assign_node: ast.Delete) -> Any:
         # del replaced_index(foo, bar) would fail so avoid converting the right hand side
         # since it's going to be deleted anyway
 
@@ -684,21 +716,21 @@ class AstVisitor(ast.NodeTransformer):
         self.generic_visit(assign_node)
         return assign_node
 
-    def visit_AnnAssign(self, node):  # type: (ast.AnnAssign) -> Any
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
         # AnnAssign is a type annotation, we don't need to convert it
         # and we avoid converting any subscript inside it.
         _mark_avoid_convert_recursively(node)
         self.generic_visit(node)
         return node
 
-    def visit_ClassDef(self, node):  # type: (ast.ClassDef) -> Any
+    def visit_ClassDef(self, node: ast.ClassDef) -> Any:
         for i in node.bases:
             _mark_avoid_convert_recursively(i)
 
         self.generic_visit(node)
         return node
 
-    def visit_Subscript(self, subscr_node):  # type: (ast.Subscript) -> Any
+    def visit_Subscript(self, subscr_node: ast.Subscript) -> Any:
         """
         Turn an indexes[1] and slices[0:1:2] into the replacement function call
         Optimization: dont convert if the indexes are strings

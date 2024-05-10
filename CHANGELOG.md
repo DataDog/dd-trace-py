@@ -4,6 +4,38 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.7.10
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+---
+
+## 2.8.3
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+
+---
+
+## 2.6.12
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+
+
+---
+
 ## 2.8.2
 
 

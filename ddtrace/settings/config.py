@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 import os
 import re
 import sys
@@ -272,15 +273,15 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
-        "_trace_enabled": _ConfigItem(
-            name="trace_enabled",
-            default=True,
-            envs=[("DD_TRACE_ENABLED", asbool)],
-        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
             envs=[("DD_TRACE_SAMPLE_RATE", float)],
+        ),
+        "_trace_sampling_rules": _ConfigItem(
+            name="trace_sampling_rules",
+            default=lambda: "",
+            envs=[("DD_TRACE_SAMPLING_RULES", str)],
         ),
         "logs_injection": _ConfigItem(
             name="logs_injection",
@@ -384,7 +385,6 @@ class Config(object):
         self._startup_logs_enabled = asbool(os.getenv("DD_TRACE_STARTUP_LOGS", False))
 
         self._trace_rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=DEFAULT_SAMPLING_RATE_LIMIT))
-        self._trace_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=300))
         self._priority_sampling = asbool(os.getenv("DD_PRIORITY_SAMPLING", default=True))
@@ -562,7 +562,6 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
         if name not in self._integration_configs:
             self._integration_configs[name] = IntegrationConfig(self, name)
 
@@ -744,14 +743,29 @@ class Config(object):
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
+        config = None
+        for config_item in data["config"]:
+            if isinstance(config_item, Dict):
+                if "lib_config" in config_item:
+                    config = config_item
+                    break
+
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
         if config and "lib_config" in config:
             lib_config = config["lib_config"]
             if "tracing_sampling_rate" in lib_config:
                 base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
+
+            if "tracing_sampling_rules" in lib_config:
+                trace_sampling_rules = lib_config["tracing_sampling_rules"]
+                if trace_sampling_rules:
+                    # returns None if no rules
+                    trace_sampling_rules = self.convert_rc_trace_sampling_rules(trace_sampling_rules)
+                    if trace_sampling_rules:
+                        base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
             if "log_injection_enabled" in lib_config:
                 base_rc_config["logs_injection"] = lib_config["log_injection_enabled"]
@@ -770,7 +784,6 @@ class Config(object):
                 if tags:
                     tags = self._format_tags(lib_config["tracing_header_tags"])
                 base_rc_config["trace_http_header_tags"] = tags
-
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
@@ -802,3 +815,60 @@ class Config(object):
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
+
+    def _remove_invalid_rules(self, rc_rules: List) -> List:
+        """Remove invalid sampling rules from the given list"""
+        # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
+        for rule in rc_rules:
+            if (
+                ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
+                or "sample_rate" not in rule
+                or "provenance" not in rule
+            ):
+                log.debug("Invalid sampling rule from remoteconfig found, rule will be removed: %s", rule)
+                rc_rules.remove(rule)
+
+        return rc_rules
+
+    def _tags_to_dict(self, tags: List[Dict]):
+        """
+        Converts a list of tag dictionaries to a single dictionary.
+        """
+        if isinstance(tags, list):
+            return {tag["key"]: tag["value_glob"] for tag in tags}
+        return tags
+
+    def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+        """Example of an incoming rule:
+        [
+          {
+            "service": "my-service",
+            "name": "web.request",
+            "resource": "*",
+            "provenance": "customer",
+            "sample_rate": 1.0,
+            "tags": [
+              {
+                "key": "care_about",
+                "value_glob": "yes"
+              },
+              {
+                "key": "region",
+                "value_glob": "us-*"
+              }
+            ]
+          }
+        ]
+
+                Example of a converted rule:
+                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
+        """
+        rc_rules = self._remove_invalid_rules(rc_rules)
+        for rule in rc_rules:
+            tags = rule.get("tags")
+            if tags:
+                rule["tags"] = self._tags_to_dict(tags)
+        if rc_rules:
+            return json.dumps(rc_rules)
+        else:
+            return None
