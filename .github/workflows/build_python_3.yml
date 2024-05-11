@@ -71,7 +71,8 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 12
           CIBW_BEFORE_ALL: >
             curl -sSf https://sh.rustup.rs | sh -s -- -y &&
-            rustup target add aarch64-apple-darwin
+            rustup target add aarch64-apple-darwin &&
+            rustup target add i686-unknown-linux-musl            
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
@@ -106,7 +107,8 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: 12
           CIBW_BEFORE_ALL: >
             curl -sSf https://sh.rustup.rs | sh -s -- -y &&
-            rustup target add aarch64-apple-darwin
+            rustup target add aarch64-apple-darwin &&
+            rustup target add i686-unknown-linux-musl
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
