@@ -26,6 +26,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_ml_app
@@ -41,12 +42,13 @@ log = get_logger(__name__)
 
 
 class LLMObs(Service):
-    _instance = None
+    _instance = None  # type: LLMObs
     enabled = False
 
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
+
         self._llmobs_span_writer = LLMObsSpanWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
@@ -59,8 +61,6 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
         )
-        self._llmobs_span_writer.start()
-        self._llmobs_eval_metric_writer.start()
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._filters
@@ -75,8 +75,24 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
+    def _enable_llmobs_to_send_data(cls):
+        # start the LLMObs service to send trace and evaluation metric data
+        cls.enabled = True
+        cls._instance.start()
+        cls._instance._llmobs_span_writer.start()
+        cls._instance._llmobs_eval_metric_writer.start()
+
+    @classmethod
+    def _disable_llmobs_from_sending_data(cls):
+        # stops the LLMObs service from sending trace and evaluation metric data
+        cls.enabled = False
+        cls._instance.stop()
+        cls._instance._llmobs_span_writer.stop()
+        cls._instance._llmobs_eval_metric_writer.stop()
+
+    @classmethod
     def enable(cls, tracer=None):
-        if cls._instance is not None:
+        if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
 
@@ -92,24 +108,21 @@ class LLMObs(Service):
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
-
+        # override the default _instance with a new tracer
         cls._instance = cls(tracer=tracer)
-        cls.enabled = True
-        cls._instance.start()
+        cls._enable_llmobs_to_send_data()
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
     def disable(cls) -> None:
-        if cls._instance is None:
+        if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        cls._instance.stop()
-        cls._instance = None
-        cls.enabled = False
+        cls._disable_llmobs_from_sending_data()
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
@@ -117,9 +130,6 @@ class LLMObs(Service):
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.export_span() requires LLMObs to be enabled.")
-            return None
         if span:
             try:
                 if span.span_type != SpanTypes.LLM:
@@ -185,14 +195,14 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.llm() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if not model_name:
-            log.warning("model_name must be the specified name of the invoked model.")
-            return None
+            log.warning("LLMObs.llm() missing model_name")
         if model_provider is None:
             model_provider = "custom"
+        if model_name is None:
+            model_name = "unknown"
         return cls._instance._start_span(
             "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
         )
@@ -211,9 +221,8 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.tool() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -230,9 +239,8 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.task() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -249,9 +257,8 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.agent() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -268,9 +275,8 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.workflow() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -295,14 +301,14 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.embedding() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if not model_name:
-            log.warning("model_name must be the specified name of the invoked model.")
-            return None
+            log.warning("LLMObs.embedding() missing model_name")
         if model_provider is None:
             model_provider = "custom"
+        if model_name is None:
+            model_name = "custom"
         return cls._instance._start_span(
             "embedding",
             name,
@@ -326,9 +332,8 @@ class LLMObs(Service):
 
         :returns: The Span object representing the traced operation.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.retrieval() cannot be used while LLMObs is disabled.")
-            return None
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
@@ -369,9 +374,6 @@ class LLMObs(Service):
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
-        if cls.enabled is False or cls._instance is None:
-            log.warning("LLMObs.annotate() cannot be used while LLMObs is disabled.")
-            return
         if span is None:
             span = cls._instance.tracer.current_span()
             if span is None:
@@ -562,8 +564,10 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
         """
-        if cls.enabled is False or cls._instance is None or cls._instance._llmobs_eval_metric_writer is None:
-            log.warning("LLMObs.submit_evaluation() requires LLMObs to be enabled.")
+        if cls.enabled is False or cls._instance._llmobs_eval_metric_writer is None:
+            log.warning(
+                "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+            )
             return
         if not isinstance(span_context, dict):
             log.warning(
@@ -597,3 +601,7 @@ class LLMObs(Service):
                 "{}_value".format(metric_type): value,
             }
         )
+
+
+# initialize the default llmobs instance
+LLMObs._instance = LLMObs(tracer=ddtrace.tracer)
