@@ -1,6 +1,7 @@
 import sys
 
 import mock
+import pytest
 
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
