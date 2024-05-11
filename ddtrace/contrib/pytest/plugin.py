@@ -114,6 +114,13 @@ def patch_all(request):
     """Patch all available modules for Datadog tracing when ddtrace-patch-all
     is specified in command or .ini.
     """
+    import sys
+
+    print("LOADED DDTRACE MODULES")
+    print(list([k for k in sys.modules.keys() if k.startswith("ddtrace")]))
+    print("SYS META_PATH")
+    print(sys.meta_path)
+
     import ddtrace
 
     if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
