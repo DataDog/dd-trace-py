@@ -1,5 +1,3 @@
-import sys
-
 import mock
 import pytest
 
@@ -98,7 +96,7 @@ def test_slow_imports():
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
     import os
-    import sys  # noqa: F811
+    import sys
 
     os.environ.update(
         {
