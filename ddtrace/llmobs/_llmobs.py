@@ -113,6 +113,17 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
+    def flush(cls):
+        """
+        Flushes any remaining spans and evaluation metrics to the LLMObs backend.
+        """
+        if cls.enabled is False:
+            log.warn("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
+            return
+        cls._instance._llmobs_span_writer.periodic()
+        cls._instance._llmobs_eval_metric_writer.periodic()
+
+    @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
