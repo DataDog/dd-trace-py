@@ -59,6 +59,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
       - uses: actions/setup-python@v4
         name: Install Python
         with:
@@ -66,7 +68,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install cython cmake
+          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
           python setup.py sdist
       - uses: actions/upload-artifact@v3
         with:
