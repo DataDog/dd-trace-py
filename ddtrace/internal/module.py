@@ -324,9 +324,6 @@ class BaseModuleWatchdog(abc.ABC):
     def install(cls) -> None:
         """Install the module watchdog."""
         if cls.is_installed():
-            import traceback
-
-            traceback.print_stack()
             raise RuntimeError("%s is already installed" % cls.__name__)
 
         cls._instance = cls()
