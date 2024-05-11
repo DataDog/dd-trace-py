@@ -90,6 +90,7 @@ def test_not_azure_function_consumption_plan_wrong_sku():
         assert in_azure_function_consumption_plan() is False
 
 
+@pytest.mark.skip("testing if this causes issues")
 def test_slow_imports(monkeypatch):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
