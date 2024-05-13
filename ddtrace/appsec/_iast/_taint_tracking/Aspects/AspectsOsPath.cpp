@@ -103,15 +103,12 @@ template<class StrType>
 StrType
 api_ospathbasename_aspect(const StrType& path)
 {
-    auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto ospath = py::module_::import("os.path");
     auto basename = ospath.attr("basename");
     auto basename_result = basename(path);
-    if (py::len(basename_result) == 0) {
+
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or py::len(basename_result) == 0) {
         return basename_result;
     }
 
@@ -139,15 +136,12 @@ template<class StrType>
 StrType
 api_ospathdirname_aspect(const StrType& path)
 {
-    auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto ospath = py::module_::import("os.path");
     auto dirname = ospath.attr("dirname");
     auto dirname_result = dirname(path);
-    if (py::len(dirname_result) == 0) {
+
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or py::len(dirname_result) == 0) {
         return dirname_result;
     }
 
@@ -175,14 +169,12 @@ template<class StrType>
 static py::tuple
 _forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
 {
-    auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
     auto ospath = py::module_::import("os.path");
     auto function = ospath.attr(function_name);
     auto function_result = function(path);
-    if (py::len(function_result) == 0) {
+
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or py::len(function_result) == 0) {
         return function_result;
     }
 
@@ -229,14 +221,14 @@ template<class StrType>
 StrType
 api_ospathnormcase_aspect(const StrType& path)
 {
-    auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto ospath = py::module_::import("os.path");
     auto normcase = ospath.attr("normcase");
     auto normcased = normcase(path);
+
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map) {
+        return normcased;
+    }
 
     bool ranges_error;
     TaintRangeRefs ranges;

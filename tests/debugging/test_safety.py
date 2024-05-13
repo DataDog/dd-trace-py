@@ -7,12 +7,18 @@ import pytest
 from ddtrace.debugging import _safety
 
 
+GLOBAL_VALUE = 42
+
+
 def test_get_args():
     def assert_args(args):
         assert set(dict(_safety.get_args(inspect.currentframe().f_back)).keys()) == args
 
     def assert_locals(_locals):
         assert set(dict(_safety.get_locals(inspect.currentframe().f_back)).keys()) == _locals
+
+    def assert_globals(_globals):
+        assert set(dict(_safety.get_globals(inspect.currentframe().f_back)).keys()) == _globals
 
     def arg_and_kwargs(a, **kwargs):
         assert_args({"a", "kwargs"})
@@ -30,10 +36,17 @@ def test_get_args():
         assert_args({"ars"})
         assert_locals(set())
 
+    def referenced_globals():
+        global GLOBAL_VALUE
+        a = GLOBAL_VALUE >> 1  # noqa
+
+        assert_globals({"GLOBAL_VALUE"})
+
     arg_and_kwargs(1, b=2)
     arg_and_args_and_kwargs(1, 42, b=2)
     args_and_kwargs()
     args()
+    referenced_globals()
 
 
 # ---- Side effects ----
