@@ -52,15 +52,6 @@ class LLMObs(Service):
     openai = "openai"
     botocore = "botocore"
 
-    # APM disabled env var config:
-    _no_apm_env_config = {
-        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-        "DD_REMOTE_CONFIGURATION_ENABLED": "0",
-        "DD_OPENAI_METRICS_ENABLED": "0",
-        "DD_LANGCHAIN_METRICS_ENABLED": "0",
-        "DD_LLMOBS_NO_APM": "1",
-    }
-
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
@@ -150,15 +141,12 @@ class LLMObs(Service):
         config.service = os.getenv("DD_SERVICE") or config.service or dd_service
 
         if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
-            for k, v in cls._no_apm_env_config.items():
-                # don't override environment variables are are explicitly set.
+            config._remote_config_enabled = False
+            os.environ["DD_LLMOBS_NO_APM"] = "1"
+            for k in ["DD_OPENAI_METRICS_ENABLED", "DD_LANGCHAIN_METRICS_ENABLED"]:
+                log.debug("dd_llmobs_no_apm' was set to True, setting %s to 0", k)
                 if not os.getenv(k):
-                    os.environ[k] = v
-                    # update config object to ensure that the values are set correctly
-                    if k == "DD_INSTRUMENTATION_TELEMETRY_ENABLED":
-                        config._telemetry_enabled = False
-                    if k == "DD_REMOTE_CONFIGURATION_ENABLED":
-                        config._remote_config_enabled = False
+                    os.environ[k] = "0"
 
         # enable LLMObs integations
         llmobs_integrations = {
