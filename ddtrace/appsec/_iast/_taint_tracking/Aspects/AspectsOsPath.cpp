@@ -174,7 +174,7 @@ _forward_to_set_ranges_on_splitted(const char* function_name, const StrType& pat
     auto function_result = function(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty() py::len(function_result) == 0) {
+    if (not tx_map or tx_map->empty() or py::len(function_result) == 0) {
         return function_result;
     }
 
@@ -226,11 +226,6 @@ api_ospathnormcase_aspect(const StrType& path)
     auto normcased = normcase(path);
     auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
-        return normcased;
-    }
-
-    auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
         return normcased;
     }
 
