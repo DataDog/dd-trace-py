@@ -110,8 +110,10 @@ def unregister(span: Span) -> None:
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    if env.waf_triggers and env.span:
-        root_span = env.span._local_root or env.span
+    if not env.span:
+        return
+    root_span = env.span._local_root or env.span
+    if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:
             report_list.extend(env.waf_triggers)
@@ -123,17 +125,17 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
     telemetry_results = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
-    if env.span and telemetry_results:
+    if telemetry_results:
         from ddtrace.appsec._metrics import DDWAF_VERSION
 
-        env.span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+        root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
         if telemetry_results["total_duration"]:
-            env.span.set_metric(APPSEC.WAF_DURATION, telemetry_results["duration"])
-            env.span.set_metric(APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
+            root_span.set_metric(APPSEC.WAF_DURATION, telemetry_results["duration"])
+            root_span.set_metric(APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
         if telemetry_results["rasp"]["sum_eval"]:
-            env.span.set_metric(APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
-            env.span.set_metric(APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
-            env.span.set_metric(APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
+            root_span.set_metric(APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
+            root_span.set_metric(APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
+            root_span.set_metric(APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
 
 
 GLOBAL_CALLBACKS[_CONTEXT_CALL] = [flush_waf_triggers]
