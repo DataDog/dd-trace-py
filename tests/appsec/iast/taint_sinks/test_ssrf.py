@@ -143,7 +143,7 @@ def test_ssrf_webbrowser(tracer, iast_span_defaults):
         finally:
             webbrowser_unpatch()
 
-
+            
 def test_urllib_request(tracer, iast_span_defaults):
     with override_global_config(dict(_iast_enabled=True)):
         urllib_patch()
@@ -255,7 +255,7 @@ def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_span_dedu
     finally:
         webbrowser_unpatch()
 
-
+        
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_ssrf_urllib_deduplication(num_vuln_expected, tracer, iast_span_deduplication_enabled):
     urllib_patch()

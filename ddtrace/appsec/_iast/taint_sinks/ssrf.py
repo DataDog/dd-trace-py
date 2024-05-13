@@ -39,7 +39,8 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         return
 
     try:
-        report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kwarg_name)  # type: ignore[arg-type]
+        kw = kwarg_name if kwarg_name else ""
+        report_ssrf = get_argument_value(list(args), kwargs, arg_pos, kw)
     except ArgumentError:
         log.debug("Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function %s", func_key)
         return

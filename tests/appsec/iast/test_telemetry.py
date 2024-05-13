@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -73,6 +74,19 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer):
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") > 0
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
+
+
+def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
+    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
+        dict(_iast_enabled=True)
+    ):
+        cmdi_patch()
+
+    metrics_result = telemetry_writer._namespace._metrics_data
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
+    assert [metric.name for metric in generate_metrics.values()] == ["instrumented.sink"]
+    assert [metric._tags for metric in generate_metrics.values()] == [(("vulnerability_type", "COMMAND_INJECTION"),)]
+    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
 
 
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
