@@ -20,6 +20,7 @@ from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -140,6 +141,7 @@ class _DataHandler:
         env = ASM_Environment(True)
 
         self._id = _DataHandler.main_id
+        self._root = not in_context()
         self.active = True
         self.execution_context = core.ExecutionContext(__name__, **{"asm_env": env})
 
@@ -393,6 +395,12 @@ def asm_request_context_manager(
     if resources is not None:
         try:
             yield resources
+        except BlockingException as e:
+            # ensure that the BlockingRequest that is never raised outside a context
+            # is also never propagated outside the context
+            core.set_item(WAF_CONTEXT_NAMES.BLOCKED, e.args[0])
+            if not resources._root:
+                raise
         finally:
             _end_context(resources)
     else:
@@ -542,6 +550,7 @@ def _on_block_decided(callback):
         return
 
     set_value(_CALLBACKS, "flask_block", callback)
+    core.on("flask.block.request.content", callback, "block_requested")
 
 
 def _get_headers_if_appsec():

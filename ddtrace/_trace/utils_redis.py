@@ -14,6 +14,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import redis as redisx
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
@@ -48,20 +49,23 @@ def _set_span_tags(
 
 
 @contextmanager
-def _trace_redis_cmd(pin, config_integration, instance, args):
+def _instrument_redis_cmd(pin, config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
-    with pin.tracer.trace(
-        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+    with core.context_with_data(
+        "redis.command",
+        span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        pin=pin,
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-    ) as span:
+        call_key="redis_command_call",
+    ) as ctx, ctx[ctx["call_key"]] as span:
         _set_span_tags(span, pin, config_integration, args, instance, query)
-        yield span
+        yield ctx
 
 
 @contextmanager
-def _trace_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
+def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -77,7 +81,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cl
 
 
 @contextmanager
-def _trace_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
+def _instrument_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])

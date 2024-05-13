@@ -39,9 +39,8 @@ from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
-from .utils import inject_trace_to_client_context
-from .utils import inject_trace_to_eventbridge_detail
-from .utils import set_response_metadata_tags
+from .utils import update_client_context
+from .utils import update_eventbridge_detail
 
 
 _PATCHED_SUBMODULES = set()  # type: Set[str]
@@ -175,11 +174,11 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
     schematization_function = schematize_cloud_messaging_operation
 
     if endpoint_name == "lambda" and operation == "Invoke":
-        injection_function = inject_trace_to_client_context
+        injection_function = update_client_context
         schematization_function = schematize_cloud_faas_operation
         cloud_service = "lambda"
     if endpoint_name == "events" and operation == "PutEvents":
-        injection_function = inject_trace_to_eventbridge_detail
+        injection_function = update_eventbridge_detail
         cloud_service = "events"
     if endpoint_name == "sns" and "Publish" in operation:
         injection_function = inject_trace_to_sqs_or_sns_message
@@ -224,9 +223,14 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_api_call.exception",
-                [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                [
+                    ctx,
+                    e.response,
+                    botocore.exceptions.ClientError,
+                    config.botocore.operations[ctx["instrumented_api_call"].resource].is_error_code,
+                ],
             )
             raise
         else:
-            core.dispatch("botocore.patched_api_call.success", [ctx, result, set_response_metadata_tags])
+            core.dispatch("botocore.patched_api_call.success", [ctx, result])
             return result

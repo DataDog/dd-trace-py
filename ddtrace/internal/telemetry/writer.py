@@ -370,10 +370,7 @@ class TelemetryWriter(PeriodicService):
 
     def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
         item = config._config[cfg_name]
-        if cfg_name == "_trace_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_profiling_enabled":
+        if cfg_name == "_profiling_enabled":
             name = "profiling_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
@@ -398,7 +395,7 @@ class TelemetryWriter(PeriodicService):
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
         elif cfg_name == "_tracing_enabled":
-            name = "tracing_enabled"
+            name = "trace_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_sca_enabled":
             name = "DD_APPSEC_SCA_ENABLED"
@@ -422,9 +419,16 @@ class TelemetryWriter(PeriodicService):
         if register_app_shutdown:
             atexit.register(self.app_shutdown)
 
+        inst_config_id_entry = ("instrumentation_config_id", "", "default")
+        if "DD_INSTRUMENTATION_CONFIG_ID" in os.environ:
+            inst_config_id_entry = (
+                "instrumentation_config_id",
+                os.environ["DD_INSTRUMENTATION_CONFIG_ID"],
+                "env_var",
+            )
+
         self.add_configurations(
             [
-                self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_sca_enabled"),
@@ -435,6 +439,7 @@ class TelemetryWriter(PeriodicService):
                 self._telemetry_entry("trace_http_header_tags"),
                 self._telemetry_entry("tags"),
                 self._telemetry_entry("_tracing_enabled"),
+                inst_config_id_entry,
                 (TELEMETRY_STARTUP_LOGS_ENABLED, config._startup_logs_enabled, "unknown"),
                 (TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED, di_config.enabled, "unknown"),
                 (TELEMETRY_EXCEPTION_DEBUGGING_ENABLED, ed_config.enabled, "unknown"),

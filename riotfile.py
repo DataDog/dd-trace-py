@@ -133,9 +133,10 @@ venv = Venv(
         Venv(
             name="appsec_iast",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/appsec/iast/",
+            command="pytest -v {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
+                "urllib3": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -210,7 +211,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -439,7 +439,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
             },
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -1697,7 +1697,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
                 "pytest-randomly": latest,
