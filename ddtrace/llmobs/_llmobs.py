@@ -151,7 +151,7 @@ class LLMObs(Service):
 
         # stop llmobs writers
         cls._stop_llmobs_writers()
-    
+
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
