@@ -99,10 +99,10 @@ def sqli_http_request_header_name(request):
 
 def sqli_http_request_header_value(request):
     value = [x for x in request.META.values() if x == "master"][0]
-
     with connection.cursor() as cursor:
+        query = add_aspect("SELECT 1 FROM sqlite_", value)
         # label iast_enabled_sqli_http_request_header_value
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+        cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 

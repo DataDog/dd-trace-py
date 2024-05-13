@@ -1,37 +1,33 @@
 import os
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Set
+from typing import Text
 
+from ddtrace.appsec._common_module_patches import try_unwrap
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast.constants import BLOWFISH_DEF
+from ddtrace.appsec._iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
+from ddtrace.appsec._iast.constants import DES_DEF
+from ddtrace.appsec._iast.constants import RC2_DEF
+from ddtrace.appsec._iast.constants import RC4_DEF
+from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.internal.logger import get_logger
 
-from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
-from .._patch import try_unwrap
 from .._patch import try_wrap_function_wrapper
-from ..constants import BLOWFISH_DEF
-from ..constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
-from ..constants import DES_DEF
-from ..constants import EVIDENCE_ALGORITHM_TYPE
-from ..constants import RC2_DEF
-from ..constants import RC4_DEF
-from ..constants import VULN_WEAK_CIPHER_TYPE
 from ._base import VulnerabilityBase
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import Set  # noqa:F401
 
 log = get_logger(__name__)
 
 
-def get_weak_cipher_algorithms():
-    # type: () -> Set
+def get_weak_cipher_algorithms() -> Set:
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
@@ -44,11 +40,9 @@ def get_weak_cipher_algorithms():
 @oce.register
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
-    evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def unpatch_iast():
-    # type: () -> None
     set_module_unpatched("Crypto", default_attr="_datadog_weak_cipher_patch")
     set_module_unpatched("cryptography", default_attr="_datadog_weak_cipher_patch")
 
@@ -62,13 +56,11 @@ def unpatch_iast():
     try_unwrap("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> Text:
     return ""
 
 
 def patch():
-    # type: () -> None
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
@@ -129,8 +121,7 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_rc4_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
     _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
     WeakCipher.report(
@@ -140,8 +131,7 @@ def wrapped_rc4_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if hasattr(instance, "_dd_weakcipher_algorithm"):
         evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
@@ -154,8 +144,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
 
 
 @WeakCipher.wrap
-def wrapped_cryptography_function(wrapped, instance, args, kwargs):
-    # type: (Callable, Any, Any, Any) -> Any
+def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     algorithm_name = instance.algorithm.name.lower()
     if algorithm_name in get_weak_cipher_algorithms():
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
