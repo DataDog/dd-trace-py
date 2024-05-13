@@ -122,6 +122,18 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
+    telemetry_results = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    if env.span and telemetry_results:
+        from ddtrace.appsec._metrics import DDWAF_VERSION
+
+        env.span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+        if telemetry_results["total_duration"]:
+            env.span.set_metric(APPSEC.WAF_DURATION, telemetry_results["duration"])
+            env.span.set_metric(APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
+        if telemetry_results["rasp"]["sum_eval"]:
+            env.span.set_metric(APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
+            env.span.set_metric(APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
+            env.span.set_metric(APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
 
 
 GLOBAL_CALLBACKS[_CONTEXT_CALL] = [flush_waf_triggers]
@@ -150,8 +162,12 @@ class _DataHandler:
             "triggered": False,
             "timeout": False,
             "version": None,
+            "duration": 0.0,
+            "total_duration": 0.0,
             "rasp": {
-                "called": False,
+                "sum_eval": 0,
+                "duration": 0.0,
+                "total_duration": 0.0,
                 "eval": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
@@ -344,6 +360,8 @@ def set_waf_telemetry_results(
     is_blocked: bool,
     is_timeout: bool,
     rule_type: Optional[str],
+    duration: float,
+    total_duration: float,
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
     if result is not None:
@@ -354,12 +372,16 @@ def set_waf_telemetry_results(
             result["timeout"] |= is_timeout
             if rules_version is not None:
                 result["version"] = rules_version
+            result["duration"] += duration
+            result["total_duration"] += total_duration
         else:
             # Exploit Prevention telemetry
-            result["rasp"]["called"] = True
+            result["rasp"]["sum_eval"] += 1
             result["rasp"]["eval"][rule_type] += 1
             result["rasp"]["match"][rule_type] += int(is_triggered)
             result["rasp"]["timeout"][rule_type] += int(is_timeout)
+            result["rasp"]["duration"] += duration
+            result["rasp"]["total_duration"] += total_duration
 
 
 def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
