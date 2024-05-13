@@ -190,6 +190,7 @@ class LLMObs(Service):
         atexit.unregister(cls.disable)
 
         cls._instance.stop()
+        cls._instance = None
         cls.enabled = False
         log.debug("%s disabled", cls.__name__)
 
