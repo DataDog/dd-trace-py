@@ -12,7 +12,17 @@ from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
+from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
+from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
+from ddtrace.appsec._iast.taint_sinks.path_traversal import unpatch_iast as path_traversal_unpatch
+from ddtrace.contrib.sqlalchemy import patch as sqli_sqlalchemy_patch
+from ddtrace.contrib.sqlite3 import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -20,6 +30,16 @@ from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+def _assert_instrumented_sink(telemetry_writer, vuln_type):
+    metrics_result = telemetry_writer._namespace._metrics_data
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
+    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
+    assert [metric.name for metric in generate_metrics.values()] == ["instrumented.sink"]
+    assert [metric._tags for metric in generate_metrics.values()] == [(("vulnerability_type", vuln_type),)]
+    assert [metric._points[0][1] for metric in generate_metrics.values()] == [1]
+    assert [metric.metric_type for metric in generate_metrics.values()] == ["count"]
 
 
 @pytest.mark.parametrize(
@@ -82,11 +102,47 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
     ):
         cmdi_patch()
 
-    metrics_result = telemetry_writer._namespace._metrics_data
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert [metric.name for metric in generate_metrics.values()] == ["instrumented.sink"]
-    assert [metric._tags for metric in generate_metrics.values()] == [(("vulnerability_type", "COMMAND_INJECTION"),)]
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
+    _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
+
+
+def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
+    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
+    path_traversal_unpatch()
+    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
+        dict(_iast_enabled=True)
+    ):
+        path_traversal_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
+
+
+def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):
+    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
+    header_injection_unpatch()
+    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
+        dict(_iast_enabled=True)
+    ):
+        header_injection_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
+
+
+def test_metric_instrumented_sqli_sqlite3(no_request_sampling, telemetry_writer):
+    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
+        dict(_iast_enabled=True)
+    ):
+        sqli_sqlite3_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_SQL_INJECTION)
+
+
+def test_metric_instrumented_sqli_sqlalchemy_patch(no_request_sampling, telemetry_writer):
+    with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
+        dict(_iast_enabled=True)
+    ):
+        sqli_sqlalchemy_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_SQL_INJECTION)
 
 
 def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
