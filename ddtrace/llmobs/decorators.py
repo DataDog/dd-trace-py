@@ -22,7 +22,7 @@ def _model_decorator(operation_kind):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                if not LLMObs.enabled or LLMObs._instance is None:
+                if not LLMObs.enabled:
                     log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                     return func(*args, **kwargs)
                 traced_model_name = model_name
