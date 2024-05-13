@@ -151,9 +151,11 @@ def patch():
     if config._llmobs_enabled:
         try:
             LLMObs.enable()
-        except ValueError:
+        except ValueError as e:
             # we don't want to crash on patching for APM spans
-            pass
+            log.warning(
+                "Failed to enable LLM Observability for LangChain integration: %s", str(e)
+            )
 
     Pin().onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
