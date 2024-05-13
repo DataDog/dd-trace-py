@@ -9,7 +9,7 @@ api_split_text(const StrType& text, const optional<StrType>& separator, const op
     auto split_result = split(separator, maxsplit);
 
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
+    if (not tx_map) {
         return split_result;
     }
 
@@ -29,7 +29,7 @@ api_rsplit_text(const StrType& text, const optional<StrType>& separator, const o
     auto split_result = rsplit(separator, maxsplit);
 
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
+    if (not tx_map) {
         return split_result;
     }
 
@@ -48,7 +48,7 @@ api_splitlines_text(const StrType& text, bool keepends)
     auto split_result = splitlines(keepends);
 
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty()) {
+    if (not tx_map) {
         return split_result;
     }
 
