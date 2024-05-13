@@ -15,7 +15,7 @@ def get_version():
 
 
 def patch():
-    """patch the built-in webbrowser methods for tracing"""
+    """patch the built-in urllib.request methods for tracing"""
     if getattr(urllib.request, "__datadog_patch", False):
         return
     urllib.request.__datadog_patch = True
