@@ -593,7 +593,7 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
         """
-        if cls.enabled is False or cls._instance._llmobs_eval_metric_writer is None:
+        if cls.enabled is False:
             log.warning(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
             )
