@@ -16,6 +16,7 @@ from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
@@ -90,7 +91,7 @@ class BaseLLMIntegration:
 
     def is_pc_sampled_llmobs(self, span: Span) -> bool:
         # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
-        if not self.llmobs_enabled:
+        if not LLMObs.enabled:
             return False
         return self._llmobs_pc_sampler.sample(span)
 
