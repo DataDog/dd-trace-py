@@ -92,13 +92,6 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
-    def _toggle(cls, switch: bool) -> None:
-        # _toggle is a helper function to ensure the state of config._llmobs_enabled is in sync with the class attribute
-        # since our integrations depend on config._llmobs_enabled to set llmobs data
-        config._llmobs_enabled = switch
-        cls.enabled = switch
-
-    @classmethod
     def enable(
         cls,
         ml_app: Optional[str] = None,
@@ -126,7 +119,6 @@ class LLMObs(Service):
             return
 
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
-            LLMObs._toggle(False)
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false, not starting LLMObs service")
             return
 
@@ -138,19 +130,16 @@ class LLMObs(Service):
 
         # validate required values for LLMObs
         if not config._dd_api_key:
-            LLMObs._toggle(False)
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._dd_site:
-            LLMObs._toggle(False)
             raise ValueError(
                 "DD_SITE is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._llmobs_ml_app:
-            LLMObs._toggle(False)
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
@@ -173,9 +162,9 @@ class LLMObs(Service):
 
         # enable LLMObs integations
         llmobs_integrations = {
-            LLMObs.langchain: lambda: LLMObs._patch_langchain(),
-            LLMObs.openai: lambda: LLMObs._patch_openai(),
-            LLMObs.botocore: lambda: LLMObs._patch_bedrock(),
+            LLMObs.langchain: lambda: patch(langchain=True),
+            LLMObs.openai: lambda: patch(openai=True),
+            LLMObs.botocore: lambda: patch(bedrock=True),
         }
         if integrations:
             for integration in integrations:
@@ -187,31 +176,10 @@ class LLMObs(Service):
                     )
 
         cls._instance = cls(tracer=tracer)
-        LLMObs._toggle(True)
+        LLMObs.enabled = True
         cls._instance.start()
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
-
-    @classmethod
-    def _patch_langchain(cls) -> None:
-        if cls._instance is None:
-            log.warning("%s not enabled, cannot patch langchain", cls.__name__)
-            return
-        patch(langchain=True)
-
-    @classmethod
-    def _patch_openai(cls) -> None:
-        if cls._instance is None:
-            log.warning("%s not enabled, cannot patch openai", cls.__name__)
-            return
-        patch(openai=True)
-
-    @classmethod
-    def _patch_bedrock(cls) -> None:
-        if cls._instance is None:
-            log.warning("%s not enabled, cannot patch bedrock", cls.__name__)
-            return
-        patch(bedrock=True)
 
     @classmethod
     def disable(cls) -> None:
@@ -222,7 +190,6 @@ class LLMObs(Service):
         atexit.unregister(cls.disable)
 
         cls._instance.stop()
-        cls._instance = None
         cls.enabled = False
         log.debug("%s disabled", cls.__name__)
 
