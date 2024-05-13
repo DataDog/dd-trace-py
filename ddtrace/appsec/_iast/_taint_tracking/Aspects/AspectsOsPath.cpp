@@ -19,7 +19,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     auto joined = join(first_part, *args);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
+    if (not tx_map or tx_map->empty()) {
         return joined;
     }
 
@@ -224,6 +224,7 @@ api_ospathnormcase_aspect(const StrType& path)
     auto ospath = py::module_::import("os.path");
     auto normcase = ospath.attr("normcase");
     auto normcased = normcase(path);
+
     auto tx_map = initializer->get_tainting_map();
     if (not tx_map) {
         return normcased;

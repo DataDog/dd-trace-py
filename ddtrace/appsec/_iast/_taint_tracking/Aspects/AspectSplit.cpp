@@ -27,7 +27,6 @@ api_rsplit_text(const StrType& text, const optional<StrType>& separator, const o
 {
     auto rsplit = text.attr("rsplit");
     auto split_result = rsplit(separator, maxsplit);
-
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
     if (not tx_map) {
         return split_result;
@@ -46,7 +45,6 @@ api_splitlines_text(const StrType& text, bool keepends)
 {
     auto splitlines = text.attr("splitlines");
     auto split_result = splitlines(keepends);
-
     TaintRangeMapType* tx_map = initializer->get_tainting_map();
     if (not tx_map) {
         return split_result;
