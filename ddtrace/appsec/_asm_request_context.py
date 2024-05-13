@@ -8,6 +8,7 @@ from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import Union
 from urllib import parse
 
 from ddtrace._trace.span import Span
@@ -109,6 +110,10 @@ def unregister(span: Span) -> None:
         env.must_call_globals = False
 
 
+def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
+    span.set_metric(name, value + (span.get_metric(name) or 0.0))
+
+
 def flush_waf_triggers(env: ASM_Environment) -> None:
     if not env.span:
         return
@@ -130,12 +135,12 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
 
         root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
         if telemetry_results["total_duration"]:
-            root_span.set_metric(APPSEC.WAF_DURATION, telemetry_results["duration"])
-            root_span.set_metric(APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
+            update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results["duration"])
+            update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
         if telemetry_results["rasp"]["sum_eval"]:
-            root_span.set_metric(APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
-            root_span.set_metric(APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
-            root_span.set_metric(APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
+            update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
+            update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
+            update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
 
 
 GLOBAL_CALLBACKS[_CONTEXT_CALL] = [flush_waf_triggers]
