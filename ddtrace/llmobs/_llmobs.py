@@ -337,7 +337,7 @@ class LLMObs(Service):
         if model_provider is None:
             model_provider = "custom"
         if model_name is None:
-            model_name = "custom"
+            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
