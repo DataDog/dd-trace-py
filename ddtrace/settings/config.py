@@ -377,8 +377,8 @@ class Config(object):
 
     def __init__(self):
         # Must come before _integration_configs due to __setattr__
-        self._config = _default_config()
         _otel_remapping()
+        self._config = _default_config()
 
         # use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}

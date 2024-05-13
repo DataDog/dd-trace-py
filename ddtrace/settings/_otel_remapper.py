@@ -14,7 +14,7 @@ ENV_VAR_MAPPINGS = {
     "OTEL_METRICS_EXPORTER": "DD_RUNTIME_METRICS_ENABLED",
     "OTEL_LOGS_EXPORTER": "none",  # This should be ignored
     "OTEL_RESOURCE_ATTRIBUTES": "DD_TAGS",
-    "OTEL_SDK_DISABLED": "DD_TRACE_ENABLED",
+    "OTEL_SDK_DISABLED": "DD_TRACE_OTEL_ENABLED",
 }
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
@@ -59,54 +59,41 @@ def otel_remapping():
         if otel_env in os.environ:
             if dd_value == "":
                 if otel_env == "OTEL_PROPAGATORS":
-                    ## There are a series of unsupported OTEL propagator values;
-                    ## it's best to loop through and filter for the ones we do support,
-                    ## and if none appear then log a warning.
-                    accepted_styles = set()
+                    accepted_styles = []
                     for style in otel_value.split(","):
                         style = style.strip().lower()
                         if style in ["b3", "b3multi", "b3single", "datadog", "tracecontext", "none"]:
                             if style == "b3single":
                                 style = "b3"
-                            accepted_styles.add(style)
+                            if style not in accepted_styles:
+                                accepted_styles.append(style)
                         else:
-                            log.warning("Following style not supported by ddtrace: {}", style)
+                            log.warning("Following style not supported by ddtrace: %s", style)
                     otel_value = ",".join(accepted_styles)
 
                 if otel_env == "OTEL_TRACES_SAMPLER":
-                    if otel_value in ["always_on", "always_off", "traceidratio"]:
-                        if otel_value == "always_on":
-                            otel_value = "1.0"
-                        elif otel_value == "always_off":
-                            otel_value = "0.0"
-                        elif otel_value == "traceidratio":
-                            otel_value = os.environ.get("OTEL_TRACES_SAMPLER_ARG")
-                        os.environ["DD_TRACE_SAMPLE_IGNORE_PARENT"] = "True"
-
-                    elif otel_value in ["parentbased_always_on", "parentbased_always_off", "parentbased_traceidratio"]:
-                        if otel_value == "parentbased_always_on":
-                            otel_value = "1.0"
-                        elif otel_value == "parentbased_always_off":
-                            otel_value = "0.0"
-                        elif otel_value == "parentbased_traceidratio":
-                            otel_value = os.environ.get("OTEL_TRACES_SAMPLER_ARG")
-                        os.environ["DD_TRACE_SAMPLE_IGNORE_PARENT"] = "False"
+                    if otel_value == "always_on" or otel_value == "parentbased_always_on":
+                        otel_value = "1.0"
+                    elif otel_value == "always_off" or otel_value == "parentbased_always_off":
+                        otel_value = "0.0"
+                    elif otel_value == "traceidratio" or otel_value == "parentbased_traceidratio":
+                        otel_value = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
 
                 if otel_env == "OTEL_TRACES_EXPORTER":
-                    if otel_value in ["true", "none", ""]:
-                        otel_value = "False"
-                    else:
-                        log.warning("An unrecognized exporter %s is being used.", otel_value)
+                    if otel_value != "none":
+                        log.warning("An unrecognized exporter '%s' is being used.", otel_value)
+                    otel_value = "False"
 
                 if otel_env == "OTEL_METRICS_EXPORTER":
                     if otel_value in ["true", "none", ""]:
                         otel_value = "False"
                     else:
-                        log.warning("An unrecognized exporter %s is being used.", otel_value)
+                        log.warning("An unrecognized exporter '%s' is being used.", otel_value)
 
                 if otel_env == "OTEL_LOGS_EXPORTER":
-                    log.warning("Unsupported exporter detected")
-                    continue
+                    if otel_value != "none":
+                        log.warning("Unsupported exporter detected")
+                        continue
 
                 if otel_env == "OTEL_RESOURCE_ATTRIBUTES":
                     dd_tags = []
