@@ -99,31 +99,25 @@ class LLMObs(Service):
             return
 
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
-            cls.enabled = False
-            config._llmobs_enabled = False
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
         if not config._dd_api_key:
-            cls.enabled = False
-            config._llmobs_enabled = False
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._llmobs_ml_app:
-            cls.enabled = False
-            config._llmobs_enabled = False
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
+
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=tracer)
 
         # flip on llmobs enabled booleans
         cls.enabled = True
-        config._llmobs_enabled = True
 
         # turn on llmobs trace processing
         cls._instance.start()
