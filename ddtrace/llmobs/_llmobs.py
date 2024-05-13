@@ -12,6 +12,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
@@ -75,20 +77,20 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
-    def _enable_llmobs_to_send_data(cls):
-        # start the LLMObs service to send trace and evaluation metric data
-        cls.enabled = True
-        cls._instance.start()
-        cls._instance._llmobs_span_writer.start()
-        cls._instance._llmobs_eval_metric_writer.start()
+    def _start_llmobs_writers(cls):
+        try:
+            cls._instance._llmobs_span_writer.start()
+            cls._instance._llmobs_eval_metric_writer.start()
+        except ServiceStatusError:
+            log.debug("LLMObs writers already started")
 
     @classmethod
-    def _disable_llmobs_from_sending_data(cls):
-        # stops the LLMObs service from sending trace and evaluation metric data
-        cls.enabled = False
-        cls._instance.stop()
-        cls._instance._llmobs_span_writer.stop()
-        cls._instance._llmobs_eval_metric_writer.stop()
+    def _stop_llmobs_writers(cls):
+        try:
+            cls._instance._llmobs_span_writer.stop()
+            cls._instance._llmobs_eval_metric_writer.stop()
+        except ServiceStatusError:
+            log.debug("LLMObs writers already stopped")
 
     @classmethod
     def enable(cls, tracer=None):
@@ -96,21 +98,39 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+            cls.enabled = False
+            config._llmobs_enabled = False
+            log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
+            return
+
         if not config._dd_api_key:
             cls.enabled = False
+            config._llmobs_enabled = False
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._llmobs_ml_app:
             cls.enabled = False
+            config._llmobs_enabled = False
             raise ValueError(
                 "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=tracer)
-        cls._enable_llmobs_to_send_data()
+
+        # flip on llmobs enabled booleans
+        cls.enabled = True
+        config._llmobs_enabled = True
+
+        # turn on llmobs trace processing
+        cls._instance.start()
+
+        # start llmobs writers
+        cls._start_llmobs_writers()
+
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
 
@@ -122,7 +142,16 @@ class LLMObs(Service):
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        cls._disable_llmobs_from_sending_data()
+        # turn off llmobs enabled booleans
+        cls.enabled = False
+        config._llmobs_enabled = False
+
+        # turn off llmobs trace processing
+        cls._instance.stop()
+
+        # stop llmobs writers
+        cls._stop_llmobs_writers()
+    
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
