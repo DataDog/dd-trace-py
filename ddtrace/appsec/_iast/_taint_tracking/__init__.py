@@ -123,7 +123,7 @@ def iast_taint_log_error(msg):
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
-    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TEXT_TYPES):
         return False
 
     try:
