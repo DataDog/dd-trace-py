@@ -52,18 +52,11 @@ def _handle_add_callback(call, callback):
         callback(call)
 
 
-def _done_callback(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
+def _done_callback(span):
     def func(call):
         # type: (aio.Call) -> None
-        try:
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
-
-            # Handle server-side error in unary response RPCs
-            if code != grpc.StatusCode.OK:
-                _handle_error(span, call, code, details)
-        finally:
-            span.finish()
+        span.finish()
+        print("running done callback")
 
     return func
 
@@ -160,13 +153,9 @@ class _ClientInterceptor:
         span: Span,
     ) -> ResponseIterableType:
         try:
+            _handle_add_callback(call, _done_callback(span))      
             async for response in call:
                 yield response
-            code = await call.code()
-            details = await call.details()
-            # NOTE: The callback is registered after the iteration is done,
-            # otherwise `call.code()` and `call.details()` block indefinitely.
-            _handle_add_callback(call, _done_callback(span, code, details))
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks,
             # but reuse this error handling function used in unary response RPCs.
