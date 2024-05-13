@@ -17,4 +17,6 @@ OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
 OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
-SPAN_START_WHILE_DISABLED_WARNING = "Span started while LLMObs is disabled. Traces will not be sent to LLM Observability."
+SPAN_START_WHILE_DISABLED_WARNING = (
+    "Span started while LLMObs is disabled." "Traces will not be sent to LLM Observability."
+)
