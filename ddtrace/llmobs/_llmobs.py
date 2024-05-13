@@ -157,8 +157,8 @@ class LLMObs(Service):
             )
 
         # grab optional values
-        config.env = dd_env or config.env
-        config.service = dd_service or config.service
+        config.env = os.getenv("DD_ENV") or config.env or dd_env
+        config.service = os.getenv("DD_SERVICE") or config.service or dd_service
 
         if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
             for k, v in cls._no_apm_env_config.items():
