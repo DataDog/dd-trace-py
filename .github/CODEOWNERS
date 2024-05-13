@@ -4,13 +4,13 @@
 *                                   @DataDog/apm-core-python
 
 # Framework Integrations
-ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-framework-integrations
-ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-framework-integrations
-ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-framework-integrations
-tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-framework-integrations
-tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-framework-integrations
-tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-framework-integrations
-tests/contrib/grpc                  @DataDog/apm-framework-integrations @DataDog/asm-python
+ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
+ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-idm-python
+ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-idm-python
+tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-python
+tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
+tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-idm-python
+tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
@@ -63,6 +63,7 @@ ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
+ddtrace/internal/_exceptions.py     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
@@ -75,6 +76,7 @@ tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 
 # Profiling
 ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/datadog/profiling  @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs

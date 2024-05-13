@@ -156,7 +156,6 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             with open(self.rules, "r") as f:
                 rules = json.load(f)
-                self._update_actions(rules)
 
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
@@ -198,20 +197,11 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_actions(self, rules: Dict[str, Any]) -> None:
-        new_actions = rules.get("actions", [])
-        self._actions: Dict[str, Dict[str, Any]] = WAF_ACTIONS.DEFAULT_ACTIONS
-        for a in new_actions:
-            self._actions[a.get(WAF_ACTIONS.ID, None)] = a
-        if "actions" in rules:
-            del rules["actions"]
-
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
         if not _appsec_rc_file_is_not_static():
             return result
         try:
-            self._update_actions(new_rules)
             result = self._ddwaf.update_rules(new_rules)
             _set_waf_updates_metric(self._ddwaf.info)
         except TypeError:
@@ -270,7 +260,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
-        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        span: Span,
+        ctx: ddwaf_context_capsule,
+        custom_data: Optional[Dict[str, Any]] = None,
+        crop_trace: Optional[str] = None,
+        rule_type: Optional[str] = None,
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -283,13 +278,14 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP):
             return None
 
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
                 return None
+
         data = {}
         ephemeral_data = {}
         iter_data = [(key, WAF_DATA_NAMES[key]) for key in custom_data] if custom_data is not None else WAF_DATA_NAMES
@@ -320,29 +316,23 @@ class AppSecSpanProcessor(SpanProcessor):
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+
         waf_results = self._ddwaf.run(
             ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
         )
 
         blocked = {}
-        for action in waf_results.actions:
-            action_type = self._actions.get(action, {}).get(WAF_ACTIONS.TYPE, None)
-            if action_type == WAF_ACTIONS.BLOCK_ACTION:
-                blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
-            elif action_type == WAF_ACTIONS.REDIRECT_ACTION:
-                blocked = self._actions[action][WAF_ACTIONS.PARAMETERS]
-                location = blocked.get("location", "")
-                if not location:
-                    blocked = WAF_ACTIONS.DEFAULT_PARAMETERS
-                    break
-                status_code = str(blocked.get("status_code", ""))
-                if not (status_code[:3].isdigit() and status_code.startswith("3")):
-                    blocked["status_code"] = "303"
+        for action, parameters in waf_results.actions.items():
+            if action == WAF_ACTIONS.BLOCK_ACTION:
+                blocked = parameters
+            elif action == WAF_ACTIONS.REDIRECT_ACTION:
+                blocked = parameters
                 blocked[WAF_ACTIONS.TYPE] = "none"
-            elif action == WAF_ACTIONS.STACK:
+            elif action == WAF_ACTIONS.STACK_ACTION:
                 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 
-                stack_trace_id = report_stack("exploit detected", span, kwargs.get("crop_trace"))
+                stack_trace_id = parameters["stack_id"]
+                report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
@@ -350,7 +340,11 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
+            self._ddwaf.info.version,
+            bool(waf_results.data),
+            bool(blocked),
+            waf_results.timeout,
+            rule_type,
         )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)

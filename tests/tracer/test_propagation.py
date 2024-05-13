@@ -680,7 +680,7 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 }
 
 TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
-    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-00",
     _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
@@ -692,7 +692,7 @@ TRACECONTEXT_HEADERS_VALID = {
 
 TRACECONTEXT_HEADERS_VALID_64_bit = {
     _HTTP_HEADER_TRACEPARENT: "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;p:00f067aa0ba902b7;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
 
 
@@ -937,7 +937,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         (
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin, parent id
-            (None, {}, None, None),
+            (None, {}, None, "0000000000000000"),
             None,
             None,
         ),
@@ -1754,14 +1754,18 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
+            "meta": {
+                "tracestate": DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-3",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
+            },
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        ALL_HEADERS,
+        {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
@@ -1772,8 +1776,8 @@ EXTRACT_FIXTURES = [
                 SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                    flags=1,
+                    tracestate="dd=o:rum",
+                    flags=0,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
@@ -1824,7 +1828,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "dd_origin": "rum",
             "meta": {
                 "tracestate": "dd=o:rum",
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
                 LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
@@ -2002,11 +2006,11 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             span_id=67667974448284343,
             meta={
                 "traceparent": "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-01",
-                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "tracestate": ALL_HEADERS_CHAOTIC_2[_HTTP_HEADER_TRACESTATE],
                 "_dd.p.dm": "-4",
                 "_dd.p.usr.id": "baz64",
                 "_dd.origin": "rum",
-                LAST_DD_PARENT_ID_KEY: "0000000000000000",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
@@ -2117,7 +2121,8 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             meta={
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
-                "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                "tracestate": ALL_HEADERS_CHAOTIC_1[_HTTP_HEADER_TRACESTATE],
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[

@@ -3,6 +3,7 @@ Generic dbapi tracing code.
 """
 from ddtrace import config
 from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 
 from ...appsec._constants import IAST_SPAN_TAGS
@@ -104,13 +105,13 @@ class TracedCursor(wrapt.ObjectProxy):
             if _is_iast_enabled():
                 try:
                     from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-                    from ddtrace.appsec._iast._taint_utils import check_tainted_args
+                    from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
                     from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 
                     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
                     _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
-                    if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
-                        SqlInjection.report(evidence_value=args[0])
+                    if check_tainted_dbapi_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
+                        SqlInjection.report(evidence_value=args[0], dialect=self._self_config.integration_name)
                 except Exception:
                     log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
 
@@ -118,8 +119,14 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
+            # dispatch DBM
             if dbm_propagator:
-                args, kwargs = dbm_propagator.inject(s, args, kwargs)
+                # this check is necessary to prevent fetch methods from trying to add dbm propagation
+                result = core.dispatch_with_results(
+                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
+                ).result
+                if result:
+                    s, args, kwargs = result.value
 
             try:
                 return method(*args, **kwargs)

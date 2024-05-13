@@ -4,7 +4,10 @@ import pytest
 
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import Source
+from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
@@ -251,10 +254,11 @@ def test_str_aspect_kwargs(obj, expected_result, encoding, errors):
 def test_str_aspect_decode_error(obj):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
+    source_name = str(obj, "utf-8", errors="ignore")
     obj = taint_pyobject(
         obj,
         source_name="test_str_aspect_tainting",
-        source_value=str(obj, "utf-8", errors="ignore"),
+        source_value=source_name if source_name else "invalid",
         source_origin=OriginType.PARAMETER,
     )
     with pytest.raises(UnicodeDecodeError) as e:
@@ -368,6 +372,145 @@ def test_repr_aspect_tainting(obj, expected_result, formatted_result):
         assert is_pyobject_tainted(result) is True
         assert as_formatted_evidence(result) == formatted_result
     _iast_error_metric.assert_not_called()
+
+
+def test_split_tainted_noargs():
+    result = mod.do_split_no_args("abc def ghi")
+    assert result == ["abc", "def", "ghi"]
+    for substr in result:
+        assert not get_tainted_ranges(substr)
+
+    s_tainted = taint_pyobject(
+        pyobject="abc def ghi",
+        source_name="test_split_tainted",
+        source_value="abc def ghi",
+        source_origin=OriginType.PARAMETER,
+    )
+    assert get_tainted_ranges(s_tainted)
+
+    result2 = mod.do_split_no_args(s_tainted)
+    assert result2 == ["abc", "def", "ghi"]
+    for substr in result2:
+        assert get_tainted_ranges(substr) == [
+            TaintRange(0, 3, Source("test_split_tainted", "abc", OriginType.PARAMETER)),
+        ]
+
+
+@pytest.mark.parametrize(
+    "s, call, _args, should_be_tainted, result_list, result_tainted_list",
+    [
+        ("abc def", mod.do_split_no_args, [], True, ["abc", "def"], [(0, 3), (0, 3)]),
+        (b"abc def", mod.do_split_no_args, [], True, [b"abc", b"def"], [(0, 3), (0, 3)]),
+        (
+            bytearray(b"abc def"),
+            mod.do_split_no_args,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def")],
+            [(0, 3), (0, 3)],
+        ),
+        ("abc def", mod.do_rsplit_no_args, [], True, ["abc", "def"], [(0, 3), (0, 3)]),
+        (b"abc def", mod.do_rsplit_no_args, [], True, [b"abc", b"def"], [(0, 3), (0, 3)]),
+        (
+            bytearray(b"abc def"),
+            mod.do_rsplit_no_args,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def")],
+            [(0, 3), (0, 3)],
+        ),
+        ("abc def", mod.do_split_no_args, [], False, ["abc", "def"], []),
+        ("abc def", mod.do_rsplit_no_args, [], False, ["abc", "def"], []),
+        (b"abc def", mod.do_rsplit_no_args, [], False, [b"abc", b"def"], []),
+        ("abc def hij", mod.do_split_no_args, [], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        (b"abc def hij", mod.do_split_no_args, [], True, [b"abc", b"def", b"hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc def hij", mod.do_rsplit_no_args, [], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        (b"abc def hij", mod.do_rsplit_no_args, [], True, [b"abc", b"def", b"hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc def hij", mod.do_split_no_args, [], False, ["abc", "def", "hij"], []),
+        (b"abc def hij", mod.do_split_no_args, [], False, [b"abc", b"def", b"hij"], []),
+        ("abc def hij", mod.do_rsplit_no_args, [], False, ["abc", "def", "hij"], []),
+        (b"abc def hij", mod.do_rsplit_no_args, [], False, [b"abc", b"def", b"hij"], []),
+        (
+            bytearray(b"abc def hij"),
+            mod.do_rsplit_no_args,
+            [],
+            False,
+            [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")],
+            [],
+        ),
+        ("abc def hij", mod.do_split_maxsplit, [1], True, ["abc", "def hij"], [(0, 3), (0, 7)]),
+        ("abc def hij", mod.do_rsplit_maxsplit, [1], True, ["abc def", "hij"], [(0, 7), (0, 3)]),
+        ("abc def hij", mod.do_split_maxsplit, [1], False, ["abc", "def hij"], []),
+        ("abc def hij", mod.do_rsplit_maxsplit, [1], False, ["abc def", "hij"], []),
+        ("abc def hij", mod.do_split_maxsplit, [2], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc def hij", mod.do_rsplit_maxsplit, [2], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc def hij", mod.do_split_maxsplit, [2], False, ["abc", "def", "hij"], []),
+        ("abc def hij", mod.do_rsplit_maxsplit, [2], False, ["abc", "def", "hij"], []),
+        ("abc|def|hij", mod.do_split_separator, ["|"], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc|def|hij", mod.do_rsplit_separator, ["|"], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        ("abc|def|hij", mod.do_split_separator, ["|"], False, ["abc", "def", "hij"], []),
+        ("abc|def|hij", mod.do_rsplit_separator, ["|"], False, ["abc", "def", "hij"], []),
+        ("abc|def hij", mod.do_split_separator, ["|"], True, ["abc", "def hij"], [(0, 3), (0, 7)]),
+        ("abc|def hij", mod.do_rsplit_separator, ["|"], True, ["abc", "def hij"], [(0, 3), (0, 7)]),
+        ("abc|def hij", mod.do_split_separator, ["|"], False, ["abc", "def hij"], []),
+        ("abc|def hij", mod.do_rsplit_separator, ["|"], False, ["abc", "def hij"], []),
+        ("abc|def|hij", mod.do_split_separator_and_maxsplit, ["|", 1], True, ["abc", "def|hij"], [(0, 3), (0, 7)]),
+        ("abc|def|hij", mod.do_rsplit_separator_and_maxsplit, ["|", 1], True, ["abc|def", "hij"], [(0, 7), (0, 3)]),
+        ("abc|def|hij", mod.do_split_separator_and_maxsplit, ["|", 1], False, ["abc", "def|hij"], []),
+        ("abc|def|hij", mod.do_rsplit_separator_and_maxsplit, ["|", 1], False, ["abc|def", "hij"], []),
+        ("abc\ndef\nhij", mod.do_splitlines_no_arg, [], True, ["abc", "def", "hij"], [(0, 3), (0, 3), (0, 3)]),
+        (b"abc\ndef\nhij", mod.do_splitlines_no_arg, [], True, [b"abc", b"def", b"hij"], [(0, 3), (0, 3), (0, 3)]),
+        (
+            bytearray(b"abc\ndef\nhij"),
+            mod.do_splitlines_no_arg,
+            [],
+            True,
+            [bytearray(b"abc"), bytearray(b"def"), bytearray(b"hij")],
+            [(0, 3), (0, 3), (0, 3)],
+        ),
+        (
+            "abc\ndef\nhij\n",
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            ["abc\n", "def\n", "hij\n"],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+        (
+            b"abc\ndef\nhij\n",
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            [b"abc\n", b"def\n", b"hij\n"],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+        (
+            bytearray(b"abc\ndef\nhij\n"),
+            mod.do_splitlines_keepends,
+            [True],
+            True,
+            [bytearray(b"abc\n"), bytearray(b"def\n"), bytearray(b"hij\n")],
+            [(0, 4), (0, 4), (0, 4)],
+        ),
+    ],
+)
+def test_split_aspect_tainting(s, call, _args, should_be_tainted, result_list, result_tainted_list):
+    _test_name = "test_split_aspect_tainting"
+    if should_be_tainted:
+        obj = taint_pyobject(
+            s, source_name="test_split_aspect_tainting", source_value=s, source_origin=OriginType.PARAMETER
+        )
+    else:
+        obj = s
+
+    result = call(obj, *_args)
+    assert result == result_list
+    for idx, result_range in enumerate(result_tainted_list):
+        result_item = result[idx]
+        assert is_pyobject_tainted(result_item) == should_be_tainted
+        if should_be_tainted:
+            _range = get_tainted_ranges(result_item)[0]
+            assert _range == TaintRange(result_range[0], result_range[1], Source(_test_name, obj, OriginType.PARAMETER))
 
 
 class TestOperatorsReplacement(BaseReplacement):
