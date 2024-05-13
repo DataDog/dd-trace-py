@@ -52,11 +52,6 @@ class LLMObs(Service):
     openai = "openai"
     botocore = "botocore"
 
-    # APM enabled env var config:
-    _apm_env_config = {
-        "DD_LLMOBS_NO_APM": "0",
-    }
-
     # APM disabled env var config:
     _no_apm_env_config = {
         "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -165,16 +160,16 @@ class LLMObs(Service):
         config.env = dd_env or config.env
         config.service = dd_service or config.service
 
-        env_update = cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config
-        for k, v in env_update.items():
-            # don't override environment variables are are explicitly set.
-            if not os.getenv(k):
-                os.environ[k] = v
-                # update config object to ensure that the values are set correctly
-                if k == "DD_INSTRUMENTATION_TELEMETRY_ENABLED":
-                    config._telemetry_enabled = False
-                if k == "DD_REMOTE_CONFIGURATION_ENABLED":
-                    config._remote_config_enabled = False
+        if not dd_apm_enabled:
+            for k, v in cls._no_apm_env_config.items():
+                # don't override environment variables are are explicitly set.
+                if not os.getenv(k):
+                    os.environ[k] = v
+                    # update config object to ensure that the values are set correctly
+                    if k == "DD_INSTRUMENTATION_TELEMETRY_ENABLED":
+                        config._telemetry_enabled = False
+                    if k == "DD_REMOTE_CONFIGURATION_ENABLED":
+                        config._remote_config_enabled = False
 
         # enable LLMObs integations
         llmobs_integrations = {

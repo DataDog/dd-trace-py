@@ -30,6 +30,7 @@ def mock_logs():
 
 
 def test_processor_returns_all_traces_by_default(monkeypatch):
+    monkeypatch.delenv("DD_LLMOBS_NO_APM", raising=False)
     """Test that the LLMObsTraceProcessor returns all traces by default."""
     trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock.MagicMock())
     root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
