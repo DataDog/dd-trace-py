@@ -65,7 +65,7 @@ def test_service_enable():
 def test_service_enable_with_apm_disabled(monkeypatch):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer, dd_apm_enabled=False)
+        llmobs_service.enable(tracer=dummy_tracer, dd_llmobs_no_apm=True)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled

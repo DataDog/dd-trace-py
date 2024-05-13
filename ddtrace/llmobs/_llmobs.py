@@ -103,7 +103,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[List[str]] = None,
-        dd_apm_enabled=True,
+        dd_llmobs_no_apm: bool = False,
         dd_site: Optional[str] = None,
         dd_api_key: Optional[str] = None,
         dd_env: Optional[str] = None,
@@ -115,8 +115,8 @@ class LLMObs(Service):
 
         :param str ml_app: The name of your ml application.
         :param List[str] integrations: A list of integrations to enable auto-tracing for.
-        :param str dd_apm_enabled: Whether Datadog Application Performance Monitoring is enabled
-        :param str dd_site: Your datadog site, override by DD_SITE.
+        :param bool dd_llmobs_no_apm: Set to `true` to disable sending non-LLM Observability data to Datadog.
+        :param str dd_site: Your datadog site.
         :param str dd_api_key: Your datadog api key.
         :param str dd_env: Your environment name.
         :param str dd_service: Your service name.
@@ -160,7 +160,7 @@ class LLMObs(Service):
         config.env = dd_env or config.env
         config.service = dd_service or config.service
 
-        if not dd_apm_enabled:
+        if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
             for k, v in cls._no_apm_env_config.items():
                 # don't override environment variables are are explicitly set.
                 if not os.getenv(k):
