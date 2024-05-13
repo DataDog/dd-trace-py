@@ -165,11 +165,16 @@ class LLMObs(Service):
         config.env = dd_env or config.env
         config.service = dd_service or config.service
 
-        # update environment config based on whether APM is enabled/disabled
-        os.environ.update(cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config)
-        if not dd_apm_enabled:
-            config._remote_config_enabled = False
-            config._telemetry_enabled = False
+        env_update = cls._apm_env_config if dd_apm_enabled else cls._no_apm_env_config
+        for k, v in env_update.items():
+            # don't override environment variables are are explicitly set.
+            if not os.getenv(k):
+                os.environ[k] = v
+                # update config object to ensure that the values are set correctly
+                if k == "DD_INSTRUMENTATION_TELEMETRY_ENABLED":
+                    config._telemetry_enabled = False
+                if k == "DD_REMOTE_CONFIGURATION_ENABLED":
+                    config._remote_config_enabled = False
 
         # enable LLMObs integations
         llmobs_integrations = {
