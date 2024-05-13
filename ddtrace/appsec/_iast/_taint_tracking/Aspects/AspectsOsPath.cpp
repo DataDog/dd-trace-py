@@ -108,7 +108,7 @@ api_ospathbasename_aspect(const StrType& path)
     auto basename_result = basename(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty() or py::len(basename_result) === 0) {
+    if (not tx_map or tx_map->empty() or py::len(basename_result) == 0) {
         return basename_result;
     }
 
