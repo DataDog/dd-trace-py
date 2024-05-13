@@ -633,4 +633,4 @@ class LLMObs(Service):
 
 
 # initialize the default llmobs instance
-LLMObs._instance = LLMObs(tracer=ddtrace.tracer)
+LLMObs._instance = LLMObs()
