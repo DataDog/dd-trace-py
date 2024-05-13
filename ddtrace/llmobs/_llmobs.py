@@ -331,7 +331,7 @@ class LLMObs(Service):
         if model_provider is None:
             model_provider = "custom"
         if model_name is None:
-            model_name = "custom"
+            model_name = "unknown"
         return cls._instance._start_span(
             "embedding",
             name,
@@ -587,7 +587,7 @@ class LLMObs(Service):
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
         """
-        if cls.enabled is False or cls._instance._llmobs_eval_metric_writer is None:
+        if cls.enabled is False:
             log.warning(
                 "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
             )
@@ -627,4 +627,4 @@ class LLMObs(Service):
 
 
 # initialize the default llmobs instance
-LLMObs._instance = LLMObs(tracer=ddtrace.tracer)
+LLMObs._instance = LLMObs()
