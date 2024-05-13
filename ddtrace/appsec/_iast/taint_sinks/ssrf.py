@@ -24,6 +24,7 @@ class SSRF(VulnerabilityBase):
 _FUNC_TO_URL_ARGUMENT = {
     "http.client.request": (1, "url"),
     "requests.sessions.request": (1, "url"),
+    "urllib.request.urlopen": (0, "url"),
     "urllib3._request_methods.request": (1, "url"),
     "urllib3.request.request": (1, "url"),
     "webbrowser.open": (0, "url"),
