@@ -43,7 +43,7 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-def test_metric_executed_sink(telemetry_writer):
+def test_metric_executed_sink(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -64,17 +64,18 @@ def test_metric_executed_sink(telemetry_writer):
 
         metrics_result = telemetry_writer._namespace._metrics_data
 
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
-    assert [metric.name for metric in generate_metrics.values()] == [
-        "executed.sink",
-    ]
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST].values()
+    assert len(generate_metrics) >= 1
+    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
+    # the agent)
+    filtered_metrics = [metric for metric in generate_metrics if metric._tags[0] == ("vulnerability_type", "WEAK_HASH")]
+    assert [metric._tags for metric in filtered_metrics] == [(("vulnerability_type", "WEAK_HASH"),)]
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") > 0
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
-def test_metric_instrumented_propagation(telemetry_writer):
+def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -82,11 +83,13 @@ def test_metric_instrumented_propagation(telemetry_writer):
 
     metrics_result = telemetry_writer._namespace._metrics_data
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
-    assert [metric.name for metric in generate_metrics.values()] == ["instrumented.propagation"]
+    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
+    # the agent)
+    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    assert filtered_metrics == ["instrumented.propagation"]
 
 
-def test_metric_request_tainted(telemetry_writer):
+def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
@@ -103,8 +106,11 @@ def test_metric_request_tainted(telemetry_writer):
     metrics_result = telemetry_writer._namespace._metrics_data
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
-    assert len(generate_metrics) == 2, "Expected 1 generate_metrics"
-    assert [metric.name for metric in generate_metrics.values()] == ["executed.source", "request.tainted"]
+    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
+    # the agent)
+    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    assert filtered_metrics == ["executed.source", "request.tainted"]
+    assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
