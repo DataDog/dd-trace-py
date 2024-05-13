@@ -405,7 +405,6 @@ api_set_ranges_on_splitted(const StrType& source_str,
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
     }
-
     return set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, include_separator);
 }
 

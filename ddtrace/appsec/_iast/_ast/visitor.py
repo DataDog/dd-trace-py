@@ -3,6 +3,7 @@ from _ast import Expr
 from _ast import ImportFrom
 import ast
 import copy
+import os
 import sys
 from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
@@ -65,6 +66,9 @@ class AstVisitor(ast.NodeTransformer):
                 "format_map": "ddtrace_aspects.format_map_aspect",
                 "zfill": "ddtrace_aspects.zfill_aspect",
                 "ljust": "ddtrace_aspects.ljust_aspect",
+                "split": "ddtrace_aspects.split_aspect",
+                "rsplit": "ddtrace_aspects.rsplit_aspect",
+                "splitlines": "ddtrace_aspects.splitlines_aspect",
             },
             # Replacement function for indexes and ranges
             "slices": {
@@ -73,10 +77,14 @@ class AstVisitor(ast.NodeTransformer):
             },
             # Replacement functions for modules
             "module_functions": {
-                # "BytesIO": "ddtrace_aspects.stringio_aspect",
-                # "StringIO": "ddtrace_aspects.stringio_aspect",
-                # "format": "ddtrace_aspects.format_aspect",
-                # "format_map": "ddtrace_aspects.format_map_aspect",
+                "os.path": {
+                    "basename": "ddtrace_aspects._aspect_ospathbasename",
+                    "dirname": "ddtrace_aspects._aspect_ospathdirname",
+                    "join": "ddtrace_aspects._aspect_ospathjoin",
+                    "normcase": "ddtrace_aspects._aspect_ospathnormcase",
+                    "split": "ddtrace_aspects._aspect_ospathsplit",
+                    "splitext": "ddtrace_aspects._aspect_ospathsplitext",
+                }
             },
             "operators": {
                 ast.Add: "ddtrace_aspects.add_aspect",
@@ -125,6 +133,13 @@ class AstVisitor(ast.NodeTransformer):
                 },
             },
         }
+
+        if sys.version_info >= (3, 12):
+            self._aspects_spec["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
+
+        if sys.version_info >= (3, 12) or os.name == "nt":
+            self._aspects_spec["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"
+
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
@@ -493,30 +508,46 @@ class AstVisitor(ast.NodeTransformer):
             if self._is_string_format_with_literals(call_node):
                 return call_node
 
-            aspect = self._aspect_methods.get(method_name)
+            # This resolve moduleparent.modulechild.name
+            # TODO: use the better Hdiv method with a decorator
+            func_value = getattr(func_member, "value", None)
+            func_value_value = getattr(func_value, "value", None) if func_value else None
+            func_value_value_id = getattr(func_value_value, "id", None) if func_value_value else None
+            func_value_attr = getattr(func_value, "attr", None) if func_value else None
+            func_attr = getattr(func_member, "attr", None)
+            aspect = None
+            if func_value_value_id or func_attr:
+                if func_value_value_id and func_value_attr:
+                    # e.g. "os.path" or "one.two.three.whatever" (all dotted previous tokens with be in the id)
+                    key = func_value_value_id + "." + func_value_attr
+                elif func_value_attr:
+                    # e.g os
+                    key = func_attr
+                else:
+                    key = None
 
-            if aspect:
-                # Move the Attribute.value to 'args'
-                new_arg = func_member.value
-                call_node.args.insert(0, new_arg)
-                # Send 1 as flag_added_args value
-                call_node.args.insert(0, self._int_constant(call_node, 1))
-
-                # Insert None as first parameter instead of a.b.c.method
-                # to avoid unexpected side effects such as a.b.read(4).method
-                call_node.args.insert(0, self._none_constant(call_node))
-
-                # Create a new Name node for the replacement and set it as node.func
-                call_node.func = self._attr_node(call_node, aspect)
-                self.ast_modified = call_modified = True
-
-            elif hasattr(func_member.value, "id") or hasattr(func_member.value, "attr"):
-                aspect = self._aspect_modules.get(method_name, None)
+                if key:
+                    module_dict = self._aspect_modules.get(key, None)
+                    aspect = module_dict.get(func_attr, None) if module_dict else None
                 if aspect:
-                    # Send 0 as flag_added_args value
-                    call_node.args.insert(0, self._int_constant(call_node, 0))
-                    # Move the Function to 'args'
-                    call_node.args.insert(0, call_node.func)
+                    # Create a new Name node for the replacement and set it as node.func
+                    call_node.func = self._attr_node(call_node, aspect)
+                    self.ast_modified = call_modified = True
+
+            if not aspect:
+                # Not a module symbol, check if it's a known method
+                aspect = self._aspect_methods.get(method_name)
+
+                if aspect:
+                    # Move the Attribute.value to 'args'
+                    new_arg = func_member.value
+                    call_node.args.insert(0, new_arg)
+                    # Send 1 as flag_added_args value
+                    call_node.args.insert(0, self._int_constant(call_node, 1))
+
+                    # Insert None as first parameter instead of a.b.c.method
+                    # to avoid unexpected side effects such as a.b.read(4).method
+                    call_node.args.insert(0, self._none_constant(call_node))
 
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
