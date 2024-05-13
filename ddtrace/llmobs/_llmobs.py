@@ -69,28 +69,23 @@ class LLMObs(Service):
         if not any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in tracer_filters):
             tracer_filters += [LLMObsTraceProcessor(self._llmobs_span_writer)]
         self.tracer.configure(settings={"FILTERS": tracer_filters})
+        try:
+            self._llmobs_span_writer.start()
+            self._llmobs_eval_metric_writer.start()
+        except ServiceStatusError:
+            log.debug("Error starting LLMObs writers")
 
     def _stop_service(self) -> None:
+        try:
+            self._llmobs_span_writer.stop()
+            self._llmobs_eval_metric_writer.stop()
+        except ServiceStatusError:
+            log.debug("Error stopping LLMObs writers")
+
         try:
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
-
-    @classmethod
-    def _start_llmobs_writers(cls):
-        try:
-            cls._instance._llmobs_span_writer.start()
-            cls._instance._llmobs_eval_metric_writer.start()
-        except ServiceStatusError:
-            log.debug("LLMObs writers already started")
-
-    @classmethod
-    def _stop_llmobs_writers(cls):
-        try:
-            cls._instance._llmobs_span_writer.stop()
-            cls._instance._llmobs_eval_metric_writer.stop()
-        except ServiceStatusError:
-            log.debug("LLMObs writers already stopped")
 
     @classmethod
     def enable(cls, tracer=None):
@@ -116,14 +111,10 @@ class LLMObs(Service):
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=tracer)
 
-        # flip on llmobs enabled booleans
         cls.enabled = True
 
         # turn on llmobs trace processing
         cls._instance.start()
-
-        # start llmobs writers
-        cls._start_llmobs_writers()
 
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
@@ -138,13 +129,7 @@ class LLMObs(Service):
 
         # turn off llmobs enabled booleans
         cls.enabled = False
-        config._llmobs_enabled = False
-
-        # turn off llmobs trace processing
         cls._instance.stop()
-
-        # stop llmobs writers
-        cls._stop_llmobs_writers()
 
         log.debug("%s disabled", cls.__name__)
 
