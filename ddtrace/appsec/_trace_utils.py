@@ -19,15 +19,17 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def _asm_manual_keep(span: Span) -> None:
+def _asm_manual_keep(span: Span, apm_opt_out: bool = False) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
     span.set_tag(constants.MANUAL_KEEP_KEY)
     # set decision maker to ASM = -5
     span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
-    # set appsec propagation tag
-    span.set_tag_str("_dd.p.appsec", "1")
+
+    if apm_opt_out:
+        # set appsec propagation tag
+        span.set_tag_str("_dd.p.appsec", "1")
 
 
 def _track_user_login_common(
@@ -75,7 +77,7 @@ def _track_user_login_common(
         if name:
             span.set_tag_str("%s.username" % tag_prefix, name)
 
-        _asm_manual_keep(span)
+        _asm_manual_keep(span, apm_opt_out=tracer._apm_opt_out)
         return span
     else:
         log.warning(
@@ -175,7 +177,7 @@ def track_user_signup_event(
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
         span.set_tag_str(user.ID, user_id)
-        _asm_manual_keep(span)
+        _asm_manual_keep(span, apm_opt_out=tracer._apm_opt_out)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
@@ -227,7 +229,7 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
         else:
             str_v = str(v)
         span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str_v)
-        _asm_manual_keep(span)
+        _asm_manual_keep(span, apm_opt_out=tracer._apm_opt_out)
 
 
 def should_block_user(tracer: Tracer, userid: str) -> bool:
