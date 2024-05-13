@@ -211,7 +211,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -1736,6 +1735,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+            # grpc.aio support is broken and disabled by default
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),

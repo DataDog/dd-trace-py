@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Callable
 
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
@@ -9,18 +10,13 @@ from .path_traversal import check_and_report_path_traversal
 from .weak_randomness import WeakRandomness
 
 
-if TYPE_CHECKING:
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-
-
 # TODO: we also need a native version of this function!
 def ast_function(
-    func,  # type: Callable
-    flag_added_args,  # type: Any
-    *args,  # type: Any
-    **kwargs,  # type: Any
-):  # type: (...) -> Any
+    func: Callable,
+    flag_added_args: Any,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
     instance = getattr(func, "__self__", None)
     func_name = getattr(func, "__name__", None)
     cls_name = ""
