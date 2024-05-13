@@ -160,10 +160,6 @@ class ddwaf_object(ctypes.Structure):
                     observator.truncation |= _TRUNC_CONTAINER_SIZE
                     break
                 res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, str) else key)
-                # patch for libddwaf 1.17.0
-                if key == "status_code" and isinstance(val, int):
-                    val = str(val)
-                # end_patch
                 obj = ddwaf_object(
                     val,
                     observator=observator,
