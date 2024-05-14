@@ -1,14 +1,19 @@
+import logging
 import os
 import sys
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.utils import override_env
 
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
@@ -108,6 +113,28 @@ def test_ospathsplitdrive_tainted():
     assert get_tainted_ranges(result[1]) == [
         TaintRange(0, 8, Source("first_element", "/foo/bar", OriginType.PARAMETER))
     ]
+
+
+@pytest.mark.skip_iast_check_logs
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
+def test_propagate_ranges_with_no_context(caplog):
+    """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
+    input_str = "abcde"
+    create_context()
+    string_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    assert get_tainted_ranges(string_input)
+
+    destroy_context()
+    with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+        result = mod.do_os_path_join(string_input, "bar")
+        assert result == "abcde/bar"
+    log_messages = [record.message for record in caplog.get_records("call")]
+    assert not any("[IAST] " in message for message in log_messages), log_messages
 
 
 # TODO: add tests for os.path.splitdrive and os.path.normcase under Windows

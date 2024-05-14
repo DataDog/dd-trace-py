@@ -367,7 +367,7 @@ def zfill_aspect(
         prefix = candidate_text[0] in ("-", "+")
 
         difflen = len(result) - len(candidate_text)
-        ranges_new = []  # type: List[TaintRange]
+        ranges_new: List[TaintRange] = []
         ranges_new_append = ranges_new.append
         ranges_new_extend = ranges_new.extend
 
@@ -402,7 +402,7 @@ def format_aspect(
     if not args:
         return orig_function(*args, **kwargs)
 
-    candidate_text = args[0]  # type: str
+    candidate_text: Text = args[0]
     args = args[flag_added_args:]
 
     result = candidate_text.format(*args, **kwargs)
@@ -433,7 +433,7 @@ def format_map_aspect(
     if orig_function and not args:
         return orig_function(*args, **kwargs)
 
-    candidate_text = args[0]  # type: str
+    candidate_text: Text = args[0]
     args = args[flag_added_args:]
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
         return candidate_text.format_map(*args, **kwargs)
@@ -506,7 +506,6 @@ def format_value_aspect(
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
-        # TODO: use our repr once we have implemented it
         new_text = repr_aspect(repr, 0, element)
     elif options == 97:
         new_text = ascii(element)

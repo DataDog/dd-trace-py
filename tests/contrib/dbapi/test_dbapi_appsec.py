@@ -36,7 +36,7 @@ class TestTracedCursor(TracerTestCase):
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
-            mock_sql_injection_report.assert_called_once_with(evidence_value=query)
+            mock_sql_injection_report.assert_called_once_with(evidence_value=query, dialect="sqlite")
 
     @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
     def test_tainted_query_args(self):
