@@ -106,7 +106,7 @@ def _set_waf_request_metrics(*args):
                     tags=tags_request,
                 )
                 rasp = result["rasp"]
-                if rasp["called"]:
+                if rasp["sum_eval"]:
                     for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
                         for rule_type, value in rasp[t].items():
                             if value:

@@ -263,6 +263,12 @@
         "urllib3": [
             "ddtrace/contrib/urllib3/*"
         ],
+        "webbrowser": [
+            "ddtrace/contrib/webbrowser/*"
+        ],
+        "urllib": [
+            "ddtrace/contrib/urllib/*"
+        ],
         "rq": [
             "ddtrace/contrib/rq/*"
         ],
@@ -1287,6 +1293,22 @@
             "@urllib3",
             "tests/contrib/urllib3/*",
             "tests/snapshots/tests.contrib.urllib3.*"
+        ],
+        "webbrowser": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@webbrowser",
+            "tests/appsec/iast/taint_sinks/test_ssrf.py"
+        ],
+        "urllib": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@urllib",
+            "tests/appsec/iast/taint_sinks/test_ssrf.py"
         ],
         "vertica": [
             "@bootstrap",

@@ -12,6 +12,7 @@ from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
@@ -154,11 +155,13 @@ def try_unwrap(module, name):
         pass
 
 
-def try_wrap_function_wrapper(module: str, name: str, wrapper: Callable) -> None:
-    try:
-        wrap_object(module, name, FunctionWrapper, (wrapper,))
-    except (ImportError, AttributeError):
-        log.debug("ASM patching. Module %s.%s does not exist", module, name)
+def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) -> None:
+    @ModuleWatchdog.after_module_imported(module_name)
+    def _(module):
+        try:
+            wrap_object(module, name, FunctionWrapper, (wrapper,))
+        except (ImportError, AttributeError):
+            log.debug("ASM patching. Module %s.%s does not exist", module_name, name)
 
 
 def wrap_object(module, name, factory, args=(), kwargs=None):
