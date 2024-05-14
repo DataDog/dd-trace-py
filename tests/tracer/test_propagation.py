@@ -1757,7 +1757,7 @@ EXTRACT_FIXTURES = [
             "meta": {
                 "tracestate": DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS[_HTTP_HEADER_TRACESTATE],
                 "_dd.p.dm": "-3",
-                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
             },
         },
     ),
@@ -1794,6 +1794,21 @@ EXTRACT_FIXTURES = [
         [],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         CONTEXT_EMPTY,
+    ),
+    (
+        "datadog_tracecontext_conflicting_span_ids",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            HTTP_HEADER_TRACE_ID: "9291375655657946024",
+            HTTP_HEADER_PARENT_ID: "15",
+            _HTTP_HEADER_TRACEPARENT: "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+        },
+        {
+            "trace_id": 9291375655657946024,
+            "span_id": 10,
+            "sampling_priority": 2,
+            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+        },
     ),
 ]
 
@@ -2122,7 +2137,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": ALL_HEADERS_CHAOTIC_1[_HTTP_HEADER_TRACESTATE],
-                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
