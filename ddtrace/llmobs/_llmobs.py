@@ -47,6 +47,13 @@ from ddtrace.llmobs.utils import Messages
 log = get_logger(__name__)
 
 
+SUPPORTED_INTEGRATIONS = {
+    "bedrock": lambda: patch(botocore=True),
+    "langchain": lambda: patch(langchain=True),
+    "openai": lambda: patch(openai=True),
+}
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
@@ -124,10 +131,11 @@ class LLMObs(Service):
             return
 
         # grab required values for LLMObs
-        # reading from environment variables is needed in case preload script wasn't called.
         config._dd_site = dd_site or config._dd_site
         config._dd_api_key = dd_api_key or config._dd_api_key
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config.env = dd_env or config.env
+        config.service = dd_service or config.service
 
         # validate required values for LLMObs
         if not config._dd_api_key:
@@ -146,53 +154,20 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
-        # grab optional values
-        config.env = dd_env or config.env
-        config.service = dd_service or config.service
-
         if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
             os.environ["DD_LLMOBS_NO_APM"] = "1"
 
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
                 config._telemetry_enabled = False
+                log.debug("Telemetry disabled because DD_LLMOBS_NO_APM is set.")
                 telemetry.telemetry_writer.disable()
 
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
+                log.debug("Remote configuration disabled because DD_LLMOBS_NO_APM is set.")
                 remoteconfig_poller.disable()
 
-            if not os.getenv("DD_OPENAI_METRICS_ENABLED"):
-                os.environ["DD_OPENAI_METRICS_ENABLED"] = "0"
-
-            if not os.getenv("DD_LANGCHAIN_METRICS_ENABLED"):
-                os.environ["DD_LANGCHAIN_METRICS_ENABLED"] = "0"
-
-        # enable LLMObs integations
-        supported_integrations = {
-            "langchain": lambda: patch(langchain=True),
-            "openai": lambda: patch(openai=True),
-            "bedrock": lambda: patch(botocore=True),
-        }
-        if not integrations:
-            try:
-                patch(botocore=True, langchain=True, openai=True)
-            except Exception:
-                log.warning("couldn't patch all LLMObs integrations", exc_info=True)
-        else:
-            for integration in integrations:
-                integration = integration.lower()
-                if integration in supported_integrations:
-                    try:
-                        supported_integrations[integration]()
-                    except Exception:
-                        log.warning("couldn't patch %s", integration.lower(), exc_info=True)
-                else:
-                    log.warning(
-                        "%s is unsupported - LLMObs currently supports %s",
-                        integration,
-                        str(supported_integrations.keys()),
-                    )
-
+        cls._patch_integrations(integrations)
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=tracer)
         cls.enabled = True
@@ -227,6 +202,32 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
+
+    @staticmethod
+    def _patch_integrations(integrations: Optional[List[str]]):
+        """
+        Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
+        """
+        integrations_to_patch = {}
+        if not integrations:
+            integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
+        else:
+            for integration in integrations:
+                integration = integration.lower()
+                if integration in SUPPORTED_INTEGRATIONS:
+                    integrations_to_patch.update({integration: SUPPORTED_INTEGRATIONS[integration]})
+                else:
+                    log.warning(
+                        "%s is unsupported - LLMObs currently supports %s",
+                        integration,
+                        str(SUPPORTED_INTEGRATIONS.keys()),
+                    )
+        for integration in integrations_to_patch:
+            try:
+                SUPPORTED_INTEGRATIONS[integration]()
+            except Exception:
+                log.warning("couldn't patch %s", integration, exc_info=True)
+        return
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:

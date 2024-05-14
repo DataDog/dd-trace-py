@@ -57,6 +57,9 @@ class BaseLLMIntegration:
     @property
     def metrics_enabled(self) -> bool:
         """Return whether submitting metrics is enabled for this integration, or global config if not set."""
+        env_metrics_enabled = asbool(os.getenv("DD_{}_METRICS_ENABLED".format(self._integration_name.upper())))
+        if not env_metrics_enabled and asbool(os.getenv("DD_LLMOBS_NO_APM")):
+            return False
         if hasattr(self.integration_config, "metrics_enabled"):
             return asbool(self.integration_config.metrics_enabled)
         return False
