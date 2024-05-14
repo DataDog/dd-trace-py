@@ -921,11 +921,7 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
-                if (
-                    primary_context.trace_id == context.trace_id
-                    and primary_context.span_id != context.span_id
-                    and styles_w_ctx[0] == PROPAGATION_STYLE_DATADOG
-                ):
+                if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
                     # the span_id in datadog headers is stored as a tag, this will be used as a “backup parent”
                     primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(primary_context.span_id)
                     # the span_id in tracecontext should always takes precedence

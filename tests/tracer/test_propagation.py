@@ -1751,13 +1751,13 @@ EXTRACT_FIXTURES = [
         DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
             "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
-            "span_id": 5678,
+            "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
             "meta": {
                 "tracestate": DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS[_HTTP_HEADER_TRACESTATE],
                 "_dd.p.dm": "-3",
-                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
         },
     ),
@@ -2114,7 +2114,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ALL_HEADERS_CHAOTIC_1,
         Context(
             trace_id=7277407061855694839,
-            span_id=5678,
+            span_id=67667974448284343,
             # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
             # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
             # in the styles configuration
@@ -2122,7 +2122,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": ALL_HEADERS_CHAOTIC_1[_HTTP_HEADER_TRACESTATE],
-                LAST_DD_PARENT_ID_KEY: "00f067aa0ba902b7",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
