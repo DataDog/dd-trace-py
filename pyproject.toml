@@ -182,10 +182,12 @@ exclude_dirs = [
 ]
 
 [tool.cibuildwheel]
-build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
+build = ["cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*"]
 test-command = ["python {project}/tests/smoke_test.py"]
 # Skip trying to test arm64 builds on Intel Macs
 test-skip = "*-macosx_universal2:arm64"
+# Rust does not provide Cargo for musllinux 32-bit, so that needs to be skipped
+skip = ["*-musllinux_i686"]
 
 [tool.cibuildwheel.macos.environment]
 # Workaround for Macos 11.0 versioning issue, a.k.a.
