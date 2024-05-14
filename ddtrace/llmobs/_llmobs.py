@@ -118,7 +118,7 @@ class LLMObs(Service):
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
         """
         if cls.enabled is False:
-            log.warn("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
+            log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
         cls._instance._llmobs_span_writer.periodic()
         cls._instance._llmobs_eval_metric_writer.periodic()
