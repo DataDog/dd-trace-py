@@ -31,6 +31,9 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
     "unittest.mock",
+    "pytest",  # Testing framework
+    "freezegun",  # Testing utilities for time manipulation
+    "sklearn",  # Machine learning library
 )
 
 
@@ -88,7 +91,9 @@ def _should_iast_patch(module_name: Text) -> bool:
     """
     if module_name.startswith(IAST_ALLOWLIST):
         return True
-    return not module_name.startswith(IAST_DENYLIST)
+    if module_name.startswith(IAST_DENYLIST):
+        return False
+    return not _in_python_stdlib_or_third_party(module_name)
 
 
 def visit_ast(
