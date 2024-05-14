@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+from enum import Enum
 import logging
 import math
 from typing import Any
@@ -252,3 +253,15 @@ def test_propagate_ranges_with_no_context(caplog):
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
+
+
+class ExportType(str, Enum):
+    USAGE = "Usage"
+    ACTUAL_COST = "ActualCost"
+
+
+def test_format_value_aspect_no_change_patched_unpatched():
+    # Issue: https://datadoghq.atlassian.net/jira/software/c/projects/APPSEC/boards/1141?selectedIssue=APPSEC-53155
+    fstr_unpatched = f"{ExportType.ACTUAL_COST}"
+    fstr_patched = mod.do_exporttype_member_format()
+    assert fstr_patched == fstr_unpatched

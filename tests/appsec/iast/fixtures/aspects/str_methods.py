@@ -1,5 +1,6 @@
 from collections import namedtuple
 import functools
+from enum import Enum
 from http.client import HTTPConnection
 from http.server import HTTPServer as HTTPServer
 from http.server import SimpleHTTPRequestHandler
@@ -1154,3 +1155,12 @@ def do_stringio_init_param(StringIO, string_input):
 def do_stringio_init_and_getvalue_param(StringIO, string_input):
     xxx = StringIO(string_input)
     return xxx.getvalue()
+
+
+class ExportType(str, Enum):
+    USAGE = "Usage"
+    ACTUAL_COST = "ActualCost"
+
+
+def do_exporttype_member_format():
+    return f"{ExportType.ACTUAL_COST}"
