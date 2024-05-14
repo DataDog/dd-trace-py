@@ -920,18 +920,11 @@ def _on_finish_session(finish_args: CISession.FinishArgs):
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
-@_requires_civisibility_enabled
-def _on_get_session_settings(session_id: CISessionId):
-    log.debug("Handling get session settings for session id %s", session_id)
-    return CIVisibility.get_session_settings(session_id)
-
-
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("ci_visibility.session.discover", _on_discover_session)
     core.on("ci_visibility.session.start", _on_start_session)
     core.on("ci_visibility.session.finish", _on_finish_session)
-    core.on("ci_visibility.session.get_settings", _on_get_session_settings)
 
 
 @_requires_civisibility_enabled

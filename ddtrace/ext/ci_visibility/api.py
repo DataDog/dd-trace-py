@@ -237,12 +237,6 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_settings(item_id: Optional[CISessionId] = None):
-        log.debug("Getting settings for session %s", item_id)
-        core.dispatch("ci_visibility.session.get_settings", (item_id,))
-
-    @staticmethod
-    @_catch_and_log_exceptions
     def get_known_tests(item_id: Optional[CISessionId] = None):
         pass
 
