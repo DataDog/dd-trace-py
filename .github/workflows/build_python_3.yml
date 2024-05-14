@@ -69,9 +69,9 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
-          CIBW_BEFORE_ALL: >
-            curl -sSf https://sh.rustup.rs | sh -s -- -y &&
-            rustup target add aarch64-apple-darwin
+          CIBW_BEFORE_ALL: curl -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
@@ -104,9 +104,9 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
-          CIBW_BEFORE_ALL: >
-            curl -sSf https://sh.rustup.rs | sh -s -- -y &&
-            rustup target add aarch64-apple-darwin
+          CIBW_BEFORE_ALL: curl -sSf https://sh.rustup.rs | sh -s -- -y
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
