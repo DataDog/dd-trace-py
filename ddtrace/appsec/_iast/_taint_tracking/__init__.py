@@ -137,6 +137,10 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     # Pyobject must be Text with len > 1
     if not isinstance(pyobject, IAST.TEXT_TYPES):
         return pyobject
+    # We need this validation in different contition if pyobject is not a text type and creates a side-effect such as
+    # __len__ magic method call.
+    if len(pyobject) == 0:
+        return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
         source_name = str(source_name, encoding="utf8", errors="ignore")
