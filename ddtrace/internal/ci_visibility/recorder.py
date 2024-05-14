@@ -1132,7 +1132,7 @@ def _on_itr_mark_forced_run(item_id: Union[CISuiteId, CITestId]) -> None:
 @_requires_civisibility_enabled
 def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
-    log.debug("Handling get skippable items")
+    log.debug("Handling is item skippable for item id %s", item_id)
 
     if not isinstance(item_id, (CISuiteId, CITestId)):
         log.warning("Only suites or tests can be skippable, not %s", type(item_id))
