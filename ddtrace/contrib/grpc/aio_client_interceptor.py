@@ -1,6 +1,5 @@
 import asyncio
 import functools
-import re
 from typing import Callable  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
@@ -27,10 +26,14 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .. import trace_utils
 from ..grpc import constants
 from ..grpc import utils
+
+
+log = get_logger(__name__)
 
 
 def create_aio_client_interceptors(pin, host, port):
@@ -55,26 +58,37 @@ def _handle_add_callback(call, callback):
 
 def _done_callback(span, code=None, details=None):
     def func(call):
+        # type: (aio.Call) -> None
         nonlocal code, details
         try:
-            # type: (aio.Call) -> None
-            if not code and not details:
-                # we need to call __repr__ since we cannot call code() or details() since they are both async
-                code, details = parse_rpc_repr_string(call.__repr__())
+            if call.done():
+                # check to ensure code and details are not already set, in which case this span
+                # is an error span and already has all error tags
+                code_tag = span.get_tag(constants.GRPC_STATUS_CODE_KEY)
+                details_tag = span.get_tag(ERROR_MSG)
+                if not code_tag or not details_tag:
+                    if not code and not details:
+                        # we need to call __repr__ as we cannot call code() or details() since they are both async
+                        code, details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
 
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+                    span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
 
-            # Handle server-side error in unary response RPCs
-            if code != grpc.StatusCode.OK:
-                _handle_error(span, call, code, details)
+                    # Handle server-side error in unary response RPCs
+                    if code != grpc.StatusCode.OK:
+                        _handle_error(span, call, code, details)
+            else:
+                log.warning("Call has not completed, unable to set status code and details on span.")
+        except ValueError:
+            # ValueError is thrown from _parse_rpc_repr_string
+            log.warning("Unable to parse async grpc string for status code and details.")
         finally:
             span.finish()
 
     return func
 
 
-def _handle_error(span, call, code, details):
-    # type: (Span, aio.Call, grpc.StatusCode, str) -> None
+def _handle_error(span, code, details):
+    # type: (Span, grpc.StatusCode, str) -> None
     span.error = 1
     span.set_tag_str(ERROR_MSG, details)
     span.set_tag_str(ERROR_TYPE, to_unicode(code))
@@ -98,32 +112,6 @@ async def _handle_cancelled_error(call, span):
     span.set_tag_str(ERROR_MSG, await call.details())
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
-
-
-def parse_rpc_repr_string(rpc_string):
-    # Define the regular expression patterns to extract status and details
-    status_pattern = r"status\s*=\s*StatusCode\.(\w+)"
-    details_pattern = r'details\s*=\s*"([^"]*)"'
-
-    # Search for the status and details in the input string
-    status_match = re.search(status_pattern, rpc_string)
-    details_match = re.search(details_pattern, rpc_string)
-
-    if not status_match or not details_match:
-        raise ValueError("Unable to parse status or details from input string")
-
-    # Extract the status and details from the matches
-    status_str = status_match.group(1)
-    details = details_match.group(1)
-
-    # Convert the status string to a grpc.StatusCode object
-    try:
-        code = grpc.StatusCode[status_str]
-    except KeyError:
-        raise ValueError(f"Invalid StatusCode: {status_str}")
-
-    # Return the status code and details
-    return code, details
 
 
 class _ClientInterceptor:
@@ -194,6 +182,10 @@ class _ClientInterceptor:
             _handle_add_callback(call, _done_callback(span))
             async for response in call:
                 yield response
+        except StopAsyncIteration:
+            # Callback will handle span finishing
+            _handle_cancelled_error()
+            raise
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks,
             # but reuse this error handling function used in unary response RPCs.
