@@ -38,7 +38,7 @@ def _get_ml_app(span: Span) -> str:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         ml_app = nearest_llmobs_ancestor.get_tag(ML_APP)
-    return ml_app or config._llmobs_ml_app
+    return ml_app or config._llmobs_ml_app or "uknown-ml-app"
 
 
 def _get_session_id(span: Span) -> str:

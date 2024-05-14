@@ -2,6 +2,7 @@ import os
 import sys
 import traceback
 from typing import Dict
+from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -56,8 +57,7 @@ def metric_verbosity(lvl):
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
-def _set_iast_error_metric(msg):
-    # type: (str) -> None
+def _set_iast_error_metric(msg: Text) -> None:
     # Due to format_exc and format_exception returns the error and the last frame
     try:
         exception_type, exception_instance, _traceback_list = sys.exc_info()

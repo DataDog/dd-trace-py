@@ -87,6 +87,7 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
+    PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", ""),
 ]
 
 
