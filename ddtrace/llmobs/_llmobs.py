@@ -127,7 +127,6 @@ class LLMObs(Service):
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        # turn off llmobs enabled booleans
         cls.enabled = False
         cls._instance.stop()
 
