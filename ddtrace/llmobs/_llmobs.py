@@ -115,9 +115,9 @@ class LLMObs(Service):
 
         # grab required values for LLMObs
         # reading from environment variables is needed in case preload script wasn't called.
-        config._dd_site = config._dd_site or os.getenv("DD_SITE") or dd_site
-        config._dd_api_key = config._dd_api_key or os.getenv("DD_API_KEY") or dd_api_key
-        config._llmobs_ml_app = config._llmobs_ml_app or os.getenv("DD_LLMOBS_APP_NAME") or ml_app
+        config._dd_site = dd_site or config._dd_site
+        config._dd_api_key = dd_api_key or config._dd_api_key
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
         if not config._dd_api_key:
