@@ -120,8 +120,11 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
-        cls._instance._llmobs_span_writer.periodic()
-        cls._instance._llmobs_eval_metric_writer.periodic()
+        try:
+            cls._instance._llmobs_span_writer.periodic()
+            cls._instance._llmobs_eval_metric_writer.periodic()
+        except Exception:
+            log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
