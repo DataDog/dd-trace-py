@@ -922,9 +922,19 @@ class HTTPPropagator(object):
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
                 if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
-                    # the span_id in datadog headers is stored as a tag, this will be used as a “backup parent”
-                    primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(primary_context.span_id)
-                    # the span_id in tracecontext should always takes precedence
+                    dd_context = None
+                    if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
+                        dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
+                    if context._meta.get(LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID) != DEFAULT_LAST_PARENT_ID:
+                        # tracecontext headers contain a p value, ensure this value is sent to backend
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
+                    elif dd_context:
+                        # if p value is not present in tracestate, use the parent id from the datadog headers
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
+                    elif context._meta.get(LAST_DD_PARENT_ID_KEY) == DEFAULT_LAST_PARENT_ID:
+                        # if datadog last parent id is found then set the default value
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = DEFAULT_LAST_PARENT_ID
+                    # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
         primary_context._span_links = links
         return primary_context
