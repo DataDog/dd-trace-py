@@ -904,7 +904,7 @@ class HTTPPropagator(object):
                     SpanLink(
                         context.trace_id,
                         context.span_id,
-                        flags=1 if context.sampling_priority else 0,
+                        flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
                         tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
                         if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
                         else None,

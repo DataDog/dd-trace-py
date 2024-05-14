@@ -10,6 +10,7 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from ..constants import VULN_CMDI
 from ..processor import AppSecIastSpanProcessor
@@ -38,6 +39,8 @@ def patch():
 
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
+
+    _set_metric_iast_instrumented_sink(VULN_CMDI)
 
     if asm_config._ep_enabled:
         core.dispatch("exploit.prevention.ssrf.patch.urllib")
@@ -74,9 +77,6 @@ def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
 @oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
-    # TODO: Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    redact_report = False
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:

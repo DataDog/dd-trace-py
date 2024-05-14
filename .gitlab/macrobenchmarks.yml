@@ -1,5 +1,5 @@
 variables:
-  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
+  MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
 
 .macrobenchmarks:
   stage: macrobenchmarks
@@ -14,7 +14,7 @@ variables:
     # - if: $CI_COMMIT_REF_NAME == "main"
     #   when: always
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
-  image: $BENCHMARKS_CI_IMAGE
+  image: $MACROBENCHMARKS_CI_IMAGE
   script: |
     git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
