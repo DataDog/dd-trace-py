@@ -135,7 +135,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     # Pyobject must be Text with len > 1
-    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TEXT_TYPES):
         return pyobject
 
     if isinstance(source_name, (bytes, bytearray)):
@@ -157,17 +157,19 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
     return pyobject
 
 
-def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> None:
-    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
-        return None
+def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
+    if not isinstance(pyobject, IAST.TEXT_TYPES):
+        return False
     try:
         set_ranges(pyobject, ranges)
+        return True
     except ValueError as e:
         iast_taint_log_error("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
+    return False
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    if not pyobject or not isinstance(pyobject, IAST.TEXT_TYPES):
+    if not isinstance(pyobject, IAST.TEXT_TYPES):
         return tuple()
     try:
         return get_ranges(pyobject)
