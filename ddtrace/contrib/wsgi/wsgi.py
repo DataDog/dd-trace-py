@@ -141,12 +141,12 @@ class _DDWSGIMiddlewareBase(object):
                     core.dispatch("wsgi.app.exception", (ctx,))
                     raise
                 else:
+                    if core.get_item(HTTP_REQUEST_BLOCKED):
+                        _, _, content = core.dispatch_with_results(
+                            "wsgi.block.started", (ctx, construct_url)
+                        ).status_headers_content.value or (None, None, "")
+                        closing_iterable = [content]
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
-                if core.get_item(HTTP_REQUEST_BLOCKED):
-                    _, _, content = core.dispatch_with_results(
-                        "wsgi.block.started", (ctx, construct_url)
-                    ).status_headers_content.value or (None, None, "")
-                    closing_iterable = [content]
 
             result = core.dispatch_with_results(
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)

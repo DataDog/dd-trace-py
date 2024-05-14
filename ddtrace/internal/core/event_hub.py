@@ -35,10 +35,10 @@ _MissingEvent = EventResult()
 
 
 class EventResultDict(Dict[str, EventResult]):
-    def __missing__(self, key: str):
+    def __missing__(self, key: str) -> EventResult:
         return _MissingEvent
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> EventResult:
         return dict.__getitem__(self, name)
 
 
