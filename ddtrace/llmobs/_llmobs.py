@@ -49,11 +49,6 @@ class LLMObs(Service):
     _instance = None
     enabled = False
 
-    # Support llmobs python integrations
-    langchain = "langchain"
-    openai = "openai"
-    botocore = "botocore"
-
     def __init__(self, tracer=None):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
@@ -101,6 +96,7 @@ class LLMObs(Service):
 
         :param str ml_app: The name of your ml application.
         :param List[str] integrations: A list of integrations to enable auto-tracing for.
+                                        Must be subset of ("openai", "langchain", "bedrock")
         :param bool dd_llmobs_no_apm: Set to `true` to disable sending non-LLM Observability data to Datadog.
         :param str dd_site: Your datadog site.
         :param str dd_api_key: Your datadog api key.
