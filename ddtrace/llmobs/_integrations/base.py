@@ -91,7 +91,7 @@ class BaseLLMIntegration:
 
     def is_pc_sampled_llmobs(self, span: Span) -> bool:
         # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
-        if not LLMObs.enabled:
+        if not self.llmobs_enabled:
             return False
         return self._llmobs_pc_sampler.sample(span)
 
