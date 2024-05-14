@@ -2,6 +2,8 @@
 Trace queries along a session to a cassandra cluster
 """
 import sys
+from typing import Any
+from typing import Tuple
 
 from cassandra import __version__
 
@@ -192,7 +194,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     span.set_tag(SPAN_MEASURED_KEY)
-    _sanitize_query(span, query)
+    _set_resource_and_tags_from_query(span, query)
     span.set_tags(_extract_session_metas(session))  # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
     # set analytics sample rate if enabled
@@ -261,16 +263,30 @@ def _extract_result_metas(result):
     return metas
 
 
-def _sanitize_query(span, query):
-    # TODO (aaditya): fix this hacky type check. we need it to avoid circular imports
-    t = type(query).__name__
+def _get_query_type_and_resource(query: Any) -> Tuple[str, str]:
+    query_type = type(query).__name__
 
     resource = None
-    if t in ("SimpleStatement", "PreparedStatement"):
+    if query_type in ("SimpleStatement", "PreparedStatement"):
         # reset query if a string is available
         resource = getattr(query, "query_string", query)
-    elif t == "BatchStatement":
+    elif query_type == "BatchStatement":
         resource = "BatchStatement"
+    elif query_type == "BoundStatement":
+        ps = getattr(query, "prepared_statement", None)
+        if ps:
+            resource = getattr(ps, "query_string", None)
+    elif query_type == "str":
+        resource = query
+    else:
+        resource = "unknown-query-type"  # FIXME[matt] what else do to here?
+    return query_type, resource
+
+
+def _set_resource_and_tags_from_query(span, query):
+    query_type, resource = _get_query_type_and_resource(query)
+
+    if query_type == "BatchStatement":
         # Each element in `_statements_and_parameters` is:
         #   (is_prepared, statement, parameters)
         #  ref:https://github.com/datastax/python-driver/blob/13d6d72be74f40fcef5ec0f2b3e98538b3b87459/cassandra/query.py#L844
@@ -282,13 +298,5 @@ def _sanitize_query(span, query):
         q = "; ".join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
         span.set_tag_str("cassandra.query", q)
         span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
-    elif t == "BoundStatement":
-        ps = getattr(query, "prepared_statement", None)
-        if ps:
-            resource = getattr(ps, "query_string", None)
-    elif t == "str":
-        resource = query
-    else:
-        resource = "unknown-query-type"  # FIXME[matt] what else do to here?
 
     span.resource = str(resource)[:RESOURCE_MAX_LENGTH]
