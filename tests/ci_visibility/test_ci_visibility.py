@@ -1703,8 +1703,6 @@ class TestIsITRSkippable:
             }
             expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
 
-            breakpoint()
-
             # Check skippable tests are correct
             for test_id in expected_skippable_test_ids:
                 assert CIVisibility.is_item_itr_skippable(test_id) is True
