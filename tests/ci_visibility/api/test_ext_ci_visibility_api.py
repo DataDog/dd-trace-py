@@ -61,7 +61,7 @@ class TestCISourceFileInfo:
 class TestCIITRMixin:
     """Tests whether or not skippable tests and suites are correctly identified
 
-    Note: these tests do not bother discoveirng a session as the ITR
+    Note: these tests do not bother discovering a session as the ITR functionality currently does not rely on sessions.
     """
 
     def test_api_is_item_itr_skippable_test_level(self):
