@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import re
 from typing import Callable  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
@@ -52,10 +53,22 @@ def _handle_add_callback(call, callback):
         callback(call)
 
 
-def _done_callback(span):
+def _done_callback(span, code=None, details=None):
     def func(call):
-        # type: (aio.Call) -> None
-        span.finish()
+        nonlocal code, details
+        try:
+            # type: (aio.Call) -> None
+            if not code and not details:
+                # we need to call __repr__ since we cannot call code() or details() since they are both async
+                code, details = parse_rpc_repr_string(call.__repr__())
+
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+
+            # Handle server-side error in unary response RPCs
+            if code != grpc.StatusCode.OK:
+                _handle_error(span, call, code, details)
+        finally:
+            span.finish()
 
     return func
 
@@ -85,6 +98,32 @@ async def _handle_cancelled_error(call, span):
     span.set_tag_str(ERROR_MSG, await call.details())
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
+
+
+def parse_rpc_repr_string(rpc_string):
+    # Define the regular expression patterns to extract status and details
+    status_pattern = r"status\s*=\s*StatusCode\.(\w+)"
+    details_pattern = r'details\s*=\s*"([^"]*)"'
+
+    # Search for the status and details in the input string
+    status_match = re.search(status_pattern, rpc_string)
+    details_match = re.search(details_pattern, rpc_string)
+
+    if not status_match or not details_match:
+        raise ValueError("Unable to parse status or details from input string")
+
+    # Extract the status and details from the matches
+    status_str = status_match.group(1)
+    details = details_match.group(1)
+
+    # Convert the status string to a grpc.StatusCode object
+    try:
+        code = grpc.StatusCode[status_str]
+    except KeyError:
+        raise ValueError(f"Invalid StatusCode: {status_str}")
+
+    # Return the status code and details
+    return code, details
 
 
 class _ClientInterceptor:
@@ -152,7 +191,7 @@ class _ClientInterceptor:
         span: Span,
     ) -> ResponseIterableType:
         try:
-            _handle_add_callback(call, _done_callback(span))      
+            _handle_add_callback(call, _done_callback(span))
             async for response in call:
                 yield response
         except aio.AioRpcError as rpc_error:
