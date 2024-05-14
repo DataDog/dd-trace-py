@@ -56,7 +56,6 @@ def _done_callback(span):
     def func(call):
         # type: (aio.Call) -> None
         span.finish()
-        print("running done callback")
 
     return func
 
