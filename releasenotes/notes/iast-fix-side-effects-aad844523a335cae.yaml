@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Code Security (IAST): Ensure IAST propagations do not raise side effects related to Magic methods.
+    Code Security: Ensure IAST propagation does not raise side effects related to Magic methods.
