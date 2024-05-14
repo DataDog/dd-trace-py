@@ -731,7 +731,10 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     inputs = None
     final_output = None
     try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
+        try:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        except ArgumentError:
+            inputs = get_argument_value(args, kwargs, 0, "inputs")
         if integration.is_pc_sampled_span(span):
             if not isinstance(inputs, list):
                 inputs = [inputs]
@@ -775,7 +778,10 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     inputs = None
     final_output = None
     try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
+        try:
+            inputs = get_argument_value(args, kwargs, 0, "input")
+        except ArgumentError:
+            inputs = get_argument_value(args, kwargs, 0, "inputs")
         if integration.is_pc_sampled_span(span):
             if not isinstance(inputs, list):
                 inputs = [inputs]
