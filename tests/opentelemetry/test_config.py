@@ -1,6 +1,7 @@
 import pytest
 
 
+# OTEL_SERVICE_NAME -> DD_SERVICE Tests
 @pytest.mark.subprocess(env={"OTEL_SERVICE_NAME": "blah"})
 def test_otel_service_configuration():
     from ddtrace import config
@@ -8,6 +9,32 @@ def test_otel_service_configuration():
     assert config.service == "blah", config.service
 
 
+# OTEL_LOG_LEVEL -> DD_TRACE_DEBUG
+@pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "debug"})
+def test_otel_log_level_configuration_debug():
+    from ddtrace import config
+
+    assert config._debug_mode is True, config._debug_mode
+
+
+@pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "info"})
+def test_otel_log_level_configuration_info():
+    from ddtrace import config
+
+    assert config._debug_mode is False, config._debug_mode
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_LOG_LEVEL": "warning"},
+    err=b"ddtrace does not support otel log level 'warning'. setting ddtrace to log level info.\n",
+)
+def test_otel_log_level_configuration_unsupported():
+    from ddtrace import config
+
+    assert config._debug_mode is False, config._debug_mode
+
+
+# OTEL_PROPAGATORS -> DD_TRACE_PROPAGATION_STYLE Tests
 @pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "b3single, tracecontext, b3"})
 def test_otel_propagation_style_configuration():
     from ddtrace import config
@@ -24,6 +51,7 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
 
 
+# OTEL_TRACES_SAMPLER -> DD_TRACE_SAMPLE_RATE Tests
 @pytest.mark.subprocess(env={"OTEL_TRACES_SAMPLER": "always_on"})
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
@@ -38,6 +66,7 @@ def test_otel_traces_sampler_configuration_alwaysoff():
     assert config._trace_sample_rate == 0.0, config._trace_sample_rate
 
 
+# OTEL_TRACES_EXPORTER -> DD_TRACE_ENABLED Tests
 @pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "none"})
 def test_otel_traces_exporter_configuration():
     from ddtrace import config
@@ -45,8 +74,120 @@ def test_otel_traces_exporter_configuration():
     assert config._tracing_enabled is False, config._tracing_enabled
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "false"}, err=b"An unrecognized exporter 'false' is being used.\n")
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_EXPORTER": "true"},
+    err=b"An unrecognized exporter 'true' is being used; setting dd_trace_enabled to false.\n",
+)
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
 
     assert config._tracing_enabled is False, config._tracing_enabled
+
+
+# OTEL_METRICS_EXPORTER -> DD_RUNTIME_METRICS_ENABLED Tests
+@pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "none"})
+def test_otel_metrics_exporter_configuration():
+    from ddtrace import config
+
+    assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_METRICS_EXPORTER": "true"},
+    err=b"An unrecognized exporter 'true' is being used; setting dd_runtime_metrics_enabled to false.\n",
+)
+def test_otel_metrics_exporter_configuration_unsupported_exporter():
+    from ddtrace import config
+
+    assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
+
+
+# OTEL_LOGS_EXPORTER Test (Should be ignored and print a warning if not 'none'.)
+@pytest.mark.subprocess(env={"otel_LOGS_EXPORTER": "true"}, err=b"Unsupported logs exporter detected.\n")
+def test_otel_logs_exporter_configuration_unsupported():
+    from ddtrace import config  # noqa: F401
+
+
+@pytest.mark.subprocess(env={"OTEL_LOGS_EXPORTER": "none"}, err=b"")
+def test_otel_logs_exporter_configuration():
+    """
+        Testing that a warning is not logged when 'none' value is found.
+    """
+    from ddtrace import config  # noqa: F401
+
+
+# OTEL_RESOURCE ATTRIBUTES -> DD_TAGS Tests
+@pytest.mark.subprocess(
+    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,service.version=1.0"}
+)
+def test_otel_resource_attributes_unified_tags():
+    from ddtrace import config
+
+    assert config.tags == {
+        "DD_ENV": "prod",
+        "DD_SERVICE": "bleh",
+        "DD_VERSION": "1.0",
+    }, config.tags
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4"
+    }
+)
+def test_otel_resource_attributes_mixxed_tags():
+    from ddtrace import config
+
+    assert config.tags == {
+        "DD_ENV": "prod",
+        "DD_SERVICE": "bleh",
+        "DD_VERSION": "1.0",
+        "testtag1": "random1",
+        "testtag2": "random2",
+        "testtag3": "random3",
+        "testtag4": "random4",
+    }, config.tags
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4,testtag5=random5,"
+        "testtag6=random6,testtag7=random7,testtag8=random8"
+    },
+    err=b"To preserve metrics cardinality, only the following first 10"
+    b" tags have been processed ['DD_ENV:prod', 'DD_SERVICE:bleh', 'DD_VERSION:1.0', 'testtag1:random1', "
+    b"'testtag2:random2', 'testtag3:random3', 'testtag4:random4', 'testtag5:random5', 'testtag6:random6', "
+    b"'testtag7:random7']\n",
+)
+def test_otel_resource_attributes_tags_warning():
+    from ddtrace import config
+
+    assert config.tags == {
+        "DD_ENV": "prod",
+        "DD_SERVICE": "bleh",
+        "DD_VERSION": "1.0",
+        "testtag1": "random1",
+        "testtag2": "random2",
+        "testtag3": "random3",
+        "testtag4": "random4",
+        "testtag5": "random5",
+        "testtag6": "random6",
+        "testtag7": "random7",
+        "testtag8": "random8",
+    }, config.tags
+
+
+# OTEL_SDK_DISABLED -> !DD_TRACE_OTEL_ENABLED Test
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
+def test_otel_sdk_disabled_configuration():
+    from ddtrace import config
+
+    assert config._otel_enabled is True
+
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true"})
+def test_otel_sdk_disabled_configuration_true():
+    from ddtrace import config
+
+    assert config._otel_enabled is False
