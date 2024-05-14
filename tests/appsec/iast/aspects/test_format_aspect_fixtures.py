@@ -265,3 +265,23 @@ def test_format_value_aspect_no_change_patched_unpatched():
     fstr_unpatched = f"{ExportType.ACTUAL_COST}"
     fstr_patched = mod.do_exporttype_member_format()
     assert fstr_patched == fstr_unpatched
+
+
+class CustomSpec:
+    def __str__(self):
+        return "str"
+
+    def __repr__(self):
+        return "repr"
+
+    def __format__(self, format_spec):
+        return "format_" + format_spec
+
+
+def test_format_value_aspect_no_change_customspec():
+    c = CustomSpec()
+    assert f"{c}" == mod.do_customspec_simple()
+    assert f"{c!s}" == mod.do_customspec_cstr()
+    assert f"{c!r}" == mod.do_customspec_repr()
+    assert f"{c!a}" == mod.do_customspec_ascii()
+    assert f"{c!s:<20s}" == mod.do_customspec_formatspec()

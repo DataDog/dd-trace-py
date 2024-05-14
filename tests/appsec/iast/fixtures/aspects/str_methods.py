@@ -1160,3 +1160,39 @@ class ExportType(str, Enum):
 
 def do_exporttype_member_format():
     return f"{ExportType.ACTUAL_COST}"
+
+
+class CustomSpec:
+    def __str__(self):
+        return "str"
+
+    def __repr__(self):
+        return "repr"
+
+    def __format__(self, format_spec):
+        return "format_" + format_spec
+
+
+def do_customspec_simple():
+    c = CustomSpec()
+    return f"{c}"
+
+
+def do_customspec_cstr():
+    c = CustomSpec()
+    return f"{c!s}"
+
+
+def do_customspec_repr():
+    c = CustomSpec()
+    return f"{c!r}"
+
+
+def do_customspec_ascii():
+    c = CustomSpec()
+    return f"{c!a}"
+
+
+def do_customspec_formatspec():
+    c = CustomSpec()
+    return f"{c!s:<20s}"
