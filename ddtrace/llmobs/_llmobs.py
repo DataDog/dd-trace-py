@@ -162,8 +162,10 @@ class LLMObs(Service):
             "bedrock": lambda: patch(botocore=True),
         }
         if not integrations:
-            print("hi")
-            patch(botocore=True, langchain=True, openai=True)
+            try:
+                patch(botocore=True, langchain=True, openai=True)
+            except Exception:
+                log.warning("couldn't patch all LLMObs integrations", exc_info=True)
         else:
             for integration in integrations:
                 integration = integration.lower()
