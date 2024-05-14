@@ -7,6 +7,53 @@ class MagicMethodsException:
     def encode(self, *args, **kwargs):
         return self._data.encode(*args, **kwargs)
 
+    def decode(self, *args, **kwargs):
+        return self._data.decode(*args, **kwargs)
+
+    def split(self, *args, **kwargs):
+        return self._data.split(*args, **kwargs)
+
+    def extend(self, a):
+        ba = bytearray(self._data, encoding="utf-8")
+        ba.extend(a)
+        return ba
+
+    def ljust(self, width, fill_char=" "):
+        return self._data.ljust(width, fill_char)
+
+    def zfill(self, width):
+        return self._data.zfill(width)
+
+    def format(self, *args, **kwargs):
+        return self._data.format(*args, **kwargs)
+
+    def format_map(self, *args, **kwargs):
+        return self._data.format_map(*args, **kwargs)
+
+    def upper(self, *args, **kwargs):
+        return self._data
+
+    def lower(self, *args, **kwargs):
+        return self._data
+
+    def replace(self, *args, **kwargs):
+        return self._data.replace(*args, **kwargs)
+
+    def swapcase(self, *args, **kwargs):
+        return self._data
+
+    def title(self, *args, **kwargs):
+        return self._data
+
+    def capitalize(self, *args, **kwargs):
+        return self._data
+
+    def casefold(self, *args, **kwargs):
+        return self._data
+
+    def translate(self, *args, **kwargs):
+        return self._data
+
     def __init__(self, data):
         self._data = data
 
@@ -15,14 +62,16 @@ class MagicMethodsException:
     #     return cls
     # def __setattr__(self, name, value):
     #     raise Exception("side effect")
-    # def __str__(self):
-    #     raise Exception("side effect")
-    # def __repr__(self):
-    #     raise Exception("side effect")
     # def __getattribute__(self, name):
     #     raise Exception("side effect")
     # def __getattr__(self, name):
     #     raise Exception("side effect")
+
+    def __repr__(self):
+        raise Exception("side effect")
+
+    def __str__(self):
+        raise Exception("side effect")
 
     def __delattr__(self, name):
         raise Exception("side effect")
