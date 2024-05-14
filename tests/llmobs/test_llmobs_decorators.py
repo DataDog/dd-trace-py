@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs.decorators import agent
 from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
@@ -29,7 +30,7 @@ def test_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
         LLMObs.disable()
         f()
-        mock_logs.warning.assert_called_with("LLMObs.%s() cannot be used while LLMObs is disabled.", decorator_name)
+        mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
         mock_logs.reset_mock()
 
 
@@ -48,7 +49,7 @@ def test_non_llm_decorator_with_llmobs_disabled_logs_warning(LLMObs, mock_logs):
 
         LLMObs.disable()
         f()
-        mock_logs.warning.assert_called_with("LLMObs.%s() cannot be used while LLMObs is disabled.", decorator_name)
+        mock_logs.warning.assert_called_with(SPAN_START_WHILE_DISABLED_WARNING)
         mock_logs.reset_mock()
 
 
