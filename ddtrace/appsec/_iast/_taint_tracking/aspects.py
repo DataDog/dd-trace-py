@@ -534,7 +534,7 @@ def format_value_aspect(
             else:
                 return ("{:%s}" % format_spec).format(new_text)
         else:
-            return format(new_text)
+            return str_aspect(str, 0, new_text)
     except Exception as e:
         iast_taint_log_error("IAST propagation error. format_value_aspect. {}".format(e))
         return new_text
