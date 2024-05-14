@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -158,10 +160,15 @@ def test_bytearray_side_effects():
 
 
 def test_bytearray_side_effects_none():
-    with pytest.raises(TypeError, match="cannot convert 'NoneType' object to bytearray"):
+    if sys.version_info < (3, 8):
+        msg = "'NoneType' object is not iterable"
+    else:
+        msg = "cannot convert 'NoneType' object to bytearray"
+
+    with pytest.raises(TypeError, match=msg):
         bytearray(None)
 
-    with pytest.raises(TypeError, match="cannot convert 'NoneType' object to bytearray"):
+    with pytest.raises(TypeError, match=msg):
         mod.do_bytes_to_bytearray(None)
 
 
