@@ -3,6 +3,7 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -141,8 +142,9 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
 
     sanitized_query = _sanitize_query(query) if isinstance(query, BatchStatement) else None
     statements_and_parameters = query._statements_and_parameters if isinstance(query, BatchStatement) else None
+    additional_tags = dict(**_extract_session_metas(session), **_extract_cluster_metas(cluster))
     span = _start_span_and_set_tags(
-        pin, session, cluster, _get_resource(query), sanitized_query, statements_and_parameters
+        pin, _get_resource(query), additional_tags, sanitized_query, statements_and_parameters
     )
 
     page_number = getattr(instance, PAGE_NUMBER, 1) + 1
@@ -166,8 +168,9 @@ def traced_execute_async(func, instance, args, kwargs):
 
     sanitized_query = _sanitize_query(query) if isinstance(query, BatchStatement) else None
     statements_and_parameters = query._statements_and_parameters if isinstance(query, BatchStatement) else None
+    additional_tags = dict(**_extract_session_metas(instance), **_extract_cluster_metas(cluster))
     span = _start_span_and_set_tags(
-        pin, instance, cluster, _get_resource(query), sanitized_query, statements_and_parameters
+        pin, _get_resource(query), additional_tags, sanitized_query, statements_and_parameters
     )
 
     try:
@@ -197,29 +200,27 @@ def traced_execute_async(func, instance, args, kwargs):
 
 def _start_span_and_set_tags(
     pin,
-    session,
-    cluster,
     resource: str,
-    sanitized_query: Optional[str] = None,
+    additional_tags: Dict,
+    query: Optional[str] = None,
     statements_and_parameters: Optional[List] = None,
 ) -> Span:
-    span_name = schematize_database_operation("cassandra.query", database_provider="cassandra")
-    span = pin.tracer.trace(span_name, service=pin.service, span_type=SpanTypes.CASSANDRA)
-
+    span = pin.tracer.trace(
+        schematize_database_operation("cassandra.query", database_provider="cassandra"),
+        service=pin.service,
+        span_type=SpanTypes.CASSANDRA,
+    )
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
-
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
     span.set_tag(SPAN_MEASURED_KEY)
-    if sanitized_query is not None:
-        span.set_tag_str("cassandra.query", sanitized_query)
+    span.set_tags(additional_tags)
+    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.cassandra.get_analytics_sample_rate())
+    if query is not None:
+        span.set_tag_str("cassandra.query", query)
     if statements_and_parameters is not None:
         span.set_metric("cassandra.batch_size", len(statements_and_parameters))
     span.resource = resource[:RESOURCE_MAX_LENGTH]
-    span.set_tags(_extract_session_metas(session))
-    span.set_tags(_extract_cluster_metas(cluster))
-    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.cassandra.get_analytics_sample_rate())
     return span
 
 
