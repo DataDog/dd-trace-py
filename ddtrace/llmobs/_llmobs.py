@@ -12,7 +12,9 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
+from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -141,26 +143,43 @@ class LLMObs(Service):
         config.service = dd_service or config.service
 
         if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
-            config._remote_config_enabled = False
             os.environ["DD_LLMOBS_NO_APM"] = "1"
-            for k in ["DD_OPENAI_METRICS_ENABLED", "DD_LANGCHAIN_METRICS_ENABLED"]:
-                log.debug("dd_llmobs_no_apm' was set to True, setting %s to 0", k)
-                if not os.getenv(k):
-                    os.environ[k] = "0"
+
+            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
+                config._telemetry_enabled = False
+                telemetry.telemetry_writer.disable()
+
+            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                config._remote_config_enabled = False
+                remoteconfig_poller.disable()
+
+            if not os.getenv("DD_OPENAI_METRICS_ENABLED"):
+                os.environ["DD_OPENAI_METRICS_ENABLED"] = "0"
+
+            if not os.getenv("DD_LANGCHAIN_METRICS_ENABLED"):
+                os.environ["DD_LANGCHAIN_METRICS_ENABLED"] = "0"
 
         # enable LLMObs integations
-        llmobs_integrations = {
-            LLMObs.langchain: lambda: patch(langchain=True),
-            LLMObs.openai: lambda: patch(openai=True),
-            LLMObs.botocore: lambda: patch(bedrock=True),
+        supported_integrations = {
+            "langchain": lambda: patch(langchain=True),
+            "openai": lambda: patch(openai=True),
+            "bedrock": lambda: patch(botocore=True),
         }
-        if integrations:
+        if not integrations:
+            patch(botocore=True, langchain=True, openai=True)
+        else:
             for integration in integrations:
-                if integration in llmobs_integrations:
-                    llmobs_integrations[integration]()
+                integration = integration.lower()
+                if integration in supported_integrations:
+                    try:
+                        supported_integrations[integration]()
+                    except Exception:
+                        log.warning("couldn't patch %s", integration.lower(), exc_info=True)
                 else:
                     log.warning(
-                        "%s is unsupported - LLMObs currently supports %s", integration, str(llmobs_integrations)
+                        "%s is unsupported - LLMObs currently supports %s",
+                        integration,
+                        str(supported_integrations.keys()),
                     )
 
         cls._instance = cls(tracer=tracer)
