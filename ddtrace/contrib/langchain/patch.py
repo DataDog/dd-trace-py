@@ -884,9 +884,7 @@ def patch():
             LLMObs.enable()
         except ValueError as e:
             # we don't want to crash on patching for APM spans
-            log.warning(
-                "Failed to enable LLM Observability for OpenAI integration: %s", str(e)
-            )
+            log.warning("Failed to enable LLM Observability for OpenAI integration: %s", str(e))
 
     langchain._datadog_patch = True
 

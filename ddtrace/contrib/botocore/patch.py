@@ -91,9 +91,7 @@ def patch():
             LLMObs.enable()
         except ValueError as e:
             # we don't want to crash on patching for APM spans
-            log.warning(
-                "Failed to enable LLM Observability for Botocore integration: %s", str(e)
-            )
+            log.warning("Failed to enable LLM Observability for Botocore integration: %s", str(e))
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
