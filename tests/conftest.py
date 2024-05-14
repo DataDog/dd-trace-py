@@ -258,6 +258,14 @@ def run_function_from_file(item, params=None):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, config, items):
+    for item in items:
+        if item.get_closest_marker("subprocess"):
+            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
+            item.add_marker(unskippable)
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     if item.get_closest_marker("skip"):
         return default_pytest_runtest_protocol(item, None)
