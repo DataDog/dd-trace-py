@@ -1754,7 +1754,11 @@ EXTRACT_FIXTURES = [
             "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
+            "meta": {
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-3",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+            },
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
@@ -2133,6 +2137,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
