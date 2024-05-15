@@ -8,7 +8,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
@@ -335,7 +335,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, expected_log_
     ranges_result = get_tainted_ranges(result)
     assert len(ranges_result) == 1
 
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: iast_debug}), caplog.at_level(log_level):
         result = taint_pyobject(
             pyobject=string_to_taint,
@@ -378,7 +378,7 @@ def test_get_ranges_from_object_with_no_context():
         source_origin=OriginType.PARAMETER,
     )
 
-    destroy_context()
+    reset_context()
     ranges_result = get_tainted_ranges(result)
     assert len(ranges_result) == 0
 
@@ -395,7 +395,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_origin=OriginType.PARAMETER,
     )
 
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result_2 = add_aspect(result, "another_string")
 
