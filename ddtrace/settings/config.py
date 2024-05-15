@@ -743,8 +743,15 @@ class Config(object):
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
+        config = None
+        for config_item in data["config"]:
+            if isinstance(config_item, Dict):
+                if "lib_config" in config_item:
+                    config = config_item
+                    break
+
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
         if config and "lib_config" in config:
@@ -777,7 +784,6 @@ class Config(object):
                 if tags:
                     tags = self._format_tags(lib_config["tracing_header_tags"])
                 base_rc_config["trace_http_header_tags"] = tags
-
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)

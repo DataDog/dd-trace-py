@@ -68,6 +68,11 @@ def get_tag(root_span):
     yield lambda name: root_span().get_tag(name)
 
 
+@pytest.fixture
+def get_metric(root_span):
+    yield lambda name: root_span().get_metric(name)
+
+
 def no_op(msg: str) -> None:  # noqa: ARG001
     """Do nothing."""
 

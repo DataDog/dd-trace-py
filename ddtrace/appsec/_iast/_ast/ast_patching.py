@@ -6,12 +6,10 @@ import os
 import re
 from sys import builtin_module_names
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Optional
+from typing import Set
+from typing import Text
 from typing import Tuple
-
-
-if TYPE_CHECKING:
-    from typing import Optional  # noqa:F401
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
@@ -22,8 +20,8 @@ from .visitor import AstVisitor
 
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST = ("tests.appsec.iast",)  # type: tuple[str, ...]
-IAST_DENYLIST = (
+IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
+IAST_DENYLIST: Tuple[Text, ...] = (
     "ddtrace",
     "pkg_resources",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
@@ -32,7 +30,8 @@ IAST_DENYLIST = (
     "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
-)  # type: tuple[str, ...]
+    "unittest.mock",
+)
 
 
 if IAST.PATCH_MODULES in os.environ:
@@ -47,7 +46,7 @@ ENCODING = ""
 log = get_logger(__name__)
 
 
-def get_encoding(module_path):  # type: (str) -> str
+def get_encoding(module_path: Text) -> Text:
     """
     First tries to detect the encoding for the file,
     otherwise, returns global encoding default
@@ -67,7 +66,7 @@ except ImportError:
     import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
-def _build_installed_package_names_list():  # type: (...) -> set[str]
+def _build_installed_package_names_list() -> Set[Text]:
     return {
         ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
     }
@@ -78,11 +77,11 @@ _NOT_PATCH_MODULE_NAMES = (
 )
 
 
-def _in_python_stdlib_or_third_party(module_name):  # type: (str) -> bool
+def _in_python_stdlib_or_third_party(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
-def _should_iast_patch(module_name):  # type: (str) -> bool
+def _should_iast_patch(module_name: Text) -> bool:
     """
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
@@ -94,10 +93,10 @@ def _should_iast_patch(module_name):  # type: (str) -> bool
 
 
 def visit_ast(
-    source_text,  # type: str
-    module_path,  # type: str
-    module_name="",  # type: str
-):  # type: (...) -> Optional[str]
+    source_text: Text,
+    module_path: Text,
+    module_name: Text = "",
+) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
 
     visitor = AstVisitor(
@@ -116,7 +115,7 @@ def visit_ast(
 _FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
 
 
-def _remove_flask_run(text):  # type (str) -> str
+def _remove_flask_run(text: Text) -> Text:
     """
     Find and remove flask app.run() call. This is used for patching
     the app.py file and exec'ing to replace the module without creating

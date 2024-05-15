@@ -1188,7 +1188,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1205,7 +1205,7 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1246,7 +1246,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
-        await chain.abatch(["chickens", "pigs"])
+        await chain.abatch(inputs=["chickens", "pigs"])
 
 
 @pytest.mark.parametrize(
@@ -1284,10 +1284,11 @@ class TestLLMObsLangchain:
         )
 
     @staticmethod
-    def _expected_llmobs_llm_call(span, provider="openai", input_role=None, output_role=None):
-        input_meta = {"content": mock.ANY}
-        if input_role is not None:
-            input_meta["role"] = input_role
+    def _expected_llmobs_llm_call(span, provider="openai", input_roles=[None], output_role=None):
+        input_meta = [{"content": mock.ANY} for _ in input_roles]
+        for idx, role in enumerate(input_roles):
+            if role is not None:
+                input_meta[idx]["role"] = role
 
         output_meta = {"content": mock.ANY}
         if output_role is not None:
@@ -1314,7 +1315,7 @@ class TestLLMObsLangchain:
             span,
             model_name=span.get_tag("langchain.request.model"),
             model_provider=span.get_tag("langchain.request.provider"),
-            input_messages=[input_meta],
+            input_messages=input_meta,
             output_messages=[output_meta],
             metadata=metadata,
             token_metrics={},
@@ -1332,7 +1333,7 @@ class TestLLMObsLangchain:
         mock_llmobs_span_writer,
         mock_tracer,
         cassette_name,
-        input_role=None,
+        input_roles=[None],
         output_role=None,
     ):
         LLMObs.disable()
@@ -1348,7 +1349,7 @@ class TestLLMObsLangchain:
                 cls._expected_llmobs_llm_call(
                     span,
                     provider=provider,
-                    input_role=input_role,
+                    input_roles=input_roles,
                     output_role=output_role,
                 )
             ),
@@ -1365,7 +1366,7 @@ class TestLLMObsLangchain:
         mock_llmobs_span_writer,
         mock_tracer,
         cassette_name,
-        expected_spans_data=[("llm", {"provider": "openai", "input_role": None, "output_role": None})],
+        expected_spans_data=[("llm", {"provider": "openai", "input_roles": [None], "output_role": None})],
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
@@ -1429,7 +1430,7 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
             provider="openai",
-            input_role="user",
+            input_roles=["user"],
             output_role="assistant",
         )
 
@@ -1446,7 +1447,7 @@ class TestLLMObsLangchain:
             mock_tracer=mock_tracer,
             cassette_name="openai_chat_completion_sync_call.yaml",
             provider="openai",
-            input_role="custom",
+            input_roles=["custom"],
             output_role="assistant",
         )
 
@@ -1484,7 +1485,7 @@ class TestLLMObsLangchain:
                         "output_value": expected_output,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
+                ("llm", {"provider": "openai", "input_roles": [None], "output_role": None}),
             ],
         )
 
@@ -1526,8 +1527,8 @@ class TestLLMObsLangchain:
                         "output_value": mock.ANY,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+                ("llm", {"provider": "openai", "input_roles": ["user"], "output_role": "assistant"}),
+                ("llm", {"provider": "openai", "input_roles": ["user"], "output_role": "assistant"}),
             ],
         )
 
@@ -1541,7 +1542,7 @@ class TestLLMObsLangchain:
         chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
         self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: chain.batch(["chickens", "pigs"]),
+            generate_trace=lambda inputs: chain.batch(inputs=["chickens", "pigs"]),
             request_vcr=request_vcr,
             mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
@@ -1554,7 +1555,67 @@ class TestLLMObsLangchain:
                         "output_value": mock.ANY,
                     },
                 ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
+                ("llm", {"provider": "openai", "input_roles": ["user"], "output_role": "assistant"}),
+                ("llm", {"provider": "openai", "input_roles": ["user"], "output_role": "assistant"}),
+            ],
+        )
+
+    @flaky(1735812000)
+    def test_llmobs_chain_schema_io(
+        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
+    ):
+        model = langchain_openai.ChatOpenAI()
+        prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+            [
+                ("system", "You're an assistant who's good at {ability}. Respond in 20 words or fewer"),
+                langchain_core.prompts.MessagesPlaceholder(variable_name="history"),
+                ("human", "{input}"),
+            ]
+        )
+
+        chain = prompt | model
+
+        self._test_llmobs_chain_invoke(
+            generate_trace=lambda inputs: chain.invoke(
+                {
+                    "ability": "world capitals",
+                    "history": [
+                        langchain.schema.HumanMessage(content="Can you be my science teacher instead?"),
+                        langchain.schema.AIMessage(content="Yes"),
+                    ],
+                    "input": "What's the powerhouse of the cell?",
+                }
+            ),
+            request_vcr=request_vcr,
+            mock_llmobs_span_writer=mock_llmobs_span_writer,
+            mock_tracer=mock_tracer,
+            cassette_name="lcel_openai_chain_schema_io.yaml",
+            expected_spans_data=[
+                (
+                    "chain",
+                    {
+                        "input_value": json.dumps(
+                            [
+                                {
+                                    "ability": "world capitals",
+                                    "history": [
+                                        ["user", "Can you be my science teacher instead?"],
+                                        ["assistant", "Yes"],
+                                    ],
+                                    "input": "What's the powerhouse of the cell?",
+                                }
+                            ]
+                        ),
+                        "output_value": json.dumps(["assistant", "Mitochondria."]),
+                    },
+                ),
+                (
+                    "llm",
+                    {
+                        "provider": "openai",
+                        "input_roles": ["system", "user", "assistant", "user"],
+                        "output_role": "assistant",
+                    },
+                ),
             ],
         )
