@@ -2,7 +2,7 @@ import ddtrace.auto  # noqa: F401
 
 
 # ensure the tracer is loaded and started first for possible iast patching
-pass
+print(f"ddtrace version {ddtrace.version.get_version()}")
 
 import unittest.mock  # noqa: E402
 
