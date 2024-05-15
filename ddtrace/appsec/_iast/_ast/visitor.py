@@ -161,7 +161,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
         self._aspect_modules = self._aspects_spec["module_functions"]
         self._aspect_format_value = self._aspects_spec["operators"]["FORMAT_VALUE"]
-        # self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
+        self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points

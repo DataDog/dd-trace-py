@@ -1,7 +1,6 @@
 #include "Initializer.h"
 
 #include <thread>
-#include <mutex>
 
 using namespace std;
 using namespace pybind11::literals;
@@ -13,7 +12,6 @@ thread_local struct ThreadContextCache_
 
 Initializer::Initializer()
 {
-    std::cerr << "JJJ I1 Initializer constructor, thread id: " << std::this_thread::get_id << "\n";
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
         available_taintedobjects_stack.push(new TaintedObject());
@@ -28,17 +26,14 @@ Initializer::Initializer()
 TaintRangeMapTypePtr
 Initializer::create_tainting_map()
 {
-    std::cerr << "JJJ I1 Initializer create_tainting_map, thread id: " << std::this_thread::get_id << "\n";
     auto map_ptr = make_shared<TaintRangeMapType>();
     active_map_addreses[map_ptr.get()] = map_ptr;
-    std::cerr << "JJJ length ctx_map at construction: " << map_ptr->size() << "\n";
     return map_ptr;
 }
 
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
-    std::cerr << "JJJ I1 Initializer::clear_tainting_map()\n";
     if (not tx_map)
         return;
 
@@ -68,17 +63,9 @@ Initializer::clear_tainting_maps()
     for (auto& [fst, snd] : initializer->active_map_addreses)
     {
         clear_tainting_map(snd);
-    }
-
-    // Deleting the tx_map owned by the map item values while iterating over it causes problems,
-    // thus the second round to delete the memory and set it to nullptr.
-    // Note to future devs: don't copy it to avoid the double iteration, since the pointer
-    // wont be set to nullptr, only the copy.
-    for (auto& [fst, snd] : initializer->active_map_addreses)
-    {
-        // delete snd;
         snd = nullptr;
     }
+
     active_map_addreses.clear();
 }
 
@@ -215,7 +202,6 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
-    std::cerr << "JJJ I1 Initializer::create_context()\n";
     if (ThreadContextCache.tx_map != nullptr) {
         // Reset the current context
         reset_context();
@@ -229,7 +215,6 @@ Initializer::create_context()
 void
 Initializer::reset_context()
 {
-    std::cerr << "JJJ I1 Initializer::reset_context()\n";
     clear_tainting_maps();
     ThreadContextCache.tx_map = nullptr;
 }

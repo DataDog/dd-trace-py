@@ -142,7 +142,6 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
 PyObject*
 api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
-    auto ctx_map = initializer->get_tainting_map();
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
@@ -180,6 +179,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         result = result_ptr.ptr();
         Py_INCREF(result);
     }
+    const auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {

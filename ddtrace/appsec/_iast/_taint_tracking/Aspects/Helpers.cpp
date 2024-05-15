@@ -22,11 +22,11 @@ api_common_replace(const py::str& string_method,
                    const py::args& args,
                    const py::kwargs& kwargs)
 {
-    auto tx_map = initializer->get_tainting_map();
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges;
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
+    const auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return res;
     }
