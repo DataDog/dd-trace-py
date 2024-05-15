@@ -1202,6 +1202,7 @@ class Contrib_TestClass_For_Threats:
         interface,
         root_span,
         get_tag,
+        get_metric,
         asm_enabled,
         ep_enabled,
         endpoint,
@@ -1215,6 +1216,7 @@ class Contrib_TestClass_For_Threats:
 
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
+        from ddtrace.appsec._constants import APPSEC
         from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.contrib.requests import patch as patch_requests
         from ddtrace.contrib.requests import unpatch as unpatch_requests
@@ -1260,6 +1262,11 @@ class Contrib_TestClass_For_Threats:
                         assert get_tag("rasp.request.done") is None
                     else:
                         assert get_tag("rasp.request.done") == endpoint
+                    assert get_metric(APPSEC.RASP_DURATION) is not None
+                    assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
+                    assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
+                    assert float(get_metric(APPSEC.RASP_DURATION_EXT)) >= float(get_metric(APPSEC.RASP_DURATION))
+                    assert int(get_metric(APPSEC.RASP_RULE_EVAL)) > 0
                 else:
                     assert get_triggers(root_span()) is None
                     assert self.check_for_stack_trace(root_span) == []
