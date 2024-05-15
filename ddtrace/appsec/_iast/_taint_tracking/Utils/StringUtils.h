@@ -28,11 +28,7 @@ is_text(const PyObject* pyptr)
         return false;
     }
 
-    auto bool1 = PyUnicode_Check(pyptr);
-    auto bool2 = PyBytes_Check(pyptr);
-    auto bool3 = PyByteArray_Check(pyptr);
-    return bool1 || bool2 || bool3;
-    // return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
+    return PyUnicode_Check(pyptr) || PyBytes_Check(pyptr) || PyByteArray_Check(pyptr);
 }
 
 string
