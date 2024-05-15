@@ -1,7 +1,6 @@
 
 dogfood-dogweb:
   stage: dogfood
-  image: $SLS_CI_IMAGE
   when: on_success
   needs:
     - dogfood-dogweb-trigger
