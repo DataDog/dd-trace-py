@@ -32,10 +32,7 @@ def _exec_iast_patched_module(module_watchdog, module):
 
     if compiled_code:
         # Patched source is executed instead of original module
-        try:
-            exec(compiled_code, module.__dict__)  # nosec B102
-        except ImportError:
-            log.debug("Unexpected exception while executing patched code", exc_info=True)
+        exec(compiled_code, module.__dict__)  # nosec B102
     elif module_watchdog.loader is not None:
         try:
             module_watchdog.loader.exec_module(module)

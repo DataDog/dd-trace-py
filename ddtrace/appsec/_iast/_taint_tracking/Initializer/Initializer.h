@@ -63,7 +63,7 @@ class Initializer
      */
     static int num_objects_tainted();
 
-    string debug_taint_map();
+    static string debug_taint_map();
 
     /**
      * Gets the size of the Initializer object.
@@ -95,13 +95,6 @@ class Initializer
     void reset_context();
 
     /**
-     * Gets the ID of the current taint tracking context.
-     *
-     * @return The ID of the current taint tracking context.
-     */
-    static size_t context_id();
-
-    /**
      * Allocates a new tainted object.
 
      * IMPORTANT: if the returned object is not assigned to the map, you have responsibility of calling
@@ -114,14 +107,6 @@ class Initializer
      * @return A pointer to the allocated tainted object.
      */
     TaintedObjectPtr allocate_tainted_object();
-
-    /**
-     * Allocates a new tainted object as a copy of an existing object.
-     *
-     * @param from The existing tainted object to copy.
-     * @return A pointer to the allocated tainted object.
-     */
-    TaintedObjectPtr allocate_tainted_object(TaintedObjectPtr from);
 
     /**
      * Allocates taint ranges into new tainted object.

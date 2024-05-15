@@ -53,6 +53,9 @@ class APPSEC(metaclass=Constant_Class):
     WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
     WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
     WAF_VERSION = "_dd.appsec.waf.version"
+    RASP_DURATION = "_dd.appsec.rasp.duration"
+    RASP_DURATION_EXT = "_dd.appsec.rasp.duration_ext"
+    RASP_RULE_EVAL = "_dd.appsec.rasp.rule.eval"
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "_dd.appsec.events.users.login"
@@ -84,6 +87,7 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES = "_DD_IAST_DENY_MODULES"
     SEP_MODULES = ","
     REQUEST_IAST_ENABLED = "_dd.iast.request_enabled"
+    TEXT_TYPES = (str, bytes, bytearray)
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -181,13 +185,13 @@ class WAF_ACTIONS(metaclass=Constant_Class):
     """string identifier for actions returned by the waf"""
 
     BLOCK = "block"
-    STACK = "stack_trace"
     PARAMETERS = "parameters"
     TYPE = "type"
     ID = "id"
     DEFAULT_PARAMETERS = STATUS_403_TYPE_AUTO
     BLOCK_ACTION = "block_request"
     REDIRECT_ACTION = "redirect_request"
+    STACK_ACTION = "generate_stack"
     DEFAULT_ACTIONS = {
         BLOCK: {
             ID: BLOCK,
@@ -247,3 +251,12 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     STACK_TRACE_ENABLED = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+
+    class TYPE(metaclass=Constant_Class):
+        LFI = "lfi"
+        SSRF = "ssrf"
+        SQLI = "sql_injection"
+
+    class ADDRESS(metaclass=Constant_Class):
+        LFI = "LFI_ADDRESS"
+        SSRF = "SSRF_ADDRESS"

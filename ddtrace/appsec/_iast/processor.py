@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import Optional
 
 import attr
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import ORIGIN_KEY
@@ -16,12 +17,8 @@ from ._metrics import _set_metric_iast_request_tainted
 from ._metrics import _set_span_tag_iast_executed_sink
 from ._metrics import _set_span_tag_iast_request_tainted
 from ._utils import _is_iast_enabled
+from .reporter import IastSpanReporter
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Optional  # noqa:F401
-
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -29,8 +26,7 @@ log = get_logger(__name__)
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     @staticmethod
-    def is_span_analyzed(span=None):
-        # type: (Optional[Span]) -> bool
+    def is_span_analyzed(span: Optional[Span] = None) -> bool:
         if span is None:
             from ddtrace import tracer
 
@@ -40,8 +36,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return True
         return False
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span):
         if span.span_type != SpanTypes.WEB:
             return
 
@@ -58,8 +53,7 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         core.set_item(IAST.REQUEST_IAST_ENABLED, request_iast_enabled, span=span)
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.
 
         Span Tags:
@@ -75,14 +69,14 @@ class AppSecIastSpanProcessor(SpanProcessor):
             return
 
         from ._taint_tracking import reset_context  # noqa: F401
-        from ._utils import _iast_report_to_str
 
         span.set_metric(IAST.ENABLED, 1.0)
 
-        data = core.get_item(IAST.CONTEXT_KEY, span=span)
+        report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)  # type: ignore
 
-        if data:
-            span.set_tag_str(IAST.JSON, _iast_report_to_str(data))
+        if report_data:
+            report_data.build_and_scrub_value_parts()
+            span.set_tag_str(IAST.JSON, report_data._to_str())
             _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()

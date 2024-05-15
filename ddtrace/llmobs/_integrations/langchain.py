@@ -3,19 +3,26 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
 from .base import BaseLLMIntegration
+
+
+log = get_logger(__name__)
 
 
 API_KEY = "langchain.request.api_key"
@@ -39,37 +46,29 @@ class LangChainIntegration(BaseLLMIntegration):
         operation: str,  # oneof "llm","chat","chain"
         span: Span,
         inputs: Any,
-        response: Any,
+        response: Any = None,
         error: bool = False,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
         model_provider = span.get_tag(PROVIDER)
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
-        span.set_tag_str(MODEL_PROVIDER, model_provider or "")
-
-        self._llmobs_set_input_parameters(span, model_provider)
+        self._llmobs_set_metadata(span, model_provider)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
         elif operation == "chat":
             self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
         elif operation == "chain":
-            pass
+            self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
 
         span.set_tag_str(METRICS, json.dumps({}))
 
-    def _llmobs_set_input_parameters(
-        self,
-        span: Span,
-        model_provider: Optional[str] = None,
-    ) -> None:
+    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
             return
 
-        input_parameters = {}
+        metadata = {}
         temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
             f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
         )  # huggingface
@@ -79,20 +78,20 @@ class LangChainIntegration(BaseLLMIntegration):
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
 
-        if temperature:
-            input_parameters["temperature"] = float(temperature)
-        if max_tokens:
-            input_parameters["max_tokens"] = int(max_tokens)
-        if input_parameters:
-            span.set_tag_str(INPUT_PARAMETERS, json.dumps(input_parameters))
+        if temperature is not None:
+            metadata["temperature"] = float(temperature)
+        if max_tokens is not None:
+            metadata["max_tokens"] = int(max_tokens)
+        if metadata:
+            span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self,
-        span: Span,
-        prompts: List[Any],
-        completions: Any,
-        err: bool = False,
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
         if isinstance(prompts, str):
             prompts = [prompts]
         span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
@@ -109,6 +108,10 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         err: bool = False,
     ) -> None:
+        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
+        span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
         input_messages = []
         for message_set in chat_messages:
             for message in message_set:
@@ -135,6 +138,36 @@ class LangChainIntegration(BaseLLMIntegration):
                         }
                     )
         span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+
+    def _llmobs_set_meta_tags_from_chain(
+        self,
+        span: Span,
+        inputs: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]],
+        outputs: Any,
+        error: bool = False,
+    ) -> None:
+        span.set_tag_str(SPAN_KIND, "workflow")
+
+        if inputs is not None:
+            try:
+                formatted_inputs = self.format_io(inputs)
+                if isinstance(formatted_inputs, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                else:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(inputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain input data to JSON")
+        if error:
+            span.set_tag_str(OUTPUT_VALUE, "")
+        elif outputs is not None:
+            try:
+                formatted_outputs = self.format_io(outputs)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
@@ -203,3 +236,33 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def format_io(
+        self,
+        messages,
+    ):
+        """
+        Formats input and output messages for serialization to JSON.
+        Specifically, makes sure that any schema messages are converted to strings appropriately.
+        """
+        if isinstance(messages, dict):
+            formatted = {}
+            for key, value in messages.items():
+                formatted[key] = self.format_io(value)
+            return formatted
+        if isinstance(messages, list):
+            return [self.format_io(message) for message in messages]
+        return self.get_content_from_message(messages)
+
+    def get_content_from_message(self, message) -> str:
+        """
+        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+        """
+        if isinstance(message, str):
+            return message
+        try:
+            content = getattr(message, "__dict__", {}).get("content", str(message))
+            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
+            return (role, content) if role else content
+        except AttributeError:
+            return str(message)

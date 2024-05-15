@@ -1,7 +1,9 @@
 from contextlib import contextmanager
+import logging
 
 import pytest
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
@@ -9,6 +11,8 @@ from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
+from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
@@ -23,6 +27,18 @@ from tests.utils import override_global_config
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import create_context
     from ddtrace.appsec._iast._taint_tracking import reset_context
+
+
+@pytest.fixture
+def no_request_sampling(tracer):
+    with override_env(
+        {
+            "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
+        }
+    ):
+        oce.reconfigure()
+        yield
 
 
 def iast_span(tracer, env, request_sampling="100", deduplication=False):
@@ -47,7 +63,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
 
     env.update({"DD_IAST_REQUEST_SAMPLING": request_sampling})
     iast_span_processor = AppSecIastSpanProcessor()
-    VulnerabilityBase._reset_cache()
+    VulnerabilityBase._reset_cache_for_testing()
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=deduplication)), override_env(env):
         oce.reconfigure()
         with tracer.trace("test") as span:
@@ -60,6 +76,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             psycopg_patch()
             sqlalchemy_patch()
             cmdi_patch()
+            header_injection_patch()
             langchain_patch()
             iast_span_processor.on_span_start(span)
             yield span
@@ -71,6 +88,7 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             psycopg_unpatch()
             sqlalchemy_unpatch()
             cmdi_unpatch()
+            header_injection_unpatch()
             langchain_unpatch()
 
 
@@ -149,3 +167,16 @@ def iast_context():
     _ = create_context()
     yield
     reset_context()
+
+
+@pytest.fixture(autouse=True)
+def check_native_code_exception_in_each_python_aspect_test(request, caplog):
+    if "skip_iast_check_logs" in request.keywords:
+        yield
+    else:
+        caplog.set_level(logging.DEBUG)
+        with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
+            yield
+
+        log_messages = [record.message for record in caplog.get_records("call")]
+        assert not any("[IAST] " in message for message in log_messages), log_messages

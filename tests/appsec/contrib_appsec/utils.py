@@ -3,6 +3,7 @@ import itertools
 import json
 from typing import Dict
 from typing import List
+from urllib.parse import quote
 from urllib.parse import urlencode
 
 import pytest
@@ -449,6 +450,27 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
+    @pytest.mark.parametrize("uri", ["/waf/../"])
+    def test_request_suspicious_request_block_match_uri_lfi(
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri
+    ):
+        if interface.name in ("fastapi",):
+            raise pytest.skip(f"TODO: fix {interface.name}")
+
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)):
+            self.update_tracer(interface)
+            interface.client.get(uri)
+            # assert get_tag(http.URL) == f"http://localhost:8000{uri}"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled:
+                self.check_single_rule_triggered("crs-930-110", root_span)
+            else:
+                assert get_triggers(root_span()) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("path", "blocked"),
         [
@@ -640,16 +662,16 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
-        ("uri", "blocked"),
+        ("uri", "headers", "blocked"),
         [
-            ("/asm/1/a", False),
-            ("/asm/1/a?headers=header_name=MagicKey_Al4h7iCFep9s1", "tst-037-009"),
-            ("/asm/1/a?headers=key=anythin,header_name=HiddenMagicKey_Al4h7iCFep9s1Value", "tst-037-009"),
-            ("/asm/1/a?headers=header_name=NoWorryBeHappy", None),
+            ("/asm/1/a", {}, False),
+            ("/asm/1/a", {"header_name": "MagicKey_Al4h7iCFep9s1"}, "tst-037-009"),
+            ("/asm/1/a", {"key": "anything", "header_name": "HiddenMagicKey_Al4h7iCFep9s1Value"}, "tst-037-009"),
+            ("/asm/1/a", {"header_name": "NoWorryBeHappy"}, None),
         ],
     )
     def test_request_suspicious_request_block_match_response_headers(
-        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, headers, blocked
     ):
         from ddtrace.ext import http
 
@@ -657,6 +679,8 @@ class Contrib_TestClass_For_Threats:
             dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
+            if headers:
+                uri += "?headers=" + quote(",".join(f"{k}={v}" for k, v in headers.items()))
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
             assert get_tag(http.URL) == "http://localhost:8000" + uri
@@ -670,10 +694,14 @@ class Contrib_TestClass_For_Threats:
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
                 assert self.headers(response)["content-type"] == "text/json"
+                for k in headers:
+                    assert k not in self.headers(response)
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
+            assert "content-length" in self.headers(response)
+            assert int(self.headers(response)["content-length"]) == len(self.body(response).encode())
 
     LARGE_BODY = {
         f"key_{i}": {f"key_{i}_{j}": {f"key_{i}_{j}_{k}": f"value_{i}_{j}_{k}" for k in range(4)} for j in range(4)}
@@ -1145,7 +1173,6 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
 
-    @pytest.mark.skip(reason="not implemented yet. Needs libddwaf update")
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -1163,11 +1190,34 @@ class Contrib_TestClass_For_Threats:
             )
         ],
     )
+    @pytest.mark.parametrize(
+        ("rule_file", "blocking"),
+        [
+            (rules.RULES_EXPLOIT_PREVENTION, False),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, True),
+        ],
+    )
     def test_exploit_prevention(
-        self, interface, root_span, get_tag, asm_enabled, ep_enabled, endpoint, parameters, rule, top_functions
+        self,
+        interface,
+        root_span,
+        get_tag,
+        get_metric,
+        asm_enabled,
+        ep_enabled,
+        endpoint,
+        parameters,
+        rule,
+        top_functions,
+        rule_file,
+        blocking,
     ):
+        from unittest.mock import patch as mock_patch
+
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
+        from ddtrace.appsec._constants import APPSEC
+        from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.contrib.requests import patch as patch_requests
         from ddtrace.contrib.requests import unpatch as unpatch_requests
         from ddtrace.ext import http
@@ -1175,16 +1225,18 @@ class Contrib_TestClass_For_Threats:
         try:
             patch_requests()
             with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
-                dict(DD_APPSEC_RULES=rules.RULES_EXPLOIT_PREVENTION)
-            ):
+                dict(DD_APPSEC_RULES=rule_file)
+            ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
                 patch_common_modules()
                 self.update_tracer(interface)
                 response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
-                assert self.status(response) == 200
-                assert get_tag(http.STATUS_CODE) == "200"
-                assert self.body(response).startswith(f"{endpoint} endpoint")
+                code = 403 if blocking and asm_enabled and ep_enabled else 200
+                assert self.status(response) == code
+                assert get_tag(http.STATUS_CODE) == str(code)
+                if code == 200:
+                    assert self.body(response).startswith(f"{endpoint} endpoint")
                 if asm_enabled and ep_enabled:
-                    self.check_rules_triggered([rule] * 2, root_span)
+                    self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
                     assert self.check_for_stack_trace(root_span)
                     for trace in self.check_for_stack_trace(root_span):
                         assert "frames" in trace
@@ -1192,9 +1244,33 @@ class Contrib_TestClass_For_Threats:
                         assert any(
                             function.endswith(top_function) for top_function in top_functions
                         ), f"unknown top function {function}"
+                    # assert mocked.call_args_list == []
+                    telemetry_calls = {
+                        (c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
+                    }
+                    assert (
+                        "CountMetric",
+                        "appsec.rasp.rule.match",
+                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                    ) in telemetry_calls
+                    assert (
+                        "CountMetric",
+                        "appsec.rasp.rule.eval",
+                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                    ) in telemetry_calls
+                    if blocking:
+                        assert get_tag("rasp.request.done") is None
+                    else:
+                        assert get_tag("rasp.request.done") == endpoint
+                    assert get_metric(APPSEC.RASP_DURATION) is not None
+                    assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
+                    assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
+                    assert float(get_metric(APPSEC.RASP_DURATION_EXT)) >= float(get_metric(APPSEC.RASP_DURATION))
+                    assert int(get_metric(APPSEC.RASP_RULE_EVAL)) > 0
                 else:
                     assert get_triggers(root_span()) is None
                     assert self.check_for_stack_trace(root_span) == []
+                    assert get_tag("rasp.request.done") == endpoint
         finally:
             unpatch_common_modules()
             unpatch_requests()

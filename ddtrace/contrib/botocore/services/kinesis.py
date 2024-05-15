@@ -17,10 +17,8 @@ from ....internal.compat import time_ns
 from ....internal.logger import get_logger
 from ....internal.schema import schematize_cloud_messaging_operation
 from ....internal.schema import schematize_service_name
-from ..utils import extract_DD_context
+from ..utils import extract_DD_json
 from ..utils import get_kinesis_data_object
-from ..utils import set_patched_api_call_span_tags
-from ..utils import set_response_metadata_tags
 
 
 log = get_logger(__name__)
@@ -75,13 +73,14 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
-    message_received = False
     is_getrecords_call = False
     getrecords_error = None
-    child_of = None
     start_ns = None
     result = None
 
+    parent_ctx: core.ExecutionContext = core.ExecutionContext(
+        "botocore.patched_sqs_api_call.propagated",
+    )
     if operation == "GetRecords":
         try:
             start_ns = time_ns()
@@ -96,15 +95,20 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
                 core.dispatch(
                     f"botocore.{endpoint_name}.{operation}.post",
-                    [params, time_estimate, data_obj.get("_datadog"), record],
+                    [
+                        parent_ctx,
+                        params,
+                        time_estimate,
+                        data_obj.get("_datadog"),
+                        record,
+                        result,
+                        config.botocore.propagation_enabled,
+                        extract_DD_json,
+                    ],
                 )
 
         except Exception as e:
             getrecords_error = e
-        if result is not None and "Records" in result and len(result["Records"]) >= 1:
-            message_received = True
-            if config.botocore.propagation_enabled:
-                child_of = extract_DD_context(result["Records"])
 
     if endpoint_name == "kinesis" and operation in {"PutRecord", "PutRecords"}:
         span_name = schematize_cloud_messaging_operation(
@@ -117,7 +121,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
         span_name = trace_operation
     stream_arn = params.get("StreamARN", params.get("StreamName", ""))
     function_is_not_getrecords = not is_getrecords_call
-    received_message_when_polling = is_getrecords_call and message_received
+    received_message_when_polling = is_getrecords_call and parent_ctx.get_item("message_received")
     instrument_empty_poll_calls = config.botocore.empty_poll_enabled
     should_instrument = (
         received_message_when_polling or instrument_empty_poll_calls or function_is_not_getrecords or getrecords_error
@@ -127,6 +131,7 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
     if should_instrument:
         with core.context_with_data(
             "botocore.patched_kinesis_api_call",
+            parent=parent_ctx,
             instance=instance,
             args=args,
             params=params,
@@ -134,11 +139,9 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
             operation=operation,
             service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
             call_trace=False,
-            context_started_callback=set_patched_api_call_span_tags,
             pin=pin,
             span_name=span_name,
             span_type=SpanTypes.HTTP,
-            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
             activate=True,
             func_run=is_getrecords_call,
             start_ns=start_ns,
@@ -160,15 +163,21 @@ def patched_kinesis_api_call(original_func, instance, args, kwargs, function_var
                 if getrecords_error:
                     raise getrecords_error
 
-                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result, set_response_metadata_tags])
+                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result])
                 return result
 
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_kinesis_api_call.exception",
-                    [ctx, e.response, botocore.exceptions.ClientError, set_response_metadata_tags],
+                    [
+                        ctx,
+                        e.response,
+                        botocore.exceptions.ClientError,
+                        config.botocore.operations[ctx[ctx["call_key"]].resource].is_error_code,
+                    ],
                 )
                 raise
+        parent_ctx.end()
     elif is_getrecords_call:
         if getrecords_error:
             raise getrecords_error

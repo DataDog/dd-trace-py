@@ -1,12 +1,12 @@
 variables:
-  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+  MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
   stage: benchmarks
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
-  image: $BASE_CI_IMAGE
+  image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
   timeout: 1h
   script:
@@ -15,7 +15,7 @@ variables:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
-    - ./steps/run-benchmarks.sh
+    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
     - ./steps/analyze-results.sh
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
@@ -37,7 +37,7 @@ benchmarks-pr-comment:
   stage: benchmarks-pr-comment
   when: on_success
   tags: ["arch:amd64"]
-  image: $BASE_CI_IMAGE
+  image: $MICROBENCHMARKS_CI_IMAGE
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
@@ -87,7 +87,7 @@ benchmark-flask-sqli:
   extends: .benchmarks
   variables:
     SCENARIO: "flask_sqli"
-    
+
 benchmark-core-api:
   extends: .benchmarks
   variables:
@@ -103,10 +103,11 @@ appsec-iast-propagation:
   variables:
     SCENARIO: "appsec_iast_propagation"
 
-benchmark-encoder:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "encoder"
+# Flaky benchmark test. Timeout errors
+#benchmark-encoder:
+#  extends: .benchmarks
+#  variables:
+#    SCENARIO: "encoder"
 
 benchmark-http-propagation-extract:
   extends: .benchmarks
@@ -141,6 +142,7 @@ benchmark-serverless-trigger:
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL

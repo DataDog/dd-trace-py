@@ -1,0 +1,4 @@
+---
+issues:
+  - |
+    Code Security: Security tracing for the ``builtins.open`` function is experimental and may not be stable. This aspect is not replaced by default.

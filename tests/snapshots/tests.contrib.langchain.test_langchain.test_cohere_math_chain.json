@@ -6,28 +6,28 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "llm",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "6615aa1500000000",
       "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
       "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
       "langchain.request.type": "chain",
       "langchain.response.outputs.answer": "Answer: 2.4116004626599237",
       "langchain.response.outputs.question": "what is thirteen raised to the .3432 power?",
       "language": "python",
-      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
+      "runtime-id": "5bdc2648fed64ec2a49138caab5a0bf0"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10515
+      "process_id": 45546
     },
-    "duration": 5431956,
-    "start": 1694032467489352409
+    "duration": 2699000,
+    "start": 1712695829194297000
   },
      {
        "name": "langchain.request",
@@ -36,10 +36,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
+       "type": "llm",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "654a694400000000",
          "langchain.request.inputs.question": "what is thirteen raised to the .3432 power?",
          "langchain.request.inputs.stop": "['```output']",
          "langchain.request.prompt": "Translate a math problem into a expression that can be executed using Python's numexpr library. Use the output of running this c...",
@@ -51,8 +50,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 4724777,
-       "start": 1694032467489617732
+       "duration": 2297000,
+       "start": 1712695829194433000
      },
         {
           "name": "langchain.request",
@@ -64,7 +63,6 @@
           "type": "llm",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "654a694400000000",
             "langchain.request.api_key": "...key>",
             "langchain.request.cohere.parameters.frequency_penalty": "0.0",
             "langchain.request.cohere.parameters.k": "0",
@@ -82,6 +80,6 @@
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 4302827,
-          "start": 1694032467489888358
+          "duration": 2068000,
+          "start": 1712695829194606000
         }]]
