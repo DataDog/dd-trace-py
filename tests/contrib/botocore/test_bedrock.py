@@ -524,7 +524,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(tracer=mock_tracer, integrations=["bedrock"])
 
         if cassette_name is None:
             cassette_name = "%s_invoke_stream.yaml" % provider
@@ -624,7 +624,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(tracer=mock_tracer, integrations=["bedrock"])
         with pytest.raises(botocore.exceptions.ClientError):
             with request_vcr.use_cassette("meta_invoke_error.yaml"):
                 body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
