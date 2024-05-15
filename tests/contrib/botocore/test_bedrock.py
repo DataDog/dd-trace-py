@@ -488,7 +488,7 @@ class TestLLMObsBedrock:
         pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(tracer=mock_tracer, integrations=["bedrock"])
 
         if cassette_name is None:
             cassette_name = "%s_invoke.yaml" % provider

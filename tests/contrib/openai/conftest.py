@@ -191,7 +191,7 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(tracer=mock_tracer, integrations=["openai"])
 
     yield mock_tracer
 
