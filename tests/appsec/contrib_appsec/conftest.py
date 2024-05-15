@@ -1,30 +1,16 @@
-import unittest.mock
-
-import pytest
-
-from ddtrace.settings.asm import config as asm_config
-from tests.utils import TracerSpanContainer
-from tests.utils import _build_tree
+import ddtrace.auto  # noqa: F401
 
 
-@pytest.fixture
-def iast():
-    from os import environ
+# ensure the tracer is loaded and started first for possible iast patching
+pass
 
-    from ddtrace import config
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._patch_modules import patch_iast
+import unittest.mock  # noqa: E402
 
-    environ["DD_IAST_ENABLED"] = "true"
+import pytest  # noqa: E402
 
-    asm_config._iast_enabled = True
-
-    config._raise = True
-
-    oce._enabled = True
-
-    patch_iast()
-    yield
+from ddtrace.settings.asm import config as asm_config  # noqa: E402
+from tests.utils import TracerSpanContainer  # noqa: E402
+from tests.utils import _build_tree  # noqa: E402
 
 
 @pytest.fixture

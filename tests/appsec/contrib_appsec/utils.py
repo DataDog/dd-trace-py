@@ -1268,27 +1268,26 @@ class Contrib_TestClass_For_Threats:
             unpatch_common_modules()
             unpatch_requests()
 
-    @pytest.mark.skip(reason="iast integration not working yet")
-    def test_iast(self, iast, interface, root_span, get_tag):
-        from ddtrace.appsec._iast.taint_sinks.command_injection import patch
-        from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
+    # @pytest.mark.skip(reason="iast integration not working yet")
+    def test_iast(self, interface, root_span, get_tag):
+        from ddtrace.appsec._common_module_patches import patch_common_modules
+        from ddtrace.appsec._common_module_patches import unpatch_common_modules
         from ddtrace.ext import http
 
         url = "/rasp/shell/?cmd=ls"
         try:
-            patch()
-            # patch_common_modules()
-            with override_global_config(dict(_iast_enabled=True)):
-                self.update_tracer(interface)
-                response = interface.client.get(url)
-                assert self.status(response) == 200
-                assert get_tag(http.STATUS_CODE) == "200"
-                assert self.body(response).startswith("shell endpoint")
-                assert get_tag("_dd.iast.json")
+            patch_common_modules()
+            self.update_tracer(interface)
+            response = interface.client.get(url)
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert self.body(response).startswith("shell endpoint")
+            if asm_config._iast_enabled:
+                assert get_tag("_dd.iast.json") is not None
+            else:
+                assert get_tag("_dd.iast.json") is None
         finally:
-            assert iast is None
-            unpatch()
-            # unpatch_common_modules()
+            unpatch_common_modules()
 
 
 @contextmanager

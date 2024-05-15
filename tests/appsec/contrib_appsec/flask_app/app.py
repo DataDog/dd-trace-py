@@ -4,8 +4,13 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
+
+# from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
 from tests.webclient import PingFilter
+
+
+# ddtrace_iast_flask_patch()
 
 
 tracer.configure(
@@ -61,7 +66,7 @@ def new_service(service_name: str):
 
 @app.route("/rasp/<string:endpoint>/", methods=["GET", "POST", "OPTIONS"])
 def rasp(endpoint: str):
-    query_params = request.args.to_dict()
+    query_params = request.args
     if endpoint == "lfi":
         res = ["lfi endpoint"]
         for param in query_params:
