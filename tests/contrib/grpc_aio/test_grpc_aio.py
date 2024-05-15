@@ -1067,8 +1067,8 @@ async def run_streaming_example(server_info, use_generator=False):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(
-    "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be found at: \
-                  https://github.com/DataDog/dd-trace-py/issues/9139"
+    "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be \
+    found at: https://github.com/DataDog/dd-trace-py/issues/9139"
 )
 @pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
 async def test_async_streaming_direct_read(async_server_info, tracer):
