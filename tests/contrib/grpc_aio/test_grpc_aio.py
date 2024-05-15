@@ -17,6 +17,7 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
+from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -1095,3 +1096,69 @@ async def test_async_streaming_generator(async_server_info, tracer):
     _check_server_span(
         server_span, "grpc-aio-server", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
     )
+
+
+repr_test_cases = [
+    {
+        "rpc_string": 'status = StatusCode.OK, details = "Everything is fine"',
+        "expected_code": grpc.StatusCode.OK,
+        "expected_details": "Everything is fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": 'status = StatusCode.ABORTED, details = "Everything is not fine"',
+        "expected_code": grpc.StatusCode.ABORTED,
+        "expected_details": "Everything is not fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": 'details = "Everything is fine"',
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": "status = StatusCode.ABORTED",
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": 'status = StatusCode.INVALID_STATUS_CODE_SAD, details = "Everything is fine"',
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": '  status = StatusCode.CANCELLED  , details =  "Everything is not fine"  ',
+        "expected_code": grpc.StatusCode.CANCELLED,
+        "expected_details": "Everything is not fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": "status=StatusCode.OK details='Everything is fine'",
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+]
+
+
+@pytest.mark.parametrize("case", repr_test_cases)
+def test_parse_rpc_repr_string(case):
+    try:
+        code, details = _parse_rpc_repr_string(case["rpc_string"], grpc)
+        assert not case[
+            "expect_error"
+        ], f"Test case with repr string: {case['rpc_string']} expected error but got result"
+        assert (
+            code == case["expected_code"]
+        ), f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        assert details == case["expected_details"], (
+            f"Test case with repr string: {case['rpc_string']} expected details {case['expected_details']} but"
+            f"got {details}"
+        )
+    except ValueError as e:
+        assert case[
+            "expect_error"
+        ], f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"

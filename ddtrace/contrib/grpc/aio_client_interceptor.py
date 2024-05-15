@@ -56,20 +56,35 @@ def _handle_add_callback(call, callback):
         callback(call)
 
 
-def _done_callback(span, code=None, details=None):
+def _done_callback_unary(span, code, details):
+    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
     def func(call):
         # type: (aio.Call) -> None
-        nonlocal code, details
+        try:
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+
+            # Handle server-side error in unary response RPCs
+            if code != grpc.StatusCode.OK:
+                _handle_error(span, call, code, details)
+        finally:
+            span.finish()
+
+    return func
+
+
+def _done_callback_stream(span):
+    # type: (Span) -> Callable[[aio.Call], None]
+    def func(call):
+        # type: (aio.Call) -> None
         try:
             if call.done():
                 # check to ensure code and details are not already set, in which case this span
-                # is an error span and already has all error tags
+                # is an error span and already has all error tags from `_handle_cancelled_error`
                 code_tag = span.get_tag(constants.GRPC_STATUS_CODE_KEY)
                 details_tag = span.get_tag(ERROR_MSG)
                 if not code_tag or not details_tag:
-                    if not code and not details:
-                        # we need to call __repr__ as we cannot call code() or details() since they are both async
-                        code, details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
+                    # we need to call __repr__ as we cannot call code() or details() since they are both async
+                    code, details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
 
                     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
 
@@ -77,7 +92,7 @@ def _done_callback(span, code=None, details=None):
                     if code != grpc.StatusCode.OK:
                         _handle_error(span, call, code, details)
             else:
-                log.warning("Call has not completed, unable to set status code and details on span.")
+                log.warning("Grpc call has not completed, unable to set status code and details on span.")
         except ValueError:
             # ValueError is thrown from _parse_rpc_repr_string
             log.warning("Unable to parse async grpc string for status code and details.")
@@ -179,7 +194,7 @@ class _ClientInterceptor:
         span: Span,
     ) -> ResponseIterableType:
         try:
-            _handle_add_callback(call, _done_callback(span))
+            _handle_add_callback(call, _done_callback_stream(span))
             async for response in call:
                 yield response
         except StopAsyncIteration:
@@ -211,7 +226,7 @@ class _ClientInterceptor:
             # NOTE: As both `code` and `details` are available after the RPC is done (= we get `call` object),
             # and we can't call awaitable functions inside the non-async callback,
             # there is no other way but to register the callback here.
-            _handle_add_callback(call, _done_callback(span, code, details))
+            _handle_add_callback(call, _done_callback_unary(span, code, details))
             return call
         except aio.AioRpcError as rpc_error:
             # NOTE: `AioRpcError` is raised in `await continuation(...)`
