@@ -1188,7 +1188,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1205,7 +1205,7 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
 @flaky(1735812000)
@@ -1246,7 +1246,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
-        await chain.abatch(["chickens", "pigs"])
+        await chain.abatch(inputs=["chickens", "pigs"])
 
 
 @pytest.mark.parametrize(
@@ -1542,7 +1542,7 @@ class TestLLMObsLangchain:
         chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
         self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: chain.batch(["chickens", "pigs"]),
+            generate_trace=lambda inputs: chain.batch(inputs=["chickens", "pigs"]),
             request_vcr=request_vcr,
             mock_llmobs_span_writer=mock_llmobs_span_writer,
             mock_tracer=mock_tracer,
