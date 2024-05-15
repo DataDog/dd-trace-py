@@ -16,8 +16,8 @@ namespace py = pybind11;
  */
 TaintRangePtr
 allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range,
-                                         RANGE_START offset,
-                                         RANGE_LENGTH max_length)
+                                         RANGE_START const offset,
+                                         RANGE_LENGTH const max_length)
 {
     RANGE_LENGTH length;
     if (max_length != -1)
@@ -34,9 +34,10 @@ allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range
 /**
  * @brief Shifts the taint range by the given offset.
  * @param offset The offset to be applied.
+ * @param source_taint_range The source taint range.
  */
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
+shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset)
 {
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
                                                   source_taint_range->length,         // length
@@ -53,10 +54,10 @@ shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
  * @param orig_offset The offset to be applied at the beginning.
  */
 void
-TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
-                                  RANGE_START offset,
-                                  RANGE_LENGTH max_length,
-                                  RANGE_START orig_offset)
+TaintedObject::add_ranges_shifted(const TaintedObjectPtr tainted_object,
+                                  const RANGE_START offset,
+                                  const RANGE_LENGTH max_length,
+                                  const RANGE_START orig_offset)
 {
     const auto& ranges = tainted_object->get_ranges();
     add_ranges_shifted(ranges, offset, max_length, orig_offset);
@@ -72,9 +73,9 @@ TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
  */
 void
 TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
-                                  RANGE_START offset,
-                                  RANGE_LENGTH max_length,
-                                  RANGE_START orig_offset)
+                                  const RANGE_START offset,
+                                  const RANGE_LENGTH max_length,
+                                  const RANGE_START orig_offset)
 {
     const auto to_add = (long)min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size());
     if (!ranges.empty() and to_add > 0) {
@@ -104,7 +105,7 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
 }
 
 std::string
-TaintedObject::toString()
+TaintedObject::toString() const
 {
     stringstream ss;
 
@@ -121,7 +122,7 @@ TaintedObject::toString()
     return ss.str();
 }
 
-TaintedObject::operator string()
+TaintedObject::operator string() const
 {
     return toString();
 }

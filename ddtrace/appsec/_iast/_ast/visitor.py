@@ -161,7 +161,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_methods = self._aspects_spec["stringalike_methods"]
         self._aspect_modules = self._aspects_spec["module_functions"]
         self._aspect_format_value = self._aspects_spec["operators"]["FORMAT_VALUE"]
-        self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
+        # self._aspect_build_string = self._aspects_spec["operators"]["BUILD_STRING"]
         self.excluded_functions = self._aspects_spec["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points
@@ -517,6 +517,8 @@ class AstVisitor(ast.NodeTransformer):
             func_value_attr = getattr(func_value, "attr", None) if func_value else None
             func_attr = getattr(func_member, "attr", None)
             aspect = None
+            is_module_symbol = False
+
             if func_value_value_id or func_attr:
                 if func_value_value_id and func_value_attr:
                     # e.g. "os.path" or "one.two.three.whatever" (all dotted previous tokens with be in the id)
@@ -529,14 +531,23 @@ class AstVisitor(ast.NodeTransformer):
 
                 if key:
                     module_dict = self._aspect_modules.get(key, None)
-                    aspect = module_dict.get(func_attr, None) if module_dict else None
-                if aspect:
-                    # Create a new Name node for the replacement and set it as node.func
-                    call_node.func = self._attr_node(call_node, aspect)
-                    self.ast_modified = call_modified = True
+                    # using "is not None" here because we want to mark is_module_symbol even if the dict is
+                    # empty (e.g. we don't have an aspect for this specific function but we plan to, or we create
+                    # empty dicts for some modules to avoid checking for string methods on their symbols)
+                    if module_dict is not None:
+                        aspect = module_dict.get(func_attr, None)
+                        # since this is a module symbol, even if we don't have an aspect for this specific function,
+                        # set this, so we don't try to replace as a string method
+                        is_module_symbol = True
+                        if aspect:
+                            # Create a new Name node for the replacement and set it as node.func
+                            call_node.func = self._attr_node(call_node, aspect)
+                            self.ast_modified = call_modified = True
+                    else:
+                        aspect = None
 
-            if not aspect:
-                # Not a module symbol, check if it's a known method
+            if (not is_module_symbol) and (not aspect):
+                # Not a module symbol, check if it's a known string method
                 aspect = self._aspect_methods.get(method_name)
 
                 if aspect:

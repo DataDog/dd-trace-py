@@ -1,17 +1,19 @@
 #include "Initializer.h"
 
 #include <thread>
+#include <mutex>
 
 using namespace std;
 using namespace pybind11::literals;
 
 thread_local struct ThreadContextCache_
 {
-    size_t tx_id = 0;
+    TaintRangeMapTypePtr tx_map = nullptr;
 } ThreadContextCache;
 
 Initializer::Initializer()
 {
+    std::cerr << "JJJ I1 Initializer constructor, thread id: " << std::this_thread::get_id << "\n";
     // Fill the taintedobjects stack
     for (int i = 0; i < TAINTEDOBJECTS_STACK_SIZE; i++) {
         available_taintedobjects_stack.push(new TaintedObject());
@@ -23,23 +25,26 @@ Initializer::Initializer()
     }
 }
 
-TaintRangeMapType*
+TaintRangeMapTypePtr
 Initializer::create_tainting_map()
 {
-    auto map_ptr = new TaintRangeMapType();
-    active_map_addreses.insert(map_ptr);
+    std::cerr << "JJJ I1 Initializer create_tainting_map, thread id: " << std::this_thread::get_id << "\n";
+    auto map_ptr = make_shared<TaintRangeMapType>();
+    active_map_addreses[map_ptr.get()] = map_ptr;
+    std::cerr << "JJJ length ctx_map at construction: " << map_ptr->size() << "\n";
     return map_ptr;
 }
 
 void
-Initializer::free_tainting_map(TaintRangeMapType* tx_map)
+Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
+    std::cerr << "JJJ I1 Initializer::clear_tainting_map()\n";
     if (not tx_map)
         return;
 
-    auto it = active_map_addreses.find(tx_map);
+    auto it = active_map_addreses.find(tx_map.get());
     if (it == active_map_addreses.end()) {
-        // Map wasn't in the set, do nothing
+        // Map wasn't in the active addreses, do nothing
         return;
     }
 
@@ -48,24 +53,31 @@ Initializer::free_tainting_map(TaintRangeMapType* tx_map)
     }
 
     tx_map->clear();
-    delete tx_map;
-    active_map_addreses.erase(it);
 }
 
 // User must check for nullptr return
-TaintRangeMapType*
+TaintRangeMapTypePtr
 Initializer::get_tainting_map()
 {
-    return (TaintRangeMapType*)ThreadContextCache.tx_id;
+    return ThreadContextCache.tx_map;
 }
 
 void
 Initializer::clear_tainting_maps()
 {
-    // Need to copy because free_tainting_map changes the set inside the iteration
-    auto map_addresses_copy = initializer->active_map_addreses;
-    for (auto map_ptr : map_addresses_copy) {
-        free_tainting_map((TaintRangeMapType*)map_ptr);
+    for (auto& [fst, snd] : initializer->active_map_addreses)
+    {
+        clear_tainting_map(snd);
+    }
+
+    // Deleting the tx_map owned by the map item values while iterating over it causes problems,
+    // thus the second round to delete the memory and set it to nullptr.
+    // Note to future devs: don't copy it to avoid the double iteration, since the pointer
+    // wont be set to nullptr, only the copy.
+    for (auto& [fst, snd] : initializer->active_map_addreses)
+    {
+        // delete snd;
+        snd = nullptr;
     }
     active_map_addreses.clear();
 }
@@ -167,7 +179,7 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source origin)
+Initializer::allocate_taint_range(RANGE_START start, RANGE_LENGTH length, const Source& origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
@@ -203,29 +215,23 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
 void
 Initializer::create_context()
 {
-    if (ThreadContextCache.tx_id != 0) {
-        // Destroy the current context
-        destroy_context();
+    std::cerr << "JJJ I1 Initializer::create_context()\n";
+    if (ThreadContextCache.tx_map != nullptr) {
+        // Reset the current context
+        reset_context();
     }
 
     // Create a new taint_map
     auto map_ptr = create_tainting_map();
-    ThreadContextCache.tx_id = (size_t)map_ptr;
-}
-
-void
-Initializer::destroy_context()
-{
-    free_tainting_map((TaintRangeMapType*)ThreadContextCache.tx_id);
-    ThreadContextCache.tx_id = 0;
+    ThreadContextCache.tx_map = map_ptr;
 }
 
 void
 Initializer::reset_context()
 {
-    //    lock_guard<recursive_mutex> lock(contexts_mutex);
-    ThreadContextCache.tx_id = 0;
+    std::cerr << "JJJ I1 Initializer::reset_context()\n";
     clear_tainting_maps();
+    ThreadContextCache.tx_map = nullptr;
 }
 
 // Created in the PYBIND11_MODULE in _native.cpp
@@ -240,9 +246,7 @@ pyexport_initializer(py::module& m)
     m.def("num_objects_tainted", [] { return initializer->num_objects_tainted(); });
     m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
-
     m.def(
       "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
-    m.def("destroy_context", [] { initializer->destroy_context(); });
 }

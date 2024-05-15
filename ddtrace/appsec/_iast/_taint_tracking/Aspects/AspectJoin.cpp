@@ -5,7 +5,7 @@ aspect_join_str(PyObject* sep,
                 PyObject* result,
                 PyObject* iterable_str,
                 size_t len_iterable,
-                TaintRangeMapType* tx_taint_map)
+                const TaintRangeMapTypePtr& tx_taint_map)
 {
     // This is the special case for unicode str and unicode iterable_str.
     // The iterable elements string will be split into 1 char-length strings.
@@ -58,7 +58,7 @@ aspect_join_str(PyObject* sep,
 }
 
 PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
 
@@ -72,9 +72,11 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
     } else if (PyUnicode_Check(sep) and PyUnicode_Check(iterable_elements)) {
         len_iterable = PyUnicode_GET_LENGTH(iterable_elements);
         if (len_iterable)
+        {
             return aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
-        else
-            return result; // Empty string is returned if empty iterable, so no tainted
+        }
+
+        return result; // Empty string is returned if empty iterable, so no tainted
     }
 
     unsigned long current_pos{ 0L };
@@ -138,8 +140,9 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 }
 
 PyObject*
-api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
+    auto ctx_map = initializer->get_tainting_map();
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
@@ -149,12 +152,10 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* arg0 = args[1];
     bool decref_arg0 = false;
 
-    auto ctx_map = initializer->get_tainting_map();
-
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
 
-        if (iterator != NULL) {
+        if (iterator != nullptr) {
             PyObject* item;
             PyObject* list_aux = PyList_New(0);
             while ((item = PyIter_Next(iterator))) {

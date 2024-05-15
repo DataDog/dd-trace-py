@@ -10,9 +10,10 @@ namespace py = pybind11;
 /**
  * @brief This function is used to get the taint ranges for the given text object.
  *
- * @tparam StrType
- * @param text
- * @return TaintRangeRefs
+ * @param string_method The string method to be used.
+ * @param candidate_text The text object for which the taint ranges are to be built.
+ * @param args The arguments to be passed to the string method.
+ * @param kwargs The keyword arguments to be passed to the string method.
  */
 template<class StrType>
 StrType
@@ -21,9 +22,9 @@ api_common_replace(const py::str& string_method,
                    const py::args& args,
                    const py::kwargs& kwargs)
 {
+    auto tx_map = initializer->get_tainting_map();
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
     StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
     if (not tx_map or tx_map->empty()) {
@@ -192,7 +193,6 @@ split_taints(const string& str_to_split)
 py::bytearray
 api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig)
 {
-
     auto tx_map = initializer->get_tainting_map();
 
     py::bytes bytes_text = py::bytes() + taint_escaped_text;
@@ -218,7 +218,7 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
 }
 
 unsigned long int
-getNum(std::string s)
+getNum(const std::string& s)
 {
     unsigned int n = -1;
     try {
@@ -294,7 +294,7 @@ _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRang
             }
             id_evidence = element.substr(4, element.length() - 5);
             start = end;
-            context_stack.push_back({ id_evidence, start });
+            context_stack.emplace_back( id_evidence, start );
         } else {
             id_evidence = element.substr(1, element.length() - 5);
             auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
@@ -343,13 +343,13 @@ bool
 set_ranges_on_splitted(const StrType& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
-                       TaintRangeMapType* tx_map,
+                       const TaintRangeMapTypePtr& tx_map,
                        bool include_separator)
 {
     bool some_set = false;
 
     // Some quick shortcuts
-    if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map) {
+    if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map or tx_map->empty()) {
         return false;
     }
 
@@ -401,7 +401,11 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator)
 {
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or tx_map->empty())
+    {
+        return false;
+    }
     return set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, include_separator);
 }
 

@@ -6,7 +6,7 @@
 static bool
 starts_with_separator(const py::handle& arg, const std::string& separator)
 {
-    std::string carg = py::cast<std::string>(arg);
+    auto carg = py::cast<std::string>(arg);
     return carg.substr(0, 1) == separator;
 }
 
@@ -23,7 +23,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         return joined;
     }
 
-    std::string separator = ospath.attr("sep").cast<std::string>();
+    auto separator = ospath.attr("sep").cast<std::string>();
     auto sepsize = separator.size();
 
     // Find the initial iteration point. This will be the first argument that has the separator ("/foo")
@@ -108,7 +108,7 @@ api_ospathbasename_aspect(const StrType& path)
     auto basename_result = basename(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or py::len(basename_result) == 0) {
+    if (not tx_map or tx_map->empty() or py::len(basename_result) == 0) {
         return basename_result;
     }
 
@@ -141,7 +141,7 @@ api_ospathdirname_aspect(const StrType& path)
     auto dirname_result = dirname(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or py::len(dirname_result) == 0) {
+    if (not tx_map or tx_map->empty() or py::len(dirname_result) == 0) {
         return dirname_result;
     }
 
@@ -174,12 +174,12 @@ _forward_to_set_ranges_on_splitted(const char* function_name, const StrType& pat
     auto function_result = function(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or py::len(function_result) == 0) {
+    if (not tx_map or tx_map->empty() or py::len(function_result) == 0) {
         return function_result;
     }
 
-    bool ranges_error;
     TaintRangeRefs ranges;
+    bool ranges_error;
     std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
     if (ranges_error or ranges.empty()) {
         return function_result;
@@ -226,7 +226,7 @@ api_ospathnormcase_aspect(const StrType& path)
     auto normcased = normcase(path);
 
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
+    if (not tx_map or tx_map->empty()) {
         return normcased;
     }
 

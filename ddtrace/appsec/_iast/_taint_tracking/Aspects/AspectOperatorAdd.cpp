@@ -11,8 +11,9 @@
  * @return A new result object with the taint information.
  */
 PyObject*
-add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, TaintRangeMapType* tx_taint_map)
+add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, const TaintRangeMapTypePtr& tx_taint_map)
 {
+    std::cerr << "JJJ add_aspect\n";
     size_t len_candidate_text{ get_pyobject_size(candidate_text) };
     size_t len_text_to_add{ get_pyobject_size(text_to_add) };
 
@@ -68,7 +69,7 @@ add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, 
  * information.
  */
 PyObject*
-api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_add_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
@@ -95,7 +96,7 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return result_o;
     }
 
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return result_o;
     }

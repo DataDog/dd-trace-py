@@ -57,8 +57,8 @@ bool
 set_ranges_on_splitted(const StrType& source_str,
                        const TaintRangeRefs& source_ranges,
                        const py::list& split_result,
-                       TaintRangeMapType* tx_map,
-                       bool include_separator = false);
+                       const TaintRangeMapTypePtr& tx_map,
+                       bool include_separator);
 
 template<class StrType>
 bool

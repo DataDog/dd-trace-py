@@ -101,7 +101,7 @@ api_set_ranges(py::object& str, const TaintRangeRefs& ranges)
  * @param nargs The number of arguments in the 'args' array.
  */
 PyObject*
-api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
@@ -109,7 +109,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 
     if (nargs == 5) {
         PyObject* tainted_object = args[0];
-        TaintRangeMapType* tx_map = initializer->get_tainting_map();
+        auto tx_map = initializer->get_tainting_map();
         if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
             return nullptr;
@@ -147,11 +147,13 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 }
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
+get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
     if (not is_text(string_input))
+    {
         return std::make_pair(result, true);
+    }
 
     if (tx_map->empty()) {
         return std::make_pair(result, false);
@@ -170,7 +172,7 @@ get_ranges(PyObject* string_input, TaintRangeMapType* tx_map)
 }
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map)
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
 {
     if (ranges.empty()) {
         return false;
@@ -202,10 +204,11 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
 
     bool ranges_error;
     TaintRangeRefs candidate_text_ranges, all_ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
+
 
     std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
@@ -247,7 +250,7 @@ api_get_ranges(const py::object& string_input)
 {
     bool ranges_error;
     TaintRangeRefs ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
         throw py::value_error(MSG_ERROR_TAINT_MAP);
@@ -263,10 +266,9 @@ api_get_ranges(const py::object& string_input)
 void
 api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 {
-
     bool ranges_error, result;
     TaintRangeRefs ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -289,7 +291,7 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int
 {
     bool ranges_error, result;
     TaintRangeRefs ranges;
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
+    auto tx_map = initializer->get_tainting_map();
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;
@@ -306,10 +308,12 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int
 }
 
 TaintedObjectPtr
-get_tainted_object(PyObject* str, TaintRangeMapType* tx_map)
+get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
 {
     if (not str)
+    {
         return nullptr;
+    }
 
     if (is_notinterned_notfasttainted_unicode(str) or tx_map->empty()) {
         return nullptr;
@@ -347,7 +351,7 @@ get_internal_hash(PyObject* obj)
 }
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map)
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_taint_map)
 {
     if (not str or not is_text(str)) {
         return;
@@ -431,8 +435,8 @@ pyexport_taintrange(py::module& m)
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
       "taint_range",
-      [](RANGE_START start, RANGE_LENGTH length, Source source) {
-          return initializer->allocate_taint_range(start, length, std::move(source));
+      [](RANGE_START start, RANGE_LENGTH length, const Source& source) {
+          return initializer->allocate_taint_range(start, length, source);
       },
       "start"_a,
       "length"_a,
