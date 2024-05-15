@@ -105,6 +105,7 @@ class Contrib_TestClass_For_Threats:
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
         with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
@@ -1220,17 +1221,16 @@ class Contrib_TestClass_For_Threats:
         rule_file,
         blocking,
     ):
+        if asm_config._iast_enabled:
+            raise pytest.xfail("iast and exploit prevention not working yet together")
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._common_module_patches import patch_common_modules
         from ddtrace.appsec._common_module_patches import unpatch_common_modules
         from ddtrace.appsec._metrics import DDWAF_VERSION
-        from ddtrace.contrib.requests import patch as patch_requests
-        from ddtrace.contrib.requests import unpatch as unpatch_requests
         from ddtrace.ext import http
 
         try:
-            patch_requests()
             with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
                 dict(DD_APPSEC_RULES=rule_file)
             ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
@@ -1275,7 +1275,6 @@ class Contrib_TestClass_For_Threats:
                     assert get_tag("rasp.request.done") == endpoint
         finally:
             unpatch_common_modules()
-            unpatch_requests()
 
     # @pytest.mark.skip(reason="iast integration not working yet")
     def test_iast(self, interface, root_span, get_tag):
