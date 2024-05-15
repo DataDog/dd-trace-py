@@ -29,6 +29,7 @@ from ddtrace._trace.span import _MetaDictType
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
+from ..llmobs._utils import _inject_llmobs_parent_id
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
@@ -975,6 +976,10 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
+        if config._llmobs_enabled:
+            span = ddtrace.tracer.current_span()
+            _inject_llmobs_parent_id(span_context, span)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
