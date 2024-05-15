@@ -65,7 +65,7 @@ def _done_callback_unary(span, code, details):
 
             # Handle server-side error in unary response RPCs
             if code != grpc.StatusCode.OK:
-                _handle_error(span, call, code, details)
+                _handle_error(span, code, details)
         finally:
             span.finish()
 
@@ -80,6 +80,7 @@ def _done_callback_stream(span):
             if call.done():
                 # check to ensure code and details are not already set, in which case this span
                 # is an error span and already has all error tags from `_handle_cancelled_error`
+                breakpoint()
                 code_tag = span.get_tag(constants.GRPC_STATUS_CODE_KEY)
                 details_tag = span.get_tag(ERROR_MSG)
                 if not code_tag or not details_tag:
@@ -90,7 +91,7 @@ def _done_callback_stream(span):
 
                     # Handle server-side error in unary response RPCs
                     if code != grpc.StatusCode.OK:
-                        _handle_error(span, call, code, details)
+                        _handle_error(span, code, details)
             else:
                 log.warning("Grpc call has not completed, unable to set status code and details on span.")
         except ValueError:
