@@ -204,12 +204,12 @@ class LLMObs(Service):
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
     @staticmethod
-    def _patch_integrations(integrations: Optional[List[str]]):
+    def _patch_integrations(integrations: Optional[List[str]] = None):
         """
         Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
         """
         integrations_to_patch = {}
-        if not integrations:
+        if integrations is None:
             integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
         else:
             for integration in integrations:
