@@ -3,7 +3,6 @@ import httpx
 import pytest
 import starlette
 
-import ddtrace
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.fastapi_app.app import get_app
 
@@ -24,13 +23,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
         with utils.test_tracer() as tracer:
             application = get_app()
 
-            @application.middleware("http")
-            async def traced_middlware(request, call_next):
-                with ddtrace.tracer.trace("traced_middlware"):
-                    response = await call_next(request)
-                    return response
-
-            client = TestClient(get_app(), base_url="http://localhost:%d" % self.SERVER_PORT)
+            client = TestClient(application, base_url="http://localhost:%d" % self.SERVER_PORT)
 
             def parse_arguments(*args, **kwargs):
                 if "content_type" in kwargs:
@@ -71,6 +64,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
             client.get = patch_get
 
             interface = utils.Interface("fastapi", fastapi, client)
+            interface.version = FASTAPI_VERSION
             interface.tracer = tracer
             interface.printer = printer
             with utils.post_tracer(interface):

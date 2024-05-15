@@ -58,6 +58,7 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         client.post = patch_post
 
         interface = utils.Interface("django", django, client)
+        interface.version = django.VERSION
         with utils.test_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer

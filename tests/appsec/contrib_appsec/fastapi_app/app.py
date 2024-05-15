@@ -172,7 +172,7 @@ def get_app():
                         res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
     return app

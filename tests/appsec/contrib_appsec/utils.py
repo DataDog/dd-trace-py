@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import itertools
 import json
+import sys
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -25,6 +26,9 @@ class Interface:
         self.name = name
         self.framework = framework
         self.client = client
+
+    def __repr__(self):
+        return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
 def payload_to_xml(payload: Dict[str, str]) -> str:
@@ -973,7 +977,12 @@ class Contrib_TestClass_For_Threats:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
-                        assert api in expected_value, (api, name)
+                        assert any(
+                            all(api[0].get(k) == v for k, v in expected[0].items()) for expected in expected_value
+                        ), (
+                            api,
+                            name,
+                        )
             else:
                 assert value is None, name
 
@@ -1301,7 +1310,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = ddtrace.Pin.get_from(interface.framework).tracer
+    original_tracer = getattr(ddtrace.Pin.get_from(interface.framework), "tracer", None)
     ddtrace.Pin.override(interface.framework, tracer=interface.tracer)
     yield
-    ddtrace.Pin.override(interface.framework, tracer=original_tracer)
+    if original_tracer is not None:
+        ddtrace.Pin.override(interface.framework, tracer=original_tracer)

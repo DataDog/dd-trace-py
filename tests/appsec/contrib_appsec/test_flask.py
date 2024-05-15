@@ -51,6 +51,7 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
         bftc.setUp()
         bftc.app.config["SERVER_NAME"] = f"localhost:{self.SERVER_PORT}"
         interface = utils.Interface("flask", bftc.app, bftc.client)
+        interface.version = FLASK_VERSION
 
         initial_get = bftc.client.get
 
