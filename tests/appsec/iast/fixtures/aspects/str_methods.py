@@ -1,4 +1,5 @@
 from collections import namedtuple
+from enum import Enum
 import functools
 from http.client import HTTPConnection
 from http.server import HTTPServer as HTTPServer
@@ -1154,3 +1155,48 @@ def do_stringio_init_param(StringIO, string_input):
 def do_stringio_init_and_getvalue_param(StringIO, string_input):
     xxx = StringIO(string_input)
     return xxx.getvalue()
+
+
+class ExportType(str, Enum):
+    USAGE = "Usage"
+    ACTUAL_COST = "ActualCost"
+
+
+def do_exporttype_member_format():
+    return f"{ExportType.ACTUAL_COST}"
+
+
+class CustomSpec:
+    def __str__(self):
+        return "str"
+
+    def __repr__(self):
+        return "repr"
+
+    def __format__(self, format_spec):
+        return "format_" + format_spec
+
+
+def do_customspec_simple():
+    c = CustomSpec()
+    return f"{c}"
+
+
+def do_customspec_cstr():
+    c = CustomSpec()
+    return f"{c!s}"
+
+
+def do_customspec_repr():
+    c = CustomSpec()
+    return f"{c!r}"
+
+
+def do_customspec_ascii():
+    c = CustomSpec()
+    return f"{c!a}"
+
+
+def do_customspec_formatspec():
+    c = CustomSpec()
+    return f"{c!s:<20s}"
