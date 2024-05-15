@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Expand SSRF vulnerability support for Code Security and Exploit Prevention for the modules ``urllib3``, ``http.client``, 
+    ``webbrowser`` and ``urllib.request``.
