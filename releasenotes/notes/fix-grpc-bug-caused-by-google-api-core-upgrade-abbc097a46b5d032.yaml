@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(grpc): This fix resolves a segfault bug caused by a google-core-api upgrade that broke grpc async streaming.
