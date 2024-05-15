@@ -1,6 +1,6 @@
 import ddtrace.auto  # noqa: F401,I001
 from ddtrace import tracer  # noqa: I001
-import pytest # noqa: I001
+import pytest  # noqa: I001
 
 
 @pytest.mark.subprocess()
