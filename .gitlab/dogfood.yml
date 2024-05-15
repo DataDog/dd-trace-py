@@ -12,11 +12,12 @@ dogfood-dogweb-trigger:
   trigger:
     project: DataDog/dogweb
     strategy: depend
-    branch: prod
+    branch: emmett.butler/ddtrace-unstable-dogfooding
   allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    DDTRACE_COMMIT_TO_INSTALL: $CI_COMMIT_SHA
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
