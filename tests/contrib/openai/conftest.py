@@ -197,3 +197,4 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
 
     mock_logs.reset_mock()
     mock_metrics.reset_mock()
+    LLMObs.disable()
