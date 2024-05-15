@@ -24,7 +24,10 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
 def _is_enabled_early(early_config):
-    breakpoint()
+    """Hackily checks if the ddtrace plugin is enabled before the config is fully populated.
+
+    This is necessary because the module watchdog for coverage collectio needs to be enabled as early as possible.
+    """
     if (
         "--no-ddtrace" in early_config.invocation_params.args
         or early_config.getini("ddtrace") is False
