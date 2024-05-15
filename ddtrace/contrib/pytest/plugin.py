@@ -11,6 +11,7 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+import os
 from typing import Dict  # noqa:F401
 
 import pytest
@@ -20,6 +21,18 @@ DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+
+
+def _is_enabled_early(early_config):
+    breakpoint()
+    if (
+        "--no-ddtrace" in early_config.invocation_params.args
+        or early_config.getini("ddtrace") is False
+        or early_config.getini("no-ddtrace")
+    ):
+        return False
+
+    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
 
 
 def is_enabled(config):
@@ -67,6 +80,32 @@ def pytest_addoption(parser):
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    if _is_enabled_early(early_config):
+        # Enables experimental use of ModuleCodeCollector for coverage collection.
+        from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
+        from ddtrace.internal.logger import get_logger
+        from ddtrace.internal.utils.formats import asbool
+
+        log = get_logger(__name__)
+
+        COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
+
+        if USE_DD_COVERAGE:
+            from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+            if not ModuleCodeCollector.is_installed():
+                ModuleCodeCollector.install()
+            if COVER_SESSION:
+                print("COLLECTING SESSION COVERAGE")
+                ModuleCodeCollector.start_coverage()
+        else:
+            if COVER_SESSION:
+                log.warning(
+                    "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
+                )
 
 
 def pytest_configure(config):
