@@ -80,7 +80,6 @@ def _done_callback_stream(span):
             if call.done():
                 # check to ensure code and details are not already set, in which case this span
                 # is an error span and already has all error tags from `_handle_cancelled_error`
-                breakpoint()
                 code_tag = span.get_tag(constants.GRPC_STATUS_CODE_KEY)
                 details_tag = span.get_tag(ERROR_MSG)
                 if not code_tag or not details_tag:
