@@ -36,7 +36,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         return False
 
     def _get_data_from_connector_and_exec(self):
-        if self.current_request_start is not None and self.has_stale_flare():
+        if self.has_stale_flare():
             log.info(
                 "Tracer flare request started at %s is stale, reverting "
                 "logger configurations and cleaning up resources now",
@@ -47,25 +47,32 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             return
 
         data = self._data_connector.read()
-        product_type = data.get("metadata", [{}])[0].get("product_name")
-        if product_type == "AGENT_CONFIG":
-            # We will only process one tracer flare request at a time
-            if self.current_request_start is not None:
-                log.warning(
-                    "There is already a tracer flare job started at %s. Skipping new request.",
-                    str(self.current_request_start),
-                )
-                return
-            self.current_request_start = datetime.now()
-        elif product_type == "AGENT_TASK":
-            # Possible edge case where we don't have an existing flare request
-            # In this case we won't have anything to send, so we log and do nothing
-            if self.current_request_start is None:
-                log.warning("There is no tracer flare job to complete. Skipping new request.")
-                return
-            self.current_request_start = None
-        else:
-            log.warning("Received unexpected product type for tracer flare: {}", product_type)
+        metadata = data.get("metadata")
+        if not metadata:
+            log.debug("No metadata received from data connector")
             return
-        log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
-        self._callback(self.flare, data)
+
+        for md in metadata:
+            product_type = md.get("product_name")
+            if product_type == "AGENT_CONFIG":
+                # We will only process one tracer flare request at a time
+                if self.current_request_start is not None:
+                    log.warning(
+                        "There is already a tracer flare job started at %s. Skipping new request.",
+                        str(self.current_request_start),
+                    )
+                    return
+                self.current_request_start = datetime.now()
+            elif product_type == "AGENT_TASK":
+                # Possible edge case where we don't have an existing flare request
+                # In this case we won't have anything to send, so we log and do nothing
+                if self.current_request_start is None:
+                    log.warning("There is no tracer flare job to complete. Skipping new request.")
+                    return
+                self.current_request_start = None
+            else:
+                log.debug("Received unexpected product type for tracer flare: {}", product_type)
+                return
+            log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
+            self._callback(self.flare, data)
+            return
