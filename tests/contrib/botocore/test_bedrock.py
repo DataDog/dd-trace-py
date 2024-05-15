@@ -153,6 +153,7 @@ def bedrock_client(boto3, request_vcr):
     )
     bedrock_client = session.client("bedrock-runtime")
     yield bedrock_client
+    LLMObs.disable()
 
 
 @pytest.fixture
