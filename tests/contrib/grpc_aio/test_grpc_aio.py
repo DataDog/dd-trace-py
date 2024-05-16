@@ -160,12 +160,13 @@ class _SyncHelloServicer(HelloServicer):
                 yield HelloReply(message=f"Hello {request.name}")
         yield HelloReply(message="Good bye")
 
+
 if PYTHON_VERSION_INFO > (3, 7):
+
     class Greeter(MultiGreeterServicer):
         async def sayHello(self, request, context):
             for i in range(NUMBER_OF_REPLY):
                 yield HelloReplyStream(message=f"Hello number {i}, {request.name}!")
-
 
     class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
         async def intercept_unary_unary(self, continuation, client_call_details, request):
@@ -174,7 +175,6 @@ if PYTHON_VERSION_INFO > (3, 7):
 
         def add_done_callback(self, unused_callback):
             pass
-
 
     @pytest.fixture
     async def async_server_info(request, tracer, event_loop):
@@ -1027,70 +1027,70 @@ class StreamInterceptor(grpc.aio.UnaryStreamClientInterceptor):
         return response_iterator
 
 
-async def run_streaming_example(server_info, use_generator=False):
-    i = 0
-    async with grpc.aio.insecure_channel(server_info.target, interceptors=[StreamInterceptor()]) as channel:
-        stub = MultiGreeterStub(channel)
+if PYTHON_VERSION_INFO > (3, 7):
 
-        # Read from an async generator
-        if use_generator:
-            async for response in stub.sayHello(HelloRequestStream(name="you")):
-                assert response.message == "Hello number {}, you!".format(i)
-                i += 1
+    async def run_streaming_example(server_info, use_generator=False):
+        i = 0
+        async with grpc.aio.insecure_channel(server_info.target, interceptors=[StreamInterceptor()]) as channel:
+            stub = MultiGreeterStub(channel)
 
-        # Direct read from the stub
-        else:
-            hello_stream = stub.sayHello(HelloRequestStream(name="will"))
-            while True:
-                response = await hello_stream.read()
-                if response == grpc.aio.EOF:
-                    break
-                assert response.message == "Hello number {}, will!".format(i)
-                i += 1
+            # Read from an async generator
+            if use_generator:
+                async for response in stub.sayHello(HelloRequestStream(name="you")):
+                    assert response.message == "Hello number {}, you!".format(i)
+                    i += 1
 
+            # Direct read from the stub
+            else:
+                hello_stream = stub.sayHello(HelloRequestStream(name="will"))
+                while True:
+                    response = await hello_stream.read()
+                    if response == grpc.aio.EOF:
+                        break
+                    assert response.message == "Hello number {}, will!".format(i)
+                    i += 1
 
-@pytest.mark.asyncio
-@pytest.mark.skip(
-    "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be \
-    found at: https://github.com/DataDog/dd-trace-py/issues/9139"
-)
-@pytest.mark.skipif(
-    PYTHON_VERSION_INFO < (3, 6),
-    reason="Protobuf package versino needed for stubs is not supported by python 3.6",
-)
-@pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
-async def test_async_streaming_direct_read(async_server_info, tracer):
-    await run_streaming_example(async_server_info)
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    # No error because cancelled after execution
-    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
-    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(
-    PYTHON_VERSION_INFO < (3, 6),
-    reason="Protobuf package versino needed for stubs is not supported by python 3.6",
-)
-@pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
-async def test_async_streaming_generator(async_server_info, tracer):
-    await run_streaming_example(async_server_info, use_generator=True)
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    # No error because cancelled after execution
-    _check_client_span(
-        client_span, "grpc-aio-client", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+    @pytest.mark.asyncio
+    @pytest.mark.skip(
+        "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be \
+        found at: https://github.com/DataDog/dd-trace-py/issues/9139"
     )
-    _check_server_span(
-        server_span, "grpc-aio-server", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Protobuf package versino needed for stubs is not supported by python 3.6",
     )
+    @pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
+    async def test_async_streaming_direct_read(async_server_info, tracer):
+        await run_streaming_example(async_server_info)
+
+        spans = _get_spans(tracer)
+        assert len(spans) == 2
+        client_span, server_span = spans
+
+        # No error because cancelled after execution
+        _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+        _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 6),
+        reason="Protobuf package versino needed for stubs is not supported by python 3.6",
+    )
+    @pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
+    async def test_async_streaming_generator(async_server_info, tracer):
+        await run_streaming_example(async_server_info, use_generator=True)
+
+        spans = _get_spans(tracer)
+        assert len(spans) == 2
+        client_span, server_span = spans
+
+        # No error because cancelled after execution
+        _check_client_span(
+            client_span, "grpc-aio-client", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+        )
+        _check_server_span(
+            server_span, "grpc-aio-server", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+        )
 
 
 repr_test_cases = [
