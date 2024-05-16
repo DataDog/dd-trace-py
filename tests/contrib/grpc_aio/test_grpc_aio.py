@@ -20,6 +20,7 @@ from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.vendor.packaging.version as packaging_version
 
+
 if PYTHON_VERSION_INFO > (3, 6):
     from tests.contrib.grpc.hello_pb2 import HelloReply
     from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -31,6 +32,7 @@ if PYTHON_VERSION_INFO > (3, 6):
     from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
     from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
     from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
+
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 from tests.utils import override_config
