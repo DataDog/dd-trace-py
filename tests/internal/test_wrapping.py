@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import inspect
 import sys
@@ -508,19 +509,20 @@ class DummyWrappingContext(WrappingContext):
         self.exc_info = None
         self.frame = None
 
-    def __enter__(self, frame):
+    def __enter__(self):
         self.entered = True
-        self.frame = frame
-        return self
+        self.frame = self.__frame__
+        return super().__enter__()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exited = True
         if exc_value is not None:
             self.exc_info = (exc_type, exc_value, traceback)
+        super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value):
         self.return_value = value
-        return value
+        return super().__return__(value)
 
 
 def test_wrapping_context_happy():
@@ -605,12 +607,12 @@ def test_wrapping_context_exc_on_exit():
 
 def test_wrapping_context_priority():
     class HighPriorityWrappingContext(DummyWrappingContext):
-        def __enter__(self, frame):
+        def __enter__(self):
             nonlocal mutated
 
             mutated = True
 
-            return super().__enter__(frame)
+            return super().__enter__()
 
         def __return__(self, value):
             nonlocal mutated
@@ -622,12 +624,12 @@ def test_wrapping_context_priority():
     class LowPriorityWrappingContext(DummyWrappingContext):
         __priority__ = 99
 
-        def __enter__(self, frame):
+        def __enter__(self):
             nonlocal mutated
 
             assert mutated
 
-            return super().__enter__(frame)
+            return super().__enter__()
 
         def __return__(self, value):
             nonlocal mutated
@@ -652,6 +654,40 @@ def test_wrapping_context_priority():
 
     assert lwc.entered
     assert hwc.return_value == 42
+
+
+def test_wrapping_context_recursive():
+    values = []
+
+    class RecursiveWrappingContext(DummyWrappingContext):
+        def __enter__(self):
+            nonlocal values
+            super().__enter__()
+
+            n = self.__frame__.f_locals["n"]
+            self.set("n", n)
+            values.append(n)
+
+            return self
+
+        def __return__(self, value):
+            nonlocal values
+            n = self.__frame__.f_locals["n"]
+            assert self.get("n") == n
+            values.append(n)
+
+            return super().__return__(value)
+
+    def factorial(n):
+        if n == 0:
+            return 1
+        return n * factorial(n - 1)
+
+    wc = RecursiveWrappingContext(factorial)
+    wc.wrap()
+
+    assert factorial(5) == 120
+    assert values == [5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5]
 
 
 @pytest.mark.asyncio
@@ -688,3 +724,37 @@ async def test_wrapping_context_async_exc() -> None:
     _type, exc, _ = wc.exc_info
     assert _type is ValueError
     assert exc.args == ("foo",)
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_concurrent() -> None:
+    values = []
+
+    class ConcurrentWrappingContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+
+            self.set("n", self.__frame__.f_locals["n"])
+
+            return self
+
+        def __return__(self, value):
+            nonlocal values
+
+            values.append((self.get("n"), self.__frame__.f_locals["n"]))
+
+            return super().__return__(value)
+
+    async def fibonacci(n):
+        if n <= 1:
+            return 1
+        return sum(await asyncio.gather(fibonacci(n - 1), fibonacci(n - 2)))
+
+    wc = ConcurrentWrappingContext(fibonacci)
+    wc.wrap()
+
+    N = 20
+
+    await asyncio.gather(*[fibonacci(n) for n in range(1, N)])
+
+    assert set(values) == {(n, n) for n in range(0, N)}

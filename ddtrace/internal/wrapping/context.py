@@ -1,7 +1,9 @@
+from contextvars import ContextVar
 from inspect import iscoroutinefunction
 import sys
 from types import FrameType
 from types import FunctionType
+from types import TracebackType
 import typing as t
 
 
@@ -9,12 +11,6 @@ try:
     from typing import Protocol  # noqa:F401
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
-
-try:
-    from typing import override  # type: ignore[attr-defined]
-except ImportError:
-    from typing_extensions import override
-
 
 import bytecode
 from bytecode import Bytecode
@@ -60,11 +56,13 @@ T = t.TypeVar("T")
 # class. The __priority__ attribute can be used to control the order in which
 # multiple context wrappers are entered and exited. The __enter__ and __exit__
 # methods should be implemented to perform the necessary operations. The
-# __enter__ method takes an extra argument representing the frame object of the
-# wrapped function. The __return__ method can be implemented to capture the
-# return value of the wrapped function. If implemented, its return value will be
-# used as the wrapped function return value. The wrapped function can be
-# accessed via the __wrapped__ attribute.
+# __exit__ method is called if the wrapped function raises an exception. The
+# frame of the wrapped function can be accessed via the __frame__ property. The
+# __return__ method can be implemented to capture the return value of the
+# wrapped function. If implemented, its return value will be used as the wrapped
+# function return value. The wrapped function can be accessed via the
+# __wrapped__ attribute. Context-specific values can be stored and retrieved
+# with the set and get methods.
 
 CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
@@ -260,10 +258,36 @@ elif sys.version_info >= (3, 7):
 # This is abstract and should not be used directly
 class BaseWrappingContext(t.ContextManager):
     __priority__: int = 0
-    __frame__: t.Optional[FrameType] = None
 
     def __init__(self, f: FunctionType):
         self.__wrapped__ = f
+        self._storage_stack: ContextVar[list[dict]] = ContextVar(f"{type(self).__name__}__storage_stack", default=[])
+
+    def __enter__(self) -> "BaseWrappingContext":
+        self._storage_stack.get().append({})
+        return self
+
+    def _pop_storage(self) -> t.Dict[str, t.Any]:
+        return self._storage_stack.get().pop()
+
+    def __return__(self, value: T) -> T:
+        self._pop_storage()
+        return value
+
+    def __exit__(
+        self,
+        exc_type: t.Optional[t.Type[BaseException]],
+        exc_val: t.Optional[BaseException],
+        exc_tb: t.Optional[TracebackType],
+    ) -> None:
+        self._pop_storage()
+
+    def get(self, key: str) -> t.Any:
+        return self._storage_stack.get()[-1][key]
+
+    def set(self, key: str, value: T) -> T:
+        self._storage_stack.get()[-1][key] = value
+        return value
 
     @classmethod
     def wrapped(cls, f: FunctionType) -> "BaseWrappingContext":
@@ -274,9 +298,6 @@ class BaseWrappingContext(t.ContextManager):
             context = cls(f)
             context.wrap()
         return context
-
-    def __return__(self, value):
-        return value
 
     @classmethod
     def is_wrapped(cls, _f: FunctionType) -> bool:
@@ -295,9 +316,15 @@ class BaseWrappingContext(t.ContextManager):
 
 # This is the public interface exported by this module
 class WrappingContext(BaseWrappingContext):
-    @override
-    def __enter__(self, _frame: FrameType) -> "WrappingContext":
-        raise NotImplementedError
+    @property
+    def __frame__(self) -> FrameType:
+        try:
+            return _UniversalWrappingContext.extract(self.__wrapped__).get("__frame__")
+        except ValueError:
+            raise AttributeError("Wrapping context not entered")
+
+    def get_local(self, name: str) -> t.Any:
+        return self.__frame__.f_locals[name]
 
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
@@ -367,9 +394,14 @@ class _UniversalWrappingContext(BaseWrappingContext):
         return self._contexts[context_type]
 
     def __enter__(self) -> "_UniversalWrappingContext":
-        frame = sys._getframe(1)
+        super().__enter__()
+
+        # Make the frame object available to the contexts
+        self.set("__frame__", sys._getframe(1))
+
         for context in sorted(self._contexts.values(), key=lambda c: c.__priority__):
-            context.__enter__(frame)
+            context.__enter__()
+
         return self
 
     def _exit(self) -> None:
@@ -384,10 +416,13 @@ class _UniversalWrappingContext(BaseWrappingContext):
         for context in sorted(self._contexts.values(), key=lambda c: -c.__priority__):
             context.__exit__(*exc)
 
+        super().__exit__(*exc)
+
     def __return__(self, value: T) -> T:
         for context in sorted(self._contexts.values(), key=lambda c: -c.__priority__):
             context.__return__(value)
-        return value
+
+        return super().__return__(value)
 
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
