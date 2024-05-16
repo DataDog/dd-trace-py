@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: fix a potential memory corruption when the context was reset.
