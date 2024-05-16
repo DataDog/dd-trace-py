@@ -1,9 +1,6 @@
 import os
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Tuple
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -178,35 +175,3 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     except ValueError as e:
         iast_taint_log_error("Get ranges error (pyobject type %s): %s" % (type(pyobject), e))
     return tuple()
-
-
-def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Dict[str, Union[Any, int]]], List[Source]]:
-    # TODO: This function is deprecated.
-    #  Redaction migrated to `ddtrace.appsec._iast._evidence_redaction._sensitive_handler` but we need to migrate
-    #  all vulnerabilities to use it first.
-    value_parts = []
-    sources = list()
-    current_pos = 0
-    tainted_ranges = get_tainted_ranges(pyobject)
-    if not len(tainted_ranges):
-        return ([{"value": pyobject}], list())
-
-    for _range in tainted_ranges:
-        if _range.start > current_pos:
-            value_parts.append({"value": pyobject[current_pos : _range.start]})
-
-        if _range.source not in sources:
-            sources.append(_range.source)
-
-        value_parts.append(
-            {
-                "value": pyobject[_range.start : _range.start + _range.length],
-                "source": sources.index(_range.source),
-            }
-        )
-        current_pos = _range.start + _range.length
-
-    if current_pos < len(pyobject):
-        value_parts.append({"value": pyobject[current_pos:]})
-
-    return value_parts, sources
