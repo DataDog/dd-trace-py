@@ -19,14 +19,14 @@ from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
 from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.vendor.packaging.version as packaging_version
+from tests.contrib.grpc.hello_pb2 import HelloReply
+from tests.contrib.grpc.hello_pb2 import HelloRequest
+from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
+from tests.contrib.grpc.hello_pb2_grpc import HelloStub
+from tests.contrib.grpc.hello_pb2_grpc import add_HelloServicer_to_server
 
 
 if PYTHON_VERSION_INFO > (3, 7):
-    from tests.contrib.grpc.hello_pb2 import HelloReply
-    from tests.contrib.grpc.hello_pb2 import HelloRequest
-    from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
-    from tests.contrib.grpc.hello_pb2_grpc import HelloStub
-    from tests.contrib.grpc.hello_pb2_grpc import add_HelloServicer_to_server
     from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloReply as HelloReplyStream
     from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as HelloRequestStream
     from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
