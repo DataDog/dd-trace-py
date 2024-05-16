@@ -2,6 +2,10 @@
 dogfood-dogweb:
   stage: dogfood
   tags: ["arch:amd64"]
+  image: $SLS_CI_IMAGE
+    #when: on_success
+    #needs:
+    #- dogfood-dogweb-trigger
   script:
     - ./.gitlab/check_dogweb_trigger_status.sh
 
