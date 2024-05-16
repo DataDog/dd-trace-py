@@ -215,9 +215,21 @@ def do_bytearray_append(ba):  # type: (bytearray) -> bytes
     return ba
 
 
-def do_bytearray_extend(ba, b):  # type: (bytearray, bytearray) -> None
+def do_bytearray_extend(ba: bytearray, b: bytearray) -> bytearray:
     ba.extend(b)
     return ba
+
+
+def do_repr(b: Any) -> str:
+    return repr(b)
+
+
+def do_str(b: Any) -> str:
+    return str(b)
+
+
+def do_bytes(b: Any) -> bytes:
+    return bytes(b)
 
 
 def do_bytes_to_str(b):  # type: (bytes) -> str
@@ -392,6 +404,10 @@ def do_replace_not_str(c):  # type: (str) -> str
     return my_str.replace(c)
 
 
+def do_format(a: Text, *args: Text) -> Text:
+    return a.format(*args)
+
+
 def do_format_not_str(c):  # type: (str) -> str
     class MyStr(object):
         @staticmethod
@@ -400,6 +416,10 @@ def do_format_not_str(c):  # type: (str) -> str
 
     my_str = MyStr()
     return my_str.format(c)
+
+
+def do_format_map(a: Text, *args: Text) -> Text:
+    return a.format_map(*args)
 
 
 def do_format_map_not_str(c):  # type: (str) -> str
@@ -847,10 +867,6 @@ def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe):  # type: (str, A
     return format_string.format("1", "2", test_kwarg=3, *args_safe, **kwargs_safe)
 
 
-def do_format_map(template, mapping):  # type: (str, Dict[str, Any]) -> str
-    return template.format_map(mapping)
-
-
 def do_format_key_error(param1):  # type: (str, Dict[str, Any]) -> str
     return "Test {param1}, {param2}".format(param1=param1)  # noqa:F524
 
@@ -1200,3 +1216,7 @@ def do_customspec_ascii():
 def do_customspec_formatspec():
     c = CustomSpec()
     return f"{c!s:<20s}"
+
+
+def do_fstring(a, b):
+    return f"{a} + {b} = {a + b}"

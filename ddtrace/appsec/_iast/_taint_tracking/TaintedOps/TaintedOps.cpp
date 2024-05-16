@@ -11,7 +11,7 @@ api_new_pyobject_id(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 }
 
 bool
-is_tainted(PyObject* tainted_object, TaintRangeMapType* tx_taint_map)
+is_tainted(PyObject* tainted_object, const TaintRangeMapTypePtr& tx_taint_map)
 {
     const auto& to_initial = get_tainted_object(tainted_object, tx_taint_map);
     if (to_initial and !to_initial->get_ranges().empty()) {
@@ -24,7 +24,7 @@ bool
 api_is_tainted(py::object tainted_object)
 {
     if (tainted_object) {
-        TaintRangeMapType* tx_map = initializer->get_tainting_map();
+        const auto tx_map = initializer->get_tainting_map();
         if (not tx_map or tx_map->empty()) {
             return false;
         }
