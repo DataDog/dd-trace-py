@@ -406,7 +406,7 @@ class Tracer(object):
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
         active: Optional[Union[Context, Span]] = None
-        if self.enabled:
+        if self.enabled or self._asm_enabled:
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
