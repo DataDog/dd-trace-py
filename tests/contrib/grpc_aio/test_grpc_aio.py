@@ -160,20 +160,38 @@ class _SyncHelloServicer(HelloServicer):
                 yield HelloReply(message=f"Hello {request.name}")
         yield HelloReply(message="Good bye")
 
+if PYTHON_VERSION_INFO > (3, 7):
+    class Greeter(MultiGreeterServicer):
+        async def sayHello(self, request, context):
+            for i in range(NUMBER_OF_REPLY):
+                yield HelloReplyStream(message=f"Hello number {i}, {request.name}!")
 
-class Greeter(MultiGreeterServicer):
-    async def sayHello(self, request, context):
-        for i in range(NUMBER_OF_REPLY):
-            yield HelloReplyStream(message=f"Hello number {i}, {request.name}!")
+
+    class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
+        async def intercept_unary_unary(self, continuation, client_call_details, request):
+            undone_call = await continuation(client_call_details, request)
+            return await undone_call
+
+        def add_done_callback(self, unused_callback):
+            pass
 
 
-class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
-    async def intercept_unary_unary(self, continuation, client_call_details, request):
-        undone_call = await continuation(client_call_details, request)
-        return await undone_call
+    @pytest.fixture
+    async def async_server_info(request, tracer, event_loop):
+        _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
+        _server = grpc.aio.server()
+        add_MultiGreeterServicer_to_server(Greeter(), _server)
+        _servicer = request.param
+        target = f"localhost:{_GRPC_PORT}"
+        _server.add_insecure_port(target)
+        # interceptor can not catch AbortError for sync servicer
+        abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
 
-    def add_done_callback(self, unused_callback):
-        pass
+        await _server.start()
+        wait_task = event_loop.create_task(_server.wait_for_termination())
+        yield _ServerInfo(target, abort_supported)
+        await _server.stop(grace=None)
+        await wait_task
 
 
 @pytest.fixture(autouse=True)
@@ -190,24 +208,6 @@ def tracer():
     Pin.override(GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
     yield tracer
     tracer.pop()
-
-
-@pytest.fixture
-async def async_server_info(request, tracer, event_loop):
-    _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
-    _server = grpc.aio.server()
-    add_MultiGreeterServicer_to_server(Greeter(), _server)
-    _servicer = request.param
-    target = f"localhost:{_GRPC_PORT}"
-    _server.add_insecure_port(target)
-    # interceptor can not catch AbortError for sync servicer
-    abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
-
-    await _server.start()
-    wait_task = event_loop.create_task(_server.wait_for_termination())
-    yield _ServerInfo(target, abort_supported)
-    await _server.stop(grace=None)
-    await wait_task
 
 
 # `pytest_asyncio.fixture` cannot be used
