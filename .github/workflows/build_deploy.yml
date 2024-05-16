@@ -70,6 +70,7 @@ jobs:
           python setup.py sdist
       - uses: actions/upload-artifact@v4
         with:
+          name: source-dist
           path: dist/*.tar.gz
 
   test_alpine_sdist:
