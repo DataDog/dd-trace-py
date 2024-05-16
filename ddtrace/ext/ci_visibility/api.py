@@ -237,12 +237,6 @@ class CISession(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_settings(item_id: Optional[CISessionId] = None):
-        log.debug("Getting settings for session %s", item_id)
-        core.dispatch_with_results("ci_visibility.session.get_settings", (item_id,))
-
-    @staticmethod
-    @_catch_and_log_exceptions
     def get_known_tests(item_id: Optional[CISessionId] = None):
         pass
 
@@ -309,11 +303,13 @@ class CIITRMixin(CIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_item_itr_skippable(item_id: Union[CISuiteId, CITestId]):
+    def is_item_itr_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
         """Skippable items are not currently tied to a test session, so no session ID is passed"""
         log.debug("Getting skippable items")
-        skippable_items = core.dispatch_with_results("ci_visibility.itr.is_item_skippable", (item_id,))
-        return skippable_items["skippable_items"]
+        is_item_skippable: Optional[bool] = core.dispatch_with_results(
+            "ci_visibility.itr.is_item_skippable", (item_id,)
+        ).is_item_skippable.value
+        return bool(is_item_skippable)
 
     class AddCoverageArgs(NamedTuple):
         item_id: Union[_CIVisibilityChildItemIdBase, _CIVisibilityRootItemIdBase]

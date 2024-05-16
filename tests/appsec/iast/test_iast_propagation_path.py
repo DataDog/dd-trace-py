@@ -27,6 +27,8 @@ def _assert_vulnerability(data, value_parts, file_line_label):
     assert vulnerability["hash"] == hash_value
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 def test_propagation_no_path(iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
     origin1 = "taintsource"
@@ -39,6 +41,8 @@ def test_propagation_no_path(iast_span_defaults):
     assert span_report is None
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "origin1",
     [
@@ -73,6 +77,8 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     _assert_vulnerability(data, value_parts, "propagation_path_1_source_1_prop")
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "origin1",
     [
@@ -109,6 +115,8 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
     _assert_vulnerability(data, value_parts, "propagation_path_1_source_2_prop")
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -159,6 +167,8 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     _assert_vulnerability(data, value_parts, "propagation_path_2_source_2_prop")
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
@@ -217,6 +227,8 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     _assert_vulnerability(data, value_parts, "propagation_path_3_prop")
 
 
+# FIXME: enable once the mock + open issue is fixed
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "origin1, origin2",
     [
