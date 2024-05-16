@@ -6,9 +6,11 @@ import copy
 import os
 import sys
 from typing import Any
+from typing import Dict  # noqa:F401
 from typing import List
 from typing import Set
 from typing import Text
+from typing import Tuple  # noqa:F401
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -126,14 +128,14 @@ _ASPECTS_SPEC = {
             "super",
         },
     },
-}
+}  # type: Dict
 
 
 if sys.version_info >= (3, 12):
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
 
 if sys.version_info >= (3, 12) or os.name == "nt":
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"  # type: ignore[index]
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -151,9 +153,6 @@ class AstVisitor(ast.NodeTransformer):
             },
         }
         self._sinkpoints_functions = self._sinkpoints_spec["functions"]
-        self.ast_modified = False
-        self.filename = filename
-        self.module_name = module_name
 
         self._aspect_index = _ASPECTS_SPEC["slices"]["index"]
         self._aspect_slice = _ASPECTS_SPEC["slices"]["slice"]
@@ -163,7 +162,6 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_modules = _ASPECTS_SPEC["module_functions"]
         self._aspect_format_value = _ASPECTS_SPEC["operators"]["FORMAT_VALUE"]
         self._aspect_build_string = _ASPECTS_SPEC["operators"]["BUILD_STRING"]
-        self.excluded_functions = _ASPECTS_SPEC["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points
         self._taint_sink_replace_any = self._merge_taint_sinks(
@@ -173,6 +171,15 @@ class AstVisitor(ast.NodeTransformer):
         )
         self._taint_sink_replace_disabled = _ASPECTS_SPEC["taint_sinks"]["disabled"]
 
+        self.update_location(filename, module_name)
+
+    def update_location(self, filename: str = "", module_name: str = ""):
+        self.filename = filename
+        self.module_name = module_name
+        self.ast_modified = False
+
+        excluded_from_patching = _ASPECTS_SPEC["excluded_from_patching"]  # type: Dict[str, Dict[str, Tuple[str]]]
+        self.excluded_functions = excluded_from_patching.get(self.module_name, {})
         self.dont_patch_these_functionsdefs = set()
         for _, v in self.excluded_functions.items():
             if v:
