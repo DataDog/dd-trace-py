@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
 from ddtrace.appsec._iast._taint_tracking import _aspect_split
 from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source
@@ -169,7 +169,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_ranges(string_input)
 
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = _aspect_split(string_input, "|")
         assert result == ["abc", "def"]
