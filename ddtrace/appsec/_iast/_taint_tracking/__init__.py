@@ -18,7 +18,6 @@ if _is_python_version_supported():
     from ._native.initializer import active_map_addreses_size
     from ._native.initializer import create_context
     from ._native.initializer import debug_taint_map
-    from ._native.initializer import destroy_context
     from ._native.initializer import initializer_size
     from ._native.initializer import num_objects_tainted
     from ._native.initializer import reset_context
@@ -72,7 +71,6 @@ __all__ = [
     "set_fast_tainted_if_notinterned_unicode",
     "aspect_helpers",
     "reset_context",
-    "destroy_context",
     "initializer_size",
     "active_map_addreses_size",
     "create_context",

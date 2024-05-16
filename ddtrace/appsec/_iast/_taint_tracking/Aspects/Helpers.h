@@ -14,10 +14,10 @@ namespace py = pybind11;
 // lower() and similar.
 template<class StrType>
 StrType
-common_replace(const py::str& string_method,
-               const StrType& candidate_text,
-               const py::args& args,
-               const py::kwargs& kwargs);
+api_common_replace(const py::str& string_method,
+                   const StrType& candidate_text,
+                   const py::args& args,
+                   const py::kwargs& kwargs);
 
 template<class StrType>
 StrType
@@ -51,6 +51,21 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintR
 template<class StrType>
 std::tuple<StrType, TaintRangeRefs>
 _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRangeRefs ranges_orig);
+
+template<class StrType>
+bool
+set_ranges_on_splitted(const StrType& source_str,
+                       const TaintRangeRefs& source_ranges,
+                       const py::list& split_result,
+                       const TaintRangeMapTypePtr& tx_map,
+                       bool include_separator = false);
+
+template<class StrType>
+bool
+api_set_ranges_on_splitted(const StrType& source_str,
+                           const TaintRangeRefs& source_ranges,
+                           const py::list& split_result,
+                           bool include_separator = false);
 
 void
 pyexport_aspect_helpers(py::module& m);

@@ -5,7 +5,7 @@ aspect_join_str(PyObject* sep,
                 PyObject* result,
                 PyObject* iterable_str,
                 size_t len_iterable,
-                TaintRangeMapType* tx_taint_map)
+                const TaintRangeMapTypePtr& tx_taint_map)
 {
     // This is the special case for unicode str and unicode iterable_str.
     // The iterable elements string will be split into 1 char-length strings.
@@ -58,7 +58,7 @@ aspect_join_str(PyObject* sep,
 }
 
 PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
     // FIXME: bug. if the argument is a string instead of a tuple, it will enter
@@ -178,7 +178,9 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         result = result_ptr.ptr();
         Py_INCREF(result);
     }
-    if (get_pyobject_size(result) == 0) {
+
+    const auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {
             Py_DecRef(arg0);
