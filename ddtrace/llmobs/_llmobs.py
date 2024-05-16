@@ -116,11 +116,11 @@ class LLMObs(Service):
         :param str ml_app: The name of your ml application.
         :param List[str] integrations: A list of integrations to enable auto-tracing for.
                                         Must be subset of ("openai", "langchain", "bedrock")
-        :param bool dd_llmobs_no_apm: Set to `true` to disable sending non-LLM Observability data to Datadog.
-        :param str dd_site: Your datadog site.
-        :param str dd_api_key: Your datadog api key.
-        :param str dd_env: Your environment name.
-        :param str dd_service: Your service name.
+        :param bool llmobs_no_apm: Set to `true` to disable sending non-LLM Observability data to Datadog.
+        :param str site: Your datadog site.
+        :param str api_key: Your datadog api key.
+        :param str env: Your environment name.
+        :param str service: Your service name.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
