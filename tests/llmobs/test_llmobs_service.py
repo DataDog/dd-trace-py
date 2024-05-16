@@ -52,7 +52,7 @@ def run_llmobs_trace_filter(dummy_tracer):
 def test_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -66,7 +66,7 @@ def test_service_enable():
 def test_service_enable_with_apm_disabled(monkeypatch):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer, dd_llmobs_no_apm=True)
+        llmobs_service.enable(_tracer=dummy_tracer, dd_llmobs_no_apm=True)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -80,7 +80,7 @@ def test_service_enable_with_apm_disabled(monkeypatch):
 def test_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_service.disable()
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
@@ -91,7 +91,7 @@ def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -101,7 +101,7 @@ def test_service_enable_no_ml_app_specified():
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -110,8 +110,8 @@ def test_service_enable_no_ml_app_specified():
 def test_service_enable_already_enabled(mock_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled

@@ -108,7 +108,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        tracer=None,
+        _tracer=None,
     ):
         """
         Enable LLM Observability tracing.
@@ -131,11 +131,11 @@ class LLMObs(Service):
             return
 
         # grab required values for LLMObs
-        config._dd_site = dd_site or config._dd_site
-        config._dd_api_key = dd_api_key or config._dd_api_key
+        config._dd_site = site or config._dd_site
+        config._dd_api_key = api_key or config._dd_api_key
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
-        config.env = dd_env or config.env
-        config.service = dd_service or config.service
+        config.env = env or config.env
+        config.service = service or config.service
 
         # validate required values for LLMObs
         if not config._dd_api_key:
@@ -154,7 +154,7 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
-        if dd_llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
+        if llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
             os.environ["DD_LLMOBS_NO_APM"] = "1"
 
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
@@ -169,7 +169,7 @@ class LLMObs(Service):
 
         cls._patch_integrations(integrations)
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=tracer)
+        cls._instance = cls(tracer=_tracer)
         cls.enabled = True
         cls._instance.start()
 

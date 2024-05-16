@@ -1337,7 +1337,7 @@ class TestLLMObsLangchain:
         output_role=None,
     ):
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
@@ -1370,7 +1370,7 @@ class TestLLMObsLangchain:
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
