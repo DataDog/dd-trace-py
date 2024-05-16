@@ -3,7 +3,7 @@ dogfood-dogweb:
   stage: dogfood
   tags: ["arch:amd64"]
   script:
-    - ./check_dogweb_trigger_status.sh
+    - ./.gitlab/check_dogweb_trigger_status.sh
 
 dogfood-dogweb-trigger:
   stage: dogfood
