@@ -130,7 +130,7 @@ _ASPECTS_SPEC = {
 
 
 if sys.version_info >= (3, 12):
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"  # type: ignore[index]
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
 
 if sys.version_info >= (3, 12) or os.name == "nt":
     _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"  # type: ignore[index]
