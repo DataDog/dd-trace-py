@@ -122,5 +122,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.version }}
+          name: wheels-${{ matrix.os }}-${{ matrix.archs }}-${{ matrix.version }}
           path: ./wheelhouse/*.whl
