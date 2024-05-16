@@ -147,7 +147,7 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: always() # needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}
           path: artifact.tar.gz
