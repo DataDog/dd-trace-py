@@ -10,7 +10,7 @@
  * @return PyObject*
  */
 PyObject*
-index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, TaintRangeMapType* tx_taint_map)
+index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const TaintRangeMapTypePtr& tx_taint_map)
 {
     auto idx_long = PyLong_AsLong(idx);
     bool ranges_error;
