@@ -34,7 +34,6 @@ class TraceCiVisibilityFilter(TraceFilter):
         local_root.context.sampling_priority = AUTO_KEEP
         for span in trace:
             span.set_tags(self._tags)
-            span.service = self._service
             span.set_tag_str(ci.LIBRARY_VERSION, ddtrace.__version__)
 
         return trace
