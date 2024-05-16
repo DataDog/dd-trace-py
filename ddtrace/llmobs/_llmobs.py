@@ -103,11 +103,11 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[List[str]] = None,
-        dd_llmobs_no_apm: bool = False,
-        dd_site: Optional[str] = None,
-        dd_api_key: Optional[str] = None,
-        dd_env: Optional[str] = None,
-        dd_service: Optional[str] = None,
+        llmobs_no_apm: bool = False,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        env: Optional[str] = None,
+        service: Optional[str] = None,
         tracer=None,
     ):
         """
