@@ -5,7 +5,7 @@ dogfood-dogweb:
   needs:
     - dogfood-dogweb-trigger
   script:
-    - echo "foobar"
+    - ./check_dogweb_trigger_status.sh
 
 dogfood-dogweb-trigger:
   stage: dogfood
