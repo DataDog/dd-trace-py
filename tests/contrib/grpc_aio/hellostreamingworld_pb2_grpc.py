@@ -3,7 +3,6 @@
 import grpc
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-import ddtrace.vendor.packaging.version as packaging_version
 
 
 if PYTHON_VERSION_INFO > (3, 6):
