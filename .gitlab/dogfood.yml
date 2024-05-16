@@ -1,10 +1,7 @@
 
 dogfood-dogweb:
   stage: dogfood
-  when: on_success
   tags: ["arch:amd64"]
-  needs:
-    - dogfood-dogweb-trigger
   script:
     - ./check_dogweb_trigger_status.sh
 
