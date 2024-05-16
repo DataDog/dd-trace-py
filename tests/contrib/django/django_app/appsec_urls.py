@@ -128,8 +128,8 @@ def taint_checking_enabled_view(request):
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
-            result = IastSpanReporter.taint_ranges_as_evidence_info(path)
-            assert result[1][0].origin == OriginType.PATH
+            sources, tainted_ranges_to_dict = IastSpanReporter.taint_ranges_as_evidence_info(path)
+            assert sources[0].origin == OriginType.PATH
 
     else:
 
