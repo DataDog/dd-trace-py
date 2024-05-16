@@ -80,7 +80,7 @@ jobs:
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker image save system_tests/agent:latest | gzip > ${{ matrix.weblog-variant}}_agent_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@4
+      - uses: actions/upload-artifact@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
@@ -120,7 +120,7 @@ jobs:
         with:
           repository: 'DataDog/system-tests'
 
-      - uses: actions/download-artifact@4
+      - uses: actions/download-artifact@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
