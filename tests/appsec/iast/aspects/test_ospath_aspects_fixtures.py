@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 
+import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -67,6 +68,33 @@ def test_ospathsplit_tainted():
     assert get_tainted_ranges(result[1]) == [
         TaintRange(0, 3, Source("first_element", "/foo/bar", OriginType.PARAMETER))
     ]
+
+
+def test_ospathsplit_noaspect_dont_call_string_aspect():
+    global mod
+
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.split_aspect") as str_split_aspect:
+         with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects._aspect_ospathsplit") as os_split_aspect:
+            import ddtrace.appsec._iast._ast.visitor as visitor
+            old_aspect = visitor._ASPECTS_SPEC["module_functions"]["os.path"]["split"]
+            try:
+                del visitor._ASPECTS_SPEC["module_functions"]["os.path"]["split"]
+                del mod
+                del sys.modules["tests.appsec.iast.fixtures.aspects.module_functions"]
+                mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
+                string_input = taint_pyobject(
+                    pyobject="/foo/bar", source_name="first_element", source_value="/foo/bar", source_origin=OriginType.PARAMETER
+                )
+                result = mod.do_os_path_split(string_input)
+                assert result == ("/foo", "bar")
+                assert get_tainted_ranges(result[0]) == []
+                assert get_tainted_ranges(result[1]) == []
+                assert not str_split_aspect.called
+                assert not os_split_aspect.called
+            finally:
+                visitor._ASPECTS_SPEC["module_functions"]["os.path"]["split"] = old_aspect
+                del sys.modules["tests.appsec.iast.fixtures.aspects.module_functions"]
+                mod = _iast_patched_module("tests.appsec.iast.fixtures.aspects.module_functions")
 
 
 def test_ospathsplitext_tainted():
