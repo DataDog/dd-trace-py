@@ -60,7 +60,7 @@ jobs:
 
       - name: Build wheels arm64
         if: matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.18.0 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -69,6 +69,7 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/rust-cross/rust-musl-cross:i686-musl
           CIBW_BEFORE_ALL: curl -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
@@ -95,7 +96,7 @@ jobs:
 
       - name: Build wheels
         if: matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.18.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -104,6 +105,7 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/rust-cross/rust-musl-cross:i686-musl
           CIBW_BEFORE_ALL: curl -sSf https://sh.rustup.rs | sh -s -- -y
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
