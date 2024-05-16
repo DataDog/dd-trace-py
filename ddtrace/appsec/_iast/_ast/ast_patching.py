@@ -89,7 +89,7 @@ def _should_iast_patch(module_name: Text) -> bool:
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
-    # TODO: A better soluion would be to migrate the original algorithm to C++:
+    # TODO: A better solution would be to migrate the original algorithm to C++:
     # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
