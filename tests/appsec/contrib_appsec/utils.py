@@ -1236,8 +1236,8 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
             code = 403 if blocking and asm_enabled and ep_enabled else 200
-            assert self.status(response) == code
-            assert get_tag(http.STATUS_CODE) == str(code)
+            assert self.status(response) == code, (self.status(response), code)
+            assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
             if asm_enabled and ep_enabled:
@@ -1275,7 +1275,6 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(root_span) == []
                 assert get_tag("rasp.request.done") == endpoint
 
-    # @pytest.mark.skip(reason="iast integration not working yet")
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
