@@ -2,6 +2,7 @@
 dogfood-dogweb:
   stage: dogfood
   when: on_success
+  tags: ["arch:amd64"]
   needs:
     - dogfood-dogweb-trigger
   script:
