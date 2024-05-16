@@ -10,8 +10,6 @@ import ddtrace.constants
 from tests.webclient import PingFilter
 
 
-
-
 tracer.configure(
     settings={
         "FILTERS": [PingFilter()],
