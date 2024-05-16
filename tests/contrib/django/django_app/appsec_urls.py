@@ -124,11 +124,11 @@ def taint_checking_enabled_view(request):
         with override_env({"DD_IAST_ENABLED": "True"}):
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-            from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
+            from ddtrace.appsec._iast.reporter import IastSpanReporter
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
-            result = taint_ranges_as_evidence_info(path)
+            result = IastSpanReporter.taint_ranges_as_evidence_info(path)
             assert result[1][0].origin == OriginType.PATH
 
     else:
