@@ -135,7 +135,7 @@ class _BaseCompletionHook(_EndpointHook):
             async def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                n = kwargs.get("n", 1)
+                n = kwargs.get("n", 1) or 1
                 if operation_id == _CompletionHook.OPERATION_ID:
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
@@ -158,7 +158,7 @@ class _BaseCompletionHook(_EndpointHook):
             def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                n = kwargs.get("n", 1)
+                n = kwargs.get("n", 1) or 1
                 if operation_id == _CompletionHook.OPERATION_ID:
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
