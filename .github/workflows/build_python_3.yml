@@ -28,12 +28,12 @@ jobs:
          - os: macos-12
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
@@ -120,6 +120,6 @@ jobs:
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
