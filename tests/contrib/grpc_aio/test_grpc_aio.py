@@ -21,7 +21,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.vendor.packaging.version as packaging_version
 
 
-if PYTHON_VERSION_INFO > (3, 6):
+if PYTHON_VERSION_INFO > (3, 7):
     from tests.contrib.grpc.hello_pb2 import HelloReply
     from tests.contrib.grpc.hello_pb2 import HelloRequest
     from tests.contrib.grpc.hello_pb2_grpc import HelloServicer

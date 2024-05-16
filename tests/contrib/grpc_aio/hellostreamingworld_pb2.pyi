@@ -4,7 +4,7 @@ from typing import Optional as _Optional
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
-if PYTHON_VERSION_INFO > (3, 6):
+if PYTHON_VERSION_INFO > (3, 7):
     from google.protobuf import descriptor as _descriptor
     from google.protobuf import message as _message
 

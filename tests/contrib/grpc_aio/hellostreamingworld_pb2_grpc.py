@@ -5,7 +5,7 @@ import grpc
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
-if PYTHON_VERSION_INFO > (3, 6):
+if PYTHON_VERSION_INFO > (3, 7):
     from tests.contrib.grpc_aio import hellostreamingworld_pb2 as hellostreamingworld__pb2
 
     class MultiGreeterStub(object):
