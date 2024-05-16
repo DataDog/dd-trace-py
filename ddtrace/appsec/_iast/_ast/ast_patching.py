@@ -19,7 +19,7 @@ from ddtrace.internal.module import origin
 from .visitor import AstVisitor
 
 
-VISITOR = AstVisitor()
+_VISITOR = AstVisitor()
 
 
 # Prefixes for modules where IAST patching is allowed
@@ -102,10 +102,10 @@ def visit_ast(
 ) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
 
-    VISITOR.update_location(filename=module_path, module_name=module_name)
-    modified_ast = VISITOR.visit(parsed_ast)
+    _VISITOR.update_location(filename=module_path, module_name=module_name)
+    modified_ast = _VISITOR.visit(parsed_ast)
 
-    if not VISITOR.ast_modified:
+    if not _VISITOR.ast_modified:
         return None
 
     ast.fix_missing_locations(modified_ast)
