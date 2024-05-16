@@ -137,7 +137,6 @@ if sys.version_info >= (3, 12) or os.name == "nt":
 
 
 class AstVisitor(ast.NodeTransformer):
-
     def __init__(
         self,
         filename="",
