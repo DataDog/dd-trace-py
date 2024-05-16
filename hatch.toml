@@ -188,7 +188,8 @@ dependencies = [
 [envs.appsec_threats_django.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
 # python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
@@ -232,7 +233,8 @@ dependencies = [
 [envs.appsec_threats_flask.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
 ]
 
 # python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
@@ -273,7 +275,8 @@ dependencies = [
 [envs.appsec_threats_fastapi.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
 # python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
