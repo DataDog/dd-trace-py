@@ -868,9 +868,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == []
-            assert len(loaded["vulnerabilities"]) == 0
+            loaded = root_span.get_tag(IAST.JSON)
+            assert loaded is None
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
