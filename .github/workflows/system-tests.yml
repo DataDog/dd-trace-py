@@ -142,12 +142,12 @@ jobs:
       # even on failures, we want to have artifact to be able to investigate
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
-        if: always() # needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success'
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
-        if: always() # needs.needs-run.outputs.outcome == 'success'
+        if: needs.needs-run.outputs.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}
           path: artifact.tar.gz
