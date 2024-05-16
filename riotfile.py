@@ -1840,7 +1840,6 @@ venv = Venv(
             pkgs={
                 "googleapis-common-protos": latest,
                 "pytest-asyncio": latest,
-                "protobuf": latest,
             },
             venvs=[
                 Venv(

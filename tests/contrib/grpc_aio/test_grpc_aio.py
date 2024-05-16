@@ -17,17 +17,20 @@ from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
 from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 import ddtrace.vendor.packaging.version as packaging_version
-from tests.contrib.grpc.hello_pb2 import HelloReply
-from tests.contrib.grpc.hello_pb2 import HelloRequest
-from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
-from tests.contrib.grpc.hello_pb2_grpc import HelloStub
-from tests.contrib.grpc.hello_pb2_grpc import add_HelloServicer_to_server
-from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloReply as HelloReplyStream
-from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as HelloRequestStream
-from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
-from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
-from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
+
+if PYTHON_VERSION_INFO > (3, 6):
+    from tests.contrib.grpc.hello_pb2 import HelloReply
+    from tests.contrib.grpc.hello_pb2 import HelloRequest
+    from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
+    from tests.contrib.grpc.hello_pb2_grpc import HelloStub
+    from tests.contrib.grpc.hello_pb2_grpc import add_HelloServicer_to_server
+    from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloReply as HelloReplyStream
+    from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as HelloRequestStream
+    from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
+    from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
+    from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 from tests.utils import override_config
@@ -1049,6 +1052,10 @@ async def run_streaming_example(server_info, use_generator=False):
     "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be \
     found at: https://github.com/DataDog/dd-trace-py/issues/9139"
 )
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO < (3, 6),
+    reason="Protobuf package versino needed for stubs is not supported by python 3.6",
+)
 @pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
 async def test_async_streaming_direct_read(async_server_info, tracer):
     await run_streaming_example(async_server_info)
@@ -1063,6 +1070,10 @@ async def test_async_streaming_direct_read(async_server_info, tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    PYTHON_VERSION_INFO < (3, 6),
+    reason="Protobuf package versino needed for stubs is not supported by python 3.6",
+)
 @pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
 async def test_async_streaming_generator(async_server_info, tracer):
     await run_streaming_example(async_server_info, use_generator=True)
