@@ -309,6 +309,7 @@ def test_gevent_gunicorn_behaviour():
     # to avoid problems with threads/forks that we saw previously
     # when running gunicorn with gevent workers
 
+    import os
     import sys
 
     assert "gevent" not in sys.modules
@@ -318,6 +319,7 @@ def test_gevent_gunicorn_behaviour():
 
     import atexit
 
+    from ddtrace.internal import forksafe
     from ddtrace.internal.periodic import PeriodicService
 
     class TestService(PeriodicService):
@@ -326,6 +328,8 @@ def test_gevent_gunicorn_behaviour():
 
         def periodic(self):
             sys.stdout.write("T")
+            sys.stdout.flush()
+            os.sched_yield()
             self.stop()
 
     service = TestService()
@@ -338,11 +342,10 @@ def test_gevent_gunicorn_behaviour():
         service = TestService()
         service.start()
 
-    # forksafe.register(restart_service)
+    forksafe.register(restart_service)
 
     # ---- Application code ----
 
-    import os  # noqa:F401
     import sys  # noqa:F401
 
     import gevent.hub  # noqa:F401
