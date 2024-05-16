@@ -10,7 +10,6 @@ import ddtrace.constants
 from tests.webclient import PingFilter
 
 
-# ddtrace_iast_flask_patch()
 
 
 tracer.configure(
