@@ -32,6 +32,9 @@ using TaintRangeMapType = std::map<uintptr_t, std::pair<Py_hash_t, TaintedObject
 
 #endif // NDEBUG
 
+using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
+// using TaintRangeMapTypePtr = TaintRangeMapType*;
+
 struct TaintRange
 {
     RANGE_START start = 0;
@@ -88,10 +91,10 @@ TaintRangeRefs
 api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH new_length);
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, TaintRangeMapType* tx_map);
+get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map);
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, TaintRangeMapType* tx_map);
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map);
 
 py::object
 api_set_ranges(py::object& str, const TaintRangeRefs& ranges);
@@ -133,7 +136,7 @@ api_is_unicode_and_not_fast_tainted(const py::object str)
 }
 
 TaintedObject*
-get_tainted_object(PyObject* str, TaintRangeMapType* tx_taint_map);
+get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_taint_map);
 
 Py_hash_t
 bytearray_hash(PyObject* bytearray);
@@ -142,7 +145,7 @@ Py_hash_t
 get_internal_hash(PyObject* obj);
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, TaintRangeMapType* tx_taint_map);
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_taint_map);
 
 void
 pyexport_taintrange(py::module& m);
