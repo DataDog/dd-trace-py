@@ -36,7 +36,7 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
-_ASPECTS_SPEC = {
+_ASPECTS_SPEC: Dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": "ddtrace_aspects",
     "functions": {
@@ -128,7 +128,7 @@ _ASPECTS_SPEC = {
             "super",
         },
     },
-}  # type: Dict
+}
 
 
 if sys.version_info >= (3, 12):
@@ -178,7 +178,7 @@ class AstVisitor(ast.NodeTransformer):
         self.module_name = module_name
         self.ast_modified = False
 
-        excluded_from_patching = _ASPECTS_SPEC["excluded_from_patching"]  # type: Dict[str, Dict[str, Tuple[str]]]
+        excluded_from_patching: Dict[str, Dict[str, Tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
         self.excluded_functions = excluded_from_patching.get(self.module_name, {})
         self.dont_patch_these_functionsdefs = set()
         for _, v in self.excluded_functions.items():
