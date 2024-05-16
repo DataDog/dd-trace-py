@@ -98,7 +98,7 @@ def _parse_rpc_repr_string(rpc_string, module):
         code = module.StatusCode[status_str]
     except KeyError:
         code = None
-        raise ValueError(f"Invalid grpc status code: {status_str}")
+        raise ValueError("Invalid grpc status code: " + status_str)
 
     # Return the status code and details
     return code, details
