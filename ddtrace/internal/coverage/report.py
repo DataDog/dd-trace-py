@@ -162,14 +162,20 @@ def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: st
         "coverage_py_missed_files": [f for f in dd_coverage_data["files"] if f not in coverage_py_data["files"]],
         "coverage_py_missed_executed_lines": {},
         "coverage_py_missed_missing_lines": {},
-        "dd_coverage_missed_files": [f for f in coverage_py_data["files"] if f not in dd_coverage_data["files"]],
+        "dd_coverage_missed_files": [
+            f
+            for f in coverage_py_data["files"]
+            if len(coverage_py_data["files"][f]["executed_lines"]) > 0 and f not in dd_coverage_data["files"]
+        ],
         "dd_coverage_missed_executed_lines": {},
         "dd_coverage_missed_missing_lines": {},
     }
 
+    # Treat coverage.py as "source of truth" when comparing lines
     for path in coverage_py_data["files"].keys() & dd_coverage_data["files"].keys():
         dd_coverage_missed_executed_lines = sorted(
             set(coverage_py_data["files"][path]["executed_lines"])
+            - set(coverage_py_data["files"][path]["excluded_lines"])  # Lines not covered because of pragma nocover
             - set(dd_coverage_data["files"][path]["executed_lines"])
         )
         dd_coverage_missed_missing_lines = sorted(
@@ -187,12 +193,16 @@ def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: st
         )
 
         if dd_coverage_missed_executed_lines:
-            compared_data["dd_coverage_missed_executed_lines"][path] = dd_coverage_missed_executed_lines
+            compared_data["dd_coverage_missed_executed_lines"][path] = collapse_ranges(
+                dd_coverage_missed_executed_lines
+            )
         if dd_coverage_missed_missing_lines:
-            compared_data["dd_coverage_missed_missing_lines"][path] = dd_coverage_missed_missing_lines
+            compared_data["dd_coverage_missed_missing_lines"][path] = collapse_ranges(dd_coverage_missed_missing_lines)
         if coverage_py_missed_executed_lines:
-            compared_data["coverage_py_missed_executed_lines"][path] = coverage_py_missed_executed_lines
+            compared_data["coverage_py_missed_executed_lines"][path] = collapse_ranges(
+                coverage_py_missed_executed_lines
+            )
         if coverage_py_missed_missing_lines:
-            compared_data["coverage_py_missed_missing_lines"][path] = coverage_py_missed_missing_lines
+            compared_data["coverage_py_missed_missing_lines"][path] = collapse_ranges(coverage_py_missed_missing_lines)
 
     return compared_data
