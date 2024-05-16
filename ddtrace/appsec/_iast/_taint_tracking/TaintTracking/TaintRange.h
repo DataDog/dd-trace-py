@@ -32,6 +32,9 @@ using TaintRangeMapType = std::map<uintptr_t, std::pair<Py_hash_t, TaintedObject
 
 #endif // NDEBUG
 
+using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
+// using TaintRangeMapTypePtr = TaintRangeMapType*;
+
 struct TaintRange
 {
     RANGE_START start = 0;
