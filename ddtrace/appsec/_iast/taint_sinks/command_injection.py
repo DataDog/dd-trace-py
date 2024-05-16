@@ -10,6 +10,7 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
+from .._metrics import _set_metric_iast_instrumented_sink
 from .._metrics import increment_iast_span_metric
 from ..constants import VULN_CMDI
 from ..processor import AppSecIastSpanProcessor
@@ -38,6 +39,8 @@ def patch():
 
         os._datadog_cmdi_patch = True
         subprocess._datadog_cmdi_patch = True
+
+    _set_metric_iast_instrumented_sink(VULN_CMDI)
 
     if asm_config._ep_enabled:
         core.dispatch("exploit.prevention.ssrf.patch.urllib")
