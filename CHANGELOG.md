@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.4
+
+
+### Bug Fixes
+
+- telemetry: This fix resolves an issue when using `pytest` + `gevent` where the telemetry writer was eager initialized by `pytest` entrypoints loading of our plugin causing a potential dead lock.
+
+
+---
+
 ## 2.7.10
 
 ### Bug Fixes
