@@ -7,6 +7,7 @@ import typing as t
 from ddtrace.internal.compat import Path
 from ddtrace.internal.coverage._native import replace_in_tuple
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
+from ddtrace.internal.coverage.report import get_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.module import BaseModuleWatchdog
@@ -92,6 +93,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         covered_lines = instance._get_covered_lines()
 
         print_coverage_report(executable_lines, covered_lines, ignore_nocover=ignore_nocover)
+
+    @classmethod
+    def write_json_report_to_file(cls, filename: str, ignore_nocover: bool = False):
+        if cls._instance is None:
+            return
+        instance: ModuleCodeCollector = cls._instance
+
+        executable_lines = instance.lines
+        covered_lines = instance._get_covered_lines()
+
+        with open(filename, "w") as f:
+            f.write(get_json_report(executable_lines, covered_lines, ignore_nocover=ignore_nocover))
 
     def _get_covered_lines(self) -> t.Dict[str, t.Set[int]]:
         if ctx_coverage_enabed.get(False):

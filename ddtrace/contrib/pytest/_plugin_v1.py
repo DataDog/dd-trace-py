@@ -872,6 +872,9 @@ class _PytestDDTracePluginV1:
     @pytest.hookimpl(trylast=True)
     def pytest_terminal_summary(terminalreporter, exitstatus, config):
         # Reports coverage if experimental session-level coverage is enabled.
-        breakpoint()
         if USE_DD_COVERAGE and COVER_SESSION:
             ModuleCodeCollector.report()
+            try:
+                ModuleCodeCollector.write_json_report_to_file("dd_coverage.json")
+            except Exception:
+                log.debug("Failed to write coverage report to file", exc_info=True)

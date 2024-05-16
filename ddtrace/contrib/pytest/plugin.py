@@ -102,7 +102,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
             if not ModuleCodeCollector.is_installed():
                 ModuleCodeCollector.install()
             if COVER_SESSION:
-                print("COLLECTING SESSION COVERAGE")
                 ModuleCodeCollector.start_coverage()
         else:
             if COVER_SESSION:

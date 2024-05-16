@@ -1,4 +1,5 @@
 import ast
+import json
 import linecache
 import os
 import re
@@ -108,3 +109,90 @@ def print_coverage_report(executable_lines, covered_lines, ignore_nocover=False)
     total_covered_percent = int((total_covered_lines / total_executable_lines) * 100)
     print(f"{'TOTAL':<{n}}{total_executable_lines:>8}{total_missed_lines:>8}{total_covered_percent:>8}%")
     print()
+
+
+def get_json_report(executable_lines, covered_lines, ignore_nocover=False):
+    """Writes a JSON-formatted coverage report similar in structure to coverage.py 's JSON report, but only
+    containing a subset (namely file-level executed and missing lines).
+
+    {
+      "files": {
+        "path/to/file.py": {
+          "executed_lines": [1, 2, 3, 4, 11, 12, 13, ...],
+          "missing_lines": [5, 6, 7, 15, 16, 17, ...]
+        },
+        ...
+      }
+    }
+
+    """
+    output = {"files": {}}
+
+    for path, orig_lines in sorted(executable_lines.items()):
+        path_lines = orig_lines.copy()
+        path_covered = covered_lines[path].copy()
+        if not ignore_nocover:
+            for line in orig_lines:
+                # We may have already deleted this line due to no_cover
+                if line not in path_lines and line not in path_covered:
+                    continue
+                no_cover_lines = no_cover(path, line)
+                if no_cover_lines:
+                    for no_cover_line in range(no_cover_lines[0], no_cover_lines[1] + 1):
+                        path_lines.discard(no_cover_line)
+                        path_covered.discard(no_cover_line)
+
+        output["files"][path] = {
+            "executed_lines": sorted(list(path_covered)),
+            "missing_lines": sorted(list(path_lines - path_covered)),
+        }
+
+    return json.dumps(output)
+
+
+def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: str) -> t.Dict[str, t.Any]:
+    """Compare two JSON-formatted coverage reports and return a dictionary of the differences."""
+    with open(coverage_py_filename, "r") as coverage_py_f:
+        coverage_py_data = json.load(coverage_py_f)
+
+    with open(dd_coverage_filename, "r") as dd_coverage_f:
+        dd_coverage_data = json.load(dd_coverage_f)
+
+    compared_data: t.Dict[str, t.Any] = {
+        "coverage_py_missed_files": [f for f in dd_coverage_data["files"] if f not in coverage_py_data["files"]],
+        "coverage_py_missed_executed_lines": {},
+        "coverage_py_missed_missing_lines": {},
+        "dd_coverage_missed_files": [f for f in coverage_py_data["files"] if f not in dd_coverage_data["files"]],
+        "dd_coverage_missed_executed_lines": {},
+        "dd_coverage_missed_missing_lines": {},
+    }
+
+    for path in coverage_py_data["files"].keys() & dd_coverage_data["files"].keys():
+        dd_coverage_missed_executed_lines = sorted(
+            set(coverage_py_data["files"][path]["executed_lines"])
+            - set(dd_coverage_data["files"][path]["executed_lines"])
+        )
+        dd_coverage_missed_missing_lines = sorted(
+            set(coverage_py_data["files"][path]["missing_lines"])
+            - set(dd_coverage_data["files"][path]["missing_lines"])
+        )
+
+        coverage_py_missed_executed_lines = sorted(
+            set(dd_coverage_data["files"][path]["executed_lines"])
+            - set(coverage_py_data["files"][path]["executed_lines"])
+        )
+        coverage_py_missed_missing_lines = sorted(
+            set(dd_coverage_data["files"][path]["missing_lines"])
+            - set(coverage_py_data["files"][path]["missing_lines"])
+        )
+
+        if dd_coverage_missed_executed_lines:
+            compared_data["dd_coverage_missed_executed_lines"][path] = dd_coverage_missed_executed_lines
+        if dd_coverage_missed_missing_lines:
+            compared_data["dd_coverage_missed_missing_lines"][path] = dd_coverage_missed_missing_lines
+        if coverage_py_missed_executed_lines:
+            compared_data["coverage_py_missed_executed_lines"][path] = coverage_py_missed_executed_lines
+        if coverage_py_missed_missing_lines:
+            compared_data["coverage_py_missed_missing_lines"][path] = coverage_py_missed_missing_lines
+
+    return compared_data
