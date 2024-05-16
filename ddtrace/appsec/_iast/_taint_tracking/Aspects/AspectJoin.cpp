@@ -71,8 +71,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
         GetElement = PyTuple_GetItem;
     } else if (PyUnicode_Check(sep) and PyUnicode_Check(iterable_elements)) {
         len_iterable = PyUnicode_GET_LENGTH(iterable_elements);
-        if (len_iterable)
-        {
+        if (len_iterable) {
             return aspect_join_str(sep, result, iterable_elements, len_iterable, tx_taint_map);
         }
 

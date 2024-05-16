@@ -294,7 +294,7 @@ _convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRang
             }
             id_evidence = element.substr(4, element.length() - 5);
             start = end;
-            context_stack.emplace_back( id_evidence, start );
+            context_stack.emplace_back(id_evidence, start);
         } else {
             id_evidence = element.substr(1, element.length() - 5);
             auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
@@ -349,7 +349,8 @@ set_ranges_on_splitted(const StrType& source_str,
     bool some_set = false;
 
     // Some quick shortcuts
-    if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map or tx_map->empty()) {
+    if (source_ranges.empty() or py::len(split_result) == 0 or py::len(source_str) == 0 or not tx_map or
+        tx_map->empty()) {
         return false;
     }
 
@@ -402,8 +403,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            bool include_separator)
 {
     auto tx_map = initializer->get_tainting_map();
-    if (not tx_map or tx_map->empty())
-    {
+    if (not tx_map or tx_map->empty()) {
         return false;
     }
     return set_ranges_on_splitted(source_str, source_ranges, split_result, tx_map, include_separator);

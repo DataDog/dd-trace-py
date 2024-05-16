@@ -60,8 +60,7 @@ Initializer::get_tainting_map()
 void
 Initializer::clear_tainting_maps()
 {
-    for (auto& [fst, snd] : initializer->active_map_addreses)
-    {
+    for (auto& [fst, snd] : initializer->active_map_addreses) {
         clear_tainting_map(snd);
         snd = nullptr;
     }

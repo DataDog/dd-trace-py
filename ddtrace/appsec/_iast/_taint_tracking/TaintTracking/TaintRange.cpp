@@ -150,8 +150,7 @@ std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
-    if (not is_text(string_input))
-    {
+    if (not is_text(string_input)) {
         return std::make_pair(result, true);
     }
 
@@ -208,7 +207,6 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
-
 
     std::tie(candidate_text_ranges, ranges_error) = get_ranges(candidate_text, tx_map);
     if (not ranges_error) {
@@ -310,8 +308,7 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, int
 TaintedObjectPtr
 get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
 {
-    if (not str)
-    {
+    if (not str) {
         return nullptr;
     }
 

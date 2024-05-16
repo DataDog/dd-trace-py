@@ -11,7 +11,10 @@
  * @return A new result object with the taint information.
  */
 PyObject*
-add_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* text_to_add, const TaintRangeMapTypePtr& tx_taint_map)
+add_aspect(PyObject* result_o,
+           PyObject* candidate_text,
+           PyObject* text_to_add,
+           const TaintRangeMapTypePtr& tx_taint_map)
 {
     const size_t len_candidate_text{ get_pyobject_size(candidate_text) };
     const size_t len_text_to_add{ get_pyobject_size(text_to_add) };
