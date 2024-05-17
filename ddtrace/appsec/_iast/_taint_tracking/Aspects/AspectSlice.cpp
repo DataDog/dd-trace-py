@@ -20,7 +20,7 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
         if (taint_range != current_range) {
             if (current_range) {
                 new_ranges.emplace_back(
-                        initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+                  initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
             }
             current_range = taint_range;
             current_start = index;
@@ -28,7 +28,7 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
     }
     if (current_range != NULL) {
         new_ranges.emplace_back(
-                initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+          initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
     }
     return new_ranges;
 }
