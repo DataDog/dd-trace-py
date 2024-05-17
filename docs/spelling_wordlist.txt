@@ -15,6 +15,7 @@ MySQL
 OpenTracing
 Runtimes
 SpanContext
+aio
 aiobotocore
 aiohttp
 aiomysql
