@@ -19,6 +19,9 @@ from ddtrace.internal.module import origin
 from .visitor import AstVisitor
 
 
+_VISITOR = AstVisitor()
+
+
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
@@ -108,13 +111,10 @@ def visit_ast(
 ) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
 
-    visitor = AstVisitor(
-        filename=module_path,
-        module_name=module_name,
-    )
-    modified_ast = visitor.visit(parsed_ast)
+    _VISITOR.update_location(filename=module_path, module_name=module_name)
+    modified_ast = _VISITOR.visit(parsed_ast)
 
-    if not visitor.ast_modified:
+    if not _VISITOR.ast_modified:
         return None
 
     ast.fix_missing_locations(modified_ast)

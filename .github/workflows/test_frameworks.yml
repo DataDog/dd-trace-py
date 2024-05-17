@@ -30,9 +30,11 @@ jobs:
     needs: needs-run
     env:
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+
     defaults:
       run:
         working-directory: bottle
@@ -128,6 +130,7 @@ jobs:
     name: Django 3.1 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
@@ -203,6 +206,7 @@ jobs:
     needs: needs-run
     env:
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
@@ -251,6 +255,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
@@ -298,6 +303,7 @@ jobs:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -389,6 +395,7 @@ jobs:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -439,6 +446,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -481,6 +489,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
@@ -524,6 +533,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
@@ -564,6 +574,7 @@ jobs:
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
+      DD_IAST_ENABLED: true
       # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
@@ -599,6 +610,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_IAST_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
