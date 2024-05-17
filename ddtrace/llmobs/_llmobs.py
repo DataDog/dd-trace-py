@@ -103,7 +103,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations: Optional[List[str]] = None,
-        llmobs_no_apm: bool = False,
+        llmobs_agentless_enabled: bool = False,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -116,7 +116,7 @@ class LLMObs(Service):
         :param str ml_app: The name of your ml application.
         :param List[str] integrations: A list of integrations to enable auto-tracing for.
                                         Must be subset of ("openai", "langchain", "bedrock")
-        :param bool llmobs_no_apm: Set to `true` to disable sending non-LLM Observability data to Datadog.
+        :param bool llmobs_agentless_enabled: Set to `true` to disable sending non-LLM Observability data to Datadog.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
@@ -154,17 +154,17 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
-        if llmobs_no_apm or asbool(os.getenv("DD_LLMOBS_NO_APM", "false")):
-            os.environ["DD_LLMOBS_NO_APM"] = "1"
+        if llmobs_agentless_enabled or asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", "false")):
+            os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
 
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
                 config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_NO_APM is set.")
+                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set.")
                 telemetry.telemetry_writer.disable()
 
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
-                log.debug("Remote configuration disabled because DD_LLMOBS_NO_APM is set.")
+                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set.")
                 remoteconfig_poller.disable()
 
         cls._patch_integrations(integrations)
