@@ -1215,8 +1215,6 @@ class Contrib_TestClass_For_Threats:
         rule_file,
         blocking,
     ):
-        if asm_config._iast_enabled:
-            raise pytest.xfail("iast and exploit prevention not working yet together")
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
@@ -1239,8 +1237,8 @@ class Contrib_TestClass_For_Threats:
                 for trace in self.check_for_stack_trace(root_span):
                     assert "frames" in trace
                     function = trace["frames"][0]["function"]
-                    assert any(
-                        function.endswith(top_function) for top_function in top_functions
+                    assert any(function.endswith(top_function) for top_function in top_functions) or (
+                        asm_config._iast_enabled and function.endswith("ast_function")
                     ), f"unknown top function {function}"
                 # assert mocked.call_args_list == []
                 telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
