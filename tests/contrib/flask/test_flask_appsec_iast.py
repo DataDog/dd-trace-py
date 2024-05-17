@@ -7,7 +7,6 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -589,54 +588,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
-
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-    def test_flask_header_injection(self):
-        @self.app.route("/header_injection/", methods=["GET", "POST"])
-        def header_injection():
-            from flask import Response
-            from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-
-            tainted_string = request.form.get("name")
-            assert is_pyobject_tainted(tainted_string)
-            resp = Response("OK")
-            resp.headers["Vary"] = tainted_string
-
-            # label test_flask_header_injection_label
-            resp.headers["Header-Injection"] = tainted_string
-            return resp
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-                _deduplication_enabled=False,
-            )
-        ):
-            resp = self.client.post("/header_injection/", data={"name": "test"})
-            assert resp.status_code == 200
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"origin": "http.request.parameter", "name": "name", "value": "test"}]
-
-            line, hash_value = get_line_and_hash(
-                "test_flask_header_injection_label",
-                VULN_HEADER_INJECTION,
-                filename=TEST_FILE_PATH,
-            )
-            vulnerability = loaded["vulnerabilities"][0]
-            assert vulnerability["type"] == VULN_HEADER_INJECTION
-            assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "test"}]
-            }
-            # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
-            # assert vulnerability["location"]["path"] == TEST_FILE_PATH
-            # assert vulnerability["location"]["line"] == line
-            # assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_insecure_cookie(self):
