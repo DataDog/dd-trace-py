@@ -1,0 +1,1 @@
+export env var to .zshrc file
