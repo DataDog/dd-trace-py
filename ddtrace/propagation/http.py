@@ -932,9 +932,6 @@ class HTTPPropagator(object):
                     elif dd_context:
                         # if p value is not present in tracestate, use the parent id from the datadog headers
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
-                    elif context._meta.get(LAST_DD_PARENT_ID_KEY) == DEFAULT_LAST_PARENT_ID:
-                        # if datadog last parent id is found then set the default value
-                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = DEFAULT_LAST_PARENT_ID
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
         primary_context._span_links = links
