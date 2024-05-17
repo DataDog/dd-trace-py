@@ -7,6 +7,9 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.sqlite3.patch import patch
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -585,6 +588,238 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_insecure_cookie(self):
+        @self.app.route("/insecure_cookie/", methods=["GET", "POST"])
+        def insecure_cookie():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/insecure_cookie/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_INSECURE_COOKIE
+            assert vulnerability["evidence"] == {"value": "insecure"}
+            assert "path" not in vulnerability["location"].keys()
+            assert "line" not in vulnerability["location"].keys()
+            assert vulnerability["location"]["spanId"]
+            assert vulnerability["hash"]
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_insecure_cookie_empty(self):
+        @self.app.route("/insecure_cookie_empty/", methods=["GET", "POST"])
+        def insecure_cookie_empty():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "", secure=False, httponly=True, samesite="Strict")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/insecure_cookie_empty/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = root_span.get_tag(IAST.JSON)
+            assert loaded is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_no_http_only_cookie(self):
+        @self.app.route("/no_http_only_cookie/", methods=["GET", "POST"])
+        def no_http_only_cookie():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "cookie", secure=True, httponly=False, samesite="Strict")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/no_http_only_cookie/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
+            assert vulnerability["evidence"] == {"value": "insecure"}
+            assert "path" not in vulnerability["location"].keys()
+            assert "line" not in vulnerability["location"].keys()
+            assert vulnerability["location"]["spanId"]
+            assert vulnerability["hash"]
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_no_http_only_cookie_empty(self):
+        @self.app.route("/no_http_only_cookie_empty/", methods=["GET", "POST"])
+        def no_http_only_cookie_empty():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "", secure=True, httponly=False, samesite="Strict")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/no_http_only_cookie_empty/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = root_span.get_tag(IAST.JSON)
+            assert loaded is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_no_samesite_cookie(self):
+        @self.app.route("/no_samesite_cookie/", methods=["GET", "POST"])
+        def no_samesite_cookie():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/no_samesite_cookie/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
+            assert vulnerability["evidence"] == {"value": "insecure"}
+            assert "path" not in vulnerability["location"].keys()
+            assert "line" not in vulnerability["location"].keys()
+            assert vulnerability["location"]["spanId"]
+            assert vulnerability["hash"]
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_no_samesite_cookie_empty(self):
+        @self.app.route("/no_samesite_cookie_empty/", methods=["GET", "POST"])
+        def no_samesite_cookie_empty():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "", secure=True, httponly=True, samesite="None")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/no_samesite_cookie_empty/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            loaded = root_span.get_tag(IAST.JSON)
+            assert loaded is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_cookie_secure(self):
+        @self.app.route("/cookie_secure/", methods=["GET", "POST"])
+        def cookie_secure():
+            from flask import Response
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="Strict")
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/cookie_secure/", data={"name": "test"})
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = root_span.get_tag(IAST.JSON)
+            assert loaded is None
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
