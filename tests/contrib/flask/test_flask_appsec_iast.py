@@ -621,7 +621,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_INSECURE_COOKIE
-            assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+            assert vulnerability["evidence"] == {"value": "insecure"}
             assert "path" not in vulnerability["location"].keys()
             assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
@@ -689,7 +689,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
-            assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+            assert vulnerability["evidence"] == {"value": "insecure"}
             assert "path" not in vulnerability["location"].keys()
             assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
@@ -757,7 +757,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
-            assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+            assert vulnerability["evidence"] == {"value": "insecure"}
             assert "path" not in vulnerability["location"].keys()
             assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
