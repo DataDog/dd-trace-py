@@ -1,5 +1,6 @@
 import os
 
+import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -23,8 +24,6 @@ def _get_path_traversal_module_functions():
                 yield module, function
 
 
-# FIXME: enable once the mock + open issue is fixed
-@pytest.mark.skip
 def test_path_traversal_open(iast_span_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
@@ -51,8 +50,41 @@ def test_path_traversal_open(iast_span_defaults):
     assert vulnerability["evidence"].get("redacted") is None
 
 
-# FIXME: enable once the mock + open issue is fixed
-@pytest.mark.skip
+@mock.patch("tests.appsec.iast.fixtures.taint_sinks.path_traversal.open")
+def test_path_traversal_open_and_mock(mock_open, iast_span_defaults):
+    """Confirm we can mock the open function and IAST path traversal vulnerability is not reported"""
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
+
+    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
+
+    tainted_string = taint_pyobject(
+        file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
+    )
+    mod.pt_open(tainted_string)
+
+    mock_open.assert_called_once_with(file_path)
+
+    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    assert span_report is None
+
+
+def test_path_traversal_open_and_mock_after_patch_module(iast_span_defaults):
+    """Confirm we can mock the open function and IAST path traversal vulnerability is not reported"""
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
+    with mock.patch("tests.appsec.iast.fixtures.taint_sinks.path_traversal.open") as mock_open:
+        file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "path_traversal_test_file.txt")
+
+        tainted_string = taint_pyobject(
+            file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
+        )
+        mod.pt_open(tainted_string)
+
+        mock_open.assert_called_once_with(file_path)
+
+        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        assert span_report is None
+
+
 @pytest.mark.parametrize(
     "file_path",
     (
@@ -74,8 +106,6 @@ def test_path_traversal_open_secure(file_path, iast_span_defaults):
     assert span_report is None
 
 
-# FIXME: enable once the mock + open issue is fixed
-@pytest.mark.skip
 @pytest.mark.parametrize(
     "module, function",
     _get_path_traversal_module_functions(),
@@ -109,8 +139,6 @@ def test_path_traversal(module, function, iast_span_defaults):
     assert vulnerability["evidence"].get("redacted") is None
 
 
-# FIXME: enable once the mock + open issue is fixed
-@pytest.mark.skip
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
 def test_path_traversal_deduplication(num_vuln_expected, iast_span_deduplication_enabled):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")

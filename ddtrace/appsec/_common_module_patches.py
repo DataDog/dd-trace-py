@@ -10,6 +10,8 @@ from typing import Dict
 
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
@@ -26,6 +28,8 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
 
 def unpatch_common_modules():
@@ -38,8 +42,9 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     wrapper for open file function
     """
     if asm_config._iast_enabled:
-        # LFI sink to be added
-        pass
+        from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
+
+        check_and_report_path_traversal(*args, **kwargs)
 
     if asm_config._asm_enabled and asm_config._ep_enabled:
         try:
