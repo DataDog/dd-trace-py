@@ -5,13 +5,14 @@ template<class StrType>
 py::list
 api_split_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit)
 {
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto split = text.attr("split");
     auto split_result = split(separator, maxsplit);
+
+    const auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or tx_map->empty()) {
+        return split_result;
+    }
+
     auto ranges = api_get_ranges(text);
     if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
@@ -24,13 +25,13 @@ template<class StrType>
 py::list
 api_rsplit_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit)
 {
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto rsplit = text.attr("rsplit");
     auto split_result = rsplit(separator, maxsplit);
+    const auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or tx_map->empty()) {
+        return split_result;
+    }
+
     auto ranges = api_get_ranges(text);
     if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
@@ -42,13 +43,13 @@ template<class StrType>
 py::list
 api_splitlines_text(const StrType& text, bool keepends)
 {
-    TaintRangeMapType* tx_map = initializer->get_tainting_map();
-    if (not tx_map) {
-        throw py::value_error(MSG_ERROR_TAINT_MAP);
-    }
-
     auto splitlines = text.attr("splitlines");
     auto split_result = splitlines(keepends);
+    const auto tx_map = initializer->get_tainting_map();
+    if (not tx_map or tx_map->empty()) {
+        return split_result;
+    }
+
     auto ranges = api_get_ranges(text);
     if (not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, keepends);

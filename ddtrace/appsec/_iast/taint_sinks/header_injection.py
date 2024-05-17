@@ -1,3 +1,5 @@
+from typing import Text
+
 from ddtrace.contrib import trace_utils
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -19,8 +21,7 @@ from ._base import VulnerabilityBase
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> Text:
     return ""
 
 
@@ -46,14 +47,17 @@ def patch():
     @when_imported("django.http.response")
     def _(m):
         trace_utils.wrap(m, "HttpResponse.__setitem__", _iast_h)
-        trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
         trace_utils.wrap(m, "HttpResponseBase.__setitem__", _iast_h)
+        try:
+            trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
+        except AttributeError:
+            # no ResponseHeaders in django<3
+            pass
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
 
 def unpatch():
-    # type: () -> None
     try_unwrap("wsgiref.headers", "Headers.add_header")
     try_unwrap("wsgiref.headers", "Headers.__setitem__")
     try_unwrap("werkzeug.datastructures", "Headers.set")

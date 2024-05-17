@@ -211,7 +211,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -1581,6 +1580,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1608,6 +1608,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],

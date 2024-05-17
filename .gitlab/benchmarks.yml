@@ -15,7 +15,7 @@ variables:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
-    - '([ $SCENARIO = "flask_simple" ] && BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || ([ $SCENARIO != "flask_simple" ] && ./steps/run-benchmarks.sh)'
+    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
     - ./steps/analyze-results.sh
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
@@ -103,10 +103,11 @@ appsec-iast-propagation:
   variables:
     SCENARIO: "appsec_iast_propagation"
 
-benchmark-encoder:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "encoder"
+# Flaky benchmark test. Timeout errors
+#benchmark-encoder:
+#  extends: .benchmarks
+#  variables:
+#    SCENARIO: "encoder"
 
 benchmark-http-propagation-extract:
   extends: .benchmarks

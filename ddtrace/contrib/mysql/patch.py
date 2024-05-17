@@ -4,7 +4,10 @@ import mysql.connector
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor import wrapt
 
 from ...ext import db
@@ -46,6 +49,9 @@ def patch():
     # `Connect` is an alias for `connect`, patch it too
     if hasattr(mysql.connector, "Connect"):
         mysql.connector.Connect = mysql.connector.connect
+
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def unpatch():
