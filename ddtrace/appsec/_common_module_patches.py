@@ -25,15 +25,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-
-    # due to incompatibilities with gevent, delay the patching if IAST is enabled
-    if asm_config._iast_enabled:
-        core.on(
-            "exploit.prevention.ssrf.patch.urllib",
-            lambda: try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF),
-        )
-    else:
-        try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
