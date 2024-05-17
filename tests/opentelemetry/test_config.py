@@ -35,7 +35,7 @@ import pytest
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Unsupported logs exporter detected.\n"
+    err=b"Unsupported logs exporter detected.\n",
 )
 def test_dd_otel_mixxed_env_configuration():
     from ddtrace import config
@@ -74,8 +74,7 @@ def test_dd_otel_mixxed_env_configuration():
         "OTEL_SDK_DISABLED": "False",
         "DD_TRACE_OTEL_ENABLED": "",
     },
-    err=b"Following style not supported by ddtrace: jaegar.\n"
-        b"Unsupported logs exporter detected.\n"
+    err=b"Following style not supported by ddtrace: jaegar.\n" b"Unsupported logs exporter detected.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -204,7 +203,8 @@ def test_otel_metrics_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_METRICS_EXPORTER": "true"},
-    err=b"An unrecognized runtime metrics exporter 'true' is being used; setting dd_runtime_metrics_enabled to false.\n",
+    err=b"An unrecognized runtime metrics exporter 'true' is being used;"
+    b" setting dd_runtime_metrics_enabled to false.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
