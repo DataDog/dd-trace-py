@@ -4,6 +4,7 @@ set -e
 
 URL="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/bridges"
 TRIGGER_JOBS=$(curl $URL --header "PRIVATE-TOKEN: $CI_JOB_TOKEN")
+echo $TRIGGER_JOBS
 
 for trigger_job in $(echo "${TRIGGER_JOBS}" | jq -r '.[] | @base64'); do
     trigger_job_name=$(echo "${trigger_job}" | base64 --decode | jq -r '.name')
