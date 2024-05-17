@@ -107,11 +107,11 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
 
 def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    patch_common_modules()
+    unpatch_common_modules()
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-        unpatch_common_modules()
+        patch_common_modules()
 
     _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
 
