@@ -159,12 +159,12 @@ class LLMObs(Service):
 
             if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
                 config._telemetry_enabled = False
-                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set.")
+                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 telemetry.telemetry_writer.disable()
 
             if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
                 config._remote_config_enabled = False
-                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set.")
+                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
 
         cls._patch_integrations(integrations)
