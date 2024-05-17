@@ -531,14 +531,12 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             # Remove the try blocks
             i = 0
-            last_begin = None
             while i < len(bc):
                 instr = bc[i]
                 if isinstance(instr, bytecode.TryBegin) and instr.target is except_label:
-                    last_begin = bc.pop(i)
-                elif isinstance(instr, bytecode.TryEnd) and last_begin is not None and instr.entry is last_begin:
                     bc.pop(i)
-                    last_begin = None
+                elif isinstance(instr, bytecode.TryEnd) and instr.entry.target is except_label:
+                    bc.pop(i)
                 else:
                     i += 1
 
