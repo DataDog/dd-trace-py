@@ -3,6 +3,7 @@
 set -e
 
 URL="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/bridges"
+echo $URL
 TRIGGER_JOBS=$(curl $URL)
 echo $TRIGGER_JOBS
 
