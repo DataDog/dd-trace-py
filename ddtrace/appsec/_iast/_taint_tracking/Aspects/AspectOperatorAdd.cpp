@@ -74,7 +74,6 @@ PyObject*
 api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        // TODO: any other more sane error handling?
         return nullptr;
     }
     PyObject* candidate_text = args[0];
@@ -102,6 +101,6 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (not tx_map or tx_map->empty()) {
         return result_o;
     }
-    auto res = add_aspect(result_o, candidate_text, text_to_add, ctx_map);
+    auto res = add_aspect(result_o, candidate_text, text_to_add, tx_map);
     return res;
 }

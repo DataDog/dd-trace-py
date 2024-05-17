@@ -1,5 +1,12 @@
 #include "AspectSlice.h"
 
+/**
+ * This function reduces the taint ranges from the given index range map.
+ *
+ * @param index_range_map The index range map from which the taint ranges are to be reduced.
+ *
+ * @return A map of taint ranges for the given index range map.
+ */
 TaintRangeRefs
 reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
 {
@@ -13,7 +20,7 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
         if (taint_range != current_range) {
             if (current_range) {
                 new_ranges.emplace_back(
-                  initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+                        initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
             }
             current_range = taint_range;
             current_start = index;
@@ -21,11 +28,19 @@ reduce_ranges_from_index_range_map(TaintRangeRefs index_range_map)
     }
     if (current_range != NULL) {
         new_ranges.emplace_back(
-          initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+                initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
     }
     return new_ranges;
 }
 
+/**
+ * This function builds a map of taint ranges for the given text object.
+ *
+ * @param text The text object for which the taint ranges are to be built.
+ * @param ranges The taint range map that stores taint information.
+ *
+ * @return A map of taint ranges for the given text object.
+ */
 TaintRangeRefs
 build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, PyObject* stop, PyObject* step)
 {
@@ -81,12 +96,20 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
 PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
-    auto ranges = get_ranges(candidate_text);
-    if (ranges.empty()) {
+    auto ctx_map = initializer->get_tainting_map();
+
+    if (not ctx_map or ctx_map->empty()) {
+        return result_o;
+    }
+    bool ranges_error;
+    TaintRangeRefs ranges;
+    std::tie(ranges, ranges_error) = get_ranges(candidate_text, ctx_map);
+    if (ranges_error or ranges.empty()) {
         return result_o;
     }
     set_ranges(result_o,
-               reduce_ranges_from_index_range_map(build_index_range_map(candidate_text, ranges, start, stop, step)));
+               reduce_ranges_from_index_range_map(build_index_range_map(candidate_text, ranges, start, stop, step)),
+               ctx_map);
     return result_o;
 }
 
