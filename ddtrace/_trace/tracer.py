@@ -259,6 +259,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
+                # report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
@@ -532,7 +533,10 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
-                headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (compute_stats_enabled or self._apm_opt_out)
+                else {},
+                # report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
         elif writer is None and isinstance(self._writer, LogWriter):
