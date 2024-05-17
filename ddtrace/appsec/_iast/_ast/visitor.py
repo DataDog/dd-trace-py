@@ -147,10 +147,7 @@ class AstVisitor(ast.NodeTransformer):
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
-            "functions": {
-                # FIXME: disabled to unblock release 2.9
-                # "open": "ddtrace_taint_sinks.open_path_traversal",
-            },
+            "functions": {},
         }
         self._sinkpoints_functions = self._sinkpoints_spec["functions"]
 
