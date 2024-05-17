@@ -175,9 +175,8 @@ def slice_aspect(candidate_text, start, stop, step) -> Any:
     return result
 
 
-def bytearray_extend_aspect(orig_function, flag_added_args, *args, **kwargs):
-    # type: (Optional[Callable], int, Any, Any) -> Any
-    if orig_function and not isinstance(orig_function, BuiltinFunctionType):
+def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> Any:
+    if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
         return orig_function(*args, **kwargs)
