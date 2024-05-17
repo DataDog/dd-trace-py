@@ -38,12 +38,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def _agent_check(self):
         # type: () -> None
-        print(agent.get_trace_url())
         try:
             info = agent.info()
         except Exception:
             info = None
-        print("info: ", info)
         if info:
             endpoints = info.get("endpoints", [])
             if endpoints and (
