@@ -25,7 +25,7 @@ import pytest
         "OTEL_TRACES_SAMPLER": "always_off",
         "DD_TRACE_SAMPLE_RATE": "1.0",
         "OTEL_TRACES_EXPORTER": "True",
-        "DD_TRACE_ENABLED:": "True",
+        "DD_TRACE_ENABLED": "True",
         "OTEL_METRICS_EXPORTER": "none",
         "DD_RUNTIME_METRICS_ENABLED": "True",
         "OTEL_LOGS_EXPORTER": "warning",
@@ -35,7 +35,7 @@ import pytest
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Unsupported logs exporter detected.\n",
+    err=b"Unsupported logs exporter detected.\n"
 )
 def test_dd_otel_mixxed_env_configuration():
     from ddtrace import config
@@ -44,7 +44,7 @@ def test_dd_otel_mixxed_env_configuration():
     assert config._debug_mode is False, config._debug_mode
     assert config._propagation_style_extract == ["b3"], config._propagation_style_extract
     assert config._trace_sample_rate == 1.0, config._trace_sample_rate
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
     assert config.tags == {
         "DD_ENV": "staging",
@@ -64,7 +64,7 @@ def test_dd_otel_mixxed_env_configuration():
         "OTEL_TRACES_SAMPLER": "always_off",
         "DD_TRACE_SAMPLE_RATE": "1.0",
         "OTEL_TRACES_EXPORTER": "True",
-        "DD_TRACE_ENABLED:": "True",
+        "DD_TRACE_ENABLED": "True",
         "OTEL_METRICS_EXPORTER": "none",
         "DD_RUNTIME_METRICS_ENABLED": "True",
         "OTEL_LOGS_EXPORTER": "warning",
@@ -74,7 +74,8 @@ def test_dd_otel_mixxed_env_configuration():
         "OTEL_SDK_DISABLED": "False",
         "DD_TRACE_OTEL_ENABLED": "",
     },
-    err=b"Unsupported logs exporter detected.\n",
+    err=b"Following style not supported by ddtrace: jaegar.\n"
+        b"Unsupported logs exporter detected.\n"
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -83,7 +84,7 @@ def test_dd_otel_missing_dd_env_configuration():
     assert config._debug_mode is False, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
     assert config._trace_sample_rate == 1.0, config._trace_sample_rate
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
     assert config.tags == {
         "DD_ENV": "prod",
@@ -139,7 +140,7 @@ def test_otel_propagation_style_configuration():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_PROPAGATORS": "jaegar, tracecontext, b3"}, err=b"Following style not supported by ddtrace: jaegar\n"
+    env={"OTEL_PROPAGATORS": "jaegar, tracecontext, b3"}, err=b"Following style not supported by ddtrace: jaegar.\n"
 )
 def test_otel_propagation_style_configuration_unsupportedwarning():
     from ddtrace import config
@@ -180,12 +181,12 @@ def test_otel_traces_sampler_configuration_traceidratio():
 def test_otel_traces_exporter_configuration():
     from ddtrace import config
 
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._tracing_enabled is True, config._tracing_enabled
 
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_EXPORTER": "true"},
-    err=b"An unrecognized exporter 'true' is being used; setting dd_trace_enabled to false.\n",
+    err=b"An unrecognized trace exporter 'true' is being used; setting dd_trace_enabled to false.\n",
 )
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -203,7 +204,7 @@ def test_otel_metrics_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_METRICS_EXPORTER": "true"},
-    err=b"An unrecognized exporter 'true' is being used; setting dd_runtime_metrics_enabled to false.\n",
+    err=b"An unrecognized runtime metrics exporter 'true' is being used; setting dd_runtime_metrics_enabled to false.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config

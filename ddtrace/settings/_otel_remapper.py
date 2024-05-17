@@ -17,6 +17,8 @@ ENV_VAR_MAPPINGS = {
     "OTEL_SDK_DISABLED": "DD_TRACE_OTEL_ENABLED",
 }
 
+
+
 OTEL_UNIFIED_TAG_MAPPINGS = {
     "deployment.environment": "DD_ENV",
     "service.name": "DD_SERVICE",
@@ -29,6 +31,9 @@ def otel_remapping():
     Datadog Environment variables take precedence over OTEL, but if there isn't a Datadog value present,
     then OTEL values take their place.
     """
+    def _remap_otel_service_name(otel_value):
+        new_value = otel_value
+        return new_value
 
     def _remap_otel_log_level(otel_value):
         if otel_value == "debug":
@@ -53,8 +58,9 @@ def otel_remapping():
                 if style not in accepted_styles:
                     accepted_styles.append(style)
             else:
-                log.warning("Following style not supported by ddtrace: %s", style)
+                log.warning("Following style not supported by ddtrace: %s.", style)
         new_value = ",".join(accepted_styles)
+        log.info("Setting the following propagation styles from OTEL: %s.", accepted_styles)
         return new_value
 
     def _remap_traces_sampler(otel_value):
@@ -68,14 +74,16 @@ def otel_remapping():
 
     def _remap_traces_exporter(otel_value):
         if otel_value != "none":
-            log.warning("An unrecognized exporter '%s' is being used; setting dd_trace_enabled to false.", otel_value)
-        new_value = "False"
+            log.warning("An unrecognized trace exporter '%s' is being used; setting dd_trace_enabled to false.", otel_value)
+            new_value = "False"
+        else:
+            new_value = "True"
         return new_value
 
     def _remap_metrics_exporter(otel_value):
         if otel_value != "none":
             log.warning(
-                "An unrecognized exporter '%s' is being used; setting dd_runtime_metrics_enabled to false.", otel_value
+                "An unrecognized runtime metrics exporter '%s' is being used; setting dd_runtime_metrics_enabled to false.", otel_value
             )
         new_value = "False"
         return new_value
@@ -126,32 +134,24 @@ def otel_remapping():
             log.warning("Unexpected value for OTEL_SDK_DISABLED.")
             return otel_value
         return new_value
+    
+    ENV_VAR_FUNCTION_MAPPINGS = {
+        "OTEL_SERVICE_NAME": _remap_otel_service_name,
+        "OTEL_LOG_LEVEL": _remap_otel_log_level,
+        "OTEL_PROPAGATORS": _remap_otel_propagators,
+        "OTEL_TRACES_SAMPLER": _remap_traces_sampler,
+        "OTEL_TRACES_EXPORTER": _remap_traces_exporter,
+        "OTEL_METRICS_EXPORTER": _remap_metrics_exporter,
+        "OTEL_LOGS_EXPORTER": _remap_logs_exporter,
+        "OTEL_RESOURCE_ATTRIBUTES": _remap_otel_tags,
+        "OTEL_SDK_DISABLED": _remap_otel_sdk_config,
+    }
 
     def _remapper(otel_env, otel_value):
-        if otel_env == "OTEL_LOG_LEVEL":
-            new_dd_value = _remap_otel_log_level(otel_value)
-        elif otel_env == "OTEL_PROPAGATORS":
-            new_dd_value = _remap_otel_propagators(otel_value)
-        elif otel_env == "OTEL_TRACES_SAMPLER":
-            new_dd_value = _remap_traces_sampler(otel_value)
-        elif otel_env == "OTEL_TRACES_EXPORTER":
-            new_dd_value = _remap_traces_exporter(otel_value)
-        elif otel_env == "OTEL_METRICS_EXPORTER":
-            new_dd_value = _remap_metrics_exporter(otel_value)
-        elif otel_env == "OTEL_LOGS_EXPORTER":
-            new_dd_value = _remap_logs_exporter(otel_value)
-        elif otel_env == "OTEL_RESOURCE_ATTRIBUTES":
-            new_dd_value = _remap_otel_tags(otel_value)
-        elif otel_env == "OTEL_SDK_DISABLED":
-            new_dd_value = _remap_otel_sdk_config(otel_value)
-        else:
-            new_dd_value = otel_value
+        new_dd_value = ENV_VAR_FUNCTION_MAPPINGS[otel_env](otel_value)
         return new_dd_value
 
-    def _set_otel_env(otel_env, dd_env, otel_config_remapper):
-        otel_value = os.environ.get(otel_env, "").strip()
-        dd_value = os.environ.get(dd_env, "").strip()
-        if dd_value == "":
+    def _set_otel_env(otel_env, otel_value, dd_env, dd_value, otel_config_remapper):
             if otel_env not in ["OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"]:
                 otel_value = otel_value.lower()
                 dd_value = dd_value.lower()
@@ -161,6 +161,10 @@ def otel_remapping():
 
     user_envs = [key.upper() for key in os.environ.keys()]
 
-    for env in ENV_VAR_MAPPINGS.keys():
-        if env in user_envs:
-            _set_otel_env(env, ENV_VAR_MAPPINGS[env], _remapper)
+    for otel_env, dd_env in ENV_VAR_MAPPINGS.items():
+        otel_value = os.environ.get(otel_env, "").strip()
+        dd_value = os.environ.get(dd_env, "").strip()
+        if otel_env in user_envs and dd_value == "":
+            _set_otel_env(otel_env, otel_value, dd_env, dd_value, _remapper)
+        elif otel_env in user_envs:
+            log.debug(" OTel configurations will be ignored: %s = %s, %s = %s", otel_env, otel_value, dd_env, dd_value)
