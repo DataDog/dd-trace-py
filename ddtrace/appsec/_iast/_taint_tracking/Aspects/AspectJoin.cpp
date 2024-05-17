@@ -61,8 +61,7 @@ PyObject*
 aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
-    // FIXME: bug. if the argument is a string instead of a tuple, it will enter
-    // into an infinite loop
+
     size_t len_iterable{ 0 };
     auto GetElement = PyList_GetItem;
     if (PyList_Check(iterable_elements)) {
@@ -142,7 +141,6 @@ PyObject*
 api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        // TODO: any other more sane error handling?
         return nullptr;
     }
 
@@ -185,11 +183,6 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         if (decref_arg0) {
             Py_DecRef(arg0);
         }
-        return result;
-    }
-
-    auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
         return result;
     }
     auto res = aspect_join(sep, result, arg0, ctx_map);
