@@ -42,6 +42,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             info = agent.info()
         except Exception:
             info = None
+
         if info:
             endpoints = info.get("endpoints", [])
             if endpoints and (
