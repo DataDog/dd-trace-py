@@ -228,6 +228,20 @@ def view_insecure_cookies_empty(request):
     return res
 
 
+def view_insecure_cookies_two_insecure_one_secure(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure1", "cookie1", secure=False, httponly=True, samesite="Strict")
+    res.set_cookie("insecure2", "cookie2", secure=True, httponly=False, samesite="Strict")
+    res.set_cookie("secure3", "cookie3", secure=True, httponly=True, samesite="Strict")
+    return res
+
+
+def view_insecure_cookies_insecure_special_chars(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure", "cookie?()43jfM;;;===value", secure=False, httponly=True, samesite="Strict")
+    return res
+
+
 def command_injection(request):
     value = decode_aspect(bytes.decode, 1, request.body)
     # label iast_command_injection
@@ -270,9 +284,11 @@ urlpatterns = [
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
     handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
     handler("sqli_http_request_body/$", sqli_http_request_body, name="sqli_http_request_body"),
-    handler("insecure-cookie/test_insecure", view_insecure_cookies_insecure),
-    handler("insecure-cookie/test_secure", view_insecure_cookies_secure),
-    handler("insecure-cookie/test_empty_cookie", view_insecure_cookies_empty),
+    handler("insecure-cookie/test_insecure_2_1/$", view_insecure_cookies_two_insecure_one_secure),
+    handler("insecure-cookie/test_insecure_special/$", view_insecure_cookies_insecure_special_chars),
+    handler("insecure-cookie/test_insecure/$", view_insecure_cookies_insecure),
+    handler("insecure-cookie/test_secure/$", view_insecure_cookies_secure),
+    handler("insecure-cookie/test_empty_cookie/$", view_insecure_cookies_empty),
     path(
         "sqli_http_path_parameter/<str:q_http_path_parameter>/",
         sqli_http_path_parameter,
