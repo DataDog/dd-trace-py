@@ -17,7 +17,9 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
@@ -36,11 +38,36 @@ def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
 
 
 @attr.s
-class SpanOriginProbe(LogLineProbe):
-    __span_class__: t.Optional[str] = None
+class EntrySpanProbe(LogFunctionProbe):
+    __span_class__ = "entry"
 
     @classmethod
-    def build(cls, name: str, filename: str, line: int) -> "SpanOriginProbe":
+    def build(cls, name: str, module: str, function: str) -> "EntrySpanProbe":
+        message = f"{cls.__span_class__} span info for {name}, in {module}, in function {function}"
+
+        return cls(
+            probe_id=str(uuid.uuid4()),
+            version=0,
+            tags={},
+            module=module,
+            func_qname=function,
+            evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+            template=message,
+            segments=[LiteralTemplateSegment(message)],
+            take_snapshot=True,
+            limits=DEFAULT_CAPTURE_LIMITS,
+            condition=None,
+            condition_error_rate=0.0,
+            rate=float("inf"),
+        )
+
+
+@attr.s
+class ExitSpanProbe(LogLineProbe):
+    __span_class__ = "exit"
+
+    @classmethod
+    def build(cls, name: str, filename: str, line: int) -> "ExitSpanProbe":
         message = f"{cls.__span_class__} span info for {name}, in {filename}, at {line}"
 
         return cls(
@@ -57,16 +84,6 @@ class SpanOriginProbe(LogLineProbe):
             condition_error_rate=0.0,
             rate=float("inf"),
         )
-
-
-@attr.s
-class EntrySpanProbe(SpanOriginProbe):
-    __span_class__ = "entry"
-
-
-@attr.s
-class ExitSpanProbe(SpanOriginProbe):
-    __span_class__ = "exit"
 
     @classmethod
     def from_frame(cls, frame: FrameType) -> "ExitSpanProbe":
@@ -113,7 +130,7 @@ def add_entry_location_info(location: EntrySpanLocation) -> None:
         )
 
         # Capture on entry
-        snapshot.line()
+        snapshot.enter()
 
         # Collect
         Debugger.get_collector().push(snapshot)
@@ -182,6 +199,7 @@ class SpanOriginProcessor(SpanProcessor):
             start_line = min(lines)
             filename = str(Path(f.__code__.co_filename).resolve())
             name = f.__qualname__
+            module = f.__module__
             inject_hook(
                 t.cast(FunctionType, f),
                 add_entry_location_info,
@@ -191,8 +209,8 @@ class SpanOriginProcessor(SpanProcessor):
                     start_line=start_line,
                     end_line=max(lines),
                     file=filename,
-                    module=f.__module__,
-                    probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, filename=filename, line=start_line)),
+                    module=module,
+                    probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
                 ),
             )
 
