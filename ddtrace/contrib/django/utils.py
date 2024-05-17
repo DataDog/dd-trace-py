@@ -374,7 +374,23 @@ def _after_request_tags(pin, span: Span, request, response):
             response_cookies = {}
             if response.cookies:
                 for k, v in response.cookies.items():
-                    response_cookies[k] = v.OutputString()
+                    # `v` is a http.cookies.Morsel class instance:
+                    # 'cookie_key=cookie_value; HttpOnly; Path=/; SameSite=Strict'
+                    # try:
+                    i = 0
+                    result = ""
+                    for element in v.OutputString().split(";"):
+                        if i == 0:
+                            # split cookie_key="cookie_value"
+                            key, value = element.split("=")
+                            # Remove quotes "cookie_value"
+                            result = value[1:-1] if value.startswith('"') and value[-1] == '"' else value
+                        else:
+                            result += "; " + element
+                        i += 1
+                    response_cookies[k] = result
+                    # except Exception:
+                    #     response_cookies[k] = v.OutputString()
 
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
