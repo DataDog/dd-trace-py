@@ -246,7 +246,7 @@ def test_otel_resource_attributes_unified_tags():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4"
     }
 )
-def test_otel_resource_attributes_mixxed_tags():
+def test_otel_resource_attributes_mixed_tags():
     from ddtrace import config
 
     assert config.tags == {
