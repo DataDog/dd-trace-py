@@ -1,5 +1,6 @@
 import binascii
 import dataclasses
+from datetime import datetime
 import io
 import json
 import logging
@@ -48,13 +49,14 @@ class Flare:
         flare_dir: str = TRACER_FLARE_DIRECTORY,
     ):
         self.original_log_level: int = logging.NOTSET
+        self.flare_log_level: int = logging.NOTSET
         self.timeout: int = timeout_sec
         self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
         self.file_handler: Optional[RotatingFileHandler] = None
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
 
-    def prepare(self, config: dict, log_level: str):
+    def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -68,6 +70,7 @@ class Flare:
         flare_log_level_int = logging.getLevelName(log_level)
         if type(flare_log_level_int) != int:
             raise TypeError("Invalid log level provided: %s", log_level)
+        self.flare_log_level = flare_log_level_int
 
         ddlogger = get_logger("ddtrace")
         pid = os.getpid()
@@ -88,7 +91,7 @@ class Flare:
         )
 
         # Create and add config file
-        self._generate_config_file(config, pid)
+        self._generate_config_file(pid)
 
     def send(self, flare_send_req: FlareSendRequest):
         """
@@ -128,17 +131,20 @@ class Flare:
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
 
-    def _generate_config_file(self, config: dict, pid: int):
-        config_file = self.flare_dir / f"tracer_config_{pid}.json"
+    def _generate_config_file(self, pid: int):
+        from ddtrace import config
+
+        ddconfig = config.__dict__
+        config_file = self.flare_dir / f"tracer_python_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
                 # Redact API key if present
-                api_key = config.get("_dd_api_key")
+                api_key = ddconfig.get("_dd_api_key")
                 if api_key:
-                    config["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+                    ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
 
                 tracer_configs = {
-                    "configs": config,
+                    "configs": ddconfig,
                 }
                 json.dump(
                     tracer_configs,
@@ -178,8 +184,14 @@ class Flare:
             body.write(b'Content-Disposition: form-data; name="%s"%s%s' % (encoded_key, newline, newline))
             body.write(b"%s%s" % (encoded_value, newline))
 
+        case_id = params.get("case_id")
+        timestamp = datetime.now()
+        flare_file = f"tracer_python_{case_id}_{timestamp}_{logging.getLevelName(self.flare_log_level)}.tar"
+
         body.write(b"--" + boundary + newline)
-        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"%s' % newline))
+        body.write(
+            (b'Content-Disposition: form-data; name="flare_file"; filename="%s"%s' % (flare_file.encode(), newline))
+        )
         body.write(b"Content-Type: application/octet-stream%s%s" % (newline, newline))
         body.write(tar_stream.getvalue() + newline)
         body.write(b"--" + boundary + b"--")
