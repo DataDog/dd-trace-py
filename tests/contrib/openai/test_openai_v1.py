@@ -1192,7 +1192,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
-            resp = client.completions.create(model="ada", prompt="Hello world", stream=True)
+            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
             assert isinstance(resp, Generator)
             chunks = [c for c in resp]
 
@@ -1278,6 +1278,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 ],
                 stream=True,
                 user="ddtrace-test",
+                n=None,
             )
             assert isinstance(resp, Generator)
             prompt_tokens = 8
