@@ -292,6 +292,9 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
+    # Also collect the native threads, that are not registered with the built-in
+    # threading module, to keep backward compatibility with the previous
+    # pure-Python implementation of periodic threads.
     thread_id_ignore_list = {
         thread_id
         for thread_id, thread in chain(periodic_threads.items(), ddtrace_threading._active.items())
