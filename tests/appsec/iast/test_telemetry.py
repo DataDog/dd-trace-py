@@ -1,6 +1,8 @@
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._common_module_patches import patch_common_modules
+from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import TELEMETRY_DEBUG_VERBOSITY
@@ -19,8 +21,6 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
-from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
-from ddtrace.appsec._iast.taint_sinks.path_traversal import unpatch_iast as path_traversal_unpatch
 from ddtrace.contrib.sqlalchemy import patch as sqli_sqlalchemy_patch
 from ddtrace.contrib.sqlite3 import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
@@ -107,11 +107,11 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
 
 def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    path_traversal_unpatch()
+    unpatch_common_modules()
     with override_env(dict(DD_IAST_TELEMETRY_VERBOSITY="INFORMATION")), override_global_config(
         dict(_iast_enabled=True)
     ):
-        path_traversal_patch()
+        patch_common_modules()
 
     _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
 
