@@ -690,6 +690,22 @@ def test_wrapping_context_recursive():
     assert values == [5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5]
 
 
+def test_wrapping_context_generator():
+    def foo():
+        yield from range(10)
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    assert list(foo()) == list(range(10))
+
+    assert wc.entered
+    assert wc.return_value == 42
+    assert not wc.exited
+    assert wc.exc_info is None
+
+
 @pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
