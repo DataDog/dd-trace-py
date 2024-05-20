@@ -1,7 +1,7 @@
 #include "TaintedOps/TaintedOps.h"
 
 PyObject*
-api_new_pyobject_id(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_new_pyobject_id(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 1 or !args) {
         throw py::value_error(MSG_ERROR_N_PARAMS);

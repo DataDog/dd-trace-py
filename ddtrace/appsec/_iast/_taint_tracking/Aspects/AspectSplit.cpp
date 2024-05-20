@@ -5,16 +5,15 @@ template<class StrType>
 py::list
 api_split_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit)
 {
-    auto split = text.attr("split");
-    auto split_result = split(separator, maxsplit);
+    const auto split = text.attr("split");
+    const auto split_result = split(separator, maxsplit);
 
     const auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
 
-    auto ranges = api_get_ranges(text);
-    if (not ranges.empty()) {
+    if (auto ranges = api_get_ranges(text); not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
     }
 
@@ -25,15 +24,14 @@ template<class StrType>
 py::list
 api_rsplit_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit)
 {
-    auto rsplit = text.attr("rsplit");
-    auto split_result = rsplit(separator, maxsplit);
+    const auto rsplit = text.attr("rsplit");
+    const auto split_result = rsplit(separator, maxsplit);
     const auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
 
-    auto ranges = api_get_ranges(text);
-    if (not ranges.empty()) {
+    if (auto ranges = api_get_ranges(text); not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, false);
     }
     return split_result;
@@ -43,15 +41,14 @@ template<class StrType>
 py::list
 api_splitlines_text(const StrType& text, bool keepends)
 {
-    auto splitlines = text.attr("splitlines");
-    auto split_result = splitlines(keepends);
+    const auto splitlines = text.attr("splitlines");
+    const auto split_result = splitlines(keepends);
     const auto tx_map = initializer->get_tainting_map();
     if (not tx_map or tx_map->empty()) {
         return split_result;
     }
 
-    auto ranges = api_get_ranges(text);
-    if (not ranges.empty()) {
+    if (auto ranges = api_get_ranges(text); not ranges.empty()) {
         set_ranges_on_splitted(text, ranges, split_result, tx_map, keepends);
     }
     return split_result;
