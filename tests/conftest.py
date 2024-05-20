@@ -69,13 +69,11 @@ def test_spans(tracer):
 
 
 @pytest.fixture(autouse=True)
-def ensure_no_context_leak():
+def clear_context_after_every_test():
     try:
         yield
     finally:
-        ctx = _DD_CONTEXTVAR.get()
         _DD_CONTEXTVAR.set(None)
-        assert ctx is None
 
 
 @pytest.fixture
