@@ -6,7 +6,7 @@
 static bool
 starts_with_separator(const py::handle& arg, const std::string& separator)
 {
-    std::string carg = py::cast<std::string>(arg);
+    const auto carg = py::cast<std::string>(arg);
     return carg.substr(0, 1) == separator;
 }
 
@@ -14,7 +14,7 @@ template<class StrType>
 StrType
 api_ospathjoin_aspect(StrType& first_part, const py::args& args)
 {
-    auto ospath = py::module_::import("os.path");
+    const auto ospath = py::module_::import("os.path");
     auto join = ospath.attr("join");
     auto joined = join(first_part, *args);
 
@@ -23,8 +23,8 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         return joined;
     }
 
-    std::string separator = ospath.attr("sep").cast<std::string>();
-    auto sepsize = separator.size();
+    const auto separator = ospath.attr("sep").cast<std::string>();
+    const auto sepsize = separator.size();
 
     // Find the initial iteration point. This will be the first argument that has the separator ("/foo")
     // as a first character or first_part (the first element) if no such argument is found.
@@ -53,9 +53,7 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     if (not root_is_after_first) {
         // Get the ranges of first_part and set them to the result, skipping the first character position
         // if it's a separator
-        bool ranges_error;
-        TaintRangeRefs ranges;
-        std::tie(ranges, ranges_error) = get_ranges(first_part.ptr(), tx_map);
+        auto [ranges, ranges_error] = get_ranges(first_part.ptr(), tx_map);
         if (not ranges_error and not ranges.empty()) {
             for (auto& range : ranges) {
                 result_ranges.emplace_back(shift_taint_range(range, current_offset, first_part_len));
@@ -70,17 +68,15 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         initial_arg_pos = 0;
     }
 
-    unsigned long unsigned_initial_arg_pos = max(0, initial_arg_pos);
+    const unsigned long unsigned_initial_arg_pos = max(0, initial_arg_pos);
 
     // Now go trough the arguments and do the same
     for (unsigned long i = 0; i < args.size(); i++) {
         if (i >= unsigned_initial_arg_pos) {
             // Set the ranges from the corresponding argument
-            bool ranges_error;
-            TaintRangeRefs ranges;
-            std::tie(ranges, ranges_error) = get_ranges(args[i].ptr(), tx_map);
-            if (not ranges_error and not ranges.empty()) {
-                auto len_args_i = py::len(args[i]);
+            if (auto [ranges, ranges_error] = get_ranges(args[i].ptr(), tx_map);
+                not ranges_error and not ranges.empty()) {
+                const auto len_args_i = py::len(args[i]);
                 for (auto& range : ranges) {
                     result_ranges.emplace_back(shift_taint_range(range, current_offset, len_args_i));
                 }
@@ -103,7 +99,7 @@ template<class StrType>
 StrType
 api_ospathbasename_aspect(const StrType& path)
 {
-    auto ospath = py::module_::import("os.path");
+    const auto ospath = py::module_::import("os.path");
     auto basename = ospath.attr("basename");
     auto basename_result = basename(path);
 
@@ -112,9 +108,7 @@ api_ospathbasename_aspect(const StrType& path)
         return basename_result;
     }
 
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    auto [ranges, ranges_error] = get_ranges(path.ptr(), tx_map);
     if (ranges_error or ranges.empty()) {
         return basename_result;
     }
@@ -136,7 +130,7 @@ template<class StrType>
 StrType
 api_ospathdirname_aspect(const StrType& path)
 {
-    auto ospath = py::module_::import("os.path");
+    const auto ospath = py::module_::import("os.path");
     auto dirname = ospath.attr("dirname");
     auto dirname_result = dirname(path);
 
@@ -145,9 +139,7 @@ api_ospathdirname_aspect(const StrType& path)
         return dirname_result;
     }
 
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    auto [ranges, ranges_error] = get_ranges(path.ptr(), tx_map);
     if (ranges_error or ranges.empty()) {
         return dirname_result;
     }
@@ -167,9 +159,9 @@ api_ospathdirname_aspect(const StrType& path)
 
 template<class StrType>
 static py::tuple
-_forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
+forward_to_set_ranges_on_splitted(const char* function_name, const StrType& path, bool includeseparator = false)
 {
-    auto ospath = py::module_::import("os.path");
+    const auto ospath = py::module_::import("os.path");
     auto function = ospath.attr(function_name);
     auto function_result = function(path);
 
@@ -178,9 +170,7 @@ _forward_to_set_ranges_on_splitted(const char* function_name, const StrType& pat
         return function_result;
     }
 
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    auto [ranges, ranges_error] = get_ranges(path.ptr(), tx_map);
     if (ranges_error or ranges.empty()) {
         return function_result;
     }
@@ -193,35 +183,35 @@ template<class StrType>
 py::tuple
 api_ospathsplit_aspect(const StrType& path)
 {
-    return _forward_to_set_ranges_on_splitted("split", path);
+    return forward_to_set_ranges_on_splitted("split", path);
 }
 
 template<class StrType>
 py::tuple
 api_ospathsplitext_aspect(const StrType& path)
 {
-    return _forward_to_set_ranges_on_splitted("splitext", path, true);
+    return forward_to_set_ranges_on_splitted("splitext", path, true);
 }
 
 template<class StrType>
 py::tuple
 api_ospathsplitdrive_aspect(const StrType& path)
 {
-    return _forward_to_set_ranges_on_splitted("splitdrive", path, true);
+    return forward_to_set_ranges_on_splitted("splitdrive", path, true);
 }
 
 template<class StrType>
 py::tuple
 api_ospathsplitroot_aspect(const StrType& path)
 {
-    return _forward_to_set_ranges_on_splitted("splitroot", path, true);
+    return forward_to_set_ranges_on_splitted("splitroot", path, true);
 }
 
 template<class StrType>
 StrType
 api_ospathnormcase_aspect(const StrType& path)
 {
-    auto ospath = py::module_::import("os.path");
+    const auto ospath = py::module_::import("os.path");
     auto normcase = ospath.attr("normcase");
     auto normcased = normcase(path);
 
@@ -230,16 +220,13 @@ api_ospathnormcase_aspect(const StrType& path)
         return normcased;
     }
 
-    bool ranges_error;
-    TaintRangeRefs ranges;
-    std::tie(ranges, ranges_error) = get_ranges(path.ptr(), tx_map);
+    auto [ranges, ranges_error] = get_ranges(path.ptr(), tx_map);
     if (ranges_error or ranges.empty()) {
         return normcased;
     }
 
-    TaintRangeRefs result_ranges = ranges;
-    PyObject* new_result = new_pyobject_id(normcased.ptr());
-    if (new_result) {
+    const TaintRangeRefs result_ranges = ranges;
+    if (PyObject* new_result = new_pyobject_id(normcased.ptr())) {
         set_ranges(new_result, result_ranges, tx_map);
         return py::reinterpret_steal<StrType>(new_result);
     }
