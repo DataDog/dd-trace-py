@@ -4,12 +4,12 @@ limit. It will measure operations being executed in a request and it will deacti
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
 import os
-import threading
 from typing import Set
 from typing import Text
 from typing import Tuple
 from typing import Type
 
+from ddtrace import _threading as threading
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
