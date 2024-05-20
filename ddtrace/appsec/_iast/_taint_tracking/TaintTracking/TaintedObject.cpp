@@ -74,12 +74,12 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
                                   const RANGE_LENGTH max_length,
                                   const RANGE_START orig_offset)
 {
-    if (const auto to_add = static_cast<long>(min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size())); !ranges.empty() and to_add > 0) {
+    if (const auto to_add = static_cast<long>(min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size()));
+        !ranges.empty() and to_add > 0) {
         ranges_.reserve(ranges_.size() + to_add);
         if (offset == 0 and max_length == -1) {
             ranges_.insert(ranges_.end(), ranges.begin(), ranges.end());
-        } else
-        {
+        } else {
             int i = 0;
             for (const auto& trange : ranges) {
                 if (max_length != -1 and orig_offset != -1) {

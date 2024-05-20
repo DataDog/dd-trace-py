@@ -40,15 +40,17 @@ TaintRange::get_hash() const
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
 {
-    const auto new_length_to_use = new_length == -1? source_taint_range->length : new_length;
+    const auto new_length_to_use = new_length == -1 ? source_taint_range->length : new_length;
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
-                                                  new_length_to_use,                         // length
+                                                  new_length_to_use,                  // length
                                                   source_taint_range->source);        // origin
     return tptr;
 }
 
 TaintRangeRefs
-shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
+shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
+                   const RANGE_START offset,
+                   const RANGE_LENGTH new_length = -1)
 {
     TaintRangeRefs new_ranges;
     new_ranges.reserve(source_taint_ranges.size());
@@ -60,7 +62,9 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, const RANGE_START 
 }
 
 TaintRangeRefs
-api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
+api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
+                       const RANGE_START offset,
+                       const RANGE_LENGTH new_length = -1)
 {
     return shift_taint_ranges(source_taint_ranges, offset);
 }
@@ -270,7 +274,10 @@ api_copy_ranges_from_strings(py::object& str_1, py::object& str_2)
 }
 
 inline void
-api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, const int offset, const int new_length = -1)
+api_copy_and_shift_ranges_from_strings(py::object& str_1,
+                                       py::object& str_2,
+                                       const int offset,
+                                       const int new_length = -1)
 {
     const auto tx_map = initializer->get_tainting_map();
     if (not tx_map) {
@@ -282,7 +289,8 @@ api_copy_and_shift_ranges_from_strings(py::object& str_1, py::object& str_2, con
         py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
         return;
     }
-    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map); not result) {
+    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
+        not result) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }

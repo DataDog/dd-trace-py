@@ -10,13 +10,15 @@ Source::Source(string name, string value, OriginType origin)
   : name(std::move(name))
   , value(std::move(value))
   , origin(origin)
-{}
+{
+}
 
 Source::Source(int name, string value, const OriginType origin)
   : name(origin_to_str(OriginType{ name }))
   , value(std::move(value))
   , origin(origin)
-{}
+{
+}
 
 string
 Source::toString() const
@@ -73,7 +75,9 @@ pyexport_source(py::module& m)
       .def_readonly("value", &Source::value)
       .def("to_string", &Source::toString)
       .def("__hash__",
-           [](const Source& self) { return hash<string>{}(self.name + self.value) * (33 + static_cast<int>(self.origin)); })
+           [](const Source& self) {
+               return hash<string>{}(self.name + self.value) * (33 + static_cast<int>(self.origin));
+           })
       .def("__str__", &Source::toString)
       .def("__repr__", &Source::toString)
       .def("__eq__", [](const Source* self, const Source* other) {

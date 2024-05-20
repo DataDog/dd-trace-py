@@ -74,7 +74,8 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
     for (unsigned long i = 0; i < args.size(); i++) {
         if (i >= unsigned_initial_arg_pos) {
             // Set the ranges from the corresponding argument
-            if (auto [ranges, ranges_error] = get_ranges(args[i].ptr(), tx_map); not ranges_error and not ranges.empty()) {
+            if (auto [ranges, ranges_error] = get_ranges(args[i].ptr(), tx_map);
+                not ranges_error and not ranges.empty()) {
                 const auto len_args_i = py::len(args[i]);
                 for (auto& range : ranges) {
                     result_ranges.emplace_back(shift_taint_range(range, current_offset, len_args_i));

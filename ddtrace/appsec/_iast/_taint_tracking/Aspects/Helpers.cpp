@@ -112,9 +112,9 @@ int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingM
 template<class StrType>
 StrType
 as_formatted_evidence(StrType& text,
-                    TaintRangeRefs& text_ranges,
-                    const optional<TagMappingMode>& tag_mapping_mode,
-                    const optional<const py::dict>& new_ranges)
+                      TaintRangeRefs& text_ranges,
+                      const optional<TagMappingMode>& tag_mapping_mode,
+                      const optional<const py::dict>& new_ranges)
 {
     if (text_ranges.empty()) {
         return text;
@@ -159,9 +159,9 @@ as_formatted_evidence(StrType& text,
 template<class StrType>
 StrType
 api_as_formatted_evidence(StrType& text,
-                       optional<TaintRangeRefs>& text_ranges,
-                       const optional<TagMappingMode>& tag_mapping_mode,
-                       const optional<const py::dict>& new_ranges)
+                          optional<TaintRangeRefs>& text_ranges,
+                          const optional<TagMappingMode>& tag_mapping_mode,
+                          const optional<const py::dict>& new_ranges)
 {
     TaintRangeRefs _ranges;
     if (!text_ranges) {
@@ -261,7 +261,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRange
         }
         if (element.rfind(startswith_element, 0) == 0) {
             id_evidence = element.substr(4, element.length() - 5);
-            if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig); range_by_id == nullptr) {
+            if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
+                range_by_id == nullptr) {
                 result += element;
                 length = py::len(StrType(element));
                 end += length;
@@ -289,10 +290,11 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, TaintRange
             }
             id_evidence = element.substr(4, element.length() - 5);
             start = end;
-            context_stack.emplace_back( id_evidence, start );
+            context_stack.emplace_back(id_evidence, start);
         } else {
             id_evidence = element.substr(1, element.length() - 5);
-            if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig); range_by_id == nullptr) {
+            if (auto range_by_id = get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
+                range_by_id == nullptr) {
                 result += element;
                 length = py::len(StrType(element));
                 end += length;
@@ -371,7 +373,8 @@ set_ranges_on_splitted(const StrType& source_str,
             if (const auto range_end_abs = range->start + range->length; range->start < end && range_end_abs > start) {
                 // Create a new range with the updated start
                 const auto new_range_start = std::max(range->start - offset, 0L);
-                const auto new_range_length = std::min(end - start, (range->length - std::max(0L, offset - range->start)));
+                const auto new_range_length =
+                  std::min(end - start, (range->length - std::max(0L, offset - range->start)));
                 item_ranges.emplace_back(
                   initializer->allocate_taint_range(new_range_start, new_range_length, range->source));
             }

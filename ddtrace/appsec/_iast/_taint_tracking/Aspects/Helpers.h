@@ -29,16 +29,16 @@ int_as_formatted_evidence(StrType& text, TaintRangeRefs text_ranges, TagMappingM
 template<class StrType>
 StrType
 as_formatted_evidence(StrType& text,
-                    TaintRangeRefs& text_ranges,
-                    const optional<TagMappingMode>& tag_mapping_mode,
-                    const optional<const py::dict>& new_ranges);
+                      TaintRangeRefs& text_ranges,
+                      const optional<TagMappingMode>& tag_mapping_mode,
+                      const optional<const py::dict>& new_ranges);
 
 template<class StrType>
 StrType
 api_as_formatted_evidence(StrType& text,
-                       optional<TaintRangeRefs>& text_ranges,
-                       const optional<TagMappingMode>& tag_mapping_mode,
-                       const optional<const py::dict>& new_ranges);
+                          optional<TaintRangeRefs>& text_ranges,
+                          const optional<TagMappingMode>& tag_mapping_mode,
+                          const optional<const py::dict>& new_ranges);
 
 py::bytearray
 api_convert_escaped_text_to_taint_text_ba(const py::bytearray& taint_escaped_text, TaintRangeRefs ranges_orig);

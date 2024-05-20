@@ -88,8 +88,7 @@ Initializer::debug_taint_map()
     output << "[";
     for (const auto& [fst, snd] : *ctx_map) {
         output << "{ 'Id-Key': " << fst << ",";
-        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString()
-               << "'}},";
+        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString() << "'}},";
     }
     output << "]";
     return output.str();
