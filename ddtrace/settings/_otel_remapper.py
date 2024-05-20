@@ -69,7 +69,7 @@ def _remap_metrics_exporter(otel_value):
     if otel_value != "none":
         log.warning(
             "An unrecognized runtime metrics exporter '%s' is being "
-            "used; setting DD_RUNTIME_METRICS_ENABLED to false.",
+            "used; setting DD_RUNTIME_METRICS_ENABLED to False.",
             otel_value,
         )
     new_value = "False"
@@ -79,14 +79,17 @@ def _remap_metrics_exporter(otel_value):
 def _remap_logs_exporter(otel_value):
     """Remaps the otel logs exporter to ddtrace logs exporter"""
     if otel_value != "none":
-        log.warning("Unsupported logs exporter detected.")
+        log.warning(
+            "Unsupported OTEL logs exporter value detected: %s. Only the 'none' value is supported.", otel_value
+        )
         return ""
-    return otel_value
+    return ""
 
 
 def _remap_otel_tags(otel_value):
     """Remaps the otel tags to ddtrace tags"""
     dd_tags = []
+    remaining_tags = []
     otel_tags = otel_value.split(",")
     otel_user_tag_dict = dict()
 
@@ -99,18 +102,18 @@ def _remap_otel_tags(otel_value):
             dd_tags.append("{}:{}".format(dd_key, otel_user_tag_dict[otel_key]))
 
     for key, value in otel_user_tag_dict.items():
-        if len(dd_tags) < 11 and key not in [
-            "deployment.environment",
-            "service.name",
-            "service.version",
-        ]:
-            dd_tags.append("{}:{}".format(key, value))
+        if key.lower() not in OTEL_UNIFIED_TAG_MAPPINGS.keys():
+            if len(dd_tags) < 10:
+                dd_tags.append("{}:{}".format(key, value))
+            else:
+                remaining_tags.append("{}:{}".format(key, value))
 
     if len(otel_user_tag_dict.items()) > 10:
-        ten_tags = dd_tags[:10]
         log.warning(
-            "To preserve metrics cardinality, only the following first 10 tags have been processed %s",
-            ten_tags,
+            "To preserve metrics cardinality, only the following first 10 tags have been processed %s. "
+            "The following tags were not ingested: %s",
+            dd_tags,
+            remaining_tags,
         )
     new_value = ",".join(dd_tags)
     return new_value
@@ -123,7 +126,7 @@ def _remap_otel_sdk_config(otel_value):
     elif otel_value == "true":
         new_value = "False"
     else:
-        log.warning("OTEL_SDK_DISABLED='%s'  is not supported",  new_value)
+        log.warning("OTEL_SDK_DISABLED='%s'  is not supported", new_value)
         return otel_value
     return new_value
 

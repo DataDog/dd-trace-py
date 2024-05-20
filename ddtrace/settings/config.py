@@ -376,12 +376,12 @@ class Config(object):
             return False
 
     def __init__(self):
-         # Must map Otel configurations to Datadog configurations before creating the config object.
-         _otel_remapping()
+        # Must map Otel configurations to Datadog configurations before creating the config object.
+        _otel_remapping()
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
-        # use a dict as underlying storing mechanism for integration configs
+        # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))

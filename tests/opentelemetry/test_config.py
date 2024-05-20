@@ -1,8 +1,6 @@
 import pytest
 
 
-
-
 @pytest.mark.subprocess(
     env={
         "OTEL_SERVICE_NAME": "Test",
@@ -24,9 +22,9 @@ import pytest
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Unsupported logs exporter detected.\n",
+    err=b"Unsupported OTEL logs exporter value detected: warning. Only the 'none' value is supported.\n",
 )
-def test_dd_otel_mixxed_env_configuration():
+def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
 
     assert config.service == "DD_service_test", config.service
@@ -63,7 +61,8 @@ def test_dd_otel_mixxed_env_configuration():
         "OTEL_SDK_DISABLED": "False",
         "DD_TRACE_OTEL_ENABLED": "",
     },
-    err=b"Following style not supported by ddtrace: jaegar.\n" b"Unsupported logs exporter detected.\n",
+    err=b"Following style not supported by ddtrace: jaegar.\n"
+    b"Unsupported OTEL logs exporter value detected: warning. Only the 'none' value is supported.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -174,7 +173,7 @@ def test_otel_traces_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_EXPORTER": "true"},
-    err=b"An unrecognized trace exporter 'true' is being used; setting dd_trace_enabled to false.\n",
+    err=b"An unrecognized trace exporter 'true' is being used; setting DD_TRACE_ENABLED to False.\n",
 )
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -193,7 +192,7 @@ def test_otel_metrics_exporter_configuration():
 @pytest.mark.subprocess(
     env={"OTEL_METRICS_EXPORTER": "true"},
     err=b"An unrecognized runtime metrics exporter 'true' is being used;"
-    b" setting dd_runtime_metrics_enabled to false.\n",
+    b" setting DD_RUNTIME_METRICS_ENABLED to False.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -202,7 +201,10 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
 
 
 # OTEL_LOGS_EXPORTER Test (Should be ignored and print a warning if not 'none'.)
-@pytest.mark.subprocess(env={"otel_LOGS_EXPORTER": "true"}, err=b"Unsupported logs exporter detected.\n")
+@pytest.mark.subprocess(
+    env={"otel_LOGS_EXPORTER": "console"},
+    err=b"Unsupported OTEL logs exporter value detected: console. Only the 'none' value is supported.\n",
+)
 def test_otel_logs_exporter_configuration_unsupported():
     from ddtrace import config  # noqa: F401
 
@@ -258,7 +260,7 @@ def test_otel_resource_attributes_mixed_tags():
     err=b"To preserve metrics cardinality, only the following first 10"
     b" tags have been processed ['DD_ENV:prod', 'DD_SERVICE:bleh', 'DD_VERSION:1.0', 'testtag1:random1', "
     b"'testtag2:random2', 'testtag3:random3', 'testtag4:random4', 'testtag5:random5', 'testtag6:random6', "
-    b"'testtag7:random7']\n",
+    b"'testtag7:random7']. The following tags were not ingested: ['testtag8:random8']\n",
 )
 def test_otel_resource_attributes_tags_warning():
     from ddtrace import config
@@ -274,7 +276,6 @@ def test_otel_resource_attributes_tags_warning():
         "testtag5": "random5",
         "testtag6": "random6",
         "testtag7": "random7",
-        "testtag8": "random8",
     }, config.tags
 
 
