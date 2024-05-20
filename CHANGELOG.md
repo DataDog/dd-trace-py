@@ -4,6 +4,22 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.5
+
+
+### Known Issues
+
+- Code Security: Security tracing for the `builtins.open` function is experimental and may not be stable. This aspect is not replaced by default.
+- grpc: Tracing for the `grpc.aio` clients and servers is experimental and may not be stable. This integration is now disabled by default.
+
+### Bug Fixes
+
+- fix(grpc): This fix a bug in the grpc.aio support specific to streaming responses.
+- RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out the lib_config we need from the payload in order to implement remote config changes properly.
+
+
+---
+
 ## 2.8.4
 
 
