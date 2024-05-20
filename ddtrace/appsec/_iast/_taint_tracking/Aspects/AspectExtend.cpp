@@ -9,7 +9,7 @@
  * @return PyObject*: return None (Remember, Pyobject None isn't the same as nullptr)
  */
 PyObject*
-api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2 or !args) {
         throw py::value_error(MSG_ERROR_N_PARAMS);
