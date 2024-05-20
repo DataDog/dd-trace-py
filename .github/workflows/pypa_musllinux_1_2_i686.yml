@@ -1,8 +1,7 @@
 name: PyPA i686 musl linux CI image
 
 on:
-  # TODO: REMOVE THIS AFTER TESTING
-  pull_request:
+  workflow_dispatch:
   push:
     branches:
       - 'main'
