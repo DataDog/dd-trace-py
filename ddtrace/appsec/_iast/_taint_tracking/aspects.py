@@ -278,7 +278,7 @@ def modulo_aspect(candidate_text: Text, candidate_tuple: Any) -> Any:
         if not ranges_orig:
             return candidate_text % candidate_tuple
 
-        return _convert_escaped_text_to_tainted_text(
+        return convert_escaped_text_to_tainted_text(
             as_formatted_evidence(
                 candidate_text,
                 candidate_text_ranges,
@@ -448,7 +448,7 @@ def format_map_aspect(
         if not ranges_orig:
             return candidate_text.format_map(*args, **kwargs)
 
-        return _convert_escaped_text_to_tainted_text(
+        return convert_escaped_text_to_tainted_text(
             as_formatted_evidence(
                 candidate_text, candidate_text_ranges, tag_mapping_function=TagMappingMode.Mapper
             ).format_map(

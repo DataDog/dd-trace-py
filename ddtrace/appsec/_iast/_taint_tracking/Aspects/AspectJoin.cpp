@@ -95,8 +95,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
         // b"a".join(u"c", b"d") -> unicode
         const size_t& element_len = get_pyobject_size(element);
         if (element_len > 0) {
-            const auto& to_element = get_tainted_object(element, tx_taint_map);
-            if (to_element) {
+            if (const auto& to_element = get_tainted_object(element, tx_taint_map)) {
                 if (current_pos == 0 and !first_tainted_to) {
                     first_tainted_to = to_element;
                 } else {
@@ -138,7 +137,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
 }
 
 PyObject*
-api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
@@ -152,7 +151,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
 
-        if (iterator != NULL) {
+        if (iterator != nullptr) {
             PyObject* item;
             PyObject* list_aux = PyList_New(0);
             while ((item = PyIter_Next(iterator))) {

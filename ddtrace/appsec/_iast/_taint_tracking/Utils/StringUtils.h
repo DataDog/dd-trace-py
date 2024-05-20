@@ -8,10 +8,10 @@ using namespace pybind11::literals;
 
 namespace py = pybind11;
 
-inline static uintptr_t
+static uintptr_t
 get_unique_id(const PyObject* str)
 {
-    return uintptr_t(str);
+    return reinterpret_cast<uintptr_t>(str);
 }
 
 bool
