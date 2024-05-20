@@ -124,9 +124,13 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             key, value = k
         else:
             key, value = k, headers[k]
+        if isinstance(key, bytes):
+            key = key.decode()
+        if isinstance(value, bytes):
+            value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, key), value)
+            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def _get_rate_limiter() -> RateLimiter:

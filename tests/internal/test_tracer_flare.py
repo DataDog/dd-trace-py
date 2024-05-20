@@ -8,15 +8,19 @@ import unittest
 from unittest import mock
 import uuid
 
-from ddtrace.internal.flare import TRACER_FLARE_DIRECTORY
-from ddtrace.internal.flare import TRACER_FLARE_FILE_HANDLER_NAME
-from ddtrace.internal.flare import Flare
-from ddtrace.internal.flare import FlareSendRequest
+from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
+from ddtrace.internal.flare.flare import TRACER_FLARE_DIRECTORY
+from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
+from ddtrace.internal.flare.flare import Flare
+from ddtrace.internal.flare.flare import FlareSendRequest
+from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from tests.utils import flaky
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
+TRACE_AGENT_URL = "http://localhost:9126"
 
 
 class TracerFlareTests(unittest.TestCase):
@@ -24,10 +28,12 @@ class TracerFlareTests(unittest.TestCase):
         case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com"
     )
 
+    mock_config_dict = {}
+
     def setUp(self):
         self.flare_uuid = uuid.uuid4()
         self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
-        self.flare = Flare(flare_dir=pathlib.Path(self.flare_dir))
+        self.flare = Flare(trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir))
         self.pid = os.getpid()
         self.flare_file_path = f"{self.flare_dir}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{self.flare_dir}/tracer_config_{self.pid}.json"
@@ -49,7 +55,7 @@ class TracerFlareTests(unittest.TestCase):
         """
         ddlogger = get_logger("ddtrace")
 
-        self.flare.prepare("DEBUG")
+        self.flare.prepare(self.mock_config_dict, "DEBUG")
 
         file_handler = self._get_handler()
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
@@ -74,8 +80,8 @@ class TracerFlareTests(unittest.TestCase):
 
         # Mock the partial failure
         with mock.patch("json.dump") as mock_json:
-            mock_json.side_effect = Exception("file issue happened")
-            self.flare.prepare("DEBUG")
+            mock_json.side_effect = Exception("this is an expected error")
+            self.flare.prepare(self.mock_config_dict, "DEBUG")
 
         file_handler = self._get_handler()
         assert file_handler is not None
@@ -95,7 +101,7 @@ class TracerFlareTests(unittest.TestCase):
         num_processes = 3
 
         def handle_agent_config():
-            self.flare.prepare("DEBUG")
+            self.flare.prepare(self.mock_config_dict, "DEBUG")
 
         def handle_agent_task():
             self.flare.send(self.mock_flare_send_request)
@@ -128,7 +134,7 @@ class TracerFlareTests(unittest.TestCase):
         processes = []
 
         def do_tracer_flare(prep_request, send_request):
-            self.flare.prepare(prep_request)
+            self.flare.prepare(self.mock_config_dict, prep_request)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(self.flare_dir))
@@ -151,7 +157,7 @@ class TracerFlareTests(unittest.TestCase):
         file, just the tracer logs
         """
         app_logger = Logger(name="my-app", level=DEBUG_LEVEL_INT)
-        self.flare.prepare("DEBUG")
+        self.flare.prepare(self.mock_config_dict, "DEBUG")
 
         app_log_line = "this is an app log"
         app_logger.debug(app_log_line)
@@ -168,3 +174,116 @@ class TracerFlareTests(unittest.TestCase):
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         assert self._get_handler() is None, "File handler was not removed"
+
+
+class TracerFlareSubscriberTests(unittest.TestCase):
+    agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_task = [
+        False,
+        {
+            "args": {
+                "case_id": "1111111",
+                "hostname": "myhostname",
+                "user_handle": "user.name@datadoghq.com",
+            },
+            "task_type": "tracer_flare",
+            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        },
+    ]
+
+    def setUp(self):
+        self.tracer_flare_sub = TracerFlareSubscriber(
+            data_connector=PublisherSubscriberConnector(),
+            callback=_handle_tracer_flare,
+            flare=Flare(trace_agent_url=TRACE_AGENT_URL),
+        )
+
+    def generate_agent_config(self):
+        with mock.patch(
+            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
+        ) as mock_pubsub_conn:
+            mock_pubsub_conn.return_value = {
+                "metadata": [{"product_name": "AGENT_CONFIG"}],
+                "config": self.agent_config,
+            }
+            self.tracer_flare_sub._get_data_from_connector_and_exec()
+
+    def generate_agent_task(self):
+        with mock.patch(
+            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
+        ) as mock_pubsub_conn:
+            mock_pubsub_conn.return_value = {
+                "metadata": [{"product_name": "AGENT_TASK"}],
+                "config": self.agent_task,
+            }
+            self.tracer_flare_sub._get_data_from_connector_and_exec()
+
+    def test_process_flare_request_success(self):
+        """
+        Ensure a full successful tracer flare process
+        """
+        assert self.tracer_flare_sub.stale_tracer_flare_num_mins == 20
+        # Generate an AGENT_CONFIG product to trigger a request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
+
+        assert (
+            self.tracer_flare_sub.current_request_start is not None
+        ), "current_request_start should be a non-None value after request is received"
+
+        # Generate an AGENT_TASK product to complete the request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.send") as mock_flare_send:
+            self.generate_agent_task()
+            mock_flare_send.assert_called_once()
+
+        # Timestamp cleared after request completed
+        assert (
+            self.tracer_flare_sub.current_request_start is None
+        ), "current_request_start timestamp should have been reset after request was completed"
+
+    def test_detect_stale_flare(self):
+        """
+        Ensure we clean up and revert configurations if a tracer
+        flare job has gone stale
+        """
+        # Set this to 0 so all requests are stale
+        self.tracer_flare_sub.stale_tracer_flare_num_mins = 0
+
+        # Generate an AGENT_CONFIG product to trigger a request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
+
+        assert self.tracer_flare_sub.current_request_start is not None
+
+        # Setting this to 0 minutes so all jobs are considered stale
+        assert self.tracer_flare_sub.has_stale_flare()
+
+        self.generate_agent_config()
+
+        assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
+
+    def test_no_overlapping_requests(self):
+        """
+        If a new tracer flare request is generated while processing
+        a pre-existing request, we will continue processing the current
+        one while disregarding the new request(s)
+        """
+        # Generate initial AGENT_CONFIG product to trigger a request
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_called_once()
+
+        original_request_start = self.tracer_flare_sub.current_request_start
+        assert original_request_start is not None
+
+        # Generate another AGENT_CONFIG product to trigger a request
+        # This should not be processed
+        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            self.generate_agent_config()
+            mock_flare_prep.assert_not_called()
+
+        assert (
+            self.tracer_flare_sub.current_request_start == original_request_start
+        ), "Original request should not have been updated with newer request start time"
