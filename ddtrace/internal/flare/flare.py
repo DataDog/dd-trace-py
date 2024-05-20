@@ -12,7 +12,6 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
 from ddtrace._logger import _add_file_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
@@ -36,14 +35,26 @@ class FlareSendRequest:
     source: str = "tracer_python"
 
 
+class TracerFlareSendError(Exception):
+    pass
+
+
 class Flare:
-    def __init__(self, timeout_sec: int = DEFAULT_TIMEOUT_SECONDS, flare_dir: str = TRACER_FLARE_DIRECTORY):
+    def __init__(
+        self,
+        trace_agent_url: str,
+        api_key: Optional[str] = None,
+        timeout_sec: int = DEFAULT_TIMEOUT_SECONDS,
+        flare_dir: str = TRACER_FLARE_DIRECTORY,
+    ):
         self.original_log_level: int = logging.NOTSET
         self.timeout: int = timeout_sec
         self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
         self.file_handler: Optional[RotatingFileHandler] = None
+        self.url: str = trace_agent_url
+        self._api_key: Optional[str] = api_key
 
-    def prepare(self, log_level: str):
+    def prepare(self, config: dict, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -77,7 +88,7 @@ class Flare:
         )
 
         # Create and add config file
-        self._generate_config_file(pid)
+        self._generate_config_file(config, pid)
 
     def send(self, flare_send_req: FlareSendRequest):
         """
@@ -96,35 +107,38 @@ class Flare:
                 log.error("Failed to create %s file", lock_path)
                 raise e
             try:
-                client = get_connection(config._trace_agent_url, timeout=self.timeout)
+                client = get_connection(self.url, timeout=self.timeout)
                 headers, body = self._generate_payload(flare_send_req.__dict__)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 else:
-                    log.error(
-                        "Tracer flare upload to Zendesk ticket %s failed with %s status code:(%s) %s",
-                        flare_send_req.case_id,
+                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
                         response.status,
                         response.reason,
                         response.read().decode(),
                     )
+                    raise TracerFlareSendError(msg)
             except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s", flare_send_req.case_id)
+                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                 raise e
             finally:
                 client.close()
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
-                return
 
-    def _generate_config_file(self, pid: int):
+    def _generate_config_file(self, config: dict, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
+                # Redact API key if present
+                api_key = config.get("_dd_api_key")
+                if api_key:
+                    config["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+
                 tracer_configs = {
-                    "configs": config.__dict__,
+                    "configs": config,
                 }
                 json.dump(
                     tracer_configs,
@@ -161,20 +175,20 @@ class Flare:
             encoded_key = key.encode()
             encoded_value = value.encode()
             body.write(b"--" + boundary + newline)
-            body.write(b'Content-Disposition: form-data; name="{%s}"{%s}{%s}' % (encoded_key, newline, newline))
-            body.write(b"{%s}{%s}" % (encoded_value, newline))
+            body.write(b'Content-Disposition: form-data; name="%s"%s%s' % (encoded_key, newline, newline))
+            body.write(b"%s%s" % (encoded_value, newline))
 
         body.write(b"--" + boundary + newline)
-        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"{%s}' % newline))
-        body.write(b"Content-Type: application/octet-stream{%s}{%s}" % (newline, newline))
+        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.tar"%s' % newline))
+        body.write(b"Content-Type: application/octet-stream%s%s" % (newline, newline))
         body.write(tar_stream.getvalue() + newline)
         body.write(b"--" + boundary + b"--")
         headers = {
             "Content-Type": b"multipart/form-data; boundary=%s" % boundary,
             "Content-Length": body.getbuffer().nbytes,
         }
-        if config._dd_api_key:
-            headers["DD-API-KEY"] = config._dd_api_key
+        if self._api_key:
+            headers["DD-API-KEY"] = self._api_key
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
