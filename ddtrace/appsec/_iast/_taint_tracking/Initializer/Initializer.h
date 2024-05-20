@@ -71,14 +71,14 @@ class Initializer
      *
      * @return The size of the Initializer object.
      */
-    int initializer_size();
+    int initializer_size() const;
 
     /**
      * Gets the size of active map addresses.
      *
      * @return The size of active map addresses.
      */
-    int active_map_addreses_size();
+    int active_map_addreses_size() const;
 
     /**
      * Creates a new taint tracking context.
@@ -133,7 +133,7 @@ class Initializer
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source source);
+    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, const Source& source);
 
     void release_taint_range(TaintRangePtr rangeptr);
 };
