@@ -16,16 +16,15 @@ OTEL_UNIFIED_TAG_MAPPINGS = {
 def _remap_otel_log_level(otel_value):
     """Remaps the otel log level to ddtrace log level"""
     if otel_value == "debug":
-        new_value = "True"
+        return "True"
     elif otel_value == "info":
-        new_value = "False"
+        return "False"
     else:
         log.warning(
             "ddtrace does not support otel log level '%s'. setting ddtrace to log level info.",
             otel_value,
         )
-        new_value = "False"
-    return new_value
+        return "False"
 
 
 def _remap_otel_propagators(otel_value):
@@ -41,7 +40,6 @@ def _remap_otel_propagators(otel_value):
         else:
             log.warning("Following style not supported by ddtrace: %s.", style)
     new_value = ",".join(accepted_styles)
-    log.info("Setting the following propagation styles from OTEL: %s.", accepted_styles)
     return new_value
 
 
@@ -59,7 +57,7 @@ def _remap_traces_sampler(otel_value):
 def _remap_traces_exporter(otel_value):
     """Remaps the otel trace exporter to ddtrace trace exporter"""
     if otel_value != "none":
-        log.warning("An unrecognized trace exporter '%s' is being used; setting dd_trace_enabled to false.", otel_value)
+        log.warning("An unrecognized trace exporter '%s' is being used; setting DD_TRACE_ENABLED to False.", otel_value)
         new_value = "False"
     else:
         new_value = "True"
@@ -71,7 +69,7 @@ def _remap_metrics_exporter(otel_value):
     if otel_value != "none":
         log.warning(
             "An unrecognized runtime metrics exporter '%s' is being "
-            "used; setting dd_runtime_metrics_enabled to false.",
+            "used; setting DD_RUNTIME_METRICS_ENABLED to false.",
             otel_value,
         )
     new_value = "False"
@@ -82,8 +80,7 @@ def _remap_logs_exporter(otel_value):
     """Remaps the otel logs exporter to ddtrace logs exporter"""
     if otel_value != "none":
         log.warning("Unsupported logs exporter detected.")
-        new_dd_value = ""
-        return new_dd_value
+        return ""
     return otel_value
 
 
@@ -126,7 +123,7 @@ def _remap_otel_sdk_config(otel_value):
     elif otel_value == "true":
         new_value = "False"
     else:
-        log.warning("Unexpected value for OTEL_SDK_DISABLED.")
+        log.warning("OTEL_SDK_DISABLED='%s'  is not supported",  new_value)
         return otel_value
     return new_value
 
@@ -143,7 +140,7 @@ ENV_VAR_MAPPINGS = {
     "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLE_RATE", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
-    "OTEL_LOGS_EXPORTER": ("none", _remap_logs_exporter),  # This should be ignored
+    "OTEL_LOGS_EXPORTER": ("", _remap_logs_exporter),  # This should be ignored
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }

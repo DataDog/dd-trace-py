@@ -1,8 +1,7 @@
 ---
 features:
   - |
-    otel: This implementation establishes a mapping mechanism between OpenTelemetry (OTEL) environment variables and 
-    Datadog (DD) environment variables with DD variables taking precedence in cases where both are configured:
+    tracing: Ensures the following OpenTelemetry environment variables are mapped to an equivalent Datadog configuration (datadog environment variables taking precedence in cases where both are configured):
         "OTEL_SERVICE_NAME": "DD_SERVICE",
         "OTEL_LOG_LEVEL": "DD_TRACE_DEBUG",
         "OTEL_PROPAGATORS": "DD_TRACE_PROPAGATION_STYLE",

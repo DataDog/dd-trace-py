@@ -1,19 +1,8 @@
 import pytest
 
 
-# # MAPPINGS
-#   "OTEL_SERVICE_NAME": "DD_SERVICE",
-#   "OTEL_LOG_LEVEL": "DD_TRACE_DEBUG",
-#   "OTEL_PROPAGATORS": "DD_TRACE_PROPAGATION_STYLE",
-#   "OTEL_TRACES_SAMPLER": "DD_TRACE_SAMPLE_RATE",
-#   "OTEL_TRACES_EXPORTER": "DD_TRACE_ENABLED",
-#   "OTEL_METRICS_EXPORTER": "DD_RUNTIME_METRICS_ENABLED",
-#   "OTEL_LOGS_EXPORTER": "none",  # This should be ignored
-#   "OTEL_RESOURCE_ATTRIBUTES": "DD_TAGS",
-#   "OTEL_SDK_DISABLED": "DD_TRACE_OTEL_ENABLED",
 
 
-# Passing in DD ENV VARS and OTEL VARS Tests. Should pass with DD Variables.
 @pytest.mark.subprocess(
     env={
         "OTEL_SERVICE_NAME": "Test",
