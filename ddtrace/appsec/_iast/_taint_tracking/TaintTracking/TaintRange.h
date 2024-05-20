@@ -1,6 +1,4 @@
 #pragma once
-#include <iostream>
-#include <sstream>
 #include <utility>
 
 #include <pybind11/stl.h>
@@ -43,7 +41,7 @@ struct TaintRange
 
     TaintRange() = default;
 
-    TaintRange(RANGE_START start, RANGE_LENGTH length, Source source)
+    TaintRange(const RANGE_START start, const RANGE_LENGTH length, Source source)
       : start(start)
       , length(length)
       , source(std::move(source))
@@ -53,7 +51,7 @@ struct TaintRange
         }
     }
 
-    inline void set_values(RANGE_START start_, RANGE_LENGTH length_, Source source_)
+    inline void set_values(const RANGE_START start_, const RANGE_LENGTH length_, Source source_)
     {
         if (length_ <= 0) {
             throw std::invalid_argument("Error: Length cannot be set to 0.");
@@ -79,7 +77,7 @@ TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length);
 
 inline TaintRangePtr
-api_shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH new_length)
+api_shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length)
 {
     return shift_taint_range(source_taint_range, offset, new_length);
 }
@@ -130,7 +128,7 @@ api_set_fast_tainted_if_unicode(const py::object& obj)
 }
 
 inline bool
-api_is_unicode_and_not_fast_tainted(const py::object str)
+api_is_unicode_and_not_fast_tainted(const py::object& str)
 {
     return is_notinterned_notfasttainted_unicode(str.ptr());
 }
@@ -145,7 +143,7 @@ Py_hash_t
 get_internal_hash(PyObject* obj);
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_taint_map);
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map);
 
 void
 pyexport_taintrange(py::module& m);
