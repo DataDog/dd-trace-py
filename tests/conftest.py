@@ -22,6 +22,7 @@ from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_pro
 import pytest
 
 import ddtrace
+from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -65,6 +66,16 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+@pytest.fixture(autouse=True)
+def ensure_no_context_leak():
+    try:
+        yield
+    finally:
+        ctx = _DD_CONTEXTVAR.get()
+        _DD_CONTEXTVAR.set(None)
+        assert ctx is None
 
 
 @pytest.fixture
