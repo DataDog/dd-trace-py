@@ -4,7 +4,7 @@ set -e
 
 GITLAB_TOKEN=$(aws ssm get-parameter \
     --region us-east-1 \
-    --name "ci.$CI_PROJECT_NAME.dogweb-read-api" \
+    --name "dogweb-read-api" \
     --with-decryption \
     --query "Parameter.Value" \
     --out text)
