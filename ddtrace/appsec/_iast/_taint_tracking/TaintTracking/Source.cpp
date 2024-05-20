@@ -1,9 +1,5 @@
 #include <pybind11/pybind11.h>
 
-#include <sstream>
-#include <string>
-#include <utility>
-
 #include "Source.h"
 
 using namespace std;
@@ -16,7 +12,7 @@ Source::Source(string name, string value, OriginType origin)
   , origin(origin)
 {}
 
-Source::Source(int name, string value, OriginType origin)
+Source::Source(int name, string value, const OriginType origin)
   : name(origin_to_str(OriginType{ name }))
   , value(std::move(value))
   , origin(origin)
@@ -41,7 +37,7 @@ Source::operator std::string() const
 int
 Source::get_hash() const
 {
-    return std::hash<size_t>()(std::hash<string>()(name) ^ (long)origin ^ std::hash<string>()(value));
+    return std::hash<size_t>()(std::hash<string>()(name) ^ static_cast<long>(origin) ^ std::hash<string>()(value));
 };
 
 void
@@ -77,7 +73,9 @@ pyexport_source(py::module& m)
       .def_readonly("value", &Source::value)
       .def("to_string", &Source::toString)
       .def("__hash__",
-           [](const Source& self) { return hash<string>{}(self.name + self.value) * (33 + int(self.origin)); })
+           [](const Source& self) {
+               return hash<string>{}(self.name + self.value) * (33 + static_cast<int>(self.origin));
+           })
       .def("__str__", &Source::toString)
       .def("__repr__", &Source::toString)
       .def("__eq__", [](const Source* self, const Source* other) {
