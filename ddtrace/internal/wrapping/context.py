@@ -368,21 +368,21 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __init__(self, f: FunctionType) -> None:
         super().__init__(f)
 
-        self._contexts: t.Dict[t.Type[WrappingContext], WrappingContext] = {}
+        self._contexts: t.List[WrappingContext] = []
 
     def register(self, context: WrappingContext) -> None:
         _type = type(context)
-        if _type in self._contexts:
+        if any(isinstance(c, _type) for c in self._contexts):
             raise ValueError("Context already registered")
 
-        self._contexts[_type] = context
+        self._contexts.append(context)
+        self._contexts.sort(key=lambda c: c.__priority__)
 
     def unregister(self, context: WrappingContext) -> None:
-        _type = type(context)
-        if _type not in self._contexts:
+        try:
+            self._contexts.remove(context)
+        except ValueError:
             raise ValueError("Context not registered")
-
-        del self._contexts[_type]
 
         if not self._contexts:
             self.unwrap()
@@ -391,7 +391,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
         return type(context) in self._contexts
 
     def registered(self, context_type: t.Type[WrappingContext]) -> WrappingContext:
-        return self._contexts[context_type]
+        for context in self._contexts:
+            if isinstance(context, context_type):
+                return context
+        raise KeyError(f"Context {context_type} not registered")
 
     def __enter__(self) -> "_UniversalWrappingContext":
         super().__enter__()
@@ -399,7 +402,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
         # Make the frame object available to the contexts
         self.set("__frame__", sys._getframe(1))
 
-        for context in sorted(self._contexts.values(), key=lambda c: c.__priority__):
+        for context in self._contexts:
             context.__enter__()
 
         return self
@@ -413,13 +416,13 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # normally
             return
 
-        for context in sorted(self._contexts.values(), key=lambda c: -c.__priority__):
+        for context in self._contexts[::-1]:
             context.__exit__(*exc)
 
         super().__exit__(*exc)
 
     def __return__(self, value: T) -> T:
-        for context in sorted(self._contexts.values(), key=lambda c: -c.__priority__):
+        for context in self._contexts[::-1]:
             context.__return__(value)
 
         return super().__return__(value)
