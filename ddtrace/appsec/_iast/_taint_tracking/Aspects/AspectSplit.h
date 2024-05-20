@@ -4,11 +4,11 @@
 
 template<class StrType>
 py::list
-api_split_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit);
+api_split_text(const StrType& text, const optional<StrType>& separator, optional<int> maxsplit);
 
 template<class StrType>
 py::list
-api_rsplit_text(const StrType& text, const optional<StrType>& separator, const optional<int> maxsplit);
+api_rsplit_text(const StrType& text, const optional<StrType>& separator, optional<int> maxsplit);
 
 template<class StrType>
 py::list

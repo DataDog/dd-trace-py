@@ -7,7 +7,6 @@
 
 #include <stack>
 #include <unordered_map>
-#include <unordered_set>
 
 using namespace std;
 
@@ -22,7 +21,9 @@ class Initializer
     static constexpr int TAINTEDOBJECTS_STACK_SIZE = 4096;
     stack<TaintedObjectPtr> available_taintedobjects_stack;
     stack<TaintRangePtr> available_ranges_stack;
-    unordered_set<TaintRangeMapType*> active_map_addreses;
+    // This is a map instead of a set so we can change the contents on iteration; otherwise
+    // keys and values are the same pointer.
+    unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
 
   public:
     /**
@@ -35,21 +36,21 @@ class Initializer
      *
      * @return A pointer to the created taint range map.
      */
-    TaintRangeMapType* create_tainting_map();
+    TaintRangeMapTypePtr create_tainting_map();
 
     /**
-     * Frees a taint range map.
+     * Clears a taint range map.
      *
      * @param tx_map The taint range map to be freed.
      */
-    void free_tainting_map(TaintRangeMapType* tx_map);
+    void clear_tainting_map(const TaintRangeMapTypePtr& tx_map);
 
     /**
      * Gets the current taint range map.
      *
      * @return A pointer to the current taint range map.
      */
-    static TaintRangeMapType* get_tainting_map();
+    static TaintRangeMapTypePtr get_tainting_map();
 
     /**
      * Clears all active taint maps.
@@ -70,24 +71,19 @@ class Initializer
      *
      * @return The size of the Initializer object.
      */
-    int initializer_size();
+    int initializer_size() const;
 
     /**
      * Gets the size of active map addresses.
      *
      * @return The size of active map addresses.
      */
-    int active_map_addreses_size();
+    int active_map_addreses_size() const;
 
     /**
      * Creates a new taint tracking context.
      */
     void create_context();
-
-    /**
-     * Destroys the current taint tracking context.
-     */
-    void destroy_context();
 
     /**
      * Resets the current taint tracking context.
@@ -137,7 +133,7 @@ class Initializer
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source source);
+    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, const Source& source);
 
     void release_taint_range(TaintRangePtr rangeptr);
 };

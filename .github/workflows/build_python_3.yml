@@ -28,12 +28,12 @@ jobs:
          - os: macos-12
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
@@ -128,6 +128,14 @@ jobs:
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
-      - uses: actions/upload-artifact@v3
+      - if: runner.os != 'Windows'
+        run: |
+          echo "ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-$(echo "${{ inputs.cibw_build }}" | tr -cd '[:alnum:]_-')" >> $GITHUB_ENV
+      - if: runner.os == 'Windows'
+        run: |
+          chcp 65001 #set code page to utf-8
+          echo ("ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-${{ inputs.cibw_build }}".replace('*', '').replace(' ', '_')) >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
         with:
+          name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
