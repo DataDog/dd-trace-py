@@ -4,6 +4,7 @@ containing the ddtrace package compatible with the current Python version and pl
 """
 import json
 import os
+import platform
 import sys
 import time
 
@@ -25,6 +26,23 @@ allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_
     "1",
     "t",
 )
+installed_packages = pkg_resources.working_set
+installed_packages = {pkg.key: pkg.version for pkg in installed_packages}
+
+python_runtime = sys.implementation.name
+python_version = ".".join(str(i) for i in sys.version_info[:2])
+
+
+def gen_telemetry_event(data):
+    # could just expand the data dict here, might be better
+    return {
+        "data": data,
+        "tracer_version": installed_packages.get("ddtrace", "0.0.0"),
+        "python_version": python_version,
+        "python_runtime": python_runtime,
+        "platform": platform.system(),
+        "platform_version": platform.version(),
+    }
 
 
 debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -56,12 +74,6 @@ def _log(msg, *args, level="info"):
         print(msg, file=sys.stderr)
 
 
-def get_installed_packages():
-    installed_packages = pkg_resources.working_set
-    packages_dict = {pkg.key: pkg.version for pkg in installed_packages}
-    return packages_dict
-
-
 def _inject():
     try:
         import ddtrace
@@ -77,7 +89,6 @@ def _inject():
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
         # check installed packages against allow list
-        installed_packages = get_installed_packages()
         incompatible_packages = {}
         for package_name, package_version in installed_packages.items():
             if package_name in pkgs_allow_list:
@@ -91,21 +102,25 @@ def _inject():
             _log(f"Found incompatible packages: {incompatible_packages}.", level="debug")
             if not allow_unsupported_integrations:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                data = json.dumps(incompatible_packages)  # noqa: F841
-                # subprocess.run(['python', 'send_telemetry.py', url, data])
+                data = {
+                    "incompatible_packages": incompatible_packages,
+                    "metric_name": "bootstrap.skipped",
+                    "reason": "integration",
+                }  # noqa: F841
+                event = gen_telemetry_event(data)  # noqa: F841
+                event_json = json.dumps(event)  # noqa: F841
+                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 return
             else:
                 _log(
                     "DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS set to True, allowing unsupported integrations.",
                     level="debug",
                 )
-        python_runtime = sys.implementation.name
-        python_version = ".".join(str(i) for i in sys.version_info[:2])
         if python_version not in runtimes_allow_list.get(python_runtime, []):
             _log(f"Found incompatible runtimes: {python_runtime} {python_version}.", level="debug")
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                # TODO add telemetry boostrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
+                # TODO add telemetry bootstrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
                 return
             else:
                 _log(
@@ -153,9 +168,9 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                # TODO add telemetry boostrap.completed subprocess.run(['python', 'send_telemetry.py', url, data])
+                # TODO add telemetry bootstrap.completed subprocess.run(['python', 'send_telemetry.py', url, data])
             except BaseException as e:
-                # TODO add telemetry boostrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
+                # TODO add telemetry bootstrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
