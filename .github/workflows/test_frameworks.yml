@@ -208,7 +208,9 @@ jobs:
         run: pip install -r tests/requirements/py3.txt
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ../ddtrace
+        run: |
+          pip install envier Cython cmake
+          pip install ../ddtrace
       - name: Install django
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install -e .
@@ -603,7 +605,9 @@ jobs:
           path: starlette
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ../ddtrace
+        run: |
+          pip install envier Cython cmake
+          pip install ../ddtrace
       - name: Install dependencies
         if: needs.needs-run.outputs.outcome == 'success'
         run: scripts/install
