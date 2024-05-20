@@ -16,6 +16,7 @@ from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Tuple  # noqa:F401
 from unittest import mock
+import warnings
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
@@ -73,6 +74,9 @@ def clear_context_after_every_test():
     try:
         yield
     finally:
+        ctx = _DD_CONTEXTVAR.get()
+        if ctx is not None:
+            warnings.warn(f"Context was not cleared after test, expected None, got {ctx}")
         _DD_CONTEXTVAR.set(None)
 
 
