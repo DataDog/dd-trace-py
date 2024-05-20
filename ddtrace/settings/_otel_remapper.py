@@ -121,9 +121,9 @@ def _remap_otel_tags(otel_value):
 
 def _remap_otel_sdk_config(otel_value):
     """Remaps the otel sdk config to ddtrace sdk config"""
-    if otel_value == "false":
+    if otel_value == "false" or "0":
         new_value = "True"
-    elif otel_value == "true":
+    elif otel_value == "true" or "1":
         new_value = "False"
     else:
         log.warning("OTEL_SDK_DISABLED='%s'  is not supported", new_value)
