@@ -147,12 +147,13 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            expl_profiler: 0
-            expl_coverage: 0
-            profiling: 0
-            iast: 1
-            appsec: 0
+          # Disabled while the bug is investigated: APPSEC-53222
+          # - suffix: IAST
+          #   expl_profiler: 0
+          #   expl_coverage: 0
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
           - suffix: APPSEC
             expl_profiler: 0
             expl_coverage: 0
