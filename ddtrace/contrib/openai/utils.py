@@ -22,6 +22,30 @@ log = get_logger(__name__)
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+    completions, messages = None, None
+    prompts = kwargs.get("prompt", None)
+    messages = kwargs.get("messages", None)
+    _set_metrics_on_request(integration, span, kwargs, prompts=prompts, messages=messages)
+    if is_completion:
+        completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+        if integration.is_pc_sampled_span(span):
+            _tag_streamed_completion_response(integration, span, completions)
+    else:
+        messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+        if integration.is_pc_sampled_span(span):
+            _tag_streamed_chat_completion_response(integration, span, messages)
+    _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
+    if integration.is_pc_sampled_llmobs(span):
+        integration.llmobs_set_tags(
+            "completion" if is_completion else "chat",
+            None,
+            span,
+            kwargs,
+            streamed_completions=completions if is_completion else messages,
+        )
+
+
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
         super().__init__(wrapped)
@@ -35,31 +59,6 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
         self._dd_integration = integration
         self._is_completion = is_completion
         self._kwargs = kwargs
-
-    def _process_finished_stream(self):
-        completions, messages = None, None
-        prompts = self._kwargs.get("prompt", None)
-        messages = self._kwargs.get("messages", None)
-        _set_metrics_on_request(self._dd_integration, self._dd_span, self._kwargs, prompts=prompts, messages=messages)
-        if self._is_completion:
-            completions = [_construct_completion_from_streamed_chunks(choice) for choice in self._streamed_chunks]
-            if self._dd_integration.is_pc_sampled_span(self._dd_span):
-                _tag_streamed_completion_response(self._dd_integration, self._dd_span, completions)
-        else:
-            messages = [_construct_message_from_streamed_chunks(choice) for choice in self._streamed_chunks]
-            if self._dd_integration.is_pc_sampled_span(self._dd_span):
-                _tag_streamed_chat_completion_response(self._dd_integration, self._dd_span, messages)
-        _set_metrics_on_streamed_response(
-            self._dd_integration, self._dd_span, completions=completions, messages=messages
-        )
-        if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
-            self._dd_integration.llmobs_set_tags(
-                "completion" if self._is_completion else "chat",
-                None,
-                self._dd_span,
-                self._kwargs,
-                streamed_completions=completions if self._is_completion else messages,
-            )
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
@@ -75,7 +74,9 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             for chunk in self.__wrapped__:
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
                 yield chunk
-            self._process_finished_stream()
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
         finally:
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
@@ -94,7 +95,9 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             async for chunk in self.__wrapped__:
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
                 yield chunk
-            self._process_finished_stream()
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
         finally:
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)

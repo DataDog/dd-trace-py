@@ -1,6 +1,4 @@
 import os
-from typing import AsyncGenerator
-from typing import Generator
 
 import mock
 import openai as openai_module
@@ -1193,7 +1191,6 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
-            assert isinstance(resp, Generator)
             chunks = [c for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])
@@ -1233,7 +1230,6 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.AsyncOpenAI()
             resp = await client.completions.create(model="ada", prompt="Hello world", stream=True)
-            assert isinstance(resp, AsyncGenerator)
             chunks = [c async for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])
@@ -1265,6 +1261,10 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
     assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
 def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -1272,7 +1272,6 @@ def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, moc
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
             with client.completions.create(model="ada", prompt="Hello world", stream=True, n=None) as resp:
-                assert isinstance(resp, Generator)
                 chunks = [c for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])
@@ -1319,7 +1318,6 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 user="ddtrace-test",
                 n=None,
             )
-            assert isinstance(resp, Generator)
             prompt_tokens = 8
             span = snapshot_tracer.current_span()
             chunks = [c for c in resp]
@@ -1369,7 +1367,6 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
                 stream=True,
                 user="ddtrace-test",
             )
-            assert isinstance(resp, AsyncGenerator)
             prompt_tokens = 8
             span = snapshot_tracer.current_span()
             chunks = [c async for c in resp]
@@ -1404,6 +1401,10 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
     assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
 @pytest.mark.asyncio
 async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
@@ -1420,7 +1421,6 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
                 user="ddtrace-test",
                 n=None,
             ) as resp:
-                assert isinstance(resp, Generator)
                 prompt_tokens = 8
                 span = snapshot_tracer.current_span()
                 chunks = [c for c in resp]

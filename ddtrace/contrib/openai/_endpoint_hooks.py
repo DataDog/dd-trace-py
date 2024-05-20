@@ -1,11 +1,15 @@
-from ddtrace.ext import SpanTypes
+from openai.version import VERSION as OPENAI_VERSION
 
-from .utils import TracedOpenAIAsyncStream
-from .utils import TracedOpenAIStream
-from .utils import _format_openai_api_key
-from .utils import _is_async_generator
-from .utils import _is_generator
-from .utils import _tag_tool_calls
+from ddtrace.contrib.openai.utils import TracedOpenAIAsyncStream
+from ddtrace.contrib.openai.utils import TracedOpenAIStream
+from ddtrace.contrib.openai.utils import _format_openai_api_key
+from ddtrace.contrib.openai.utils import _is_async_generator
+from ddtrace.contrib.openai.utils import _is_generator
+from ddtrace.contrib.openai.utils import _loop_handler
+from ddtrace.contrib.openai.utils import _process_finished_stream
+from ddtrace.contrib.openai.utils import _tag_tool_calls
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.version import parse_version
 
 
 API_VERSION = "v1"
@@ -97,10 +101,65 @@ class _BaseCompletionHook(_EndpointHook):
         This method returns a wrapped version of the OpenAIStream/OpenAIAsyncStream objects
         to trace the response while it is read by the user.
         """
+        if parse_version(OPENAI_VERSION) >= (1, 6, 0):
+            if _is_async_generator(resp):
+                return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
+            elif _is_generator(resp):
+                return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
+
+        def shared_gen():
+            try:
+                streamed_chunks = yield
+                _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion)
+            finally:
+                span.finish()
+                integration.metric(span, "dist", "request.duration", span.duration_ns)
+
         if _is_async_generator(resp):
-            return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
+
+            async def traced_streamed_response():
+                g = shared_gen()
+                g.send(None)
+                n = kwargs.get("n", 1) or 1
+                if is_completion:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
+                try:
+                    async for chunk in resp:
+                        _loop_handler(span, chunk, streamed_chunks)
+                        yield chunk
+                finally:
+                    try:
+                        g.send(streamed_chunks)
+                    except StopIteration:
+                        pass
+
+            return traced_streamed_response()
+
         elif _is_generator(resp):
-            return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
+
+            def traced_streamed_response():
+                g = shared_gen()
+                g.send(None)
+                n = kwargs.get("n", 1) or 1
+                if is_completion:
+                    prompts = kwargs.get("prompt", "")
+                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                        n *= len(prompts)
+                streamed_chunks = [[] for _ in range(n)]
+                try:
+                    for chunk in resp:
+                        _loop_handler(span, chunk, streamed_chunks)
+                        yield chunk
+                finally:
+                    try:
+                        g.send(streamed_chunks)
+                    except StopIteration:
+                        pass
+
+            return traced_streamed_response()
         return resp
 
 
