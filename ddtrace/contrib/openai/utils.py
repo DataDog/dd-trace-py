@@ -6,6 +6,7 @@ from typing import Generator
 from typing import List
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor import wrapt
 
 
 try:
@@ -19,6 +20,84 @@ except ModuleNotFoundError:
 log = get_logger(__name__)
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
+
+
+class BaseTracedOpenAIStream(wrapt.ObjectProxy):
+    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+        super().__init__(wrapped)
+        n = kwargs.get("n", 1) or 1
+        if is_completion:
+            prompts = kwargs.get("prompt", "")
+            if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                n *= len(prompts)
+        self._dd_span = span
+        self._streamed_chunks = [[] for _ in range(n)]
+        self._dd_integration = integration
+        self._is_completion = is_completion
+        self._kwargs = kwargs
+
+    def _process_finished_stream(self):
+        completions, messages = None, None
+        prompts = self._kwargs.get("prompt", None)
+        messages = self._kwargs.get("messages", None)
+        _set_metrics_on_request(self._dd_integration, self._dd_span, self._kwargs, prompts=prompts, messages=messages)
+        if self._is_completion:
+            completions = [_construct_completion_from_streamed_chunks(choice) for choice in self._streamed_chunks]
+            if self._dd_integration.is_pc_sampled_span(self._dd_span):
+                _tag_streamed_completion_response(self._dd_integration, self._dd_span, completions)
+        else:
+            messages = [_construct_message_from_streamed_chunks(choice) for choice in self._streamed_chunks]
+            if self._dd_integration.is_pc_sampled_span(self._dd_span):
+                _tag_streamed_chat_completion_response(self._dd_integration, self._dd_span, messages)
+        _set_metrics_on_streamed_response(
+            self._dd_integration, self._dd_span, completions=completions, messages=messages
+        )
+        if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
+            self._dd_integration.llmobs_set_tags(
+                "completion" if self._is_completion else "chat",
+                None,
+                self._dd_span,
+                self._kwargs,
+                streamed_completions=completions if self._is_completion else messages,
+            )
+
+
+class TracedOpenAIStream(BaseTracedOpenAIStream):
+    def __enter__(self):
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+
+    def __iter__(self):
+        try:
+            for chunk in self.__wrapped__:
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+                yield chunk
+            self._process_finished_stream()
+        finally:
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+
+
+class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
+    async def __aenter__(self):
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def __aiter__(self):
+        try:
+            async for chunk in self.__wrapped__:
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+                yield chunk
+            self._process_finished_stream()
+        finally:
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
 
 def _compute_token_count(content, model):

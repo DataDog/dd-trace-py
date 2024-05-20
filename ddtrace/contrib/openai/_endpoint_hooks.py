@@ -1,15 +1,10 @@
 from ddtrace.ext import SpanTypes
 
-from .utils import _construct_completion_from_streamed_chunks
-from .utils import _construct_message_from_streamed_chunks
+from .utils import TracedOpenAIAsyncStream
+from .utils import TracedOpenAIStream
 from .utils import _format_openai_api_key
 from .utils import _is_async_generator
 from .utils import _is_generator
-from .utils import _loop_handler
-from .utils import _set_metrics_on_request
-from .utils import _set_metrics_on_streamed_response
-from .utils import _tag_streamed_chat_completion_response
-from .utils import _tag_streamed_completion_response
 from .utils import _tag_tool_calls
 
 
@@ -96,86 +91,16 @@ class _EndpointHook:
 class _BaseCompletionHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
-    def _handle_streamed_response(self, integration, span, kwargs, resp, operation_id):
-        """Handle streamed response objects returned from endpoint calls.
+    def _handle_streamed_response(self, integration, span, kwargs, resp, is_completion=False):
+        """Handle streamed response objects returned from completions/chat endpoint calls.
 
-        This method helps with streamed responses by wrapping the generator returned with a
-        generator that traces the reading of the response.
+        This method returns a wrapped version of the OpenAIStream/OpenAIAsyncStream objects
+        to trace the response while it is read by the user.
         """
-
-        def shared_gen():
-            completions = None
-            messages = None
-            try:
-                streamed_chunks = yield
-                _set_metrics_on_request(
-                    integration, span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
-                )
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
-                else:
-                    messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
-                _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
-            finally:
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    if integration.is_pc_sampled_span(span):
-                        _tag_streamed_completion_response(integration, span, completions)
-                    if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_completions=completions)
-                else:
-                    if integration.is_pc_sampled_span(span):
-                        _tag_streamed_chat_completion_response(integration, span, messages)
-                    if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_completions=messages)
-                span.finish()
-                integration.metric(span, "dist", "request.duration", span.duration_ns)
-
         if _is_async_generator(resp):
-
-            async def traced_streamed_response():
-                g = shared_gen()
-                g.send(None)
-                n = kwargs.get("n", 1) or 1
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    prompts = kwargs.get("prompt", "")
-                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
-                        n *= len(prompts)
-                streamed_chunks = [[] for _ in range(n)]
-                try:
-                    async for chunk in resp:
-                        _loop_handler(span, chunk, streamed_chunks)
-                        yield chunk
-                finally:
-                    try:
-                        g.send(streamed_chunks)
-                    except StopIteration:
-                        pass
-
-            return traced_streamed_response()
-
+            return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
         elif _is_generator(resp):
-
-            def traced_streamed_response():
-                g = shared_gen()
-                g.send(None)
-                n = kwargs.get("n", 1) or 1
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    prompts = kwargs.get("prompt", "")
-                    if isinstance(prompts, list) and not isinstance(prompts[0], int):
-                        n *= len(prompts)
-                streamed_chunks = [[] for _ in range(n)]
-                try:
-                    for chunk in resp:
-                        _loop_handler(span, chunk, streamed_chunks)
-                        yield chunk
-                finally:
-                    try:
-                        g.send(streamed_chunks)
-                    except StopIteration:
-                        pass
-
-            return traced_streamed_response()
-
+            return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
         return resp
 
 
@@ -216,7 +141,7 @@ class _CompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=True)
         if integration.is_pc_sampled_log(span):
             attrs_dict = {"prompt": kwargs.get("prompt", "")}
             if error is None:
@@ -279,7 +204,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
             if hasattr(resp.choices[0], "model_dump"):
