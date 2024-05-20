@@ -48,7 +48,6 @@ jobs:
     uses: ./.github/workflows/build_python_3.yml
     with:
       cibw_build: 'cp312*'
-      cibw_prerelease_pythons: 'True'
 
   build_sdist:
     name: Build source distribution
@@ -58,15 +57,14 @@ jobs:
         # Include all history and tags
         with:
           fetch-depth: 0
-
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v5
         name: Install Python
         with:
           python-version: '3.7'
-
       - name: Build sdist
         run: |
-          pip install cython cmake
+          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
           python setup.py sdist
       - uses: actions/upload-artifact@v4
         with:
