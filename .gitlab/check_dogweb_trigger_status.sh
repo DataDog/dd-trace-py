@@ -2,10 +2,15 @@
 
 set -e
 
+GITLAB_TOKEN=$(aws ssm get-parameter \
+    --region us-east-1 \
+    --name "ci.$CI_PROJECT_NAME.dogweb-read-api" \
+    --with-decryption \
+    --query "Parameter.Value" \
+    --out text)
+
 URL="$CI_API_V4_URL/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/bridges"
-echo $URL
-TRIGGER_JOBS=$(curl $URL)
-echo $TRIGGER_JOBS
+TRIGGER_JOBS=$(curl $URL --header "PRIVATE-TOKEN: $GITLAB_TOKEN")
 
 for trigger_job in $(echo "${TRIGGER_JOBS}" | jq -r '.[] | @base64'); do
     trigger_job_name=$(echo "${trigger_job}" | base64 --decode | jq -r '.name')
