@@ -37,7 +37,7 @@ jobs:
       BUILDX_PLATFORMS: linux/amd64
     steps:
       - name: Checkout system tests
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
             repository: 'DataDog/system-tests'
 
@@ -74,7 +74,7 @@ jobs:
         ]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build and run the app
         run: |
           SRC="$(pwd)"
