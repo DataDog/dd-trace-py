@@ -37,6 +37,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pytest",  # Testing framework
     "freezegun",  # Testing utilities for time manipulation
     "sklearn",  # Machine learning library
+    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
 )
 
 
