@@ -20,7 +20,7 @@ def test_main():
         if i % 10000 == 0:
             print("Round %d Max RSS: " % i, end="")
             print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
-    print("Round %d Max RSS: " % i, end="")
+    print("Round %d Max RSS: " % rounds, end="")
     print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
 
 

@@ -14,7 +14,7 @@ docker build . -f docker/Dockerfile_py311_debug_mode -t python_311_debug
 
 ```sh
 docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
-scripts/iast/run_references.sh"
+sh scripts/iast/run_references.sh"
 >> References: 1003
 >> References: 2
 >> References: 2
@@ -27,7 +27,7 @@ scripts/iast/run_references.sh"
 
 ```sh
 docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
-scripts/iast/run_memray.sh"
+sh scripts/iast/run_memray.sh"
 google-chrome file://$PWD/memray-flamegraph-lel.html
 ```
 
