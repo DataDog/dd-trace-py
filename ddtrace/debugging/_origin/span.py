@@ -20,13 +20,15 @@ from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._signal.collector import SignalContext
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.ext import EXIT_SPAN_TYPES
+from ddtrace.internal import compat
 from ddtrace.internal import core
-from ddtrace.internal.injection import inject_hook
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.span import Span
 
 
@@ -108,35 +110,75 @@ class EntrySpanLocation:
     probe: EntrySpanProbe
 
 
-def add_entry_location_info(location: EntrySpanLocation) -> None:
-    root = ddtrace.tracer.current_root_span()
-    if root is None or root.get_tag("_dd.entry_location.file") is not None:
-        return
+class EntrySpanWrappingContext(WrappingContext):
+    def __init__(self, f):
+        super().__init__(f)
 
-    # Add tags to the local root
-    root.set_tag_str("_dd.entry_location.file", location.file)
-    root.set_tag_str("_dd.entry_location.start_line", str(location.start_line))
-    root.set_tag_str("_dd.entry_location.end_line", str(location.end_line))
-    root.set_tag_str("_dd.entry_location.type", location.module)
-    root.set_tag_str("_dd.entry_location.method", location.name)
-
-    if config._trace_span_origin_enriched:
-        # Create a snapshot
-        snapshot = Snapshot(
-            probe=location.probe,
-            frame=sys._getframe(1),
-            thread=current_thread(),
-            trace_context=root,
+        lines = linenos(f)
+        start_line = min(lines)
+        filename = str(Path(f.__code__.co_filename).resolve())
+        name = f.__qualname__
+        module = f.__module__
+        self.location = EntrySpanLocation(
+            name=name,
+            start_line=start_line,
+            end_line=max(lines),
+            file=filename,
+            module=module,
+            probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
         )
 
-        # Capture on entry
-        snapshot.enter()
+    def __enter__(self):
+        super().__enter__()
 
-        # Collect
-        Debugger.get_collector().push(snapshot)
+        root = ddtrace.tracer.current_root_span()
+        location = self.location
+        if root is None or root.get_tag("_dd.entry_location.file") is not None:
+            return
 
-        # Correlate the snapshot with the span
-        root.set_tag_str("_dd.entry_location.snapshot_id", snapshot.uuid)
+        # Add tags to the local root
+        root.set_tag_str("_dd.entry_location.file", location.file)
+        root.set_tag_str("_dd.entry_location.start_line", str(location.start_line))
+        root.set_tag_str("_dd.entry_location.end_line", str(location.end_line))
+        root.set_tag_str("_dd.entry_location.type", location.module)
+        root.set_tag_str("_dd.entry_location.method", location.name)
+
+        if config._trace_span_origin_enriched:
+            # Create a snapshot
+            snapshot = Snapshot(
+                probe=location.probe,
+                frame=self.__frame__,
+                thread=current_thread(),
+                trace_context=root,
+            )
+
+            # Capture on entry
+            context = Debugger.get_collector().attach(snapshot)
+
+            # Correlate the snapshot with the span
+            root.set_tag_str("_dd.entry_location.snapshot_id", snapshot.uuid)
+
+            self.set("context", context)
+            self.set("start_time", compat.monotonic_ns())
+
+            print("snapshot created")
+
+    def _close_context(self, retval=None, exc_info=(None, None, None)):
+        try:
+            context: SignalContext = self.get("context")
+        except KeyError:
+            # No snapshot was created
+            return
+
+        context.exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+
+    def __return__(self, retval):
+        self._close_context(retval=retval)
+        return super().__return__(retval)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._close_context(exc_info=(exc_type, exc_value, traceback))
+        super().__exit__(exc_type, exc_value, traceback)
 
 
 @attr.s
@@ -190,29 +232,8 @@ class SpanOriginProcessor(SpanProcessor):
             if not _isinstance(f, FunctionType):
                 return
 
-            if hasattr(f, "__dd_wrapped__"):
-                f = f.__dd_wrapped__
-
-            # Inject the span augmentation logic at the very beginning of the
-            # function
-            lines = linenos(f)
-            start_line = min(lines)
-            filename = str(Path(f.__code__.co_filename).resolve())
-            name = f.__qualname__
-            module = f.__module__
-            inject_hook(
-                t.cast(FunctionType, f),
-                add_entry_location_info,
-                start_line,
-                EntrySpanLocation(
-                    name=name,
-                    start_line=start_line,
-                    end_line=max(lines),
-                    file=filename,
-                    module=module,
-                    probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
-                ),
-            )
+            if not EntrySpanWrappingContext.is_wrapped(t.cast(FunctionType, f)):
+                EntrySpanWrappingContext(f).wrap()
 
         instance = cls._instance = cls()
         instance.register()
