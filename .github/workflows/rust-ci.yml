@@ -1,12 +1,9 @@
+name: "Rust CI"
 on:
   push:
-    branches:
-      - main
   pull_request:
     paths:
-      - 'src/**'
-
-name: build
+      - src/**
 
 jobs:
   check:
