@@ -1,10 +1,10 @@
 import re
+import sys
 from typing import Any
 from typing import AsyncGenerator
 from typing import Dict
 from typing import Generator
 from typing import List
-import sys
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import wrapt
