@@ -179,10 +179,8 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         Py_INCREF(result);
     }
 
-    if (has_pyerr())
-    {
-        if (decref_arg0)
-        {
+    if (has_pyerr()) {
+        if (decref_arg0) {
             Py_DecRef(arg0);
         }
         return nullptr;
