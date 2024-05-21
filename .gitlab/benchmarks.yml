@@ -139,6 +139,7 @@ benchmark-serverless-trigger:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: brettlangdon/use.custom.layer.branch
     strategy: depend
   allow_failure: true
   variables:
