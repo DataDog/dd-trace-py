@@ -8,7 +8,10 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 
+from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._constants import WAF_CONTEXT_NAMES
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
@@ -22,15 +25,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-
-    # due to incompatibilities with gevent, delay the patching if IAST is enabled
-    if asm_config._iast_enabled:
-        core.on(
-            "exploit.prevention.ssrf.patch.urllib",
-            lambda: try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF),
-        )
-    else:
-        try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
 
 
 def unpatch_common_modules():
@@ -62,12 +57,14 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         except Exception:
             filename = ""
         if filename and in_context():
-            call_waf_callback(
+            res = call_waf_callback(
                 {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
                 crop_trace="wrapped_open_CFDDB7ABBA9081B6",
                 rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
             )
-            # DEV: Next part of the exploit prevention feature: add block here
+            if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "lfi", filename)
+
     return original_open_callable(*args, **kwargs)
 
 
@@ -94,12 +91,13 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
             if url.__class__.__name__ == "Request":
                 url = url.get_full_url()
             if isinstance(url, str):
-                call_waf_callback(
+                res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
                     crop_trace="wrapped_open_ED4CF71136E15EBF",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-            # DEV: Next part of the exploit prevention feature: add block here
+                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
     return original_open_callable(*args, **kwargs)
 
 
@@ -125,12 +123,14 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
         if url and in_context():
             if isinstance(url, str):
-                call_waf_callback(
+                res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
                     crop_trace="wrapped_request_D8CB81E472AF98A2",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
                 )
-            # DEV: Next part of the exploit prevention feature: add block here
+                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                    raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
+
     return original_request_callable(*args, **kwargs)
 
 
@@ -169,6 +169,9 @@ def apply_patch(parent, attribute, replacement):
         # Avoid overwriting the original function if we call this twice
         if not isinstance(current_attribute, FunctionWrapper):
             _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
+        elif isinstance(replacement, FunctionWrapper):
+            # Avoid double patching
+            return
         setattr(parent, attribute, replacement)
     except (TypeError, AttributeError):
         patch_builtins(parent, attribute, replacement)
