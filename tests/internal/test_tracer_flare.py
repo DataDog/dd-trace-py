@@ -8,6 +8,8 @@ import unittest
 from unittest import mock
 import uuid
 
+from pyfakefs.fake_filesystem_unittest import TestCase
+
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -16,14 +18,13 @@ from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from tests.utils import flaky
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
 
 
-class TracerFlareTests(unittest.TestCase):
+class TracerFlareTests(TestCase):
     mock_flare_send_request = FlareSendRequest(
         case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com"
     )
@@ -31,6 +32,7 @@ class TracerFlareTests(unittest.TestCase):
     mock_config_dict = {}
 
     def setUp(self):
+        self.setUpPyfakefs()
         self.flare_uuid = uuid.uuid4()
         self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
         self.flare = Flare(trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir))
@@ -125,7 +127,6 @@ class TracerFlareTests(unittest.TestCase):
         for p in processes:
             p.join()
 
-    @flaky(1722529274)
     def test_multiple_process_partial_failure(self):
         """
         Validte that even if the tracer flare fails for one process, we should

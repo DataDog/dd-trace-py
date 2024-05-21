@@ -446,6 +446,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
