@@ -3,6 +3,7 @@ from typing import Optional
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import SESSION_ID
 
@@ -28,8 +29,8 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
 
 
 def _get_span_name(span: Span) -> str:
-    if span.name == "langchain.request" and span.resource != "":
-        return span.resource
+    if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
+        return span.resource.lower()
     return span.name
 
 
