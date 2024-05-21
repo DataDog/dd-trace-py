@@ -21,7 +21,7 @@ then
 fi
 
 # Create and activate the virtualenv
-python3.8 -m venv ${PREFIX}
+python3.12 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
 pip install pip --upgrade
 
