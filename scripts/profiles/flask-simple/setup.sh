@@ -18,7 +18,7 @@ fi
 # Create and activate the virtualenv
 python -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
-pip install pip setuptools --upgrade
+pip install pip --upgrade
 
 # Install the application
 cp -r scripts/profiles/flask-simple/app ${PREFIX}/app
