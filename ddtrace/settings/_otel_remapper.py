@@ -39,29 +39,28 @@ def _remap_otel_propagators(otel_value):
                 accepted_styles.append(style)
         else:
             log.warning("Following style not supported by ddtrace: %s.", style)
-    new_value = ",".join(accepted_styles)
-    return new_value
+    return ",".join(accepted_styles)
 
 
 def _remap_traces_sampler(otel_value):
     """Remaps the otel trace sampler to ddtrace trace sampler"""
     if otel_value == "always_on" or otel_value == "parentbased_always_on":
-        new_value = "1.0"
+        return "1.0"
     elif otel_value == "always_off" or otel_value == "parentbased_always_off":
-        new_value = "0.0"
+        return "0.0"
     elif otel_value == "traceidratio" or otel_value == "parentbased_traceidratio":
-        new_value = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
-    return new_value
+        return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+    else:
+        return otel_value
 
 
 def _remap_traces_exporter(otel_value):
     """Remaps the otel trace exporter to ddtrace trace exporter"""
     if otel_value != "none":
         log.warning("An unrecognized trace exporter '%s' is being used; setting DD_TRACE_ENABLED to False.", otel_value)
-        new_value = "False"
+        return "False"
     else:
-        new_value = "True"
-    return new_value
+        return "True"
 
 
 def _remap_metrics_exporter(otel_value):
@@ -72,12 +71,11 @@ def _remap_metrics_exporter(otel_value):
             "used; setting DD_RUNTIME_METRICS_ENABLED to False.",
             otel_value,
         )
-    new_value = "False"
-    return new_value
+    return "False"
 
 
 def _remap_logs_exporter(otel_value):
-    """Remaps the otel logs exporter to ddtrace logs exporter"""
+    """Logs warning when OTEL Logs exporter is configured. DDTRACE does not support this configuration."""
     if otel_value != "none":
         log.warning(
             "Unsupported OTEL logs exporter value detected: %s. Only the 'none' value is supported.", otel_value
@@ -93,20 +91,23 @@ def _remap_otel_tags(otel_value):
     otel_tags = otel_value.split(",")
     otel_user_tag_dict = dict()
 
-    for tag in otel_tags:
-        tag_pair = tag.split("=")
-        otel_user_tag_dict[tag_pair[0]] = tag_pair[1]
+    try:
+        for tag in otel_tags:
+            tag_pair = tag.split("=")
+            otel_user_tag_dict[tag_pair[0]] = tag_pair[1]
 
-    for otel_key, dd_key in OTEL_UNIFIED_TAG_MAPPINGS.items():
-        if otel_key in otel_user_tag_dict.keys():
-            dd_tags.append("{}:{}".format(dd_key, otel_user_tag_dict[otel_key]))
+        for otel_key, dd_key in OTEL_UNIFIED_TAG_MAPPINGS.items():
+            if otel_key in otel_user_tag_dict.keys():
+                dd_tags.append("{}:{}".format(dd_key, otel_user_tag_dict[otel_key]))
 
-    for key, value in otel_user_tag_dict.items():
-        if key.lower() not in OTEL_UNIFIED_TAG_MAPPINGS.keys():
-            if len(dd_tags) < 10:
-                dd_tags.append("{}:{}".format(key, value))
-            else:
-                remaining_tags.append("{}:{}".format(key, value))
+        for key, value in otel_user_tag_dict.items():
+            if key.lower() not in OTEL_UNIFIED_TAG_MAPPINGS.keys():
+                if len(dd_tags) < 10:
+                    dd_tags.append("{}:{}".format(key, value))
+                else:
+                    remaining_tags.append("{}:{}".format(key, value))
+    except Exception:
+        log.warning("DDTRACE failed to read OTEL_RESOURCE_ATTRIBUTES. This value is misformatted: %s", otel_value)
 
     if len(otel_user_tag_dict.items()) > 10:
         log.warning(
@@ -115,20 +116,18 @@ def _remap_otel_tags(otel_value):
             dd_tags,
             remaining_tags,
         )
-    new_value = ",".join(dd_tags)
-    return new_value
+    return ",".join(dd_tags)
 
 
 def _remap_otel_sdk_config(otel_value):
     """Remaps the otel sdk config to ddtrace sdk config"""
-    if otel_value == "false" or "0":
-        new_value = "True"
-    elif otel_value == "true" or "1":
-        new_value = "False"
+    if otel_value == "false":
+        return "True"
+    elif otel_value == "true":
+        return "False"
     else:
-        log.warning("OTEL_SDK_DISABLED='%s'  is not supported", new_value)
+        log.warning("OTEL_SDK_DISABLED='%s'  is not supported", otel_value)
         return otel_value
-    return new_value
 
 
 def _remap_default(otel_value):
@@ -143,7 +142,7 @@ ENV_VAR_MAPPINGS = {
     "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLE_RATE", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
-    "OTEL_LOGS_EXPORTER": ("", _remap_logs_exporter),  # This should be ignored
+    "OTEL_LOGS_EXPORTER": ("", _remap_logs_exporter),  # Does not set a DDTRACE environment variable.
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }
@@ -154,21 +153,17 @@ def otel_remapping():
     Datadog Environment variables take precedence over OTEL, but if there isn't a Datadog value present,
     then OTEL values take their place.
     """
+    user_envs = {key.upper(): value for key, value in os.environ.items()}
 
-    user_envs = [key.upper() for key in os.environ.keys()]
-
-    for otel_env in ENV_VAR_MAPPINGS.keys():
-        if otel_env not in user_envs:
+    for otel_env, otel_value in user_envs.items():
+        if otel_env not in ENV_VAR_MAPPINGS.keys():
             continue
 
         dd_env, otel_config_remapper = ENV_VAR_MAPPINGS[otel_env]
-        otel_value = os.environ.get(otel_env, "").strip()
-        dd_value = os.environ.get(dd_env, "").strip()
-        if dd_value != "":
+        if dd_env in user_envs:
             log.debug(
-                "Datadog configuration %s is already set to %s. OpenTelemetry configuration will be ignored: %s=%s",
+                "Datadog configuration %s is already set. OpenTelemetry configuration will be ignored: %s=%s",
                 dd_env,
-                dd_value,
                 otel_env,
                 otel_value,
             )
@@ -177,7 +172,6 @@ def otel_remapping():
         if otel_env not in ["OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"]:
             # Resource attributes and service name are case-insensitive
             otel_value = otel_value.lower()
-            dd_value = dd_value.lower()
 
         mapped_value = otel_config_remapper(otel_value)
         if mapped_value != "":
