@@ -1,5 +1,7 @@
 #include "AspectJoin.h"
 
+#include "Helpers.h"
+
 PyObject*
 aspect_join_str(PyObject* sep,
                 PyObject* result,
@@ -175,6 +177,15 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
           py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
         result = result_ptr.ptr();
         Py_INCREF(result);
+    }
+
+    if (has_pyerr())
+    {
+        if (decref_arg0)
+        {
+            Py_DecRef(arg0);
+        }
+        return nullptr;
     }
 
     const auto ctx_map = initializer->get_tainting_map();
