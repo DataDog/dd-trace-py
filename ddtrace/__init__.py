@@ -7,6 +7,7 @@ from ddtrace.internal.module import ModuleWatchdog
 
 ModuleWatchdog.install()
 
+# Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
 from ._logger import configure_ddtrace_logger
 
