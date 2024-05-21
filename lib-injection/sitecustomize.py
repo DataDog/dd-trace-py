@@ -33,15 +33,25 @@ python_runtime = sys.implementation.name
 python_version = ".".join(str(i) for i in sys.version_info[:2])
 
 
-def gen_telemetry_event(data):
+def gen_telemetry_payload(data):
     # could just expand the data dict here, might be better
+    tags = data.get("tags", {})
     return {
-        "data": data,
-        "tracer_version": installed_packages.get("ddtrace", "0.0.0"),
-        "python_version": python_version,
-        "python_runtime": python_runtime,
-        "platform": platform.system(),
-        "platform_version": platform.version(),
+        "metric": data["metric"],
+        "namespace": "tracers",
+        "lib_language": "python",
+        "lib_version": installed_packages.get("ddtrace", "unknown"),
+        "series": data,
+        "tags": {
+            **tags,
+            "python_version": python_version,
+            "runtime": python_runtime,
+            "platform": platform.system(),
+            "platform_version": platform.version(),
+        },
+        "type": "count",
+        "common": "true",
+        "points": [[int(time.time()), 1]],
     }
 
 
@@ -103,11 +113,13 @@ def _inject():
             if not allow_unsupported_integrations:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
                 data = {
-                    "incompatible_packages": incompatible_packages,
-                    "metric_name": "bootstrap.skipped",
-                    "reason": "integration",
+                    "metric": "bootstrap.skipped",
+                    "tags": {
+                        "incompatible_packages": incompatible_packages,
+                        "reason": "integration",
+                    },
                 }  # noqa: F841
-                event = gen_telemetry_event(data)  # noqa: F841
+                event = gen_telemetry_payload(data)  # noqa: F841
                 event_json = json.dumps(event)  # noqa: F841
                 # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 return
@@ -120,12 +132,10 @@ def _inject():
             _log(f"Found incompatible runtime: {python_runtime} {python_version}.", level="debug")
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                data = {
-                    "runtime": f"{python_runtime} {python_version}",
-                    "metric_name": "bootstrap.skipped",
-                    "reason": "runtime",
-                }  # noqa: F841
-                event = gen_telemetry_event(data)  # noqa: F841
+
+                data = {"metric": "bootstrap.skipped", "tags": {"reason": "runtime"}}  # noqa: F841
+
+                event = gen_telemetry_payload(data)  # noqa: F841
                 event_json = json.dumps(event)
                 # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 return
@@ -175,13 +185,13 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                data = {"metric_name": "bootstrap.completed"}
-                event = gen_telemetry_event(data)
+                data = {"metric": "bootstrap.completed"}
+                event = gen_telemetry_payload(data)
                 event_json = json.dumps(event)
                 # subprocess.run(['python', 'send_telemetry.py', url, event_json])
             except BaseException as e:
-                data = {"error": str(e), "metric_name": "bootstrap.error"}
-                event = gen_telemetry_event(data)
+                data = {"metric": "bootstrap.error", "tags": {"error_type": type(e).__name__, "error": str(e)}}
+                event = gen_telemetry_payload(data)
                 event_json = json.dumps(event)  # noqa: F841
                 # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
