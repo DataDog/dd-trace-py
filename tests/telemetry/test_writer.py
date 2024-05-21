@@ -1,6 +1,7 @@
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+import sysconfig
 
 import httpretty
 import mock
@@ -305,6 +306,9 @@ import ddtrace.auto
             {"name": "profiling_enabled", "origin": "env_var", "value": "true"},
             {"name": "data_streams_enabled", "origin": "env_var", "value": "true"},
             {"name": "appsec_enabled", "origin": "env_var", "value": "true"},
+            {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
+            {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
+            {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
             {"name": "trace_sample_rate", "origin": "env_var", "value": "0.5"},
             {
                 "name": "trace_sampling_rules",
