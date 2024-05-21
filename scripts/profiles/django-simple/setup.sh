@@ -23,7 +23,7 @@ fi
 # Create and activate the virtualenv
 python3.10 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
-pip install pip --upgrade
+pip install pip setuptools --upgrade
 
 # Install the application
 git clone https://github.com/DataDog/trace-examples.git ${PREFIX}/trace-examples
