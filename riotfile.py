@@ -136,6 +136,7 @@ venv = Venv(
             command="pytest -v {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
+                "urllib3": latest,
                 "pycryptodome": latest,
                 "cryptography": latest,
                 "astunparse": latest,
@@ -210,7 +211,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -439,7 +439,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
             },
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -1580,6 +1580,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1607,6 +1608,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],
@@ -1697,7 +1699,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
                 "pytest-randomly": latest,
@@ -1735,6 +1737,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+            # grpc.aio support is broken and disabled by default
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -2603,6 +2607,7 @@ venv = Venv(
                 "msgpack": latest,
                 "coverage": latest,
                 "pytest-randomly": latest,
+                "gevent": latest,
             },
         ),
         Venv(

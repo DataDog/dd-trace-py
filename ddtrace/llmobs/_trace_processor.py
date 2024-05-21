@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -23,6 +24,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
@@ -43,7 +45,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer):
         self._span_writer = llmobs_span_writer
-        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_NO_APM", False))
+        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -65,7 +67,7 @@ class LLMObsTraceProcessor(TraceProcessor):
         """Span event object structure."""
         span_kind = span._meta.pop(SPAN_KIND)
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
-        if span_kind == "llm" and span.get_tag(MODEL_NAME) is not None:
+        if span_kind in ("llm", "embedding") and span.get_tag(MODEL_NAME) is not None:
             meta["model_name"] = span._meta.pop(MODEL_NAME)
             meta["model_provider"] = span._meta.pop(MODEL_PROVIDER, "custom").lower()
         if span.get_tag(METADATA) is not None:
@@ -78,8 +80,12 @@ class LLMObsTraceProcessor(TraceProcessor):
             meta["input"]["value"] = span._meta.pop(INPUT_VALUE)
         if span_kind == "llm" and span.get_tag(OUTPUT_MESSAGES) is not None:
             meta["output"]["messages"] = json.loads(span._meta.pop(OUTPUT_MESSAGES))
+        if span_kind == "embedding" and span.get_tag(INPUT_DOCUMENTS) is not None:
+            meta["input"]["documents"] = json.loads(span._meta.pop(INPUT_DOCUMENTS))
         if span.get_tag(OUTPUT_VALUE) is not None:
             meta["output"]["value"] = span._meta.pop(OUTPUT_VALUE)
+        if span_kind == "retrieval" and span.get_tag(OUTPUT_DOCUMENTS) is not None:
+            meta["output"]["documents"] = json.loads(span._meta.pop(OUTPUT_DOCUMENTS))
         if span.error:
             meta[ERROR_MSG] = span.get_tag(ERROR_MSG)
             meta[ERROR_STACK] = span.get_tag(ERROR_STACK)

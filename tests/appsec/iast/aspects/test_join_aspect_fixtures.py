@@ -7,8 +7,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
@@ -445,7 +445,7 @@ def test_propagate_ranges_with_no_context(caplog):
         pyobject="-joiner-", source_name="joiner", source_value="foo", source_origin=OriginType.PARAMETER
     )
     it = ["a", "b", "c"]
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
@@ -464,7 +464,7 @@ def test_propagate_ranges_with_no_context_with_var(caplog):
         "b",
         "c",
     ]
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
@@ -482,7 +482,7 @@ def test_propagate_ranges_with_no_context_with_equal_var(caplog):
         pyobject="abcdef", source_name="joined", source_value="abcdef", source_origin=OriginType.PARAMETER
     )
 
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = mod.do_join(string_input, [a_tainted, a_tainted, a_tainted])
         assert result == "abcdef-joiner-abcdef-joiner-abcdef"
