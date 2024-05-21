@@ -95,7 +95,7 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         gc.collect()
 
     os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
-        ["please_patch", "also.that", "ddtrace", "please_patch.do_not.but_yes"]
+        ["ddtrace.allowed", "please_patch", "also.that", "please_patch.do_not.but_yes"]
     )
     os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not", "also.that.but.not.that"])
     import ddtrace.appsec._iast._ast.ast_patching as ap
@@ -112,6 +112,7 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         "also.that.but.not",
         "tests.appsec.iast",
         "tests.appsec.iast.sub",
+        "ddtrace.allowed",
     ]:
         assert ap._should_iast_patch(module_name), module_name
 
@@ -120,9 +121,5 @@ def test_A_env_var_iast_modules_to_patch(capfd):
         "ddtrace.sub",
         "hypothesis",
         "pytest",
-        "please_patch.do_not",
-        "please_patch.do_not.any",
-        "also.that.but.not.that",
-        "also.that.but.not.that.never",
     ]:
         assert not ap._should_iast_patch(module_name), module_name

@@ -36,6 +36,9 @@ def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
 
     for cookie_key, cookie_value in cookies.items():
         lvalue = cookie_value.lower().replace(" ", "")
+        # If lvalue starts with ";" means that the cookie is empty, like ';httponly;path=/;samesite=strict'
+        if lvalue == "" or lvalue.startswith(";"):
+            continue
 
         if ";secure" not in lvalue:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)
