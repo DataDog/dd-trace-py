@@ -7,13 +7,8 @@ from ddtrace.internal.module import ModuleWatchdog
 
 ModuleWatchdog.install()
 
-# Acquire a reference to the threading module. Some parts of the library (e.g.
-# the profiler) might be enabled programmatically and therefore might end up
-# getting a reference to the tracee's threading module. By storing a reference
-# to the threading module used by ddtrace here, we make it easy for those parts
-# to get a reference to the right threading module.
-import threading as _threading
-
+# Ensure we capture references to unpatched modules as early as possible
+import ddtrace.internal._unpatched  # noqa
 from ._logger import configure_ddtrace_logger
 
 
