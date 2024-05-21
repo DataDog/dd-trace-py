@@ -10,6 +10,7 @@ from ddtrace.contrib.openai.utils import _process_finished_stream
 from ddtrace.contrib.openai.utils import _tag_tool_calls
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -190,6 +191,8 @@ class _CompletionHook(_BaseCompletionHook):
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
         span.span_type = SpanTypes.LLM
+        if integration.is_pc_sampled_llmobs(span):
+            span.set_tag_str(SPAN_KIND, "llm")
         if integration.is_pc_sampled_span(span):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
@@ -247,6 +250,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
         span.span_type = SpanTypes.LLM
+        if integration.is_pc_sampled_llmobs(span):
+            span.set_tag_str(SPAN_KIND, "llm")
         for idx, m in enumerate(kwargs.get("messages", [])):
             role = getattr(m, "role", "")
             name = getattr(m, "name", "")

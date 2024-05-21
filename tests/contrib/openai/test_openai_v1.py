@@ -1411,8 +1411,8 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-            client = openai.OpenAI()
-            async with client.chat.completions.create(
+            client = openai.AsyncOpenAI()
+            async with await client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "user", "content": "Who won the world series in 2020?"},
