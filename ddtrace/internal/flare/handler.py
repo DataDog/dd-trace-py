@@ -51,7 +51,7 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
         log.warning("Received unexpected tracer flare product type: %s", product_type)
 
 
-def _prepare_tracer_flare(flare: Flare, configs: List[dict]):
+def _prepare_tracer_flare(flare: Flare, configs: List[dict]) -> bool:
     """
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
@@ -64,11 +64,12 @@ def _prepare_tracer_flare(flare: Flare, configs: List[dict]):
             continue
 
         flare_log_level = c.get("config", {}).get("log_level").upper()
-        flare.prepare(c, flare_log_level)
-        return
+        flare.prepare(flare_log_level)
+        return True
+    return False
 
 
-def _generate_tracer_flare(flare: Flare, configs: List[Any]):
+def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     """
     Revert tracer flare configurations back to original state
     before sending the flare.
@@ -87,4 +88,5 @@ def _generate_tracer_flare(flare: Flare, configs: List[Any]):
         flare.revert_configs()
 
         flare.send(flare_request)
-        return
+        return True
+    return False
