@@ -33,7 +33,9 @@ class TracerFlareTests(unittest.TestCase):
     def setUp(self):
         self.flare_uuid = uuid.uuid4()
         self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
-        self.flare = Flare(trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir))
+        self.flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir), ddconfig={"config": "testconfig"}
+        )
         self.pid = os.getpid()
         self.flare_file_path = f"{self.flare_dir}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{self.flare_dir}/tracer_config_{self.pid}.json"
@@ -55,7 +57,7 @@ class TracerFlareTests(unittest.TestCase):
         """
         ddlogger = get_logger("ddtrace")
 
-        self.flare.prepare(self.mock_config_dict, "DEBUG")
+        self.flare.prepare("DEBUG")
 
         file_handler = self._get_handler()
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
@@ -81,7 +83,7 @@ class TracerFlareTests(unittest.TestCase):
         # Mock the partial failure
         with mock.patch("json.dump") as mock_json:
             mock_json.side_effect = Exception("this is an expected error")
-            self.flare.prepare(self.mock_config_dict, "DEBUG")
+            self.flare.prepare("DEBUG")
 
         file_handler = self._get_handler()
         assert file_handler is not None
@@ -101,7 +103,7 @@ class TracerFlareTests(unittest.TestCase):
         num_processes = 3
 
         def handle_agent_config():
-            self.flare.prepare(self.mock_config_dict, "DEBUG")
+            self.flare.prepare("DEBUG")
 
         def handle_agent_task():
             self.flare.send(self.mock_flare_send_request)
@@ -134,7 +136,7 @@ class TracerFlareTests(unittest.TestCase):
         processes = []
 
         def do_tracer_flare(prep_request, send_request):
-            self.flare.prepare(self.mock_config_dict, prep_request)
+            self.flare.prepare(prep_request)
             # Assert that only one process wrote its file successfully
             # We check for 2 files because it will generate a log file and a config file
             assert 2 == len(os.listdir(self.flare_dir))
@@ -157,7 +159,7 @@ class TracerFlareTests(unittest.TestCase):
         file, just the tracer logs
         """
         app_logger = Logger(name="my-app", level=DEBUG_LEVEL_INT)
-        self.flare.prepare(self.mock_config_dict, "DEBUG")
+        self.flare.prepare("DEBUG")
 
         app_log_line = "this is an app log"
         app_logger.debug(app_log_line)
@@ -195,7 +197,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=PublisherSubscriberConnector(),
             callback=_handle_tracer_flare,
-            flare=Flare(trace_agent_url=TRACE_AGENT_URL),
+            flare=Flare(trace_agent_url=TRACE_AGENT_URL, ddconfig={"config": "testconfig"}),
         )
 
     def generate_agent_config(self):

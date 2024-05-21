@@ -43,6 +43,7 @@ class Flare:
     def __init__(
         self,
         trace_agent_url: str,
+        ddconfig: dict,
         api_key: Optional[str] = None,
         timeout_sec: int = DEFAULT_TIMEOUT_SECONDS,
         flare_dir: str = TRACER_FLARE_DIRECTORY,
@@ -53,8 +54,9 @@ class Flare:
         self.file_handler: Optional[RotatingFileHandler] = None
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
+        self.ddconfig = ddconfig
 
-    def prepare(self, config: dict, log_level: str):
+    def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -88,7 +90,7 @@ class Flare:
         )
 
         # Create and add config file
-        self._generate_config_file(config, pid)
+        self._generate_config_file(pid)
 
     def send(self, flare_send_req: FlareSendRequest):
         """
@@ -128,17 +130,17 @@ class Flare:
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
 
-    def _generate_config_file(self, config: dict, pid: int):
+    def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
                 # Redact API key if present
-                api_key = config.get("_dd_api_key")
+                api_key = self.ddconfig.get("_dd_api_key")
                 if api_key:
-                    config["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+                    self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
 
                 tracer_configs = {
-                    "configs": config,
+                    "configs": self.ddconfig,
                 }
                 json.dump(
                     tracer_configs,
