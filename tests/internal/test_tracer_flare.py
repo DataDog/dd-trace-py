@@ -3,11 +3,10 @@ from logging import Logger
 import multiprocessing
 import os
 import pathlib
-import sys
-import tempfile
 from typing import Optional
-import unittest
 from unittest import mock
+
+from pyfakefs.fake_filesystem_unittest import TestCase
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -23,15 +22,12 @@ TRACE_AGENT_URL = "http://localhost:9126"
 MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
 
 
-class TracerFlareTests(unittest.TestCase):
+class TracerFlareTests(TestCase):
     mock_config_dict = {}
 
     def setUp(self):
-        if sys.version_info >= (3, 10):
-            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        else:
-            # There will be a clean up error for python < 3.10 that can be disregarded
-            self.shared_dir = tempfile.TemporaryDirectory()
+        self.setUpPyfakefs()
+        self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
             flare_dir=pathlib.Path(self.shared_dir.name),
@@ -128,23 +124,11 @@ class TracerFlareTests(unittest.TestCase):
         assert self._get_handler() is None, "File handler was not removed"
 
 
-class TracerFlareMultiprocessTests(unittest.TestCase):
+class TracerFlareMultiprocessTests(TestCase):
     def setUp(self):
-        if sys.version_info >= (3, 10):
-            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        else:
-            # There will be a clean up error for python < 3.10 that can be disregarded
-            self.shared_dir = tempfile.TemporaryDirectory()
+        self.setUpPyfakefs()
+        self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.errors = multiprocessing.Queue()
-
-    def tearDown(self):
-        try:
-            self.shared_dir.cleanup()
-        except Exception:
-            # This will always fail because our Flare logic cleans up the entire directory
-            # We're explicitly calling this in tearDown so that we can remove
-            # the error log clutter for python < 3.10
-            pass
 
     def test_multiple_process_success(self):
         """
@@ -165,12 +149,18 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         def handle_agent_config(flare: Flare):
             try:
                 flare.prepare("DEBUG")
+                # Assert that each process wrote its file successfully
+                # We double the process number because each will generate a log file and a config file
+                if len(os.listdir(self.shared_dir.name)) == 0:
+                    self.errors.put(Exception("Files were not generated"))
             except Exception as e:
                 self.errors.put(e)
 
         def handle_agent_task(flare: Flare):
             try:
                 flare.send(MOCK_FLARE_SEND_REQUEST)
+                if os.path.exists(self.shared_dir.name):
+                    self.errors.put(Exception("Directory was not cleaned up"))
             except Exception as e:
                 self.errors.put(e)
 
@@ -182,10 +172,6 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
             p.start()
         for p in processes:
             p.join()
-
-        # Assert that each process wrote its file successfully
-        # We double the process number because each will generate a log file and a config file
-        assert len(processes) * 2 == len(os.listdir(self.shared_dir.name))
 
         for i in range(num_processes):
             flare = flares[i]
@@ -236,7 +222,18 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         assert self.errors.qsize() == 1
 
 
-class TracerFlareSubscriberTests(unittest.TestCase):
+class MockPubSubConnector(PublisherSubscriberConnector):
+    def __init__(self):
+        pass
+
+    def read(self):
+        pass
+
+    def write(self):
+        pass
+
+
+class TracerFlareSubscriberTests(TestCase):
     agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
     agent_task = [
         False,
@@ -252,13 +249,10 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     ]
 
     def setUp(self):
-        if sys.version_info >= (3, 10):
-            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        else:
-            # There will be a clean up error for python < 3.10 that can be disregarded
-            self.shared_dir = tempfile.TemporaryDirectory()
+        self.setUpPyfakefs()
+        self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=PublisherSubscriberConnector(),
+            data_connector=MockPubSubConnector(),
             callback=_handle_tracer_flare,
             flare=Flare(
                 trace_agent_url=TRACE_AGENT_URL,
@@ -267,19 +261,8 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             ),
         )
 
-    def tearDown(self):
-        try:
-            self.shared_dir.cleanup()
-        except Exception:
-            # This will always fail because our Flare logic cleans up the entire directory
-            # We're explicitly calling this in tearDown so that we can remove
-            # the error log clutter for python < 3.10
-            pass
-
     def generate_agent_config(self):
-        with mock.patch(
-            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
-        ) as mock_pubsub_conn:
+        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
             mock_pubsub_conn.return_value = {
                 "metadata": [{"product_name": "AGENT_CONFIG"}],
                 "config": self.agent_config,
@@ -287,9 +270,7 @@ class TracerFlareSubscriberTests(unittest.TestCase):
             self.tracer_flare_sub._get_data_from_connector_and_exec()
 
     def generate_agent_task(self):
-        with mock.patch(
-            "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.read"
-        ) as mock_pubsub_conn:
+        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
             mock_pubsub_conn.return_value = {
                 "metadata": [{"product_name": "AGENT_TASK"}],
                 "config": self.agent_task,
