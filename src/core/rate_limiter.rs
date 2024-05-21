@@ -36,10 +36,10 @@ impl RateLimiter {
 
         let allowed = (|| -> bool {
             // Rate limit of 0 is always disallowed. Negative rate limits are always allowed.
-            if self.rate_limit == 0 {
-                return false;
-            } else if self.rate_limit < 0 {
-                return true;
+            match self.rate_limit {
+                0 => return false,
+                _ if self.rate_limit < 0 => return true,
+                _ => {}
             }
 
             if self.tokens < self.max_tokens {
@@ -96,7 +96,7 @@ impl RateLimiter {
             return 1.0;
         }
 
-        return self.tokens_allowed as f64 / self.tokens_total as f64;
+        self.tokens_allowed as f64 / self.tokens_total as f64
     }
 }
 
