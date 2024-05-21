@@ -1,4 +1,3 @@
-from builtins import open  # make sure we use unpatched open
 from contextlib import contextmanager
 from dataclasses import dataclass
 from json import loads
@@ -18,6 +17,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
