@@ -159,7 +159,7 @@ def _llmobs_base_span_event(
         "trace_id": "{:x}".format(span.trace_id),
         "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
-        "name": span.resource.lower(),
+        "name": span.resource,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,

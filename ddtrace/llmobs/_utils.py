@@ -30,7 +30,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
 
 def _get_span_name(span: Span) -> str:
     if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
-        return span.resource.lower()
+        return span.resource
     return span.name
 
 
