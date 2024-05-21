@@ -9,8 +9,8 @@ from typing import Text
 from typing import Tuple
 from typing import Type
 
-from ddtrace import _threading as threading
 from ddtrace._trace.span import Span
+from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
 
