@@ -475,7 +475,7 @@ else:
 
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
