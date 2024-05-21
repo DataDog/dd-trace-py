@@ -132,9 +132,10 @@ def _get_sysconfig_var(key: str) -> str:
     return sysconfig.get_config_var(key) or ""
 
 
-def get_python_config_vars() -> list[tuple[str, str]]:
+def get_python_config_vars() -> list[tuple[str, str, str]]:
+    # DEV: Usse "unknown" since these aren't user or dd defined values
     return [
-        ("python_soabi", _get_sysconfig_var("SOABI")),
-        ("python_host_gnu_type", _get_sysconfig_var("HOST_GNU_TYPE")),
-        ("python_build_gnu_type", _get_sysconfig_var("BUILD_GNU_TYPE")),
+        ("python_soabi", _get_sysconfig_var("SOABI"), "unknown"),
+        ("python_host_gnu_type", _get_sysconfig_var("HOST_GNU_TYPE"), "unknown"),
+        ("python_build_gnu_type", _get_sysconfig_var("BUILD_GNU_TYPE"), "unknown"),
     ]
