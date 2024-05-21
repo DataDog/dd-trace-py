@@ -420,6 +420,25 @@ parse_params(size_t position,
     return default_value;
 }
 
+
+bool has_pyerr()
+{
+    if (const auto exception = PyErr_Occurred())
+    {
+        PyObject * extype, * value, * traceback;
+        PyErr_Fetch(&extype, &value, &traceback);
+        PyErr_NormalizeException(&extype, &value, &traceback);
+        const auto exception_msg = py::str(PyObject_Str(value));
+        py::set_error(extype, exception_msg);
+        Py_DecRef(extype);
+        Py_DecRef(value);
+        Py_DecRef(traceback);
+        return true;
+    }
+
+    return false;
+}
+
 void
 pyexport_aspect_helpers(py::module& m)
 {
@@ -492,4 +511,5 @@ pyexport_aspect_helpers(py::module& m)
           "taint_escaped_text"_a,
           "ranges_orig"_a);
     m.def("parse_params", &parse_params);
+    m.def("has_pyerr", &has_pyerr);
 }

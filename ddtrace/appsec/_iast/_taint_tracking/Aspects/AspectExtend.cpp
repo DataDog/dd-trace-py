@@ -1,5 +1,7 @@
 #include "AspectExtend.h"
 
+#include "Helpers.h"
+
 /**
  * @brief Taint candidate_text when bytearray extends is called.
  *
@@ -16,30 +18,25 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
 
     PyObject* candidate_text = args[0];
-    if (!PyByteArray_Check(candidate_text)) {
-        return nullptr;
-    }
+    // if (!PyByteArray_Check(candidate_text)) {
+    //     return nullptr;
+    // }
     auto len_candidate_text = PyByteArray_Size(candidate_text);
     PyObject* to_add = args[1];
 
-    if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
-        return nullptr;
-    }
+    // if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
+    //     return nullptr;
+    // }
 
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
-        // try {
-            PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        // } catch (py::error_already_set& e) {
-        //     py::set_error(PyExc_RuntimeError, e.what());
-        //     Py_DecRef(method_name);
-        //     return nullptr;
-        // } catch (...) {
-        //     py::set_error(PyExc_RuntimeError, "native api_extend_aspect unkown exception");
-        //     Py_DecRef(method_name);
-        //     return nullptr;
-        // }
+        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        if (has_pyerr())
+        {
+            Py_DecRef(method_name);
+            return nullptr;
+        }
         Py_DecRef(method_name);
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
@@ -48,19 +45,12 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
         // Ensure no returns are done before this method call
         auto method_name = PyUnicode_FromString("extend");
-        // try {
-            // PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-            PyObject_CallMethodObjArgs(nullptr, method_name, to_add, nullptr);
-        // } catch (py::error_already_set& e) {
-        //     py::set_error(PyExc_RuntimeError, e.what());
-        //     Py_DecRef(method_name);
-        //     return nullptr;
-        // } catch (...)
-        // {
-        //     py::set_error(PyExc_RuntimeError, "native api_extend_aspect unkown exception");
-        //     Py_DecRef(method_name);
-        //     return nullptr;
-        // }
+        PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        if (has_pyerr())
+        {
+            Py_DecRef(method_name);
+            return nullptr;
+        }
         Py_DecRef(method_name);
 
         if (to_result == nullptr) {
