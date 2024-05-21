@@ -15,6 +15,14 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
     last_lineno = None
     for i, instr in enumerate(abstract_code):
         try:
+            if instr.lineno is None:
+                continue
+
+            if code.co_filename.endswith("app.py"):
+                if instr.lineno in [249, 250, 251, 255]:
+                    print(f"{instr.lineno=}, {instr=}")
+                    # breakpoint()
+
             if instr.lineno == last_lineno:
                 continue
 
@@ -22,11 +30,17 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
             if last_lineno is None:
                 continue
 
-            if instr.name in ("NOP", "RESUME"):
+            if instr.name == "RESUME":
                 continue
 
             # Inject the hook at the beginning of the line
-            abstract_code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
+            to_inject = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
+            to_replace = abstract_code[i]
+            if code.co_filename.endswith("app.py"):
+                if instr.lineno in [249, 250, 251, 255]:
+                    print(f"{to_replace=} {to_inject=}")
+
+            abstract_code[i:i] = to_inject
 
             # Track the line number
             lines.add(last_lineno)
