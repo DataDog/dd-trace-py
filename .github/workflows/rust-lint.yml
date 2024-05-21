@@ -10,7 +10,7 @@ name: build
 
 jobs:
   check:
-    name: Rust project
+    name: Rust CI
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,4 +27,7 @@ jobs:
         working-directory: ${{ matrix.extension }}
       - name: Run cargo clippy
         run: cargo clippy -- -D warnings
+        working-directory: ${{ matrix.extension }}
+      - name: Run cargo test
+        run: cargo test --no-fail-fast --locked
         working-directory: ${{ matrix.extension }}
