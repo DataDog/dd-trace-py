@@ -1,4 +1,5 @@
 import re
+import sys
 from typing import Any
 from typing import AsyncGenerator
 from typing import Dict
@@ -6,6 +7,7 @@ from typing import Generator
 from typing import List
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor import wrapt
 
 
 try:
@@ -19,6 +21,108 @@ except ModuleNotFoundError:
 log = get_logger(__name__)
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
+
+
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+    completions, messages = None, None
+    prompts = kwargs.get("prompt", None)
+    messages = kwargs.get("messages", None)
+    try:
+        _set_metrics_on_request(integration, span, kwargs, prompts=prompts, messages=messages)
+        if is_completion:
+            completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+            if integration.is_pc_sampled_span(span):
+                _tag_streamed_completion_response(integration, span, completions)
+        else:
+            messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+            if integration.is_pc_sampled_span(span):
+                _tag_streamed_chat_completion_response(integration, span, messages)
+        _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                "completion" if is_completion else "chat",
+                None,
+                span,
+                kwargs,
+                streamed_completions=completions if is_completion else messages,
+            )
+    except Exception:
+        log.warning("Error processing streamed completion/chat response.", exc_info=True)
+
+
+class BaseTracedOpenAIStream(wrapt.ObjectProxy):
+    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+        super().__init__(wrapped)
+        n = kwargs.get("n", 1) or 1
+        if is_completion:
+            prompts = kwargs.get("prompt", "")
+            if isinstance(prompts, list) and not isinstance(prompts[0], int):
+                n *= len(prompts)
+        self._dd_span = span
+        self._streamed_chunks = [[] for _ in range(n)]
+        self._dd_integration = integration
+        self._is_completion = is_completion
+        self._kwargs = kwargs
+
+
+class TracedOpenAIStream(BaseTracedOpenAIStream):
+    def __enter__(self):
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            chunk = self.__wrapped__.__next__()
+            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            return chunk
+        except StopIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            raise
+
+
+class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
+    async def __aenter__(self):
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            chunk = await self.__wrapped__.__anext__()
+            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            return chunk
+        except StopAsyncIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
+            raise
 
 
 def _compute_token_count(content, model):
