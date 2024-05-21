@@ -32,8 +32,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        if (has_pyerr())
-        {
+        if (has_pyerr()) {
             Py_DecRef(method_name);
             return nullptr;
         }
@@ -46,8 +45,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         // Ensure no returns are done before this method call
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
-        if (has_pyerr())
-        {
+        if (has_pyerr()) {
             Py_DecRef(method_name);
             return nullptr;
         }

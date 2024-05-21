@@ -546,6 +546,7 @@ def ospathjoin_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathjoin_aspect. {}".format(e))
         import os.path
+
         return os.path.join(*args, **kwargs)
 
 
@@ -555,6 +556,7 @@ def ospathbasename_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathbasename_aspect. {}".format(e))
         import os.path
+
         return os.path.basename(*args, **kwargs)
 
 
@@ -564,6 +566,7 @@ def ospathdirname_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathdirname_aspect. {}".format(e))
         import os.path
+
         return os.path.dirname(*args, **kwargs)
 
 
@@ -573,6 +576,7 @@ def ospathsplit_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathsplit_aspect. {}".format(e))
         import os.path
+
         return os.path.split(*args, **kwargs)
 
 
@@ -582,6 +586,7 @@ def ospathsplitext_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathsplitext_aspect. {}".format(e))
         import os.path
+
         return os.path.splitext(*args, **kwargs)
 
 
@@ -591,6 +596,7 @@ def ospathsplitroot_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathsplitroot_aspect. {}".format(e))
         import os.path
+
         return os.path.splitroot(*args, **kwargs)
 
 
@@ -600,6 +606,7 @@ def ospathnormcase_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathnormcase_aspect. {}".format(e))
         import os.path
+
         return os.path.normcase(*args, **kwargs)
 
 
@@ -609,6 +616,7 @@ def ospathsplitdrive_aspect(*args, **kwargs):
     except Exception as e:
         iast_taint_log_error("IAST propagation error. ospathsplitdrive_aspect. {}".format(e))
         import os.path
+
         return os.path.splitdrive(*args, **kwargs)
 
 

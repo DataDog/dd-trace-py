@@ -420,12 +420,11 @@ parse_params(size_t position,
     return default_value;
 }
 
-
-bool has_pyerr()
+bool
+has_pyerr()
 {
-    if (const auto exception = PyErr_Occurred())
-    {
-        PyObject * extype, * value, * traceback;
+    if (const auto exception = PyErr_Occurred()) {
+        PyObject *extype, *value, *traceback;
         PyErr_Fetch(&extype, &value, &traceback);
         PyErr_NormalizeException(&extype, &value, &traceback);
         const auto exception_msg = py::str(PyObject_Str(value));
