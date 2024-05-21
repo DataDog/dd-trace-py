@@ -2623,6 +2623,15 @@ venv = Venv(
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
         Venv(
+            name="qiskit",
+            command="pytest {cmdargs} tests/contrib/qiskit",
+            pkgs={
+                "qiskit": "==1.0.2",
+                "qiskit-ibm-runtime": "==0.23.0",
+            },
+            pys=select_pys(min_version="3.10", max_version="3.12"),
+        ),
+        Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
