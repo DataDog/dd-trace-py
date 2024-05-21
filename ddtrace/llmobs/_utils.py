@@ -27,6 +27,12 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
     return None
 
 
+def _get_span_name(span: Span) -> str:
+    if span.name == "langchain.request" and span.resource != "":
+        return span.resource
+    return span.name
+
+
 def _get_ml_app(span: Span) -> str:
     """
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
