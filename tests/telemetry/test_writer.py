@@ -1,7 +1,7 @@
+import sysconfig
 import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
-import sysconfig
 
 import httpretty
 import mock
