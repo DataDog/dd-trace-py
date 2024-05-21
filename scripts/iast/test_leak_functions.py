@@ -4,6 +4,10 @@ import sys
 
 from mod_leak_functions import test_doit
 
+from ddtrace.appsec._iast._taint_tracking import create_context
+from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import reset_context
+
 
 def test_main():
     try:
@@ -13,7 +17,10 @@ def test_main():
     print("Test %d rounds" % rounds)
     for i in range(rounds):
         try:
-            test_doit()
+            create_context()
+            result = test_doit()  # noqa: F841
+            assert is_pyobject_tainted(result)
+            reset_context()
         except KeyboardInterrupt:
             print("Control-C stopped at %d rounds" % i)
             break
