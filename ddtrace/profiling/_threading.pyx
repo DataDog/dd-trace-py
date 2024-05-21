@@ -7,8 +7,8 @@ import weakref
 import attr
 from six.moves import _thread
 
-from ddtrace import _threading as ddtrace_threading
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
 
 from cpython cimport PyLong_FromLong

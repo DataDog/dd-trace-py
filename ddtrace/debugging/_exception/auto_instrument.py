@@ -178,34 +178,32 @@ class SpanExceptionProcessor(SpanProcessor):
                 code = frame.f_code
                 seq_nr = next(seq)
 
-                if not is_user_code(Path(frame.f_code.co_filename)):
-                    continue
+                if is_user_code(Path(frame.f_code.co_filename)):
+                    snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
+                    if snapshot_id is None:
+                        # We don't have a snapshot for the frame so we create one
+                        snapshot = SpanExceptionSnapshot(
+                            probe=SpanExceptionProbe.build(exc_id, frame),
+                            frame=frame,
+                            thread=current_thread(),
+                            trace_context=span,
+                            exc_id=exc_id,
+                        )
 
-                snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
-                if snapshot_id is None:
-                    # We don't have a snapshot for the frame so we create one
-                    snapshot = SpanExceptionSnapshot(
-                        probe=SpanExceptionProbe.build(exc_id, frame),
-                        frame=frame,
-                        thread=current_thread(),
-                        trace_context=span,
-                        exc_id=exc_id,
-                    )
+                        # Capture
+                        snapshot.line()
 
-                    # Capture
-                    snapshot.line()
+                        # Collect
+                        self.collector.push(snapshot)
 
-                    # Collect
-                    self.collector.push(snapshot)
+                        # Memoize
+                        frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
-                    # Memoize
-                    frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
-
-                # Add correlation tags on the span
-                span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
-                span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
-                span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
-                span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
+                    # Add correlation tags on the span
+                    span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
+                    span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
+                    span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
+                    span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
 
                 # Move up the stack
                 _tb = _tb.tb_next
