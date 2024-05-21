@@ -3,15 +3,13 @@ from logging import Logger
 import multiprocessing
 import os
 import pathlib
+import sys
+import tempfile
 from typing import Optional
 import unittest
 from unittest import mock
-import uuid
-
-from pyfakefs.fake_filesystem_unittest import TestCase
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
-from ddtrace.internal.flare.flare import TRACER_FLARE_DIRECTORY
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
@@ -22,27 +20,35 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
+MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
 
 
-class TracerFlareTests(TestCase):
-    mock_flare_send_request = FlareSendRequest(
-        case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com"
-    )
-
+class TracerFlareTests(unittest.TestCase):
     mock_config_dict = {}
 
     def setUp(self):
-        self.setUpPyfakefs()
-        self.flare_uuid = uuid.uuid4()
-        self.flare_dir = f"{TRACER_FLARE_DIRECTORY}-{self.flare_uuid}"
+        if sys.version_info >= (3, 10):
+            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        else:
+            # There will be a clean up error for python < 3.10 that can be disregarded
+            self.shared_dir = tempfile.TemporaryDirectory()
         self.flare = Flare(
-            trace_agent_url=TRACE_AGENT_URL, flare_dir=pathlib.Path(self.flare_dir), ddconfig={"config": "testconfig"}
+            trace_agent_url=TRACE_AGENT_URL,
+            flare_dir=pathlib.Path(self.shared_dir.name),
+            ddconfig={"config": "testconfig"},
         )
         self.pid = os.getpid()
-        self.flare_file_path = f"{self.flare_dir}/tracer_python_{self.pid}.log"
-        self.config_file_path = f"{self.flare_dir}/tracer_config_{self.pid}.json"
+        self.flare_file_path = f"{self.shared_dir.name}/tracer_python_{self.pid}.log"
+        self.config_file_path = f"{self.shared_dir.name}/tracer_config_{self.pid}.json"
 
     def tearDown(self):
+        try:
+            self.shared_dir.cleanup()
+        except Exception:
+            # This will always fail because our Flare logic cleans up the entire directory
+            # We're explicitly calling this in tearDown so that we can remove
+            # the error log clutter for python < 3.10
+            pass
         self.confirm_cleanup()
 
     def _get_handler(self) -> Optional[logging.Handler]:
@@ -72,7 +78,7 @@ class TracerFlareTests(TestCase):
 
         # Sends request to testagent
         # This just validates the request params
-        self.flare.send(self.mock_flare_send_request)
+        self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
     def test_single_process_partial_failure(self):
         """
@@ -95,64 +101,7 @@ class TracerFlareTests(TestCase):
         assert os.path.exists(self.flare_file_path)
         assert not os.path.exists(self.config_file_path)
 
-        self.flare.send(self.mock_flare_send_request)
-
-    def test_multiple_process_success(self):
-        """
-        Validate that the tracer flare will generate for multiple processes
-        """
-        processes = []
-        num_processes = 3
-
-        def handle_agent_config():
-            self.flare.prepare("DEBUG")
-
-        def handle_agent_task():
-            self.flare.send(self.mock_flare_send_request)
-
-        # Create multiple processes
-        for _ in range(num_processes):
-            p = multiprocessing.Process(target=handle_agent_config)
-            processes.append(p)
-            p.start()
-        for p in processes:
-            p.join()
-
-        # Assert that each process wrote its file successfully
-        # We double the process number because each will generate a log file and a config file
-        assert len(processes) * 2 == len(os.listdir(self.flare_dir))
-
-        for _ in range(num_processes):
-            p = multiprocessing.Process(target=handle_agent_task)
-            processes.append(p)
-            p.start()
-        for p in processes:
-            p.join()
-
-    def test_multiple_process_partial_failure(self):
-        """
-        Validte that even if the tracer flare fails for one process, we should
-        still continue the work for the other processes (ensure best effort)
-        """
-        processes = []
-
-        def do_tracer_flare(prep_request, send_request):
-            self.flare.prepare(prep_request)
-            # Assert that only one process wrote its file successfully
-            # We check for 2 files because it will generate a log file and a config file
-            assert 2 == len(os.listdir(self.flare_dir))
-            self.flare.send(send_request)
-
-        # Create successful process
-        p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", self.mock_flare_send_request))
-        processes.append(p)
-        p.start()
-        # Create failing process
-        p = multiprocessing.Process(target=do_tracer_flare, args=(None, self.mock_flare_send_request))
-        processes.append(p)
-        p.start()
-        for p in processes:
-            p.join()
+        self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
     def test_no_app_logs(self):
         """
@@ -179,6 +128,114 @@ class TracerFlareTests(TestCase):
         assert self._get_handler() is None, "File handler was not removed"
 
 
+class TracerFlareMultiprocessTests(unittest.TestCase):
+    def setUp(self):
+        if sys.version_info >= (3, 10):
+            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        else:
+            # There will be a clean up error for python < 3.10 that can be disregarded
+            self.shared_dir = tempfile.TemporaryDirectory()
+        self.errors = multiprocessing.Queue()
+
+    def tearDown(self):
+        try:
+            self.shared_dir.cleanup()
+        except Exception:
+            # This will always fail because our Flare logic cleans up the entire directory
+            # We're explicitly calling this in tearDown so that we can remove
+            # the error log clutter for python < 3.10
+            pass
+
+    def test_multiple_process_success(self):
+        """
+        Validate that the tracer flare will generate for multiple processes
+        """
+        processes = []
+        num_processes = 3
+        flares = []
+        for _ in range(num_processes):
+            flares.append(
+                Flare(
+                    trace_agent_url=TRACE_AGENT_URL,
+                    flare_dir=pathlib.Path(self.shared_dir.name),
+                    ddconfig={"config": "testconfig"},
+                )
+            )
+
+        def handle_agent_config(flare: Flare):
+            try:
+                flare.prepare("DEBUG")
+            except Exception as e:
+                self.errors.put(e)
+
+        def handle_agent_task(flare: Flare):
+            try:
+                flare.send(MOCK_FLARE_SEND_REQUEST)
+            except Exception as e:
+                self.errors.put(e)
+
+        # Create multiple processes
+        for i in range(num_processes):
+            flare = flares[i]
+            p = multiprocessing.Process(target=handle_agent_config, args=(flare,))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+
+        # Assert that each process wrote its file successfully
+        # We double the process number because each will generate a log file and a config file
+        assert len(processes) * 2 == len(os.listdir(self.shared_dir.name))
+
+        for i in range(num_processes):
+            flare = flares[i]
+            p = multiprocessing.Process(target=handle_agent_task, args=(flare,))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+
+        assert self.errors.qsize() == 0
+
+    def test_multiple_process_partial_failure(self):
+        """
+        Validte that even if the tracer flare fails for one process, we should
+        still continue the work for the other processes (ensure best effort)
+        """
+        processes = []
+        flares = []
+        for _ in range(2):
+            flares.append(
+                Flare(
+                    trace_agent_url=TRACE_AGENT_URL,
+                    flare_dir=pathlib.Path(self.shared_dir.name),
+                    ddconfig={"config": "testconfig"},
+                )
+            )
+
+        def do_tracer_flare(log_level: str, send_request: FlareSendRequest, flare: Flare):
+            try:
+                flare.prepare(log_level)
+                # Assert that only one process wrote its file successfully
+                # We check for 2 files because it will generate a log file and a config file
+                assert 2 == len(os.listdir(self.shared_dir.name))
+                flare.send(send_request)
+            except Exception as e:
+                self.errors.put(e)
+
+        # Create successful process
+        p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", MOCK_FLARE_SEND_REQUEST, flares[0]))
+        processes.append(p)
+        p.start()
+        # Create failing process
+        p = multiprocessing.Process(target=do_tracer_flare, args=(None, MOCK_FLARE_SEND_REQUEST, flares[1]))
+        processes.append(p)
+        p.start()
+        for p in processes:
+            p.join()
+        assert self.errors.qsize() == 1
+
+
 class TracerFlareSubscriberTests(unittest.TestCase):
     agent_config = [{"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
     agent_task = [
@@ -195,11 +252,29 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     ]
 
     def setUp(self):
+        if sys.version_info >= (3, 10):
+            self.shared_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        else:
+            # There will be a clean up error for python < 3.10 that can be disregarded
+            self.shared_dir = tempfile.TemporaryDirectory()
         self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=PublisherSubscriberConnector(),
             callback=_handle_tracer_flare,
-            flare=Flare(trace_agent_url=TRACE_AGENT_URL, ddconfig={"config": "testconfig"}),
+            flare=Flare(
+                trace_agent_url=TRACE_AGENT_URL,
+                ddconfig={"config": "testconfig"},
+                flare_dir=pathlib.Path(self.shared_dir.name),
+            ),
         )
+
+    def tearDown(self):
+        try:
+            self.shared_dir.cleanup()
+        except Exception:
+            # This will always fail because our Flare logic cleans up the entire directory
+            # We're explicitly calling this in tearDown so that we can remove
+            # the error log clutter for python < 3.10
+            pass
 
     def generate_agent_config(self):
         with mock.patch(
