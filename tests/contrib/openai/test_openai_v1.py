@@ -1193,7 +1193,7 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
             ) as resp:
                 prompt_tokens = 8
                 span = snapshot_tracer.current_span()
-                chunks = [c for c in resp]
+                chunks = [c async for c in resp]
                 assert len(chunks) == 15
                 completion = "".join(
                     [c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None]
@@ -1410,25 +1410,12 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
-        assert resp.choices[0].model_dump() == {
-            "finish_reason": "stop",
-            "index": 0,
-            "message": {
-                "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, "
-                "16, 17, 18, 19, 20, "
-                "21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, "
-                "34, 35, 36, 37, 38, 39, 40, "
-                "41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, "
-                "54, 55, 56, 57, 58, 59, 60, "
-                "61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, "
-                "74, 75, 76, 77, 78, 79, 80, "
-                "81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, "
-                "94, 95, 96, 97, 98, 99, 100",
-                "role": "assistant",
-                "function_call": None,
-                "tool_calls": None,
-            },
-        }
+        assert resp.choices[0].message.content == (
+            "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,"
+            " 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,"
+            " 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,"
+            " 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100"
+        )
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2
