@@ -707,6 +707,28 @@ def test_wrapping_context_generator():
 
 
 @pytest.mark.asyncio
+async def test_wrapping_context_async_generator():
+    async def arange(count):
+        for i in range(count):
+            yield (i)
+            await asyncio.sleep(0.0)
+
+    wc = DummyWrappingContext(arange)
+    wc.wrap()
+
+    a = []
+    async for _ in arange(10):
+        a.append(_)
+
+    assert a == list(range(10))
+
+    assert wc.entered
+    assert wc.return_value is None
+    assert not wc.exited
+    assert wc.exc_info is None
+
+
+@pytest.mark.asyncio
 async def test_wrapping_context_async_happy() -> None:
     async def coro():
         return 1
