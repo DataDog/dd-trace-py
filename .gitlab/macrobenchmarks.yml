@@ -55,32 +55,86 @@ variables:
   # benchmarks get changed to run on every PR)
   allow_failure: true
 
-macrobenchmarks:
+baseline:
   extends: .macrobenchmarks
-  parallel:
-    matrix:
-      - DD_BENCHMARKS_CONFIGURATION: baseline
-        BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: baseline
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
-      - DD_BENCHMARKS_CONFIGURATION: only-tracing
-        BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
-      - DD_BENCHMARKS_CONFIGURATION: only-tracing
-        BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
-        DD_REMOTE_CONFIGURATION_ENABLED: "false"
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+tracing-rc-disabled-telemetry-disabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
 
-      - DD_BENCHMARKS_CONFIGURATION: only-tracing
-        BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
-        DD_REMOTE_CONFIGURATION_ENABLED: "false"
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
+tracing-rc-enabled-telemetry-disabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_REMOTE_CONFIGURATION_ENABLED: "true"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
 
-      - DD_BENCHMARKS_CONFIGURATION: only-tracing
-        BP_PYTHON_SCENARIO_DIR: flask-realworld
-        DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
-        DD_REMOTE_CONFIGURATION_ENABLED: "true"
-        DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+tracing-rc-disabled-telemetry-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+
+tracing-rc-enabled-telemetry-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_REMOTE_CONFIGURATION_ENABLED: "true"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+
+appsec-enabled-iast-disabled-ep-disabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "true"
+    DD_IAST_ENABLED: "false"
+    DD_APPSEC_RASP_ENABLED: "false"
+
+appsec-disabled-iast-enabled-ep-disabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "false"
+    DD_IAST_ENABLED: "true"
+    DD_APPSEC_RASP_ENABLED: "false"
+
+appsec-enabled-iast-enabled-ep-disabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "true"
+    DD_IAST_ENABLED: "true"
+    DD_APPSEC_RASP_ENABLED: "false"
+
+appsec-enabled-iast-disabled-ep-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "true"
+    DD_IAST_ENABLED: "false"
+    DD_APPSEC_RASP_ENABLED: "true"
