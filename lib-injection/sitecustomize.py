@@ -117,10 +117,17 @@ def _inject():
                     level="debug",
                 )
         if python_version not in runtimes_allow_list.get(python_runtime, []):
-            _log(f"Found incompatible runtimes: {python_runtime} {python_version}.", level="debug")
+            _log(f"Found incompatible runtime: {python_runtime} {python_version}.", level="debug")
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                # TODO add telemetry bootstrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
+                data = {
+                    "runtime": f"{python_runtime} {python_version}",
+                    "metric_name": "bootstrap.skipped",
+                    "reason": "runtime",
+                }  # noqa: F841
+                event = gen_telemetry_event(data)  # noqa: F841
+                event_json = json.dumps(event)
+                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 return
             else:
                 _log(
@@ -168,9 +175,15 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                # TODO add telemetry bootstrap.completed subprocess.run(['python', 'send_telemetry.py', url, data])
+                data = {"metric_name": "bootstrap.completed"}
+                event = gen_telemetry_event(data)
+                event_json = json.dumps(event)
+                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
             except BaseException as e:
-                # TODO add telemetry bootstrap.error subprocess.run(['python', 'send_telemetry.py', url, data])
+                data = {"error": str(e), "metric_name": "bootstrap.error"}
+                event = gen_telemetry_event(data)
+                event_json = json.dumps(event)  # noqa: F841
+                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
