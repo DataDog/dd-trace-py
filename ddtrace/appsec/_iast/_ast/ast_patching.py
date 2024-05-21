@@ -19,6 +19,9 @@ from ddtrace.internal.module import origin
 from .visitor import AstVisitor
 
 
+_VISITOR = AstVisitor()
+
+
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
@@ -31,6 +34,10 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
     "unittest.mock",
+    "pytest",  # Testing framework
+    "freezegun",  # Testing utilities for time manipulation
+    "sklearn",  # Machine learning library
+    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
 )
 
 
@@ -86,10 +93,16 @@ def _should_iast_patch(module_name: Text) -> bool:
     select if module_name should be patch from the longuest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
-    max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
-    max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
-    diff = max_allow - max_deny
-    return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
+    # TODO: A better solution would be to migrate the original algorithm to C++:
+    # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
+    # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
+    # diff = max_allow - max_deny
+    # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
+    if module_name.startswith(IAST_ALLOWLIST):
+        return True
+    if module_name.startswith(IAST_DENYLIST):
+        return False
+    return not _in_python_stdlib_or_third_party(module_name)
 
 
 def visit_ast(
@@ -99,13 +112,10 @@ def visit_ast(
 ) -> Optional[str]:
     parsed_ast = ast.parse(source_text, module_path)
 
-    visitor = AstVisitor(
-        filename=module_path,
-        module_name=module_name,
-    )
-    modified_ast = visitor.visit(parsed_ast)
+    _VISITOR.update_location(filename=module_path, module_name=module_name)
+    modified_ast = _VISITOR.visit(parsed_ast)
 
-    if not visitor.ast_modified:
+    if not _VISITOR.ast_modified:
         return None
 
     ast.fix_missing_locations(modified_ast)

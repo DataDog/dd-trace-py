@@ -3,7 +3,10 @@ from pathlib import Path
 
 import pytest
 
+from ddtrace.ext.ci_visibility import api
 from ddtrace.ext.ci_visibility.api import CISourceFileInfo
+from ddtrace.internal.ci_visibility import CIVisibility
+from tests.ci_visibility.util import set_up_mock_civisibility
 
 
 class TestCISourceFileInfo:
@@ -53,3 +56,126 @@ class TestCISourceFileInfo:
         with pytest.raises(ValueError):
             # start_line cannot be None if end_line is provided
             _ = CISourceFileInfo(Path("/absolute/path/my_file_name"), end_line=1)
+
+
+class TestCIITRMixin:
+    """Tests whether or not skippable tests and suites are correctly identified
+
+    Note: these tests do not bother discovering a session as the ITR functionality currently does not rely on sessions.
+    """
+
+    def test_api_is_item_itr_skippable_test_level(self):
+        with set_up_mock_civisibility(
+            itr_enabled=True,
+            skipping_enabled=True,
+            suite_skipping_mode=False,
+            skippable_items={
+                "skippable_module/suite.py": ["skippable_test"],
+            },
+        ):
+            CIVisibility.enable()
+
+            assert CIVisibility.enabled is True
+            assert CIVisibility._instance._suite_skipping_mode is False
+
+            session_id = api.CISessionId("session_id")
+
+            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+
+            skippable_suite_id = api.CISuiteId(skippable_module_id, "suite.py")
+            skippable_test_id = api.CITestId(skippable_suite_id, "skippable_test")
+            non_skippable_test_id = api.CITestId(skippable_suite_id, "non_skippable_test")
+
+            non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
+            non_skippable_suite_skippable_test_id = api.CITestId(non_skippable_suite_id, "skippable_test")
+
+            assert api.CITest.is_item_itr_skippable(skippable_test_id) is True
+            assert api.CITest.is_item_itr_skippable(non_skippable_test_id) is False
+            assert api.CITest.is_item_itr_skippable(non_skippable_suite_skippable_test_id) is False
+
+            CIVisibility.disable()
+
+    def test_api_is_item_itr_skippable_false_when_skipping_disabled_test_level(self):
+        with set_up_mock_civisibility(
+            itr_enabled=True,
+            skipping_enabled=False,
+            suite_skipping_mode=False,
+            skippable_items={
+                "skippable_module/suite.py": ["skippable_test"],
+            },
+        ):
+            CIVisibility.enable()
+
+            assert CIVisibility.enabled is True
+            assert CIVisibility._instance._suite_skipping_mode is False
+
+            session_id = api.CISessionId("session_id")
+
+            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+
+            skippable_suite_id = api.CISuiteId(skippable_module_id, "suite.py")
+            skippable_test_id = api.CITestId(skippable_suite_id, "skippable_test")
+            non_skippable_test_id = api.CITestId(skippable_suite_id, "non_skippable_test")
+
+            non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
+            non_skippable_suite_skippable_test_id = api.CITestId(non_skippable_suite_id, "skippable_test")
+
+            assert api.CITest.is_item_itr_skippable(skippable_test_id) is False
+            assert api.CITest.is_item_itr_skippable(non_skippable_test_id) is False
+            assert api.CITest.is_item_itr_skippable(non_skippable_suite_skippable_test_id) is False
+
+            CIVisibility.disable()
+
+    def test_api_is_item_itr_skippable_suite_level(self):
+        with set_up_mock_civisibility(
+            itr_enabled=True,
+            skipping_enabled=True,
+            suite_skipping_mode=True,
+            skippable_items=["skippable_module/skippable_suite.py"],
+        ):
+            CIVisibility.enable()
+
+            assert CIVisibility.enabled is True
+            assert CIVisibility._instance._suite_skipping_mode is True
+
+            session_id = api.CISessionId("session_id")
+
+            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_suite_id = api.CISuiteId(skippable_module_id, "skippable_suite.py")
+            non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
+
+            non_skippable_module_id = api.CIModuleId(session_id, "non_skippable_module")
+            non_skippable_module_skippable_suite_id = api.CISuiteId(non_skippable_module_id, "skippable_suite.py")
+
+            assert api.CISuite.is_item_itr_skippable(skippable_suite_id) is True
+            assert api.CISuite.is_item_itr_skippable(non_skippable_suite_id) is False
+            assert api.CISuite.is_item_itr_skippable(non_skippable_module_skippable_suite_id) is False
+
+            CIVisibility.disable()
+
+    def test_api_is_item_itr_skippable_false_when_skipping_disabled_suite_level(self):
+        with set_up_mock_civisibility(
+            itr_enabled=True,
+            skipping_enabled=False,
+            suite_skipping_mode=True,
+            skippable_items=["skippable_module/skippable_suite.py"],
+        ):
+            CIVisibility.enable()
+
+            assert CIVisibility.enabled is True
+            assert CIVisibility._instance._suite_skipping_mode is True
+
+            session_id = api.CISessionId("session_id")
+
+            skippable_module_id = api.CIModuleId(session_id, "skippable_module")
+            skippable_suite_id = api.CISuiteId(skippable_module_id, "skippable_suite.py")
+            non_skippable_suite_id = api.CISuiteId(skippable_module_id, "non_skippable_suite.py")
+
+            non_skippable_module_id = api.CIModuleId(session_id, "non_skippable_module")
+            non_skippable_module_skippable_suite_id = api.CISuiteId(non_skippable_module_id, "skippable_suite.py")
+
+            assert api.CISuite.is_item_itr_skippable(skippable_suite_id) is False
+            assert api.CISuite.is_item_itr_skippable(non_skippable_suite_id) is False
+            assert api.CISuite.is_item_itr_skippable(non_skippable_module_skippable_suite_id) is False
+
+            CIVisibility.disable()

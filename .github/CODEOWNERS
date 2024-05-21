@@ -105,6 +105,7 @@ tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-pyt
 setup.py                            @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
+hatch.toml                          @DataDog/python-guild
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
@@ -112,4 +113,5 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
 .github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python

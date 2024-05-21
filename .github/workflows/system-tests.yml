@@ -48,13 +48,13 @@ jobs:
     steps:
       - name: Setup python 3.9
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
 
@@ -80,7 +80,7 @@ jobs:
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
           docker image save system_tests/agent:latest | gzip > ${{ matrix.weblog-variant}}_agent_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@master
+      - uses: actions/upload-artifact@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
@@ -110,17 +110,17 @@ jobs:
     steps:
       - name: Setup python 3.9
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
 
-      - uses: actions/download-artifact@master
+      - uses: actions/download-artifact@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
@@ -229,7 +229,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: steps.compress-artifact.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
@@ -244,7 +244,7 @@ jobs:
     steps:
       - name: Checkout system tests
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'DataDog/system-tests'
       - name: Checkout dd-trace-py
@@ -254,7 +254,7 @@ jobs:
           path: 'binaries/dd-trace-py'
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           python-version: '3.9'
@@ -272,7 +272,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: needs.needs-run.outputs.outcome == 'success' || github.event_name == 'schedule'
         with:
           name: logs_parametric
