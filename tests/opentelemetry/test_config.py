@@ -18,7 +18,7 @@ import pytest
         "OTEL_LOGS_EXPORTER": "warning",
         "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
-        "DD_TAGS": "DD_ENV:staging",
+        "DD_TAGS": "env:staging",
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
@@ -34,8 +34,9 @@ def test_dd_otel_mixed_env_configuration():
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
     assert config.tags == {
-        "DD_ENV": "staging",
+        "env": "staging",
     }, config.tags
+    assert config.service == "DD_service_test"
     assert config._otel_enabled is True, config._otel_enabled
 
 
@@ -67,14 +68,14 @@ def test_dd_otel_missing_dd_env_configuration():
     assert config._tracing_enabled is False, config._tracing_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config.tags == {
-        "DD_ENV": "prod",
-        "DD_SERVICE": "bleh",
-        "DD_VERSION": "1.0",
+        "env": "prod",
         "testtag1": "random1",
         "testtag2": "random2",
         "testtag3": "random3",
         "testtag4": "random4",
     }, config.tags
+    assert config.service == "Test"
+    assert config.version == "1.0"
     assert config._otel_enabled is True, config._otel_enabled
 
 
@@ -208,11 +209,9 @@ def test_otel_logs_exporter_configuration():
 def test_otel_resource_attributes_unified_tags():
     from ddtrace import config
 
-    assert config.tags == {
-        "DD_ENV": "prod",
-        "DD_SERVICE": "bleh",
-        "DD_VERSION": "1.0",
-    }, config.tags
+    assert config.service == "bleh"
+    assert config.version == "1.0"
+    assert config.env == "prod"
 
 
 @pytest.mark.subprocess(
@@ -234,14 +233,15 @@ def test_otel_resource_attributes_mixed_tags():
     from ddtrace import config
 
     assert config.tags == {
-        "DD_ENV": "prod",
-        "DD_SERVICE": "bleh",
-        "DD_VERSION": "1.0",
+        "env": "prod",
         "testtag1": "random1",
         "testtag2": "random2",
         "testtag3": "random3",
         "testtag4": "random4",
     }, config.tags
+    assert config.service == "bleh"
+    assert config.version == "1.0"
+    assert config.env == "prod"
 
 
 @pytest.mark.subprocess(
@@ -251,7 +251,7 @@ def test_otel_resource_attributes_mixed_tags():
         "testtag6=random6,testtag7=random7,testtag8=random8"
     },
     err=b"To preserve metrics cardinality, only the following first 10"
-    b" tags have been processed ['DD_ENV:prod', 'DD_SERVICE:bleh', 'DD_VERSION:1.0', 'testtag1:random1', "
+    b" tags have been processed ['env:prod', 'service:bleh', 'version:1.0', 'testtag1:random1', "
     b"'testtag2:random2', 'testtag3:random3', 'testtag4:random4', 'testtag5:random5', 'testtag6:random6', "
     b"'testtag7:random7']. The following tags were not ingested: ['testtag8:random8']\n",
 )
@@ -259,9 +259,7 @@ def test_otel_resource_attributes_tags_warning():
     from ddtrace import config
 
     assert config.tags == {
-        "DD_ENV": "prod",
-        "DD_SERVICE": "bleh",
-        "DD_VERSION": "1.0",
+        "env": "prod",
         "testtag1": "random1",
         "testtag2": "random2",
         "testtag3": "random3",
@@ -270,6 +268,9 @@ def test_otel_resource_attributes_tags_warning():
         "testtag6": "random6",
         "testtag7": "random7",
     }, config.tags
+    assert config.env == "prod"
+    assert config.service == "bleh", config.service
+    assert config.version == "1.0"
 
 
 @pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
@@ -284,3 +285,14 @@ def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 
     assert config._otel_enabled is False, config._otel_enabled
+
+
+@pytest.mark.subprocess(
+    env={
+        "OTEL_RESOURCE_ATTRIBUTES": "service.version=1.0"
+    },
+)
+def test_otel_resource_attributes_version_tag():
+    from ddtrace import config
+
+    assert config.version == "1.0"

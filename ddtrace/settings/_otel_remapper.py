@@ -1,15 +1,16 @@
 import os
 
 from ..internal.logger import get_logger
-
+from ..constants import ENV_KEY
+from ..constants import VERSION_KEY
 
 log = get_logger(__name__)
 
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
-    "deployment.environment": "DD_ENV",
-    "service.name": "DD_SERVICE",
-    "service.version": "DD_VERSION",
+    "deployment.environment": ENV_KEY,
+    "service.name": "service",
+    "service.version": VERSION_KEY,
 }
 
 
