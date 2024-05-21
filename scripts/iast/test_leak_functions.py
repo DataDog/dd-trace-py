@@ -10,7 +10,7 @@ def test_main():
         rounds = int(sys.argv[1])
     except ValueError:
         rounds = 1
-
+    print("Test %d rounds" % rounds)
     for i in range(rounds):
         try:
             test_doit()
@@ -20,6 +20,7 @@ def test_main():
         if i % 10000 == 0:
             print("Round %d Max RSS: " % i, end="")
             print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
+    print("Round %d Max RSS: " % i, end="")
     print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
 
 

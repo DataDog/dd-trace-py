@@ -46,21 +46,36 @@ RUN \
       unixodbc-dev \
       wget \
       zlib1g-dev \
-  # Cleaning up apt cache space
+      valgrind \
+    # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/*
 
 # Install pyenv and necessary Python versions
+# `--with-pydebug`: [Add options](https://docs.python.org/3/using/configure.html#python-debug-build) like count references, sanity checks...
+# `--with-valgrind`: Enable Valgrind support (default is no).
+# `--without-pymalloc`: Python has a pymalloc allocator optimized for small objects (smaller or equal to 512 bytes) with a short lifetime. We remove this functionality to not hide errors
 RUN git clone --depth 1 --branch v3.11.6 https://github.com/python/cpython/ "${PYTHON_SOURCE}" \
   && cd ${PYTHON_SOURCE} \
-  && ./configure --with-pydebug --without-pymalloc --prefix ${PYTHON_DEBUG} \
+  && ./configure --with-pydebug --without-pymalloc --with-valgrind --prefix ${PYTHON_DEBUG} \
   && make OPT=-g \
   && make install \
   && cd -
 
 RUN python3.11 -m pip install -U pip \
-    && python3.11 -m pip install six attrs cattrs envier memray setuptools cython wheel cmake
+    && python3.11 -m pip install six cattrs setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
+    memray==1.12.0 \
+    requests==2.31.0 \
+    attrs>=20 \
+    bytecode>=0.14.0 \
+    cattrs \
+    ddsketch>=3.0.0 \
+    envier~=0.5 \
+    opentelemetry-api>=1 \
+    protobuf>=3 \
+    six>=1.12.0 \
+    typing_extensions \
+    xmltodict>=0.12
 
-RUN python3.11 -m pip install pytest pytest-cov hypothesis xmltodict six pytest-memray
 
 CMD ["/bin/bash"]
 #docker build . -f docker/Dockerfile_py311_debug_mode -t python_311_debug
