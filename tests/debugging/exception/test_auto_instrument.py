@@ -109,7 +109,8 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
         with exception_debugging() as d:
             rate_limiter = RateLimiter(
-                limit_rate=1,  # one trace per second
+                limit_rate=0.1,  # one trace per second
+                tau=10,
                 raise_on_exceed=False,
             )
             with with_rate_limiter(rate_limiter):
@@ -155,7 +156,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
             assert len(exc_ids) == number_of_exc_ids
 
-            # invoke again (should be in less then 1 sec)
+            # invoke again (should be in less than 1 sec)
             with with_rate_limiter(rate_limiter):
                 with pytest.raises(KeyError):
                     c()
