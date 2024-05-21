@@ -16,6 +16,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+import ddtrace.internal.utils.http  # noqa
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path

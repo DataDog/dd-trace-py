@@ -1,3 +1,4 @@
+from builtins import open  # make sure we use unpatched open
 from contextlib import contextmanager
 from dataclasses import dataclass
 from json import loads

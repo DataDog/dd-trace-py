@@ -1,3 +1,4 @@
+from builtins import open  # make sure we use unpatched open
 import dataclasses
 import errno
 import json
