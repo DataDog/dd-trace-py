@@ -5,6 +5,7 @@ containing the ddtrace package compatible with the current Python version and pl
 import json
 import os
 import platform
+import subprocess
 import sys
 import time
 
@@ -33,26 +34,44 @@ python_runtime = sys.implementation.name
 python_version = ".".join(str(i) for i in sys.version_info[:2])
 
 
+def create_count_metric(metric, tags):
+    return {
+        "metric": metric,
+        "tags": tags,
+    }
+
+
 def gen_telemetry_payload(data):
     # could just expand the data dict here, might be better
     tags = data.get("tags", {})
+    tags.update({"runtime": python_runtime, "platform": platform.system(), "python_version": python_version})
     return {
-        "metric": data["metric"],
         "namespace": "tracers",
         "lib_language": "python",
         "lib_version": installed_packages.get("ddtrace", "unknown"),
-        "series": data,
-        "tags": {
-            **tags,
-            "python_version": python_version,
-            "runtime": python_runtime,
-            "platform": platform.system(),
-            "platform_version": platform.version(),
-        },
-        "type": "count",
-        "common": "true",
-        "points": [[int(time.time()), 1]],
+        "series": [
+            {
+                "metric": data["metric"],
+                "type": "count",
+                "common": "true",
+                "points": [[int(time.time()), 1]],
+                "tags": tags,
+            }
+        ],
     }
+
+
+def send_telemetry(event):
+    event_json = json.dumps(event)
+    # remove this stuff once rust implementation is done
+    env_vars = os.environ.copy()  # Start with a copy of the current environment
+    env_vars["DD_INSTRUMENT_SERVICE_WITH_APM"] = "false"
+    subprocess.run(
+        ["python3", os.path.join(os.path.dirname(os.path.abspath(__file__)), "send_telemetry.py")],
+        env=env_vars,
+        text=True,
+        input=event_json,
+    )
 
 
 debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -112,16 +131,17 @@ def _inject():
             _log(f"Found incompatible packages: {incompatible_packages}.", level="debug")
             if not allow_unsupported_integrations:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-                data = {
-                    "metric": "bootstrap.skipped",
-                    "tags": {
-                        "incompatible_packages": incompatible_packages,
-                        "reason": "integration",
-                    },
-                }  # noqa: F841
-                event = gen_telemetry_payload(data)  # noqa: F841
-                event_json = json.dumps(event)  # noqa: F841
-                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
+
+                event = gen_telemetry_payload(
+                    create_count_metric(
+                        "bootstrap.skipped",
+                        {
+                            **incompatible_packages,
+                            "reason": "integration",
+                        },
+                    )
+                )
+                send_telemetry(event)
                 return
             else:
                 _log(
@@ -133,12 +153,10 @@ def _inject():
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
-                data = {"metric": "bootstrap.skipped", "tags": {"reason": "runtime"}}  # noqa: F841
-
-                event = gen_telemetry_payload(data)  # noqa: F841
-                event_json = json.dumps(event)
-                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
-                return
+                event = gen_telemetry_payload(
+                    create_count_metric("bootstrap.skipped", {"reason": "runtime"})
+                )  # noqa: F841
+                send_telemetry(event)
             else:
                 _log(
                     "DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES set to True, allowing unsupported runtimes.",
@@ -185,15 +203,12 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                data = {"metric": "bootstrap.completed"}
-                event = gen_telemetry_payload(data)
-                event_json = json.dumps(event)
-                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
+                event = gen_telemetry_payload(create_count_metric("bootstrap.completed", {}))
+                send_telemetry(event)
             except BaseException as e:
-                data = {"metric": "bootstrap.error", "tags": {"error_type": type(e).__name__, "error": str(e)}}
-                event = gen_telemetry_payload(data)
-                event_json = json.dumps(event)  # noqa: F841
-                # subprocess.run(['python', 'send_telemetry.py', url, event_json])
+                # maybe switch errortype since error will have too high over cardinality
+                event = gen_telemetry_payload(create_count_metric("bootstrap.error", {"error": str(e)}))
+                send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:

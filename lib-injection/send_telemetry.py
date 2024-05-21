@@ -1,19 +1,24 @@
+#!/bin/python
 import json
 import sys
 
-import requests
+from datadog import initialize
+from datadog import statsd
 
 
-def send_incompatible_packages(data, url):
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(url, data=json.dumps(data), headers=headers)
-    if response.status_code == 200:
-        print("Incompatible packages sent successfully.")
-    else:
-        print(f"Failed to send data. HTTP Status code: {response.status_code}")
+options = {"statsd_host": "0.0.0.0", "statsd_port": 8125}
 
+initialize(**options)
 
 if __name__ == "__main__":
-    url = sys.argv[1]
-    data = json.loads(sys.argv[2])
-    send_incompatible_packages(data, url)
+    payload = sys.stdin.read()
+    payload = json.loads(payload)
+    for m in payload["series"]:
+        tags = m["tags"] or {}
+        tags.update(
+            {
+                "lib_language": payload["lib_language"],
+                "lib_version": payload["lib_version"],
+            }
+        )
+        statsd.increment(m["metric"], tags=["%s:%s" % (k, v) for k, v in tags.items()])
