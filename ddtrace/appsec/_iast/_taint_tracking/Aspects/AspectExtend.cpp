@@ -18,15 +18,15 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
 
     PyObject* candidate_text = args[0];
-    // if (!PyByteArray_Check(candidate_text)) {
-    //     return nullptr;
-    // }
+    if (!PyByteArray_Check(candidate_text)) {
+        return nullptr;
+    }
     auto len_candidate_text = PyByteArray_Size(candidate_text);
     PyObject* to_add = args[1];
 
-    // if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
-    //     return nullptr;
-    // }
+    if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
+        return nullptr;
+    }
 
     auto ctx_map = initializer->get_tainting_map();
     if (not ctx_map or ctx_map->empty()) {
