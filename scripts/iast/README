@@ -35,7 +35,7 @@ google-chrome file://$PWD/memray-flamegraph-lel.html
 
 ```sh
 docker run --rm -it -v ${PWD}:/ddtrace python_311_debug /bin/bash -c "cd /ddtrace && source scripts/iast/.env && \
-scripts/iast/run_memory.sh"
+sh scripts/iast/run_memory.sh"
 >> Round 0 Max RSS: 41.9453125
 >> 42.2109375
 ```

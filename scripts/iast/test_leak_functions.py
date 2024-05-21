@@ -17,7 +17,7 @@ def test_main():
         except KeyboardInterrupt:
             print("Control-C stopped at %d rounds" % i)
             break
-        if i % 10000 == 0:
+        if i % 250 == 0:
             print("Round %d Max RSS: " % i, end="")
             print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
     print("Round %d Max RSS: " % rounds, end="")
