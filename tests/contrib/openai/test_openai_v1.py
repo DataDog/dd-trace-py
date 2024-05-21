@@ -77,8 +77,6 @@ def test_patching(openai):
         (openai.resources.models.Models, "retrieve"),
         (openai.resources.models.AsyncModels, "list"),
         (openai.resources.models.AsyncModels, "retrieve"),
-        (openai.resources.edits.Edits, "create"),
-        (openai.resources.edits.AsyncEdits, "create"),
         (openai.resources.images.Images, "generate"),
         (openai.resources.images.Images, "edit"),
         (openai.resources.images.Images, "create_variation"),
@@ -101,16 +99,6 @@ def test_patching(openai):
         (openai.resources.files.AsyncFiles, "list"),
         (openai.resources.files.AsyncFiles, "delete"),
         (openai.resources.files.AsyncFiles, "retrieve_content"),
-        (openai.resources.fine_tunes.FineTunes, "create"),
-        (openai.resources.fine_tunes.FineTunes, "retrieve"),
-        (openai.resources.fine_tunes.FineTunes, "list"),
-        (openai.resources.fine_tunes.FineTunes, "cancel"),
-        (openai.resources.fine_tunes.FineTunes, "list_events"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "create"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "retrieve"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "list"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "cancel"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "list_events"),
     ]
 
     for m in methods:
@@ -566,83 +554,6 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("edit.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.edits.create(
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-                temperature=0.2,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("edit_async.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.edits.create(
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-                temperature=0.2,
-            )
-
-
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
-def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
-    """Ensure logs are emitted for edit endpoint when configured.
-
-    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
-    """
-    with openai_vcr.use_cassette("edit.yaml"):
-        client = openai.OpenAI()
-        client.edits.create(
-            model="text-davinci-edit-001",
-            input="thsi si a spelilgn imstkae.",
-            instruction="fix spelling mistakes",
-            n=3,
-            temperature=0.2,
-        )
-    span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": mock.ANY,
-                    "hostname": mock.ANY,
-                    "ddsource": "openai",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/edits,openai.request.method:POST,openai.request.model:text-davinci-edit-001,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": "{:x}".format(trace_id),
-                    "dd.span_id": str(span_id),
-                    "instruction": "fix spelling mistakes",
-                    "input": "thsi si a spelilgn imstkae.",
-                    "choices": mock.ANY,
-                }
-            ),
-        ]
-    )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_create",
@@ -947,124 +858,6 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.list()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.list()
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_create",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.n_epochs"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_create.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.create(
-                training_file="file-llDq0Q9la7EBTScAowIotxxc",
-                prompt_loss_weight=0.01,
-                model="babbage",
-                suffix="dummy-fine-tune-model",
-                batch_size=5,
-                learning_rate_multiplier=0.05,
-                compute_classification_metrics=False,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_create",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.n_epochs"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_create.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.create(
-                training_file="file-llDq0Q9la7EBTScAowIotxxc",
-                prompt_loss_weight=0.01,
-                model="babbage",
-                suffix="dummy-fine-tune-model",
-                batch_size=5,
-                learning_rate_multiplier=0.05,
-                compute_classification_metrics=False,
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_retrieve.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.retrieve(
-                fine_tune_id="ft-sADEaavxRFrjOQ65XkQKm0zM",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=[
-            "meta.http.useragent",
-            "meta.openai.api_type",
-            "meta.openai.api_base",
-            "meta.openai.request.user",
-            "meta.openai.response.hyperparams.batch_size",
-            "meta.openai.response.hyperparams.learning_rate_multiplier",
-            "meta.openai.response.hyperparams.batch_size",
-        ],
-    ):
-        with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.cancel(
-                fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=[
-            "meta.http.useragent",
-            "meta.openai.api_type",
-            "meta.openai.api_base",
-            "meta.openai.request.user",
-            "meta.openai.response.hyperparams.batch_size",
-            "meta.openai.response.hyperparams.learning_rate_multiplier",
-            "meta.openai.response.hyperparams.batch_size",
-        ],
-    ):
-        with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.cancel(
-                fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_model_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_delete",
@@ -1089,29 +882,6 @@ async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr
             await client.models.delete(
                 model="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
             )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_list_events(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.list_events(fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST", stream=False)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_alist_events(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.list_events(fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST", stream=False)
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
