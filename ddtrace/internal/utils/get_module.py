@@ -36,13 +36,13 @@ def find_package_name(start_path):
 
     pkg = search_files(files, start_path)
     if pkg:
-        if files[0] in pkg:
+        if getattr(pkg, "name", "") == files[0]:
             with open(pkg, "r") as f:
                 for line in f:
                     if "name=" in line:
                         package_name = line.split("=")[1].strip().strip("'\"")
                         return package_name
-        elif files[1] in pkg:
+        elif getattr(pkg, "name", "") == files[1]:
             # Parse pyproject.toml file to get package name
             with open(pkg, "r") as f:
                 pyproject_data = toml.load(f)
