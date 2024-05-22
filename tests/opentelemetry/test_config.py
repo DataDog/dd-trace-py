@@ -91,7 +91,11 @@ def test_otel_log_level_configuration_debug():
     assert config._debug_mode is True, config._debug_mode
 
 
-@pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "info"})
+@pytest.mark.subprocess(env={
+    "OTEL_LOG_LEVEL": "trace"
+    },
+    err=b"ddtrace does not support otel log level 'trace'. setting ddtrace to log level info.\n"
+)
 def test_otel_log_level_configuration_info():
     from ddtrace import config
 
