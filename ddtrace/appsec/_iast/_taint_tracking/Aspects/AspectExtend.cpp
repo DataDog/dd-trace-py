@@ -19,12 +19,14 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     PyObject* candidate_text = args[0];
     if (!PyByteArray_Check(candidate_text)) {
+        py::set_error(PyExc_TypeError, "The candidate text must be a bytearray.");
         return nullptr;
     }
     auto len_candidate_text = PyByteArray_Size(candidate_text);
     PyObject* to_add = args[1];
 
     if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
+        py::set_error(PyExc_TypeError, "The text to add must be a bytearray or bytes.");
         return nullptr;
     }
 
