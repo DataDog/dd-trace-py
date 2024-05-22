@@ -210,7 +210,7 @@ class LLMObs(Service):
         """
         Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
         """
-        integrations_to_patch = {}
+        integrations_to_patch = {}  # type: Dict[str, str]
         if integrations is None:
             integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
         else:
@@ -226,9 +226,9 @@ class LLMObs(Service):
                     )
 
         try:
-            patch(**{integration: True for integration in integrations_to_patch.values()})
+            patch(**{integration: True for integration in integrations_to_patch.values()})  # type: ignore
         except Exception:
-            log.warning("integration patching error", integration, exc_info=True)
+            log.warning("Failed to patch LLMObs integrations", integration, exc_info=True)
         return
 
     @classmethod
