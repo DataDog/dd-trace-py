@@ -32,6 +32,8 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
+from ..internal.utils.get_module import find_package_name
+from ..internal.utils.get_module import get_entrypoint_path
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -431,7 +433,18 @@ class Config(object):
         )
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME))
+
+        inferred_entrypoint = get_entrypoint_path()
+        if inferred_entrypoint:
+            inferred_pkg = find_package_name(inferred_entrypoint)
+            if inferred_pkg:
+                self.inferred_service = inferred_pkg
+            else:
+                self.inferred_service = inferred_entrypoint
+
+        self.service = os.getenv(
+            "DD_SERVICE", default=(self.inferred_service if self.inferred_service else DEFAULT_SPAN_SERVICE_NAME)
+        )
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
