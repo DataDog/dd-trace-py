@@ -1,9 +1,10 @@
 from datetime import datetime
-import os
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.internal.flare.flare import Flare
+from ddtrace.internal.flare.handler import _generate_tracer_flare
+from ddtrace.internal.flare.handler import _prepare_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
@@ -51,6 +52,10 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         if not metadata:
             log.debug("No metadata received from data connector")
             return
+        configs = data.get("config")
+        if not configs:
+            log.debug("No config items received from data connector")
+            return
 
         for md in metadata:
             product_type = md.get("product_name")
@@ -61,18 +66,16 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                         "There is already a tracer flare job started at %s. Skipping new request.",
                         str(self.current_request_start),
                     )
-                    return
-                self.current_request_start = datetime.now()
+                    continue
+                if _prepare_tracer_flare(self.flare, configs):
+                    self.current_request_start = datetime.now()
             elif product_type == "AGENT_TASK":
                 # Possible edge case where we don't have an existing flare request
                 # In this case we won't have anything to send, so we log and do nothing
                 if self.current_request_start is None:
                     log.warning("There is no tracer flare job to complete. Skipping new request.")
-                    return
-                self.current_request_start = None
+                    continue
+                if _generate_tracer_flare(self.flare, configs):
+                    self.current_request_start = None
             else:
                 log.debug("Received unexpected product type for tracer flare: {}", product_type)
-                return
-            log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
-            self._callback(self.flare, data)
-            return
