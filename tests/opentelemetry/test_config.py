@@ -91,10 +91,9 @@ def test_otel_log_level_configuration_debug():
     assert config._debug_mode is True, config._debug_mode
 
 
-@pytest.mark.subprocess(env={
-    "OTEL_LOG_LEVEL": "trace"
-    },
-    err=b"ddtrace does not support otel log level 'trace'. setting ddtrace to log level info.\n"
+@pytest.mark.subprocess(
+    env={"OTEL_LOG_LEVEL": "trace"},
+    err=b"ddtrace does not support otel log level 'trace'. ddtrace only supports enabling debug logs.\n",
 )
 def test_otel_log_level_configuration_info():
     from ddtrace import config
@@ -104,7 +103,7 @@ def test_otel_log_level_configuration_info():
 
 @pytest.mark.subprocess(
     env={"OTEL_LOG_LEVEL": "warning"},
-    err=b"ddtrace does not support otel log level 'warning'. setting ddtrace to log level info.\n",
+    err=b"ddtrace does not support otel log level 'warning'. ddtrace only supports enabling debug logs.\n",
 )
 def test_otel_log_level_configuration_unsupported():
     from ddtrace import config
@@ -130,7 +129,7 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
+    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
@@ -140,7 +139,7 @@ def test_otel_traces_sampler_configuration_alwayson():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
+    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_ignore_parent():
     from ddtrace import config
@@ -150,7 +149,7 @@ def test_otel_traces_sampler_configuration_ignore_parent():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_off"},
-    err=b"Trace sampler set to always_off; only parent based sampling is supported.\n",
+    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
     from ddtrace import config
@@ -163,7 +162,7 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set to traceidratio; only parent based sampling is supported.\n",
+    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
@@ -197,8 +196,7 @@ def test_otel_metrics_exporter_configuration():
 
 @pytest.mark.subprocess(
     env={"OTEL_METRICS_EXPORTER": "true"},
-    err=b"An unrecognized runtime metrics exporter 'true' is being used;"
-    b" setting DD_RUNTIME_METRICS_ENABLED to False.\n",
+    err=b"Metrics exporter value is set to unrecognized value: true.\n",
 )
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
@@ -269,10 +267,10 @@ def test_otel_resource_attributes_mixed_tags():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4,testtag5=random5,"
         "testtag6=random6,testtag7=random7,testtag8=random8"
     },
-    err=b"To preserve metrics cardinality, only the following first 10"
-    b" tags have been processed ['env:prod', 'service:bleh', 'version:1.0', 'testtag1:random1', "
-    b"'testtag2:random2', 'testtag3:random3', 'testtag4:random4', 'testtag5:random5', 'testtag6:random6', "
-    b"'testtag7:random7']. The following tags were not ingested: ['testtag8:random8']\n",
+    err=b"To preserve metrics cardinality, only the following first 10 tags have been processed "
+    b"['version:1.0', 'service:bleh', 'env:prod', 'testtag1:random1', 'testtag2:random2', 'testtag3:random3', "
+    b"'testtag4:random4', 'testtag5:random5', 'testtag6:random6', 'testtag7:random7']. "
+    b"The following tags were not ingested: ['testtag8:random8']\n",
 )
 def test_otel_resource_attributes_tags_warning():
     from ddtrace import config
