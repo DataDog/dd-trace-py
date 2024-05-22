@@ -74,12 +74,12 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     # Replacement functions for modules
     "module_functions": {
         "os.path": {
-            "basename": "ddtrace_aspects._aspect_ospathbasename",
-            "dirname": "ddtrace_aspects._aspect_ospathdirname",
-            "join": "ddtrace_aspects._aspect_ospathjoin",
-            "normcase": "ddtrace_aspects._aspect_ospathnormcase",
-            "split": "ddtrace_aspects._aspect_ospathsplit",
-            "splitext": "ddtrace_aspects._aspect_ospathsplitext",
+            "basename": "ddtrace_aspects.ospathbasename_aspect",
+            "dirname": "ddtrace_aspects.ospathdirname_aspect",
+            "join": "ddtrace_aspects.ospathjoin_aspect",
+            "normcase": "ddtrace_aspects.ospathnormcase_aspect",
+            "split": "ddtrace_aspects.ospathsplit_aspect",
+            "splitext": "ddtrace_aspects.ospathsplitext_aspect",
         }
     },
     "operators": {
@@ -132,10 +132,10 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
 
 
 if sys.version_info >= (3, 12):
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects.ospathsplitroot_aspect"
 
 if sys.version_info >= (3, 12) or os.name == "nt":
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects.ospathsplitdrive_aspect"
 
 
 class AstVisitor(ast.NodeTransformer):
