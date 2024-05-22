@@ -19,8 +19,6 @@ def _remap_otel_log_level(otel_value):
     """Remaps the otel log level to ddtrace log level"""
     if otel_value == "debug":
         return "True"
-    elif otel_value == "info":
-        return "False"
     else:
         log.warning(
             "ddtrace does not support otel log level '%s'. setting ddtrace to log level info.",
