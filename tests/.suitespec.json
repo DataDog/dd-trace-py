@@ -39,6 +39,7 @@
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
+            "ddtrace/internal/_threads.*",
             "ddtrace/internal/_unpatched.py",
             "ddtrace/internal/agent.py",
             "ddtrace/internal/assembly.py",
@@ -177,6 +178,9 @@
         ],
         "coverage": [
             "ddtrace/contrib/coverage/*"
+        ],
+        "dd_coverage": [
+            "ddtrace/internal/coverage/*"
         ],
         "llmobs": [
             "ddtrace/llmobs/*"
@@ -620,6 +624,7 @@
             "@ci_visibility",
             "@ci",
             "@coverage",
+            "@dd_coverage",
             "@git",
             "@pytest",
             "@codeowners",
