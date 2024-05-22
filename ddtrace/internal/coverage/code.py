@@ -61,7 +61,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self.lines = defaultdict(set)
         self.covered = defaultdict(set)
         self._include_paths: t.List[Path] = []
-        self.lines_by_context = defaultdict(lambda: defaultdict(set))
 
         # Replace the built-in exec function with our own in the pytest globals
         try:

@@ -22,8 +22,6 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                 continue
 
             last_lineno = instr.lineno
-            if last_lineno is None:
-                continue
 
             if instr.name == "RESUME":
                 continue
