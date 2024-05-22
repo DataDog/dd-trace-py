@@ -47,7 +47,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -143,22 +142,6 @@ def _tag_openai_token_usage(
     span.set_metric(TOTAL_COST, propagated_cost + total_cost)
     if span._parent is not None:
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
-
-
-def _is_workflow(instance):
-    if LLMObs._bedrock_enabled() and _is_bedrock_llm_instance(instance):
-        return True
-    if LLMObs._openai_enabled() and _is_openai_chat_instance(instance) or _is_openai_llm_instance(instance):
-        return True
-    return False
-
-
-def _is_bedrock_llm_instance(instance):
-    """Safely check if a traced instance is a Bedrock LLM."""
-    try:
-        return isinstance(instance, BASE_LANGCHAIN_MODULE.llms.Bedrock)
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
 
 
 def _is_openai_llm_instance(instance):
@@ -319,7 +302,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 prompts,
                 completions,
                 error=bool(span.error),
-                span_kind="workflow" if _is_workflow(instance) else "llm",
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -410,7 +392,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 chat_messages,
                 chat_completions,
                 error=bool(span.error),
-                span_kind="workflow" if _is_workflow(instance) else "llm",
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)
@@ -516,7 +497,6 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 chat_messages,
                 chat_completions,
                 error=bool(span.error),
-                span_kind="workflow" if _is_workflow(instance) else "llm",
             )
         span.finish()
         integration.metric(span, "dist", "request.duration", span.duration_ns)

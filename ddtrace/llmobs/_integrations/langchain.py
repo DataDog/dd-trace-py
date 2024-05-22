@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -48,21 +49,28 @@ class LangChainIntegration(BaseLLMIntegration):
         inputs: Any,
         response: Any = None,
         error: bool = False,
-        span_kind="workflow",
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
+
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
+        is_bedrock_workflow = model_provider == "bedrock" and LLMObs._bedrock_enabled()
+        is_openai_workflow = model_provider == "openai" and LLMObs._openai_enabled()
+        is_workflow = is_bedrock_workflow or is_openai_workflow
+
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, span_kind=span_kind)
+            self._llmobs_set_meta_tags_from_llm(
+                span, inputs, response, error, span_kind="workflow" if is_workflow else "llm"
+            )
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, span_kind=span_kind)
+            self._llmobs_set_meta_tags_from_chat_model(
+                span, inputs, response, error, span_kind="workflow" if is_workflow else "llm"
+            )
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
-        span.set_tag_str(SPAN_KIND, span_kind)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
