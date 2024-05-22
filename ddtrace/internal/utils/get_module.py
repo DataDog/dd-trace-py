@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import psutil
-import toml
+import toml  # type: ignore
 
 
 def get_entrypoint_path():
