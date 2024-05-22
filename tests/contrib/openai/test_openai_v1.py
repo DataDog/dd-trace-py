@@ -1086,6 +1086,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 ],
                 stream=True,
                 user="ddtrace-test",
+                n=None,
             )
             prompt_tokens = 8
             span = snapshot_tracer.current_span()
