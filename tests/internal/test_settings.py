@@ -610,6 +610,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 
 def test_tracer_reconfigure_does_not_crash_tracer(run_python_code_in_subprocess):
     env = os.environ.copy()
+    env.update({"DD_TRACER_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS": "1"})
 
     out, err, status, _ = run_python_code_in_subprocess(
         textwrap.dedent(
