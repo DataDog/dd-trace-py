@@ -12,10 +12,9 @@
 PyObject*
 index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const TaintRangeMapTypePtr& tx_taint_map)
 {
-    auto idx_long = PyLong_AsLong(idx);
-    bool ranges_error;
-    TaintRangeRefs ranges_to_set, ranges;
-    std::tie(ranges, ranges_error) = get_ranges(candidate_text, tx_taint_map);
+    const auto idx_long = PyLong_AsLong(idx);
+    TaintRangeRefs ranges_to_set;
+    auto [ranges, ranges_error] = get_ranges(candidate_text, tx_taint_map);
     if (ranges_error) {
         return result_o;
     }
@@ -38,7 +37,7 @@ index_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* idx, const 
 }
 
 PyObject*
-api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
@@ -49,9 +48,7 @@ api_index_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     PyObject* candidate_text = args[0];
     PyObject* idx = args[1];
 
-    PyObject* result_o;
-
-    result_o = PyObject_GetItem(candidate_text, idx);
+    PyObject* result_o = PyObject_GetItem(candidate_text, idx);
 
     if (not ctx_map or ctx_map->empty()) {
         return result_o;

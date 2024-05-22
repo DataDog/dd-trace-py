@@ -6,9 +6,11 @@ import copy
 import os
 import sys
 from typing import Any
+from typing import Dict  # noqa:F401
 from typing import List
 from typing import Set
 from typing import Text
+from typing import Tuple  # noqa:F401
 
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -34,7 +36,7 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
-_ASPECTS_SPEC = {
+_ASPECTS_SPEC: Dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": "ddtrace_aspects",
     "functions": {
@@ -72,12 +74,12 @@ _ASPECTS_SPEC = {
     # Replacement functions for modules
     "module_functions": {
         "os.path": {
-            "basename": "ddtrace_aspects._aspect_ospathbasename",
-            "dirname": "ddtrace_aspects._aspect_ospathdirname",
-            "join": "ddtrace_aspects._aspect_ospathjoin",
-            "normcase": "ddtrace_aspects._aspect_ospathnormcase",
-            "split": "ddtrace_aspects._aspect_ospathsplit",
-            "splitext": "ddtrace_aspects._aspect_ospathsplitext",
+            "basename": "ddtrace_aspects.ospathbasename_aspect",
+            "dirname": "ddtrace_aspects.ospathdirname_aspect",
+            "join": "ddtrace_aspects.ospathjoin_aspect",
+            "normcase": "ddtrace_aspects.ospathnormcase_aspect",
+            "split": "ddtrace_aspects.ospathsplit_aspect",
+            "splitext": "ddtrace_aspects.ospathsplitext_aspect",
         }
     },
     "operators": {
@@ -130,10 +132,10 @@ _ASPECTS_SPEC = {
 
 
 if sys.version_info >= (3, 12):
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects._aspect_ospathsplitroot"
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects.ospathsplitroot_aspect"
 
 if sys.version_info >= (3, 12) or os.name == "nt":
-    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects._aspect_ospathsplitdrive"  # type: ignore[index]
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects.ospathsplitdrive_aspect"
 
 
 class AstVisitor(ast.NodeTransformer):
@@ -145,15 +147,9 @@ class AstVisitor(ast.NodeTransformer):
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": "ddtrace_taint_sinks",
-            "functions": {
-                # FIXME: disabled to unblock release 2.9
-                # "open": "ddtrace_taint_sinks.open_path_traversal",
-            },
+            "functions": {},
         }
         self._sinkpoints_functions = self._sinkpoints_spec["functions"]
-        self.ast_modified = False
-        self.filename = filename
-        self.module_name = module_name
 
         self._aspect_index = _ASPECTS_SPEC["slices"]["index"]
         self._aspect_slice = _ASPECTS_SPEC["slices"]["slice"]
@@ -163,7 +159,6 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_modules = _ASPECTS_SPEC["module_functions"]
         self._aspect_format_value = _ASPECTS_SPEC["operators"]["FORMAT_VALUE"]
         self._aspect_build_string = _ASPECTS_SPEC["operators"]["BUILD_STRING"]
-        self.excluded_functions = _ASPECTS_SPEC["excluded_from_patching"].get(self.module_name, {})
 
         # Sink points
         self._taint_sink_replace_any = self._merge_taint_sinks(
@@ -173,6 +168,15 @@ class AstVisitor(ast.NodeTransformer):
         )
         self._taint_sink_replace_disabled = _ASPECTS_SPEC["taint_sinks"]["disabled"]
 
+        self.update_location(filename, module_name)
+
+    def update_location(self, filename: str = "", module_name: str = ""):
+        self.filename = filename
+        self.module_name = module_name
+        self.ast_modified = False
+
+        excluded_from_patching: Dict[str, Dict[str, Tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
+        self.excluded_functions = excluded_from_patching.get(self.module_name, {})
         self.dont_patch_these_functionsdefs = set()
         for _, v in self.excluded_functions.items():
             if v:
