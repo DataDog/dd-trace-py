@@ -46,12 +46,7 @@ from ddtrace.llmobs.utils import Messages
 
 log = get_logger(__name__)
 
-
-SUPPORTED_INTEGRATIONS = {
-    "bedrock": lambda: patch(botocore=True),
-    "langchain": lambda: patch(langchain=True),
-    "openai": lambda: patch(openai=True),
-}
+SUPPORTED_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
 
 
 class LLMObs(Service):
@@ -177,16 +172,11 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def _bedrock_enabled(cls):
-        return "botocore" in ddtrace._monkey._PATCHED_MODULES
-
-    @classmethod
-    def _openai_enabled(cls):
-        return "openai" in ddtrace._monkey._PATCHED_MODULES
-
-    @classmethod
-    def _langchain_enabled(cls):
-        return "langchain" in ddtrace._monkey._PATCHED_MODULES
+    def _integration_is_enabled(cls, integration):
+        if integration not in SUPPORTED_INTEGRATIONS:
+            log.warning("%s is not a supported LLMObs integration", integration)
+            return False
+        return SUPPORTED_INTEGRATIONS[integration] in ddtrace._monkey._PATCHED_MODULES
 
     @classmethod
     def disable(cls) -> None:
@@ -234,11 +224,11 @@ class LLMObs(Service):
                         integration,
                         str(SUPPORTED_INTEGRATIONS.keys()),
                     )
-        for integration in integrations_to_patch:
-            try:
-                SUPPORTED_INTEGRATIONS[integration]()
-            except Exception:
-                log.warning("couldn't patch %s", integration, exc_info=True)
+
+        try:
+            patch(**{integration: True for integration in integrations_to_patch.values()})
+        except Exception:
+            log.warning("integration patching error", integration, exc_info=True)
         return
 
     @classmethod
