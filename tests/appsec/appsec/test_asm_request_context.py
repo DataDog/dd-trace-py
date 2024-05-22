@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.internal._exceptions import BlockingException
 from tests.utils import override_global_config
 
 
@@ -94,3 +95,19 @@ def test_asm_request_context_manager():
     assert _asm_request_context.get_headers() == {}
     assert _asm_request_context.get_value("callbacks", "block") is None
     assert not _asm_request_context.get_headers_case_sensitive()
+
+
+def test_blocking_exception_correctly_propagated():
+    with override_global_config({"_asm_enabled": True}):
+        with _asm_request_context.asm_request_context_manager():
+            witness = 0
+            with _asm_request_context.asm_request_context_manager():
+                witness = 1
+                raise BlockingException({}, "rule", "type", "value")
+                # should be skipped by exception
+                witness = 3
+            # should be also skipped by exception
+            witness = 4
+        # no more exception there
+        # ensure that the exception was raised and caught at the end of the last context manager
+        assert witness == 1
