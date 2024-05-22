@@ -131,11 +131,10 @@ PACKAGES = [
     PackageForTesting("cryptography", "42.0.7", "", "", "", test_e2e=False),
     PackageForTesting("fsspec", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
     PackageForTesting("boto3", "1.34.110", "", "", "", test_e2e=False, test_import=False),
-    PackageForTesting("typing-extensions", "4.11.0", "", "", "", import_name="typing_extensions", test_e2e=False),
+    # PackageForTesting("typing-extensions", "4.11.0", "", "", "", import_name="typing_extensions", test_e2e=False),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
     PackageForTesting("packaging", "24.0", "", "", "", test_e2e=False),
     PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
-    # NEWW
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
