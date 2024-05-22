@@ -396,8 +396,8 @@ def git_repo(git_repo_empty):
 
 
 def _stop_remote_config_worker():
-    if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service(True)
+    if remoteconfig_poller.status == ServiceStatus.RUNNING:
+        remoteconfig_poller.stop(join=True)
         remoteconfig_poller._worker = None
 
 
