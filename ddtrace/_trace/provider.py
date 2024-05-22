@@ -113,7 +113,6 @@ class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
     def __init__(self):
         # type: () -> None
         super(DefaultContextProvider, self).__init__()
-        _DD_CONTEXTVAR.set(None)
 
     def _has_active_context(self):
         # type: () -> bool
