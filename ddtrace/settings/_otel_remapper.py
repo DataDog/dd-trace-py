@@ -1,8 +1,9 @@
 import os
 
-from ..internal.logger import get_logger
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
+from ..internal.logger import get_logger
+
 
 log = get_logger(__name__)
 
@@ -45,6 +46,8 @@ def _remap_otel_propagators(otel_value):
 
 def _remap_traces_sampler(otel_value):
     """Remaps the otel trace sampler to ddtrace trace sampler"""
+    if otel_value in ["always_on", "always_off", "traceidratio"]:
+        log.warning("Trace sampler set to %s; only parent based sampling is supported.", otel_value)
     if otel_value == "always_on" or otel_value == "parentbased_always_on":
         return "1.0"
     elif otel_value == "always_off" or otel_value == "parentbased_always_off":
@@ -56,12 +59,13 @@ def _remap_traces_sampler(otel_value):
 
 
 def _remap_traces_exporter(otel_value):
-    """Remaps the otel trace exporter to ddtrace trace exporter"""
-    if otel_value != "none":
-        log.warning("An unrecognized trace exporter '%s' is being used; setting DD_TRACE_ENABLED to False.", otel_value)
+    """Remaps the otel trace exporter to ddtrace trace enabled"""
+    if otel_value == "none":
         return "False"
-    else:
-        return "True"
+    log.warning(
+        "A trace exporter value '%s' is set, but not supported. Traces will be exported to Datadog.", otel_value
+    )
+    return ""
 
 
 def _remap_metrics_exporter(otel_value):

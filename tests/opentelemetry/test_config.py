@@ -33,11 +33,10 @@ def test_dd_otel_mixed_env_configuration():
     assert config._trace_sample_rate == 1.0, config._trace_sample_rate
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
+    assert config._otel_enabled is True, config._otel_enabled
     assert config.tags == {
         "env": "staging",
     }, config.tags
-    assert config.service == "DD_service_test"
-    assert config._otel_enabled is True, config._otel_enabled
 
 
 @pytest.mark.subprocess(
@@ -55,17 +54,19 @@ def test_dd_otel_mixed_env_configuration():
         "OTEL_SDK_DISABLED": "False",
     },
     err=b"Following style not supported by ddtrace: jaegar.\n"
-    b"An unrecognized trace exporter 'otlp' is being used; setting DD_TRACE_ENABLED to False.\n"
+    b"A trace exporter value 'otlp' is set, but not supported. Traces will be exported to Datadog.\n"
     b"Unsupported OTEL logs exporter value detected: warning. Only the 'none' value is supported.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
 
     assert config.service == "Test", config.service
+    assert config.version == "1.0"
+    assert config._otel_enabled is True, config._otel_enabled
     assert config._debug_mode is True, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
     assert config._trace_sample_rate == 1.0, config._trace_sample_rate
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config.tags == {
         "env": "prod",
@@ -74,9 +75,6 @@ def test_dd_otel_missing_dd_env_configuration():
         "testtag3": "random3",
         "testtag4": "random4",
     }, config.tags
-    assert config.service == "Test"
-    assert config.version == "1.0"
-    assert config._otel_enabled is True, config._otel_enabled
 
 
 @pytest.mark.subprocess(env={"OTEL_SERVICE_NAME": "Test"})
@@ -126,14 +124,30 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_SAMPLER": "always_on"})
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_SAMPLER": "always_on"},
+    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
+)
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
 
     assert config._trace_sample_rate == 1.0, config._trace_sample_rate
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_SAMPLER": "always_off"})
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_SAMPLER": "always_on"},
+    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
+)
+def test_otel_traces_sampler_configuration_ignore_parent():
+    from ddtrace import config
+
+    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_TRACES_SAMPLER": "always_off"},
+    err=b"Trace sampler set to always_off; only parent based sampling is supported.\n",
+)
 def test_otel_traces_sampler_configuration_alwaysoff():
     from ddtrace import config
 
@@ -144,7 +158,8 @@ def test_otel_traces_sampler_configuration_alwaysoff():
     env={
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
-    }
+    },
+    err=b"Trace sampler set to traceidratio; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
@@ -156,17 +171,17 @@ def test_otel_traces_sampler_configuration_traceidratio():
 def test_otel_traces_exporter_configuration():
     from ddtrace import config
 
-    assert config._tracing_enabled is True, config._tracing_enabled
+    assert config._tracing_enabled is False, config._tracing_enabled
 
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_EXPORTER": "true"},
-    err=b"An unrecognized trace exporter 'true' is being used; setting DD_TRACE_ENABLED to False.\n",
+    err=b"A trace exporter value 'true' is set, but not supported. Traces will be exported to Datadog.\n",
 )
 def test_otel_traces_exporter_configuration_unsupported_exporter():
     from ddtrace import config
 
-    assert config._tracing_enabled is False, config._tracing_enabled
+    assert config._tracing_enabled is True, config._tracing_enabled
 
 
 @pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "none"})
@@ -232,6 +247,9 @@ def test_otel_resource_attributes_misconfigured_tags():
 def test_otel_resource_attributes_mixed_tags():
     from ddtrace import config
 
+    assert config.service == "bleh"
+    assert config.version == "1.0"
+    assert config.env == "prod"
     assert config.tags == {
         "env": "prod",
         "testtag1": "random1",
@@ -239,9 +257,6 @@ def test_otel_resource_attributes_mixed_tags():
         "testtag3": "random3",
         "testtag4": "random4",
     }, config.tags
-    assert config.service == "bleh"
-    assert config.version == "1.0"
-    assert config.env == "prod"
 
 
 @pytest.mark.subprocess(
@@ -258,6 +273,9 @@ def test_otel_resource_attributes_mixed_tags():
 def test_otel_resource_attributes_tags_warning():
     from ddtrace import config
 
+    assert config.env == "prod"
+    assert config.service == "bleh", config.service
+    assert config.version == "1.0"
     assert config.tags == {
         "env": "prod",
         "testtag1": "random1",
@@ -268,9 +286,6 @@ def test_otel_resource_attributes_tags_warning():
         "testtag6": "random6",
         "testtag7": "random7",
     }, config.tags
-    assert config.env == "prod"
-    assert config.service == "bleh", config.service
-    assert config.version == "1.0"
 
 
 @pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
@@ -288,9 +303,7 @@ def test_otel_sdk_disabled_configuration_true():
 
 
 @pytest.mark.subprocess(
-    env={
-        "OTEL_RESOURCE_ATTRIBUTES": "service.version=1.0"
-    },
+    env={"OTEL_RESOURCE_ATTRIBUTES": "service.version=1.0"},
 )
 def test_otel_resource_attributes_version_tag():
     from ddtrace import config
