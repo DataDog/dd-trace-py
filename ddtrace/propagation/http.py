@@ -29,7 +29,6 @@ from ddtrace._trace.span import _MetaDictType
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
-from ..llmobs._utils import _inject_llmobs_parent_id
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
@@ -52,6 +51,7 @@ from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
+from ..llmobs._utils import _inject_llmobs_parent_id
 from ._utils import get_wsgi_header
 
 

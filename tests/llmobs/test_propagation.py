@@ -1,12 +1,12 @@
 import json
 import os
 
-from tests.utils import DummyTracer
 from ddtrace.ext import SpanTypes
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.propagation.http import HTTPPropagator
+from tests.utils import DummyTracer
 
 
 def test_inject_llmobs_parent_id_no_llmobs_span():
