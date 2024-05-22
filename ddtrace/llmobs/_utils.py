@@ -3,6 +3,7 @@ from typing import Optional
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -29,6 +30,12 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
     if nearest_llmobs_ancestor:
         return nearest_llmobs_ancestor.span_id
     return span.get_tag(PROPAGATED_PARENT_ID_KEY)
+
+
+def _get_span_name(span: Span) -> str:
+    if span.name == LANGCHAIN_APM_SPAN_NAME and span.resource != "":
+        return span.resource
+    return span.name
 
 
 def _get_ml_app(span: Span) -> str:

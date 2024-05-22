@@ -11,8 +11,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
@@ -245,7 +245,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_value=string_to_taint,
         source_origin=OriginType.PARAMETER,
     )
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
 
