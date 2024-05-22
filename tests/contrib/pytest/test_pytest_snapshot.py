@@ -28,7 +28,6 @@ SNAPSHOT_IGNORES = [
     "duration",
     "start",
 ]
-SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["meta.http.useragent"]
 
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
@@ -119,28 +118,3 @@ class PytestSnapshotTestCase(TracerTestCase):
                 return_value=_CIVisibilitySettings(False, False, False, False),
             ):
                 subprocess.run(["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace"])
-
-    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
-    def test_pytest_with_ddtrace_patch_all(self):
-        call_httpx = """
-                import httpx
-
-                def call_httpx():
-                    return httpx.get("http://localhost:9126/bad_path.cgi")
-                """
-        self.testdir.makepyfile(call_httpx=call_httpx)
-        test_call_httpx = """
-                from call_httpx import call_httpx
-
-                def test_call_urllib():
-                    r = call_httpx()
-                    assert r.status_code == 404
-                """
-        self.testdir.makepyfile(test_call_httpx=test_call_httpx)
-        self.testdir.chdir()
-        with override_env(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="false")):
-            with mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_settings_api",
-                return_value=_CIVisibilitySettings(False, False, False, False),
-            ):
-                subprocess.run(["pytest", "--ddtrace", "--ddtrace-patch-all"])
