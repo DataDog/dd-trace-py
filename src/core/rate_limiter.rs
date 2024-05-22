@@ -100,7 +100,7 @@ impl RateLimiter {
     }
 }
 
-#[pyclass(name = "RateLimiter", subclass, module = "ddtrace.internal._core")]
+#[pyclass(name = "RateLimiter", subclass, module = "ddtrace.internal.core._core")]
 pub struct RateLimiterPy {
     rate_limiter: RateLimiter,
 }

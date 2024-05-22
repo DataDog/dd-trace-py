@@ -565,7 +565,7 @@ setup(
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(
-            "ddtrace.internal._core",
+            "ddtrace.internal.core._core",
             path="src/core/Cargo.toml",
             py_limited_api="auto",
             binding=Binding.PyO3,

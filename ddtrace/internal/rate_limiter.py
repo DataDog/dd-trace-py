@@ -10,7 +10,7 @@ import attr
 
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ._core import RateLimiter as _RateLimiter
+from .core import RateLimiter as _RateLimiter
 
 
 class RateLimiter(_RateLimiter):
