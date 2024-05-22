@@ -32,6 +32,108 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
+_ASPECTS_SPEC: Dict[Text, Any] = {
+    "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
+    "alias_module": "ddtrace_aspects",
+    "functions": {
+        "str": "ddtrace_aspects.str_aspect",
+        "bytes": "ddtrace_aspects.bytes_aspect",
+        "bytearray": "ddtrace_aspects.bytearray_aspect",
+        "ddtrace_iast_flask_patch": "ddtrace_aspects.empty_func",  # To avoid recursion
+    },
+    "stringalike_methods": {
+        "decode": "ddtrace_aspects.decode_aspect",
+        "join": "ddtrace_aspects.join_aspect",
+        "encode": "ddtrace_aspects.encode_aspect",
+        "extend": "ddtrace_aspects.bytearray_extend_aspect",
+        "upper": "ddtrace_aspects.upper_aspect",
+        "lower": "ddtrace_aspects.lower_aspect",
+        "replace": "ddtrace_aspects.replace_aspect",
+        "swapcase": "ddtrace_aspects.swapcase_aspect",
+        "title": "ddtrace_aspects.title_aspect",
+        "capitalize": "ddtrace_aspects.capitalize_aspect",
+        "casefold": "ddtrace_aspects.casefold_aspect",
+        "translate": "ddtrace_aspects.translate_aspect",
+        "format": "ddtrace_aspects.format_aspect",
+        "format_map": "ddtrace_aspects.format_map_aspect",
+        "zfill": "ddtrace_aspects.zfill_aspect",
+        "ljust": "ddtrace_aspects.ljust_aspect",
+        "split": "ddtrace_aspects.split_aspect",
+        "rsplit": "ddtrace_aspects.rsplit_aspect",
+        "splitlines": "ddtrace_aspects.splitlines_aspect",
+    },
+    # Replacement function for indexes and ranges
+    "slices": {
+        "index": "ddtrace_aspects.index_aspect",
+        "slice": "ddtrace_aspects.slice_aspect",
+    },
+    # Replacement functions for modules
+    "module_functions": {
+        "os.path": {
+            "basename": "ddtrace_aspects.ospathbasename_aspect",
+            "dirname": "ddtrace_aspects.ospathdirname_aspect",
+            "join": "ddtrace_aspects.ospathjoin_aspect",
+            "normcase": "ddtrace_aspects.ospathnormcase_aspect",
+            "split": "ddtrace_aspects.ospathsplit_aspect",
+            "splitext": "ddtrace_aspects.ospathsplitext_aspect",
+        }
+    },
+    "operators": {
+        ast.Add: "ddtrace_aspects.add_aspect",
+        "FORMAT_VALUE": "ddtrace_aspects.format_value_aspect",
+        ast.Mod: "ddtrace_aspects.modulo_aspect",
+        "BUILD_STRING": "ddtrace_aspects.build_string_aspect",
+    },
+    "excluded_from_patching": {
+        # Key: module being patched
+        # Value: dict with more info
+        "django.utils.formats": {
+            # Key: called functions that won't be patched. E.g.: for this module
+            # not a single call for format on any function will be patched.
+            #
+            # Value: function definitions. E.g.: we won't patch any Call node inside
+            # the iter_format_modules(). If we, for example, had 'foo': ('bar', 'baz')
+            # it would mean that we wouldn't patch any call to foo() done inside the
+            # bar() or baz() function definitions.
+            "format": ("",),
+            "": ("iter_format_modules",),
+        },
+        "django.utils.log": {
+            "": ("",),
+        },
+        "django.utils.html": {"": ("format_html", "format_html_join")},
+    },
+    # This is a set since all functions will be replaced by taint_sink_functions
+    "taint_sinks": {
+        "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+        "path_traversal": DEFAULT_PATH_TRAVERSAL_FUNCTIONS,
+        "other": {
+            "load",
+            "run",
+            "path",
+            "exit",
+            "sleep",
+            "socket",
+        },
+        # These explicitly WON'T be replaced by taint_sink_function:
+        "disabled": {
+            "__new__",
+            "__init__",
+            "__dir__",
+            "__repr__",
+            "super",
+        },
+    },
+}
+
+
+if sys.version_info >= (3, 12):
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitroot"] = "ddtrace_aspects.ospathsplitroot_aspect"
+
+if sys.version_info >= (3, 12) or os.name == "nt":
+    _ASPECTS_SPEC["module_functions"]["os.path"]["splitdrive"] = "ddtrace_aspects.ospathsplitdrive_aspect"
+
+
 class AstVisitor(ast.NodeTransformer):
     def __init__(
         self,
