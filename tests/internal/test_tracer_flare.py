@@ -1,5 +1,6 @@
 import logging
 from logging import Logger
+import multiprocessing
 import os
 import pathlib
 from typing import Optional
@@ -125,15 +126,11 @@ class TracerFlareTests(TestCase):
 
 class TracerFlareMultiprocessTests(TestCase):
     def setUp(self):
-        import multiprocessing
-
         self.setUpPyfakefs()
         self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.errors = multiprocessing.Queue()
 
     def test_multiple_process_success(self):
-        import multiprocessing
-
         """
         Validate that the tracer flare will generate for multiple processes
         """
@@ -191,8 +188,6 @@ class TracerFlareMultiprocessTests(TestCase):
         Validte that even if the tracer flare fails for one process, we should
         still continue the work for the other processes (ensure best effort)
         """
-        import multiprocessing
-
         processes = []
         flares = []
         for _ in range(2):
