@@ -1,31 +1,30 @@
 import sys
 import warnings
 
-
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-from ddtrace.internal.module import ModuleWatchdog  # noqa: E402
-
+from ddtrace.internal.module import ModuleWatchdog
 
 ModuleWatchdog.install()
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger  # noqa: E402
+from ._logger import configure_ddtrace_logger
 
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from ddtrace._trace.span import Span  # noqa: E402
-from ddtrace._trace.tracer import Tracer  # noqa: E402
-from ddtrace.vendor import debtcollector  # noqa: E402
+from .settings import _config as config
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
+from ddtrace._trace.span import Span  # noqa: E402
+from ddtrace._trace.tracer import Tracer  # noqa: E402
+from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
 
@@ -35,7 +34,7 @@ from .version import get_version  # noqa: E402
 # initialization.
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-
+    from .tracer import Tracer as _
 
 __version__ = get_version()
 
