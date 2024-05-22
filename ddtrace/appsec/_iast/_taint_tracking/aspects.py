@@ -613,7 +613,6 @@ def encode_aspect(
 
     self = args[0]
     args = args[(flag_added_args or 1) :]
-    # Assume we call encode method of the first argument
 
     if is_pyobject_tainted(self) and isinstance(self, str):
         try:
@@ -622,7 +621,8 @@ def encode_aspect(
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
         except Exception as e:
             iast_taint_log_error("IAST propagation error. encode_aspect. {}".format(e))
-    return self.encode(*args, **kwargs)
+    result = self.encode(*args, **kwargs)
+    return result
 
 
 def upper_aspect(
