@@ -1,5 +1,6 @@
 import json
 import os
+import textwrap
 
 import mock
 import pytest
@@ -604,4 +605,22 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         """,
         env=env,
     )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+def test_tracer_reconfigure_does_not_crash_tracer(run_python_code_in_subprocess):
+    env = os.environ.copy()
+
+    out, err, status, _ = run_python_code_in_subprocess(
+        textwrap.dedent(
+            """
+        import ddtrace
+
+        with ddtrace.tracer.trace("regression"):
+            ddtrace.tracer.configure(partial_flush_min_spans=1)
+        """
+        ),
+        env=env,
+    )
+
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
