@@ -1281,6 +1281,7 @@ class TestLLMObsLangchain:
             tags={
                 "ml_app": "langchain_community_test",
             },
+            integration="langchain",
         )
 
     @staticmethod
@@ -1322,6 +1323,7 @@ class TestLLMObsLangchain:
             tags={
                 "ml_app": "langchain_community_test",
             },
+            integration="langchain",
         )
 
     @classmethod

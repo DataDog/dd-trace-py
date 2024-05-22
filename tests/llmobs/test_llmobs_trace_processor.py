@@ -6,6 +6,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -357,6 +358,17 @@ def test_metrics_are_set():
             llm_span.set_tag(METRICS, '{"tokens": 100}')
         tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
         assert tp._llmobs_span_event(llm_span)["metrics"] == {"tokens": 100}
+
+
+def test_langchain_span_name_is_set_to_class_name():
+    """Test span names for langchain auto-instrumented spans is set correctly."""
+    dummy_tracer = DummyTracer()
+    mock_llmobs_span_writer = mock.MagicMock()
+    with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
+        with dummy_tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
+            llm_span.set_tag(SPAN_KIND, "llm")
+        tp = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
+        assert tp._llmobs_span_event(llm_span)["name"] == "expected_name"
 
 
 def test_error_is_set():

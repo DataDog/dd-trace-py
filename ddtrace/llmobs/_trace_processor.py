@@ -33,6 +33,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _get_span_name
 
 
 log = get_logger(__name__)
@@ -105,7 +106,7 @@ class LLMObsTraceProcessor(TraceProcessor):
             "span_id": str(span.span_id),
             "parent_id": str(_get_llmobs_parent_id(span) or "undefined"),
             "session_id": session_id,
-            "name": span.name,
+            "name": _get_span_name(span),
             "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
             "start_ns": span.start_ns,
             "duration": span.duration_ns,
