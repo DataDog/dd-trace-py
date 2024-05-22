@@ -7,6 +7,7 @@ import weakref
 import attr
 from six.moves import _thread
 
+from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
 
@@ -70,8 +71,11 @@ cpdef get_thread_by_id(thread_id):
 
 
 cpdef get_thread_name(thread_id):
-    thread = get_thread_by_id(thread_id)
-    return thread.name if thread is not None else None
+    try:
+        return periodic_threads[thread_id].name
+    except KeyError:
+        thread = get_thread_by_id(thread_id)
+        return thread.name if thread is not None else None
 
 
 cpdef get_thread_native_id(thread_id):
