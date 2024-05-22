@@ -28,8 +28,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         return nearest_llmobs_ancestor.span_id
-    local_root = span._local_root
-    return local_root.get_tag(PROPAGATED_PARENT_ID_KEY)
+    return span.get_tag(PROPAGATED_PARENT_ID_KEY)
 
 
 def _get_ml_app(span: Span) -> str:
