@@ -147,7 +147,7 @@ def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignor
     }
 
     """
-    output = {"files": {}}
+    output: t.Dict[str, t.Any] = {"files": {}}
 
     relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
 

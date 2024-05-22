@@ -63,7 +63,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self._include_paths: t.List[Path] = []
         self.lines_by_context = defaultdict(lambda: defaultdict(set))
 
-
         # Replace the built-in exec function with our own in the pytest globals
         try:
             import _pytest.assertion.rewrite as par
@@ -74,16 +73,16 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     @classmethod
     def install(cls, include_paths: t.Optional[t.List[Path]] = None, coverage_queue=None):
-        if(ModuleCodeCollector.is_installed()):
+        if ModuleCodeCollector.is_installed():
             return
 
         super().install()
 
         if not include_paths:
-            include_paths = Path(os.getcwd())
+            include_paths = [Path(os.getcwd())]
 
-        cls._instance._include_paths = include_paths
-
+        if cls._instance is not None:
+            cls._instance._include_paths = include_paths
 
     def hook(self, arg):
         path, line = arg
