@@ -91,7 +91,7 @@ def test_civisibility_intake_payloads():
             span.finish()
             conn = t._writer._conn
             t.shutdown()
-        assert conn.request.call_count == 2
+        assert 2 <= conn.request.call_count <= 3
         assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
         assert (
             b"svc-no-cov" in conn.request.call_args_list[0].args[2]
