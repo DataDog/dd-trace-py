@@ -158,7 +158,7 @@ class Snapshot(LogSignal):
         elif self.state not in {SignalState.NONE, SignalState.DONE}:
             return
 
-        _locals = []
+        _locals = list(_safety.get_locals(self.frame))
         _, exc, _ = exc_info
         if exc is None:
             _locals.append(("@return", retval))
