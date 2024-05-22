@@ -265,4 +265,4 @@ def test_packages_not_patched_import(package):
 def test_packages_patched_import(package):
     with override_env({IAST_ENV: "true"}):
         package.install()
-        assert _iast_patched_module(package.import_name)
+        assert _iast_patched_module(package.import_name, fromlist=[])
