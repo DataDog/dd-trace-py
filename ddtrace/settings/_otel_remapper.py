@@ -45,7 +45,7 @@ def _remap_otel_propagators(otel_value):
 def _remap_traces_sampler(otel_value):
     """Remaps the otel trace sampler to ddtrace trace sampler"""
     if otel_value in ["always_on", "always_off", "traceidratio"]:
-        log.warning("Trace sampler set to %s; only parent based sampling is supported.", otel_value)
+        log.warning("Trace sampler set to %s; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.", otel_value)
     if otel_value == "always_on" or otel_value == "parentbased_always_on":
         return "1.0"
     elif otel_value == "always_off" or otel_value == "parentbased_always_off":
