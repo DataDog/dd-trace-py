@@ -140,6 +140,17 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
+                    {
+                        "name": "python_build_gnu_type",
+                        "origin": "unknown",
+                        "value": sysconfig.get_config_var("BUILD_GNU_TYPE"),
+                    },
+                    {
+                        "name": "python_host_gnu_type",
+                        "origin": "unknown",
+                        "value": sysconfig.get_config_var("HOST_GNU_TYPE"),
+                    },
+                    {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
