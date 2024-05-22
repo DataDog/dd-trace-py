@@ -95,7 +95,7 @@ def _validate_logs_exporter(otel_value: str) -> typing.Literal[""]:
 
 def _remap_otel_tags(otel_value: str) -> str:
     """Remaps the otel tags to ddtrace tags"""
-    dd_tags = []
+    dd_tags: typing.List[str] =  []
 
     try:
         otel_user_tag_dict = dict()
