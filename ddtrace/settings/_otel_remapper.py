@@ -104,11 +104,11 @@ def _remap_otel_tags(otel_value: str) -> str:
             otel_user_tag_dict[key] = value
 
         for key, value in otel_user_tag_dict.items():
-            if key.lower() in OTEL_UNIFIED_TAG_MAPPINGS.keys():
+            if key.lower() in OTEL_UNIFIED_TAG_MAPPINGS:
                 dd_key = OTEL_UNIFIED_TAG_MAPPINGS[key.lower()]
-                dd_tags = ["{}:{}".format(dd_key, value)] + dd_tags
+                dd_tags.insert(0, f"{dd_key}:{value}")
             else:
-                dd_tags.append("{}:{}".format(key, value))
+                dd_tags.append(f"{key}:{value}")
     except Exception:
         log.warning("DDTRACE failed to read OTEL_RESOURCE_ATTRIBUTES. This value is misformatted: %s", otel_value)
 
