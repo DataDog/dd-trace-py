@@ -36,6 +36,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from .tracer import Tracer as _
 
+
 __version__ = get_version()
 
 # a global tracer instance with integration settings
