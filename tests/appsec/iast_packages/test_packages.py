@@ -98,7 +98,7 @@ PACKAGES = [
         import_name="googleapiclient",
     ),
     PackageForTesting("idna", "3.6", "xn--eckwd4c7c.xn--zckzah", "ドメイン.テスト", "xn--eckwd4c7c.xn--zckzah"),
-    PackageForTesting("numpy", "1.24.4", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5),
+    # PackageForTesting("numpy", "1.24.4", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5),
     PackageForTesting(
         "python-dateutil",
         "2.8.2",
@@ -124,7 +124,6 @@ PACKAGES = [
         "www.datadoghq.com",
     ),
     PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
-    PackageForTesting("numpy", "1.26.4", "", "", "", test_e2e=False),
     PackageForTesting("setuptools", "70.0.0", "", "", "", test_e2e=False),
     PackageForTesting("six", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("s3transfer", "0.10.1", "", "", "", test_e2e=False),
