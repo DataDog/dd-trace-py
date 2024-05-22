@@ -3,9 +3,33 @@ from typing import Optional
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
+
+
+def _get_input_tag_key_from_span_kind(span_kind):
+    if span_kind == "llm":
+        return INPUT_MESSAGES
+    elif span_kind == "embedding" or "retrieval":
+        return INPUT_DOCUMENTS
+    else:
+        return INPUT_VALUE
+
+
+def _get_output_tag_key_from_span_kind(span_kind):
+    if span_kind == "llm":
+        return OUTPUT_MESSAGES
+    elif span_kind == "retrieval":
+        return OUTPUT_DOCUMENTS
+    else:
+        return OUTPUT_VALUE
 
 
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:

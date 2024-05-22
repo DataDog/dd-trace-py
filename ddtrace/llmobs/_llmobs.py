@@ -177,6 +177,18 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
+    def _bedrock_enabled(cls):
+        return "botocore" in ddtrace._monkey._PATCHED_MODULES
+
+    @classmethod
+    def _openai_enabled(cls):
+        return "openai" in ddtrace._monkey._PATCHED_MODULES
+
+    @classmethod
+    def _langchain_enabled(cls):
+        return "langchain" in ddtrace._monkey._PATCHED_MODULES
+
+    @classmethod
     def disable(cls) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)

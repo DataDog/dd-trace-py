@@ -9,15 +9,15 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._utils import _get_input_tag_key_from_span_kind
+from ddtrace.llmobs._utils import _get_output_tag_key_from_span_kind
 
 from .base import BaseLLMIntegration
 
@@ -48,6 +48,7 @@ class LangChainIntegration(BaseLLMIntegration):
         inputs: Any,
         response: Any = None,
         error: bool = False,
+        span_kind="workflow",
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -56,12 +57,12 @@ class LangChainIntegration(BaseLLMIntegration):
         self._llmobs_set_metadata(span, model_provider)
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, span_kind=span_kind)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, span_kind=span_kind)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
-
+        span.set_tag_str(SPAN_KIND, span_kind)
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -86,31 +87,34 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, span_kind="llm"
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(SPAN_KIND, span_kind)
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
+        input_tag_key = _get_input_tag_key_from_span_kind(span_kind)
+        output_tag_key = _get_output_tag_key_from_span_kind(span_kind)
+
         if isinstance(prompts, str):
             prompts = [prompts]
-        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
+        json.dumps([{"content": str(prompt)} for prompt in prompts])
+        span.set_tag_str(input_tag_key, json.dumps([{"content": str(prompt)} for prompt in prompts]))
 
         message_content = [{"content": ""}]
         if not err:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
+        span.set_tag_str(output_tag_key, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
-        self,
-        span: Span,
-        chat_messages: List[List[Any]],
-        chat_completions: Any,
-        err: bool = False,
+        self, span: Span, chat_messages: List[List[Any]], chat_completions: Any, err: bool = False, span_kind="llm"
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(SPAN_KIND, span_kind)
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        input_tag_key = _get_input_tag_key_from_span_kind(span_kind)
+        output_tag_key = _get_output_tag_key_from_span_kind(span_kind)
 
         input_messages = []
         for message_set in chat_messages:
@@ -122,7 +126,7 @@ class LangChainIntegration(BaseLLMIntegration):
                         "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
                     }
                 )
-        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
+        span.set_tag_str(input_tag_key, json.dumps(input_messages))
 
         output_messages = [{"content": ""}]
         if not err:
@@ -137,7 +141,7 @@ class LangChainIntegration(BaseLLMIntegration):
                             "role": role,
                         }
                     )
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+        span.set_tag_str(output_tag_key, json.dumps(output_messages))
 
     def _llmobs_set_meta_tags_from_chain(
         self,
