@@ -20,7 +20,7 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     return None
 
 
-def _get_llmobs_parent_id(span: Span) -> Optional[int]:
+def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree.
     In priority order: manually set parent ID tag, nearest LLMObs ancestor, local root's propagated parent ID tag.
     """
@@ -28,7 +28,7 @@ def _get_llmobs_parent_id(span: Span) -> Optional[int]:
         return span.get_tag(PARENT_ID_KEY)
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
-        return nearest_llmobs_ancestor.span_id
+        return str(nearest_llmobs_ancestor.span_id)
     return span.get_tag(PROPAGATED_PARENT_ID_KEY)
 
 
@@ -49,7 +49,7 @@ def _get_ml_app(span: Span) -> str:
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         ml_app = nearest_llmobs_ancestor.get_tag(ML_APP)
-    return ml_app or config._llmobs_ml_app or "uknown-ml-app"
+    return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
 def _get_session_id(span: Span) -> str:
@@ -71,8 +71,8 @@ def _inject_llmobs_parent_id(span_context, span):
     if span is None:
         return
     if span.span_type == SpanTypes.LLM:
-        llmobs_parent_id = span.span_id
+        llmobs_parent_id = str(span.span_id)
     else:
         llmobs_parent_id = _get_llmobs_parent_id(span)
     if llmobs_parent_id:
-        span_context._meta[PROPAGATED_PARENT_ID_KEY] = str(llmobs_parent_id)
+        span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id
