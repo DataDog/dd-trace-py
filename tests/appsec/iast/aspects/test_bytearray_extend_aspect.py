@@ -8,8 +8,8 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
@@ -34,6 +34,14 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, b2)
         assert result == bytearray(b"123456")
         assert not get_tainted_ranges(result)
+
+    def test_extend_native_exception_no_crash(self):
+        from ddtrace.appsec._iast._taint_tracking.aspects import _extend_aspect
+
+        ba1 = bytearray(b"123")
+        b2 = 456
+        with pytest.raises(TypeError):
+            _extend_aspect(ba1, b2)
 
     def test_extend_first_tainted(self):
         ba1 = taint_pyobject(
@@ -110,7 +118,7 @@ def test_propagate_ranges_with_no_context(caplog):
     ba2 = taint_pyobject(
         pyobject=bytearray(b"456"), source_name="test", source_value="foo", source_origin=OriginType.PARAMETER
     )
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")

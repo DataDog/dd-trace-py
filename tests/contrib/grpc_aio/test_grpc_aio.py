@@ -17,18 +17,25 @@ from ddtrace.contrib.grpc import patch
 from ddtrace.contrib.grpc import unpatch
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
 from ddtrace.contrib.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
+from ddtrace.contrib.grpc.utils import _parse_rpc_repr_string
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
 from tests.contrib.grpc.hello_pb2_grpc import add_HelloServicer_to_server
+from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloReply as HelloReplyStream
+from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as HelloRequestStream
+from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
+from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
+from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 from tests.utils import override_config
 
 
 _GRPC_PORT = 50531
+NUMBER_OF_REPLY = 10
 
 
 class _CoroHelloServicer(HelloServicer):
@@ -150,6 +157,12 @@ class _SyncHelloServicer(HelloServicer):
         yield HelloReply(message="Good bye")
 
 
+class Greeter(MultiGreeterServicer):
+    async def sayHello(self, request, context):
+        for i in range(NUMBER_OF_REPLY):
+            yield HelloReplyStream(message=f"Hello number {i}, {request.name}!")
+
+
 class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
     async def intercept_unary_unary(self, continuation, client_call_details, request):
         undone_call = await continuation(client_call_details, request)
@@ -175,6 +188,24 @@ def tracer():
     tracer.pop()
 
 
+@pytest.fixture
+async def async_server_info(request, tracer, event_loop):
+    _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
+    _server = grpc.aio.server()
+    add_MultiGreeterServicer_to_server(Greeter(), _server)
+    _servicer = request.param
+    target = f"localhost:{_GRPC_PORT}"
+    _server.add_insecure_port(target)
+    # interceptor can not catch AbortError for sync servicer
+    abort_supported = not isinstance(_servicer, (_SyncHelloServicer,))
+
+    await _server.start()
+    wait_task = event_loop.create_task(_server.wait_for_termination())
+    yield _ServerInfo(target, abort_supported)
+    await _server.stop(grace=None)
+    await wait_task
+
+
 # `pytest_asyncio.fixture` cannot be used
 # with pytest-asyncio 0.16.0 which is the latest version available for Python3.6.
 @pytest.fixture
@@ -183,7 +214,6 @@ async def server_info(request, tracer, event_loop):
     tracer fixture is imported to make sure the tracer is pinned to the modules.
     """
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
-
     _servicer = request.param
     target = f"localhost:{_GRPC_PORT}"
     _server = _create_server(_servicer, target)
@@ -208,16 +238,16 @@ def _get_spans(tracer):
     return tracer._writer.spans
 
 
-def _check_client_span(span, service, method_name, method_kind):
+def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
     assert_is_measured(span)
     assert span.name == "grpc"
-    assert span.resource == "/helloworld.Hello/{}".format(method_name)
+    assert span.resource == "/{}/{}".format(resource, method_name)
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
-    assert span.get_tag("grpc.method.package") == "helloworld"
-    assert span.get_tag("grpc.method.service") == "Hello"
+    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span.get_tag("grpc.method.package") == resource.split(".")[0]
+    assert span.get_tag("grpc.method.service") == resource.split(".")[1]
     assert span.get_tag("grpc.method.name") == method_name
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("grpc.status.code") == "StatusCode.OK"
@@ -228,16 +258,16 @@ def _check_client_span(span, service, method_name, method_kind):
     assert span.get_tag("span.kind") == "client"
 
 
-def _check_server_span(span, service, method_name, method_kind):
+def _check_server_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
     assert_is_measured(span)
     assert span.name == "grpc"
-    assert span.resource == "/helloworld.Hello/{}".format(method_name)
+    assert span.resource == "/{}/{}".format(resource, method_name)
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
-    assert span.get_tag("grpc.method.package") == "helloworld"
-    assert span.get_tag("grpc.method.service") == "Hello"
+    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span.get_tag("grpc.method.package") == resource.split(".")[0]
+    assert span.get_tag("grpc.method.service") == resource.split(".")[1]
     assert span.get_tag("grpc.method.name") == method_name
     assert span.get_tag("grpc.method.kind") == method_kind
     assert span.get_tag("component") == "grpc_aio_server"
@@ -1005,3 +1035,139 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+class StreamInterceptor(grpc.aio.UnaryStreamClientInterceptor):
+    async def intercept_unary_stream(self, continuation, call_details, request):
+        response_iterator = await continuation(call_details, request)
+        return response_iterator
+
+
+async def run_streaming_example(server_info, use_generator=False):
+    i = 0
+    async with grpc.aio.insecure_channel(server_info.target, interceptors=[StreamInterceptor()]) as channel:
+        stub = MultiGreeterStub(channel)
+
+        # Read from an async generator
+        if use_generator:
+            async for response in stub.sayHello(HelloRequestStream(name="you")):
+                assert response.message == "Hello number {}, you!".format(i)
+                i += 1
+
+        # Direct read from the stub
+        else:
+            hello_stream = stub.sayHello(HelloRequestStream(name="will"))
+            while True:
+                response = await hello_stream.read()
+                if response == grpc.aio.EOF:
+                    break
+                assert response.message == "Hello number {}, will!".format(i)
+                i += 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip(
+    "Bug/error from grpc when adding an async streaming client interceptor throws StopAsyncIteration. Issue can be \
+    found at: https://github.com/DataDog/dd-trace-py/issues/9139"
+)
+@pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
+async def test_async_streaming_direct_read(async_server_info, tracer):
+    await run_streaming_example(async_server_info)
+
+    spans = _get_spans(tracer)
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    # No error because cancelled after execution
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_server_info", [_CoroHelloServicer()], indirect=True)
+async def test_async_streaming_generator(async_server_info, tracer):
+    await run_streaming_example(async_server_info, use_generator=True)
+
+    spans = _get_spans(tracer)
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    # No error because cancelled after execution
+    _check_client_span(
+        client_span, "grpc-aio-client", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+    )
+    _check_server_span(
+        server_span, "grpc-aio-server", "sayHello", "server_streaming", "hellostreamingworld.MultiGreeter"
+    )
+
+
+repr_test_cases = [
+    {
+        "rpc_string": 'status = StatusCode.OK, details = "Everything is fine"',
+        "expected_code": grpc.StatusCode.OK,
+        "expected_details": "Everything is fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": 'status = StatusCode.ABORTED, details = "Everything is not fine"',
+        "expected_code": grpc.StatusCode.ABORTED,
+        "expected_details": "Everything is not fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": "status = , details = ",
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": 'details = "Everything is fine"',
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": "status = StatusCode.ABORTED",
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": 'status = StatusCode.INVALID_STATUS_CODE_SAD, details = "Everything is fine"',
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+    {
+        "rpc_string": '  status = StatusCode.CANCELLED  , details =  "Everything is not fine"  ',
+        "expected_code": grpc.StatusCode.CANCELLED,
+        "expected_details": "Everything is not fine",
+        "expect_error": False,
+    },
+    {
+        "rpc_string": "status=StatusCode.OK details='Everything is fine'",
+        "expected_code": None,
+        "expected_details": None,
+        "expect_error": True,
+    },
+]
+
+
+@pytest.mark.parametrize("case", repr_test_cases)
+def test_parse_rpc_repr_string(case):
+    try:
+        code, details = _parse_rpc_repr_string(case["rpc_string"], grpc)
+        assert not case[
+            "expect_error"
+        ], f"Test case with repr string: {case['rpc_string']} expected error but got result"
+        assert (
+            code == case["expected_code"]
+        ), f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        assert details == case["expected_details"], (
+            f"Test case with repr string: {case['rpc_string']} expected details {case['expected_details']} but"
+            f"got {details}"
+        )
+    except ValueError as e:
+        assert case[
+            "expect_error"
+        ], f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"

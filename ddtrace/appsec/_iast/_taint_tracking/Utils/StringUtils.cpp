@@ -10,7 +10,7 @@ using namespace pybind11::literals;
 
 using namespace std;
 
-#define _GET_HASH_KEY(hash) (hash & 0xFFFFFF)
+#define GET_HASH_KEY(hash) (hash & 0xFFFFFF)
 
 typedef struct _PyASCIIObject_State_Hidden
 {
@@ -43,7 +43,7 @@ is_notinterned_notfasttainted_unicode(const PyObject* objptr)
     }
     // it cannot be fast tainted if hash is set to -1 (not computed)
     Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
-    return hash == -1 || e->hidden != _GET_HASH_KEY(hash);
+    return hash == -1 || e->hidden != GET_HASH_KEY(hash);
 }
 
 // For non interned unicode strings, set a hidden mark on it's internsal data
@@ -55,13 +55,12 @@ set_fast_tainted_if_notinterned_unicode(PyObject* objptr)
     if (not objptr or !PyUnicode_Check(objptr) or PyUnicode_CHECK_INTERNED(objptr)) {
         return;
     }
-    auto e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state);
-    if (e) {
+    if (auto e = (_PyASCIIObject_State_Hidden*)&(((PyASCIIObject*)objptr)->state)) {
         Py_hash_t hash = ((PyASCIIObject*)objptr)->hash;
         if (hash == -1) {
             hash = PyObject_Hash(objptr);
         }
-        e->hidden = _GET_HASH_KEY(hash);
+        e->hidden = GET_HASH_KEY(hash);
     }
 }
 
@@ -89,18 +88,18 @@ new_pyobject_id(PyObject* tainted_object)
     }
     if (PyBytes_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
-        auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
-        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
-        auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
+        const auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
+        const auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
+        const auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
         Py_DecRef(val);
         Py_DecRef(empty_bytes);
         return res;
     } else if (PyByteArray_Check(tainted_object)) {
         PyObject* empty_bytes = PyBytes_FromString("");
         PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
-        auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
-        auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
-        auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
+        const auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
+        const auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
+        const auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
         Py_DecRef(val);
         Py_DecRef(empty_bytes);
         Py_DecRef(empty_bytearray);

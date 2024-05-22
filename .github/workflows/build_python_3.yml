@@ -28,12 +28,12 @@ jobs:
          - os: macos-12
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
@@ -69,6 +69,15 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_BEFORE_ALL: >
+            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
+            then
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
+            fi
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -100,6 +109,15 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_BEFORE_ALL: >
+            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
+            then
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
+            fi
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -120,6 +138,14 @@ jobs:
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
-      - uses: actions/upload-artifact@v3
+      - if: runner.os != 'Windows'
+        run: |
+          echo "ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-$(echo "${{ inputs.cibw_build }}" | tr -cd '[:alnum:]_-')" >> $GITHUB_ENV
+      - if: runner.os == 'Windows'
+        run: |
+          chcp 65001 #set code page to utf-8
+          echo ("ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-${{ inputs.cibw_build }}".replace('*', '').replace(' ', '_')) >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
         with:
+          name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl

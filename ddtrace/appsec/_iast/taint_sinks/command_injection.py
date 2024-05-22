@@ -4,7 +4,6 @@ from typing import List
 from typing import Union
 
 from ddtrace.contrib import trace_utils
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -41,9 +40,6 @@ def patch():
         subprocess._datadog_cmdi_patch = True
 
     _set_metric_iast_instrumented_sink(VULN_CMDI)
-
-    if asm_config._ep_enabled:
-        core.dispatch("exploit.prevention.ssrf.patch.urllib")
 
 
 def unpatch() -> None:

@@ -16,7 +16,7 @@ mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image vertica/vertica-ce:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
-testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.16.0
+testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
 
 parameters:
   coverage:
@@ -80,6 +80,12 @@ commands:
     steps:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.19.0
+
+  setup_rust:
+    description: "Install rust toolchain"
+    steps:
+      -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+      -  run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
 
   setup_hatch:
     description: "Install hatch"
@@ -543,6 +549,9 @@ jobs:
 
   internal:
     <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *testagent
     steps:
       - run_test:
           pattern: "internal"
@@ -1321,6 +1330,7 @@ jobs:
     executor: python310
     steps:
       - checkout
+      - setup_rust
       - setup_hatch
       - run: hatch run slotscheck:_
 
@@ -1328,6 +1338,7 @@ jobs:
     executor: python310
     steps:
       - checkout
+      - setup_rust
       - setup_hatch
       - run: hatch run meta-testing:meta-testing
 
