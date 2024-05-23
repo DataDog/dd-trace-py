@@ -451,9 +451,7 @@ class Config(object):
             else:
                 self.inferred_service = inferred_entrypoint
 
-        self.service = os.getenv(
-            "DD_SERVICE", default=(self.inferred_service if self.inferred_service else DEFAULT_SPAN_SERVICE_NAME)
-        )
+        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME)))
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))

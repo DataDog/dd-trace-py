@@ -26,6 +26,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -370,12 +371,15 @@ def int_service(pin, int_config, default=None):
     if "service_name" in int_config and int_config.service_name is not None:
         return cast(str, int_config.service_name)
 
+    global_service = int_config.global_config._get_service()
+    if global_service and global_service != DEFAULT_SERVICE_NAME:
+        return cast(str, global_service)
+
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
 
-    global_service = int_config.global_config._get_service()
-    if global_service:
-        return cast(str, global_service)
+    if int_config.global_config.inferred_service:
+        return cast(str, int_config.global_config.inferred_service)
 
     return default
 
