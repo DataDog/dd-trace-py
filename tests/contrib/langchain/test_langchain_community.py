@@ -1621,3 +1621,58 @@ class TestLLMObsLangchain:
                 ),
             ],
         )
+
+
+def test_llmobs_langchain_with_openai_enabled(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            # Disable metrics because the test agent doesn't support metrics
+            "DD_LANGCHAIN_METRICS_ENABLED": "false",
+            "DD_OPENAI_METRICS_ENABLED": "false",
+            "OPENAI_API_KEY": "<not-a-real-key>",
+            "DD_API_KEY": "<not-a-real-key>",
+            "DD_LLMOBS_APP_NAME": "<ml-app-name>",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import mock
+from tests.contrib.langchain.test_langchain_community import get_request_vcr
+from tests.contrib.langchain.test_langchain_community import TestLLMObsLangchain
+
+patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+LLMObsSpanWriterMock = patcher.start()
+mock_llmobs_span_writer = mock.MagicMock()
+LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
+
+from ddtrace.llmobs import LLMObs
+from langchain_openai import OpenAI
+
+LLMObs.enable(
+    integrations=["langchain", "openai"],
+)
+
+llm = OpenAI()
+with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
+    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+assert mock_llmobs_span_writer.enqueue.call_count == 2
+calls = mock_llmobs_span_writer.enqueue.call_args_list
+assert calls[0].args[0]['meta']['span.kind'] == 'workflow'
+assert len(calls[0].args[0]['meta']['input']['value']) > 0
+assert len(calls[0].args[0]['meta']['output']['value']) > 0
+assert calls[1].args[0]['meta']['span.kind'] == 'llm'
+
+patcher.stop()
+LLMObs.disable()
+""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == b""
+    assert err == b""
