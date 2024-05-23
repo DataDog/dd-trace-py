@@ -325,9 +325,9 @@ class SpanAggregator(SpanProcessor):
                 if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     # if not finished:
-                    #     log_msg = "Partial flush triggered but no spans to flush (was tracer reconfigured?)"
+                    #     log_msg = "No spans to flush in partial flush triggered for span: %s (was tracer reconfigured?)"
                     #     # Avoid potential crashes if, for some reason, we have no spans to flush even though
-                    #     # should_partial_flush is True
+                    #     # should_partial_flush is True.
                     #     if config._telemetry_enabled:
                     #         telemetry.telemetry_writer.add_log("WARNING", log_msg)
                     #     log.warning(log_msg)
