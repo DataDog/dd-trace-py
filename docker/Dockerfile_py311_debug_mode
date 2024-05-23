@@ -1,0 +1,91 @@
+# DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
+#      this drastically improves test execution time since python dependencies don't all
+#      have to be built from source all the time (grpcio takes forever to install)
+FROM debian:buster-20221219-slim
+
+# http://bugs.python.org/issue19846
+# > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
+ENV LANG C.UTF-8
+
+# https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
+ENV PYTHONUNBUFFERED=1
+# Configure PATH environment for pyenv
+ENV PYTHON_SOURCE=/root/python_source
+ENV PYTHON_DEBUG=/root/env/python_debug
+ENV PATH=$PATH:${PYTHON_DEBUG}/bin
+ENV PYTHON_CONFIGURE_OPTS=--enable-shared
+
+RUN \
+  # Install system dependencies
+  apt-get update \
+  && apt-get install -y --no-install-recommends \
+      apt-transport-https \
+      build-essential \
+      ca-certificates \
+      clang-format \
+      curl \
+      git \
+      gnupg \
+      jq \
+      libbz2-dev \
+      libenchant-dev \
+      libffi-dev \
+      liblzma-dev \
+      libmemcached-dev \
+      libncurses5-dev \
+      libncursesw5-dev \
+      libpq-dev \
+      libreadline-dev \
+      libsasl2-dev \
+      libsqlite3-dev \
+      libsqliteodbc \
+      libssh-dev \
+      libssl-dev \
+      patch \
+      python-openssl\
+      unixodbc-dev \
+      wget \
+      zlib1g-dev \
+      valgrind \
+    # Cleaning up apt cache space
+  && rm -rf /var/lib/apt/lists/*
+
+# Install pyenv and necessary Python versions
+# `--with-pydebug`: [Add options](https://docs.python.org/3/using/configure.html#python-debug-build) like count references, sanity checks...
+# `--with-valgrind`: Enable Valgrind support (default is no).
+# `--without-pymalloc`: Python has a pymalloc allocator optimized for small objects (smaller or equal to 512 bytes) with a short lifetime. We remove this functionality to not hide errors
+RUN git clone --depth 1 --branch v3.11.6 https://github.com/python/cpython/ "${PYTHON_SOURCE}" \
+  && cd ${PYTHON_SOURCE} \
+  && ./configure --with-pydebug --without-pymalloc --with-valgrind --prefix ${PYTHON_DEBUG} \
+  && make OPT=-g \
+  && make install \
+  && cd -
+
+RUN python3.11 -m pip install -U pip \
+    && python3.11 -m pip install six cattrs setuptools cython wheel cmake pytest pytest-cov hypothesis pytest-memray\
+    memray==1.12.0 \
+    requests==2.31.0 \
+    attrs>=20 \
+    bytecode>=0.14.0 \
+    cattrs \
+    ddsketch>=3.0.0 \
+    envier~=0.5 \
+    opentelemetry-api>=1 \
+    protobuf>=3 \
+    six>=1.12.0 \
+    typing_extensions \
+    xmltodict>=0.12
+
+
+CMD ["/bin/bash"]
+#docker build . -f docker/Dockerfile_py311_debug_mode -t python_311_debug
+#docker run --rm -it -v ${PWD}:/ddtrace python_311_debug
+#
+# Now, you can check IAST leaks:
+#cd /ddtrace
+#export PATH=$PATH:$PWD
+#export PYTHONPATH=$PYTHONPATH:$PWD
+#export PYTHONMALLOC=malloc
+#python3.11 ddtrace/appsec/_iast/leak.py
+#python3.11 -m memray run --trace-python-allocators --native -o lel.bin -f prueba.py
+#python3.11 -m memray flamegraph lel.bin --leaks -f
