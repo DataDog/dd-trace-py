@@ -1,7 +1,7 @@
 dogfood-dogweb-notify:
   stage: dogfood
   tags: ["arch:amd64"]
-  needs: dogfood-dogweb-trigger
+  needs: ["dogfood-dogweb-trigger"]
   when: on_failure
   script:
     - exit 1
@@ -9,7 +9,7 @@ dogfood-dogweb-notify:
 dogfood-dogweb:
   stage: dogfood
   tags: ["arch:amd64"]
-  needs: dogfood-dogweb-trigger
+  needs: ["dogfood-dogweb-trigger"]
   script:
     - ./.gitlab/check_dogweb_trigger_status.sh
 
