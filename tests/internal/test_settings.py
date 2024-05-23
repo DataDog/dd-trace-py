@@ -609,20 +609,16 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 
 
 def test_tracer_reconfigure_does_not_crash_tracer(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TRACER_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS": "true"})
-
     out, err, status, _ = run_python_code_in_subprocess(
         textwrap.dedent(
             """
         import ddtrace
 
-        with ddtrace.tracer.trace("regression"):
-            ddtrace.tracer.configure(partial_flush_enabled=1, partial_flush_min_spans=1)
+        span = ddtrace.tracer.trace("regression")
+        ddtrace.tracer.configure(partial_flush_enabled=1, partial_flush_min_spans=1)
+        span.finish()
         """
         ),
-        env=env,
     )
-    breakpoint()
 
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"

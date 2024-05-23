@@ -1168,7 +1168,6 @@ def call_program(*args, **kwargs):
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
-    breakpoint()
     return stdout, stderr, subp.wait(), subp.pid
 
 
