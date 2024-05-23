@@ -340,7 +340,6 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
-            LOG.warn("Profiling collector (pytorch) enabled")
             self._collectors_on_import = [
                 ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]

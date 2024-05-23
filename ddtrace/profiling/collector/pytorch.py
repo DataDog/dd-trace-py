@@ -8,7 +8,6 @@ import attr
 import torch
 
 from ddtrace._trace.tracer import Tracer
-from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -46,9 +45,6 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         export_libdd_enabled: bool,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
-        LOG.warn("INIT MONKEY PATCHED PYTORCH PROFILE CALL!!")
-        LOG.warn(wrapped)
-        LOG.warn(self)
         self.on_trace_ready = handle_torch_trace
         self._self_recorder = recorder
         self._self_tracer = tracer
@@ -61,17 +57,9 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
 
-class FunctionWrapper(wrapt.FunctionWrapper):
-    # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
-    # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
-    # builtin function. Override default wrapt behavior here that tries to detect bound method.
-    def __get__(self):
-        return self
-
-
 @attr.s
 class MLProfilerCollector(collector.CaptureSamplerCollector):
-    """Record lock usage."""
+    """Record ML framework (i.e. pytorch) profiler usage."""
 
     nframes = attr.ib(type=int, default=config.max_frames)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
@@ -100,13 +88,13 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self):
         # type: (...) -> None
-        """Start collecting lock usage."""
+        """Start collecting framework profiler usage."""
         self.patch()
         super(MLProfilerCollector, self)._start_service()
 
     def _stop_service(self):
         # type: (...) -> None
-        """Stop collecting lock usage."""
+        """Stop collecting framework profiler usage."""
         super(MLProfilerCollector, self)._stop_service()
         self.unpatch()
 
@@ -128,7 +116,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
                 self.export_libdd_enabled,
             )
 
-        self._set_original(FunctionWrapper(self.original, profiler_init))
+        self._set_original(wrapt.FunctionWrapper(self.original, profiler_init))
 
     def unpatch(self):
         # type: (...) -> None
@@ -155,7 +143,7 @@ class TorchProfilerCollector(MLProfilerCollector):
 
 def handle_torch_trace(prof):
     NANOS_PER_MICROSECOND = 1e3
-    LOG.warn("handle torch trace was called")
+    LOG.debug("handle_torch_trace called")
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
     for i, e in enumerate(prof.events()):
         device_name = "cuda " + str(e.device_index)
