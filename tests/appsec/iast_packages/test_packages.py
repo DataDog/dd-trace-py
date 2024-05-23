@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+import requests
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
@@ -88,10 +89,22 @@ class PackageForTesting:
         print(proc.stdout)
         print(proc.stderr)
 
-    def install(self):
-        self._install(self.name, self.package_version)
+    def install(self, package_version=""):
+        self._install(self.name, package_version if package_version else self.package_version)
         for package_name, package_version in self.extra_packages:
             self._install(package_name, package_version)
+
+    def get_last_version(self) -> str:
+        """Get the last version of the package from PyPI."""
+        response = requests.get(f"https://pypi.org/pypi/{self.name}/json")
+        if response.status_code == 200:
+            data = response.json()
+            return data["info"]["version"]
+        return ""
+
+    def install_latest(self):
+        version = self.get_last_version()
+        self.install(version)
 
 
 # Top packages list imported from:
@@ -326,7 +339,7 @@ def test_packages_not_patched_import(package):
         pytest.skip(reason)
         return
 
-    package.install()
+    package.install_latest()
     importlib.import_module(package.import_name)
 
 
@@ -342,5 +355,5 @@ def test_packages_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install()
+        package.install_latest()
         assert _iast_patched_module(package.import_name, fromlist=[])
