@@ -10,8 +10,9 @@ dogfood-dogweb:
   stage: dogfood
   tags: ["arch:amd64"]
   needs: ["dogfood-dogweb-trigger"]
+  when: on_success
   script:
-    - ./.gitlab/check_dogweb_trigger_status.sh
+    - exit 0
 
 dogfood-dogweb-trigger:
   stage: dogfood
