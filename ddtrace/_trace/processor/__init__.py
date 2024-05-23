@@ -314,7 +314,7 @@ class SpanAggregator(SpanProcessor):
 
             trace = self._traces[span.trace_id]
             if span not in trace.spans:
-                log_msg = f"Finished span {span} not found in trace {span.trace_id}"
+                log_msg = f"Finished span {span} not found in trace"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARNING", log_msg)
                 log.warning(log_msg)
