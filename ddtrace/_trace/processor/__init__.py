@@ -304,7 +304,24 @@ class SpanAggregator(SpanProcessor):
         # type: (Span) -> None
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
+
+            # breakpoint()
+
+            if span.trace_id not in self._traces:
+                log_msg = f"No trace found for span {span} (was tracer reconfigured?)"
+                if config._telemetry_enabled:
+                    telemetry.telemetry_writer.add_log("WARNING", log_msg)
+                log.warning(log_msg)
+                return
+
             trace = self._traces[span.trace_id]
+            if span not in trace.spans:
+                log_msg = f"Finished span {span} not found in trace {span.trace_id}"
+                if config._telemetry_enabled:
+                    telemetry.telemetry_writer.add_log("WARNING", log_msg)
+                log.warning(log_msg)
+                return
+
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
             if trace.num_finished == len(trace.spans) or should_partial_flush:
@@ -325,7 +342,7 @@ class SpanAggregator(SpanProcessor):
                 if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     if not finished:
-                        log_msg = f"No spans to flush in partial flush for span: {span} (was tracer reconfigured?)"
+                        log_msg = f"No spans to flush in partial flush for span: {span}"
                         # Avoid potential crashes if, for some reason, we have no spans to flush even though
                         # should_partial_flush is True.
                         if config._telemetry_enabled:
