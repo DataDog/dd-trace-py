@@ -161,8 +161,6 @@ class EntrySpanWrappingContext(WrappingContext):
             self.set("context", context)
             self.set("start_time", compat.monotonic_ns())
 
-            print("snapshot created")
-
     def _close_context(self, retval=None, exc_info=(None, None, None)):
         try:
             context: SignalContext = self.get("context")
