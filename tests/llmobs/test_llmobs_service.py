@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -11,6 +12,7 @@ from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
@@ -214,6 +216,42 @@ def test_agent_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(_expected_llmobs_llm_span_event(span, "agent"))
 
 
+def test_embedding_span_no_model_raises_error(LLMObs):
+    with pytest.raises(TypeError):
+        with LLMObs.embedding(name="test_embedding", model_provider="test_provider"):
+            pass
+
+
+def test_embedding_span_empty_model_name_logs_warning(LLMObs, mock_logs):
+    _ = LLMObs.embedding(model_name="", name="test_embedding", model_provider="test_provider")
+    mock_logs.warning.assert_called_once_with("model_name must be the specified name of the invoked model.")
+
+
+def test_embedding_default_model_provider_set_to_custom(LLMObs):
+    with LLMObs.embedding(model_name="test_model", name="test_embedding") as span:
+        assert span.name == "test_embedding"
+        assert span.resource == "embedding"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "embedding"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "custom"
+
+
+def test_embedding_span(LLMObs, mock_llmobs_span_writer):
+    with LLMObs.embedding(model_name="test_model", name="test_embedding", model_provider="test_provider") as span:
+        assert span.name == "test_embedding"
+        assert span.resource == "embedding"
+        assert span.span_type == "llm"
+        assert span.get_tag(SPAN_KIND) == "embedding"
+        assert span.get_tag(MODEL_NAME) == "test_model"
+        assert span.get_tag(MODEL_PROVIDER) == "test_provider"
+        assert span.get_tag(SESSION_ID) == "{:x}".format(span.trace_id)
+
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
+    )
+
+
 def test_annotate_while_disabled_logs_warning(LLMObs, mock_logs):
     LLMObs.disable()
     LLMObs.annotate(parameters={"test": "test"})
@@ -306,6 +344,9 @@ def test_annotate_input_string(LLMObs):
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
         assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+    with LLMObs.retrieval() as retrieval_span:
+        LLMObs.annotate(span=retrieval_span, input_data="test_input")
+        assert retrieval_span.get_tag(INPUT_VALUE) == "test_input"
 
 
 def test_annotate_input_serializable_value(LLMObs):
@@ -321,6 +362,9 @@ def test_annotate_input_serializable_value(LLMObs):
     with LLMObs.agent() as agent_span:
         LLMObs.annotate(span=agent_span, input_data="test_input")
         assert agent_span.get_tag(INPUT_VALUE) == "test_input"
+    with LLMObs.retrieval() as retrieval_span:
+        LLMObs.annotate(span=retrieval_span, input_data=[0, 1, 2, 3, 4])
+        assert retrieval_span.get_tag(INPUT_VALUE) == "[0, 1, 2, 3, 4]"
 
 
 def test_annotate_input_value_wrong_type(LLMObs, mock_logs):
@@ -352,10 +396,130 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(LLMObs, m
         mock_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
+def test_annotate_document_str(LLMObs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data="test_document_text")
+        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 1
+        assert documents[0]["text"] == "test_document_text"
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data="test_document_text")
+        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 1
+        assert documents[0]["text"] == "test_document_text"
+
+
+def test_annotate_document_dict(LLMObs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data={"text": "test_document_text"})
+        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 1
+        assert documents[0]["text"] == "test_document_text"
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data={"text": "test_document_text"})
+        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 1
+        assert documents[0]["text"] == "test_document_text"
+
+
+def test_annotate_document_list(LLMObs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span,
+            input_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
+        )
+        documents = json.loads(span.get_tag(INPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 2
+        assert documents[0]["text"] == "test_document_text"
+        assert documents[1]["text"] == "text"
+        assert documents[1]["name"] == "name"
+        assert documents[1]["id"] == "id"
+        assert documents[1]["score"] == 0.9
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(
+            span=span,
+            output_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
+        )
+        documents = json.loads(span.get_tag(OUTPUT_DOCUMENTS))
+        assert documents
+        assert len(documents) == 2
+        assert documents[0]["text"] == "test_document_text"
+        assert documents[1]["text"] == "text"
+        assert documents[1]["name"] == "name"
+        assert documents[1]["id"] == "id"
+        assert documents[1]["score"] == 0.9
+
+
+def test_annotate_incorrect_document_type_raises_warning(LLMObs, mock_logs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data={"text": 123})
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=123)
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=Unserializable())
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data=123)
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data=Unserializable())
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+
+
+def test_annotate_document_no_text_raises_warning(LLMObs, mock_logs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data=[{"score": 0.9, "id": "id", "name": "name"}])
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+
+
+def test_annotate_incorrect_document_field_type_raises_warning(LLMObs, mock_logs):
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(span=span, input_data=[{"text": "test_document_text", "score": "0.9"}])
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.embedding(model_name="test_model") as span:
+        LLMObs.annotate(
+            span=span, input_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
+        )
+        mock_logs.warning.assert_called_once_with("Failed to parse input documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(span=span, output_data=[{"text": "test_document_text", "score": "0.9"}])
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+    mock_logs.reset_mock()
+    with LLMObs.retrieval() as span:
+        LLMObs.annotate(
+            span=span, output_data=[{"text": "text", "id": 123, "score": "0.9", "name": ["h", "e", "l", "l", "o"]}]
+        )
+        mock_logs.warning.assert_called_once_with("Failed to parse output documents.", exc_info=True)
+
+
 def test_annotate_output_string(LLMObs):
     with LLMObs.llm(model_name="test_model") as llm_span:
         LLMObs.annotate(span=llm_span, output_data="test_output")
         assert json.loads(llm_span.get_tag(OUTPUT_MESSAGES)) == [{"content": "test_output"}]
+    with LLMObs.embedding(model_name="test_model") as embedding_span:
+        LLMObs.annotate(span=embedding_span, output_data="test_output")
+        assert embedding_span.get_tag(OUTPUT_VALUE) == "test_output"
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, output_data="test_output")
         assert task_span.get_tag(OUTPUT_VALUE) == "test_output"
@@ -371,6 +535,9 @@ def test_annotate_output_string(LLMObs):
 
 
 def test_annotate_output_serializable_value(LLMObs):
+    with LLMObs.embedding(model_name="test_model") as embedding_span:
+        LLMObs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
+        assert embedding_span.get_tag(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
     with LLMObs.task() as task_span:
         LLMObs.annotate(span=task_span, output_data=["test_output"])
         assert task_span.get_tag(OUTPUT_VALUE) == '["test_output"]'
@@ -465,13 +632,11 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
     )
-
     with LLMObs.tool(name="test_tool", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
     )
-
     with LLMObs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
@@ -479,17 +644,27 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
             span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
         )
     )
-
+    with LLMObs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span, "embedding", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        )
+    )
     with LLMObs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
     )
-
     with LLMObs.agent(name="test_agent", ml_app="test_app") as span:
         pass
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
+    )
+    with LLMObs.retrieval(name="test_retrieval", ml_app="test_app") as span:
+        pass
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
     )
 
 
