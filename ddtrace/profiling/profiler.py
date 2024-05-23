@@ -320,12 +320,36 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
+        if self._pytorch_collector_enabled:
+
+            def start_collector(collector_class: Type) -> None:
+                with self._service_lock:
+                    col = collector_class(r, tracer=self.tracer)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                            LOG.debug("Started pytorch collector %r", col)
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
+
+            LOG.warn("Profiling collector (pytorch) enabled")
+            self._collectors_on_import = [
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
+
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
-
-        if self._pytorch_collector_enabled:
-            # TODO: How to finish connecting this?
-            add_pytorch_profiler(None)
 
         exporters = self._build_default_exporters()
 
@@ -360,9 +384,6 @@ class _ProfilerInstance(service.Service):
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
-
-    def add_pytorch_profiler(self, torch_prof):
-        torch_prof.on_trace_ready = pytorch.handle_torch_trace
 
     def _start_service(self):
         # type: (...) -> None

@@ -236,7 +236,7 @@ class ProfilingConfig(En):
     class Heap(En):
         __item__ = __prefix__ = "heap"
 
-        _enabled = En.v(
+        enabled = En.v(
             bool,
             "enabled",
             default=True,
