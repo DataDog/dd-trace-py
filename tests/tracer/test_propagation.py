@@ -2707,6 +2707,7 @@ assert "{}={}".format(PROPAGATED_PARENT_ID_KEY, root_span.span_id) in headers["x
 
     env = os.environ.copy()
     env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -2728,7 +2729,8 @@ assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
         """
 
     env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "0"
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -2749,7 +2751,8 @@ assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
         """
 
     env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "0"
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)

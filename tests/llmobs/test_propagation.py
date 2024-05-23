@@ -13,14 +13,14 @@ def test_inject_llmobs_parent_id_no_llmobs_span():
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("Non-LLMObs span"):
         with dummy_tracer.trace("Non-LLMObs span") as child_span:
-            _inject_llmobs_parent_id(child_span.context, child_span)
+            _inject_llmobs_parent_id(child_span.context)
     assert child_span.context._meta.get(PROPAGATED_PARENT_ID_KEY, None) is None
 
 
 def test_inject_llmobs_parent_id_simple():
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
-        _inject_llmobs_parent_id(root_span.context, root_span)
+        _inject_llmobs_parent_id(root_span.context)
     assert root_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(root_span.span_id)
 
 
@@ -28,7 +28,7 @@ def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs():
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
         with dummy_tracer.trace("Non-LLMObs span") as child_span:
-            _inject_llmobs_parent_id(child_span.context, child_span)
+            _inject_llmobs_parent_id(child_span.context)
     assert child_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(root_span.span_id)
 
 
@@ -36,7 +36,7 @@ def test_inject_llmobs_parent_id_non_llmobs_root_span():
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("Non-LLMObs span"):
         with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as child_span:
-            _inject_llmobs_parent_id(child_span.context, child_span)
+            _inject_llmobs_parent_id(child_span.context)
     assert child_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(child_span.span_id)
 
 
@@ -45,7 +45,7 @@ def test_inject_llmobs_parent_id_nested_llmobs_spans():
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM):
         with dummy_tracer.trace("LLMObs child span", span_type=SpanTypes.LLM):
             with dummy_tracer.trace("Last LLMObs child span", span_type=SpanTypes.LLM) as last_llmobs_span:
-                _inject_llmobs_parent_id(last_llmobs_span.context, last_llmobs_span)
+                _inject_llmobs_parent_id(last_llmobs_span.context)
     assert last_llmobs_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(last_llmobs_span.span_id)
 
 
@@ -71,6 +71,7 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -106,6 +107,7 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -141,6 +143,7 @@ print(json.dumps(headers))
         """
     env = os.environ.copy()
     env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
