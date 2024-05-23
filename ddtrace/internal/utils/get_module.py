@@ -41,13 +41,13 @@ def find_package_name(start_path):
                 for line in f:
                     if "name=" in line:
                         package_name = line.split("=")[1].strip().strip("'\"")
-                        return package_name
+                        return package_name.replace('"', '').replace(',', '')
         elif getattr(pkg, "name", "") == files[1]:
             # Parse pyproject.toml file to get package name
             with open(pkg, "r") as f:
                 pyproject_data = toml.load(f)
                 if "project" in pyproject_data and "name" in pyproject_data["project"]:
-                    return pyproject_data["project"].get("name")
+                    return pyproject_data["project"].get("name").replace('"', '').replace(',', '')
 
                 if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
-                    return pyproject_data["tool"]["poetry"].get("name")
+                    return pyproject_data["tool"]["poetry"].get("name").replace('"', '').replace(',', '')
