@@ -103,6 +103,8 @@ class PackageForTesting:
         return ""
 
     def install_latest(self):
+        # TODO: get the latest packages fails in the CI with:
+        #  "OSError: Could not find a suitable TLS CA certificate bundle"
         version = self.get_last_version()
         self.install(version)
 
@@ -339,7 +341,7 @@ def test_packages_not_patched_import(package):
         pytest.skip(reason)
         return
 
-    package.install_latest()
+    package.install()
     importlib.import_module(package.import_name)
 
 
@@ -355,5 +357,5 @@ def test_packages_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install_latest()
+        package.install()
         assert _iast_patched_module(package.import_name, fromlist=[])
