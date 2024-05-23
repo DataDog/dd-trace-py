@@ -840,3 +840,22 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             numerical_value=35,
         )
     )
+
+
+def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    LLMObs.flush()
+    mock_llmobs_span_writer.periodic.assert_called_once()
+    mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+
+
+def test_flush_does_not_call_period_when_llmobs_is_disabled(
+    LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_logs
+):
+    LLMObs.disable()
+    LLMObs.flush()
+    mock_llmobs_span_writer.periodic.assert_not_called()
+    mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_logs.warning.assert_has_calls(
+        [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
+    )
+    LLMObs.enable()
