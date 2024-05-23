@@ -3,6 +3,8 @@ import json
 import mock
 import pytest
 
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -37,22 +39,48 @@ def mock_logs():
         yield mock_logs
 
 
+def run_llmobs_trace_filter(dummy_tracer):
+    for trace_filter in dummy_tracer._filters:
+        if isinstance(trace_filter, LLMObsTraceProcessor):
+            root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+            root_llm_span.set_tag_str(SPAN_KIND, "llm")
+            trace1 = [root_llm_span]
+            return trace_filter.process_trace(trace1)
+    raise ValueError("LLMObsTraceProcessor not found in tracer filters.")
+
+
 def test_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
         assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
+        assert run_llmobs_trace_filter(dummy_tracer) is not None
+
+        llmobs_service.disable()
+
+
+def test_service_enable_with_apm_disabled(monkeypatch):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance.tracer == dummy_tracer
+        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
+        assert run_llmobs_trace_filter(dummy_tracer) is None
+
         llmobs_service.disable()
 
 
 def test_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_service.disable()
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
@@ -63,7 +91,7 @@ def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -73,7 +101,7 @@ def test_service_enable_no_ml_app_specified():
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
@@ -82,8 +110,8 @@ def test_service_enable_no_ml_app_specified():
 def test_service_enable_already_enabled(mock_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
