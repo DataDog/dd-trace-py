@@ -36,30 +36,22 @@ python_runtime = platform.python_implementation().lower()
 python_version = ".".join(str(i) for i in sys.version_info[:2])
 
 
-def create_count_metric(metric, tags={}):
+def create_count_metric(metric, tags=[]):
     return {
-        "metric": metric,
+        "name": metric,
         "tags": tags,
     }
 
 
-def gen_telemetry_payload(data):
-    # could just expand the data dict here, might be better
-    tags = data.get("tags", {})
-    tags.update({"runtime": python_runtime, "platform": platform.system(), "python_version": python_version})
+def gen_telemetry_payload(telemetry_events):
     return {
-        "namespace": "tracers",
-        "lib_language": "python",
-        "lib_version": installed_packages.get("ddtrace", "unknown"),
-        "series": [
-            {
-                "metric": data["metric"],
-                "type": "count",
-                "common": "true",
-                "points": [[int(time.time()), 1]],
-                "tags": tags,
-            }
-        ],
+        "language_name": python_runtime,
+        "language_version": python_version,
+        "tracer_name": "python",
+        "tracer_version": installed_packages.get("ddtrace", "unknown"),
+        "pid": os.getpid(),
+        "platform": platform.system(),
+        "points": telemetry_events,
     }
 
 
@@ -73,7 +65,8 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    p.communicate(input=event_json)
+    p.stdin.write(event_json)
+    p.stdin.close()
 
 
 debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -106,9 +99,9 @@ def _log(msg, *args, **kwargs):
 
 
 def _inject():
-    skip_instr_events = []
-    runtime_incomp_event = False
+    telemetry_data = []
     integration_incomp_event = False
+    runtime_incomp_event = False
     try:
         import ddtrace
     except ImportError:
@@ -129,10 +122,7 @@ def _inject():
                 # TODO: this checking code will have to be more intelligent in the future
                 if package_version < pkgs_allow_list[package_name]:
                     incompatible_packages[package_name] = package_version
-                    # incompatible_packages[package_name] = {
-                    #     "version_in_use": package_version,
-                    #     "required_version": pkgs_allow_list[package_name],
-                    # }
+
         if incompatible_packages:
             _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
             if not allow_unsupported_integrations:
@@ -141,18 +131,16 @@ def _inject():
                 integration_incomp_event = True
 
                 for key, value in incompatible_packages.items():
-                    event_skipped_integration = gen_telemetry_payload(
+                    telemetry_data.append(
                         create_count_metric(
-                            "bootstrap.skipped.integration",
-                            {
-                                "integration_name": key,
-                                "integration_version": value,
-                                # need to add to doc if we want this
-                                "required_version": pkgs_allow_list[key],
-                            },
+                            "library_entrypoint.abort.integration",
+                            [
+                                "integration_name:" + key,
+                                "integration_version:" + value,
+                                "required_version:" + pkgs_allow_list[key],
+                            ],
                         )
                     )
-                    skip_instr_events.append(event_skipped_integration)
 
             else:
                 _log(
@@ -166,24 +154,24 @@ def _inject():
 
                 runtime_incomp_event = True
 
-                event_skipped_runtime = gen_telemetry_payload(create_count_metric("bootstrap.skipped.runtime"))
-                skip_instr_events.append(event_skipped_runtime)
+                telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
             else:
                 _log(
                     "DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES set to True, allowing unsupported runtimes.",
                     level="debug",
                 )
-        if skip_instr_events:
-            for event in skip_instr_events:
-                send_telemetry(event)
-            skip_event = gen_telemetry_payload(
+        if telemetry_data:
+            telemetry_data.append(
                 create_count_metric(
-                    "bootstrap.skipped",
-                    {"runtime_skip": runtime_incomp_event, "integration_skip": integration_incomp_event},
+                    "library_entrypoint.abort",
+                    [
+                        "runtime_abort:" + str(runtime_incomp_event),
+                        "integration_abort:" + str(integration_incomp_event),
+                    ],
                 )
             )
-            send_telemetry(skip_event)
-
+            telemetry_event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(telemetry_event)
             return
 
         site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, platform))
@@ -226,11 +214,21 @@ def _inject():
                 # Also insert the bootstrap dir in the path of the current python process.
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
-                event = gen_telemetry_payload(create_count_metric("bootstrap.completed", {}))
+                event = gen_telemetry_payload(
+                    create_count_metric(
+                        "library_entrypoint.completed",
+                        [
+                            "integration_override:" + str(integration_incomp_event),
+                            "runtime_override:" + str(runtime_incomp_event),
+                        ],
+                    )
+                )
                 send_telemetry(event)
             except Exception as e:
                 # maybe switch errortype since error will have too high over cardinality
-                event = gen_telemetry_payload(create_count_metric("bootstrap.error", {"error": str(e)}))
+                event = gen_telemetry_payload(
+                    create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__])
+                )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
