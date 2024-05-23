@@ -1,13 +1,17 @@
 from typing import Optional
 
+import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+
+log = get_logger(__name__)
 
 
 def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
@@ -66,10 +70,16 @@ def _get_session_id(span: Span) -> str:
     return session_id or "{:x}".format(span.trace_id)
 
 
-def _inject_llmobs_parent_id(span_context, span):
+def _inject_llmobs_parent_id(span_context):
     """Inject the LLMObs parent ID into the span context for reconnecting distributed LLMObs traces."""
+    span = ddtrace.tracer.current_span()
     if span is None:
+        log.warning("No active span to inject LLMObs parent ID info.")
         return
+    if span.context is not span_context:
+        log.warning("The current active span and span_context do not match. Not injecting LLMObs parent ID.")
+        return
+
     if span.span_type == SpanTypes.LLM:
         llmobs_parent_id = str(span.span_id)
     else:

@@ -991,8 +991,7 @@ class HTTPPropagator(object):
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
         if config._llmobs_enabled:
-            span = ddtrace.tracer.current_span()
-            _inject_llmobs_parent_id(span_context, span)
+            _inject_llmobs_parent_id(span_context)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
