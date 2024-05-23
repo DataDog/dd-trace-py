@@ -151,6 +151,7 @@ class TestLLMObsPatching(SubprocessTestCase):
             )
             llmobs_service.disable()
 
+
 def test_service_enable_already_enabled(mock_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
