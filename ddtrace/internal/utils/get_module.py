@@ -13,11 +13,11 @@ def get_entrypoint_path():
     if "-m" in cmdline:
         index = cmdline.index("-m")
         module_name = cmdline[index + 1]
-        print("Module used to start the application:", module_name)
+        # print("Module used to start the application:", module_name)
     elif "python" in cmdline:
         index = cmdline.index("python")
         module_name = cmdline[index + 1]
-        print("Module used to start the application:", module_name)
+        # print("Module used to start the application:", module_name)
     return module_name
 
 
