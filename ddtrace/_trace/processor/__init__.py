@@ -305,8 +305,6 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
 
-            # breakpoint()
-
             if span.trace_id not in self._traces:
                 log_msg = f"No trace found for span {span} (was tracer reconfigured?)"
                 if config._telemetry_enabled:
