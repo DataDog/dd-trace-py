@@ -1,4 +1,5 @@
 #include "AspectIndex.h"
+#include "Helpers.h"
 
 /**
  * @brief Index aspect
@@ -49,6 +50,9 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     PyObject* idx = args[1];
 
     PyObject* result_o = PyObject_GetItem(candidate_text, idx);
+    if (has_pyerr()) {
+        return nullptr;
+    }
 
     if (not ctx_map or ctx_map->empty()) {
         return result_o;
