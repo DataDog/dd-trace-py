@@ -46,7 +46,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer):
         self._span_writer = llmobs_span_writer
-        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_NO_APM", False))
+        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
