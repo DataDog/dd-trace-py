@@ -23,12 +23,13 @@ runtimes_allow_list = {
     "cpython": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
 }
 
-allow_unsupported_runtimes = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES", "").lower() in ("true", "1", "t")
 allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS", "").lower() in (
     "true",
     "1",
     "t",
 )
+allow_unsupported_runtimes = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES", "").lower() in ("true", "1", "t")
+
 installed_packages = pkg_resources.working_set
 installed_packages = {pkg.key: pkg.version for pkg in installed_packages}
 
@@ -100,8 +101,8 @@ def _log(msg, *args, **kwargs):
 
 def _inject():
     telemetry_data = []
-    integration_incomp_event = False
-    runtime_incomp_event = False
+    integration_incomp = False
+    runtime_incomp = False
     try:
         import ddtrace
     except ImportError:
@@ -125,10 +126,9 @@ def _inject():
 
         if incompatible_packages:
             _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
+            integration_incomp = True
             if not allow_unsupported_integrations:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-
-                integration_incomp_event = True
 
                 for key, value in incompatible_packages.items():
                     telemetry_data.append(
@@ -149,10 +149,9 @@ def _inject():
                 )
         if python_version not in runtimes_allow_list.get(python_runtime, []):
             _log("Found incompatible runtime: %s %s." % (python_runtime, python_version), level="debug")
+            runtime_incomp = True
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
-
-                runtime_incomp_event = True
 
                 telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
             else:
@@ -165,8 +164,8 @@ def _inject():
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
-                        "runtime_abort:" + str(runtime_incomp_event),
-                        "integration_abort:" + str(integration_incomp_event),
+                        "runtime_abort:" + str(runtime_incomp),
+                        "integration_abort:" + str(integration_incomp),
                     ],
                 )
             )
@@ -218,8 +217,8 @@ def _inject():
                     create_count_metric(
                         "library_entrypoint.completed",
                         [
-                            "integration_override:" + str(integration_incomp_event),
-                            "runtime_override:" + str(runtime_incomp_event),
+                            "integration_override:" + str(integration_incomp),
+                            "runtime_override:" + str(runtime_incomp),
                         ],
                     )
                 )
@@ -239,5 +238,3 @@ def _inject():
 
 
 _inject()
-
-# DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS=true DD_TRACE_DEBUG=true python3 service_a_success.py
