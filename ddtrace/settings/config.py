@@ -443,6 +443,7 @@ class Config(object):
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
 
         inferred_entrypoint = get_entrypoint_path()
+        self.inferred_service = None
         if inferred_entrypoint:
             inferred_pkg = find_package_name(inferred_entrypoint)
             if inferred_pkg:
