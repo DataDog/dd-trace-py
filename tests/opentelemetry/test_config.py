@@ -111,7 +111,7 @@ def test_otel_log_level_configuration_unsupported():
     assert config._debug_mode is False, config._debug_mode
 
 
-@pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "b3single, tracecontext, b3"})
+@pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "b3, tracecontext"})
 def test_otel_propagation_style_configuration():
     from ddtrace import config
 
