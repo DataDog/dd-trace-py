@@ -174,7 +174,6 @@ class LLMObs(Service):
     @classmethod
     def _integration_is_enabled(cls, integration):
         if integration not in SUPPORTED_INTEGRATIONS:
-            log.warning("%s is not a supported LLMObs integration", integration)
             return False
         return SUPPORTED_INTEGRATIONS[integration] in ddtrace._monkey._PATCHED_MODULES
 
@@ -228,7 +227,7 @@ class LLMObs(Service):
         try:
             patch(**{integration: True for integration in integrations_to_patch.values()})  # type: ignore
         except Exception:
-            log.warning("Failed to patch LLMObs integrations", integration, exc_info=True)
+            log.warning("Failed to patch LLMObs integrations: %s", str(integrations), exc_info=True)
         return
 
     @classmethod

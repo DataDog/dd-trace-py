@@ -104,7 +104,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if isinstance(prompts, str):
             prompts = [prompts]
-        json.dumps([{"content": str(prompt)} for prompt in prompts])
+
         span.set_tag_str(input_tag_key, json.dumps([{"content": str(prompt)} for prompt in prompts]))
 
         message_content = [{"content": ""}]
