@@ -1,3 +1,4 @@
+import textwrap
 from typing import Any  # noqa:F401
 
 import attr
@@ -393,9 +394,9 @@ def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     tracer = Tracer()
     # get processor
     for aggregator in tracer._deferred_processors:
-        if type(aggregator) == SpanAggregator:
+        if type(aggregator) is SpanAggregator:
             for processor in aggregator._trace_processors:
-                if type(processor) == TraceSamplingProcessor:
+                if type(processor) is TraceSamplingProcessor:
                     sampling_processor = processor
 
     assert sampling_processor.sampler is tracer._sampler
@@ -588,11 +589,11 @@ def assert_span_sampling_decision_tags(
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
     for aggregator in tracer._deferred_processors:
-        if type(aggregator) == SpanAggregator:
+        if type(aggregator) is SpanAggregator:
             i = 0
             while i < len(aggregator._trace_processors):
                 processor = aggregator._trace_processors[i]
-                if type(processor) == TraceSamplingProcessor:
+                if type(processor) is TraceSamplingProcessor:
                     aggregator._trace_processors[i] = sampling_processor
                     break
                 i += 1
@@ -692,3 +693,37 @@ def test_register_unregister_span_processor():
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") is None
     assert span.get_tag("on_finish") is None
+
+
+def test_tracer_trace_removed_does_not_crash(run_python_code_in_subprocess):
+    out, err, status, _ = run_python_code_in_subprocess(
+        textwrap.dedent(
+            """
+        import ddtrace
+
+        span1 = ddtrace.tracer.trace("regression1")
+        with span1:
+            span2 = ddtrace.tracer.trace("regression2")
+            del ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id]
+            span2.finish()
+        """
+        ),
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+def test_tracer_trace_span_removed_does_not_crash(run_python_code_in_subprocess):
+    out, err, status, _ = run_python_code_in_subprocess(
+        textwrap.dedent(
+            """
+        import ddtrace
+
+        span1 = ddtrace.tracer.trace("regression1")
+        with span1:
+            span2 = ddtrace.tracer.trace("regression2")
+            ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id].spans.remove(span2)
+            span2.finish()
+        """
+        ),
+    )
+    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
