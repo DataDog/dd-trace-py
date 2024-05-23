@@ -90,7 +90,7 @@ def mock_llmobs_span_writer():
         LLMObs.disable()
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def langchain(ddtrace_global_config, ddtrace_config_langchain, mock_logs, mock_metrics):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
