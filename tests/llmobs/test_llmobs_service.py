@@ -3,6 +3,7 @@ import json
 import mock
 import pytest
 
+from ddtrace import _monkey
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -25,6 +26,8 @@ from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -106,6 +109,47 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
 
+
+class TestLLMObsPatching(SubprocessTestCase):
+    @run_in_subprocess(env_overrides=dict(DD_API_KEY="<not-a-real-key>", DD_LLMOBS_APP_NAME="<ml-app-name>"))
+    def test_service_enable_openai_only(self):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, integrations=["openai"])
+        assert "openai" in _monkey._PATCHED_MODULES
+        assert "botocore" not in _monkey._PATCHED_MODULES
+        assert "langchain" not in _monkey._PATCHED_MODULES
+        llmobs_service.disable()
+
+    @run_in_subprocess(env_overrides=dict(DD_API_KEY="<not-a-real-key>", DD_LLMOBS_APP_NAME="<ml-app-name>"))
+    def test_service_enable_all_by_default(self):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        assert "openai" in _monkey._PATCHED_MODULES
+        assert "botocore" in _monkey._PATCHED_MODULES
+        assert "langchain" in _monkey._PATCHED_MODULES
+        llmobs_service.disable()
+
+    @run_in_subprocess(env_overrides=dict(DD_API_KEY="<not-a-real-key>", DD_LLMOBS_APP_NAME="<ml-app-name>"))
+    def test_service_disable_all(self):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, integrations=[])
+        assert "openai" not in _monkey._PATCHED_MODULES
+        assert "botocore" not in _monkey._PATCHED_MODULES
+        assert "langchain" not in _monkey._PATCHED_MODULES
+        llmobs_service.disable()
+
+    @run_in_subprocess(env_overrides=dict(DD_API_KEY="<not-a-real-key>", DD_LLMOBS_APP_NAME="<ml-app-name>"))
+    def test_service_enable_nonexistent_integration(self):
+        with mock.patch("ddtrace.llmobs._llmobs.log") as mock_logs:
+            dummy_tracer = DummyTracer()
+            llmobs_service.enable(_tracer=dummy_tracer, integrations=["nonexistent"])
+            assert "openai" not in _monkey._PATCHED_MODULES
+            assert "botocore" not in _monkey._PATCHED_MODULES
+            assert "langchain" not in _monkey._PATCHED_MODULES
+            mock_logs.warning.assert_called_with(
+                "%s is unsupported - LLMObs currently supports %s", "nonexistent", ["bedrock", "openai", "langchain"]
+            )
+            llmobs_service.disable()
 
 def test_service_enable_already_enabled(mock_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):

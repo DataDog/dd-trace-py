@@ -9,7 +9,7 @@ from typing import Union
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
-from ddtrace import patch
+from ddtrace import patch_all
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
@@ -47,11 +47,7 @@ from ddtrace.llmobs.utils import Messages
 log = get_logger(__name__)
 
 
-SUPPORTED_INTEGRATIONS = {
-    "bedrock": lambda: patch(botocore=True),
-    "langchain": lambda: patch(langchain=True),
-    "openai": lambda: patch(openai=True),
-}
+SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
 
 
 class LLMObs(Service):
@@ -204,29 +200,26 @@ class LLMObs(Service):
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
     @staticmethod
-    def _patch_integrations(integrations: Optional[List[str]] = None):
+    def _patch_integrations(integrations: Optional[List[str]] = None) -> None:
         """
         Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
         """
-        integrations_to_patch = {}
         if integrations is None:
-            integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
-        else:
-            for integration in integrations:
-                integration = integration.lower()
-                if integration in SUPPORTED_INTEGRATIONS:
-                    integrations_to_patch.update({integration: SUPPORTED_INTEGRATIONS[integration]})
-                else:
-                    log.warning(
-                        "%s is unsupported - LLMObs currently supports %s",
-                        integration,
-                        str(SUPPORTED_INTEGRATIONS.keys()),
-                    )
-        for integration in integrations_to_patch:
-            try:
-                SUPPORTED_INTEGRATIONS[integration]()
-            except Exception:
-                log.warning("couldn't patch %s", integration, exc_info=True)
+            patch_all()
+            return
+        # Assume any LLMObs integrations not passed into `integrations` is disabled.
+        integrations_to_patch = {integration: False for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        for integration in integrations:
+            integration = integration.lower()
+            if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+                log.warning(
+                    "%s is unsupported - LLMObs currently supports %s",
+                    integration,
+                    list(SUPPORTED_LLMOBS_INTEGRATIONS.keys()),
+                )
+                continue
+            integrations_to_patch.update({SUPPORTED_LLMOBS_INTEGRATIONS[integration]: True})
+        patch_all(**integrations_to_patch)
         return
 
     @classmethod
