@@ -1,11 +1,18 @@
+dogfood-dogweb-notify:
+  stage: dogfood
+  tags: ["arch:amd64"]
+  needs:
+    - dogfood-dogweb-trigger
+  when:
+    - on_failure
+  script:
+    - exit 1
 
 dogfood-dogweb:
   stage: dogfood
   tags: ["arch:amd64"]
-  image: $SLS_CI_IMAGE
-   #when: on_success
-    #needs:
-    #- dogfood-dogweb-trigger
+  needs:
+    - dogfood-dogweb-trigger
   script:
     - ./.gitlab/check_dogweb_trigger_status.sh
 
@@ -14,7 +21,7 @@ dogfood-dogweb-trigger:
   trigger:
     project: DataDog/dogweb
     strategy: depend
-    branch: prod
+    branch: emmett.butler/ddtrace-unstable-dogfooding
   allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
