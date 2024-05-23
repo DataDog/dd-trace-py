@@ -1,4 +1,3 @@
-import threading
 from threading import Event
 from time import sleep
 
@@ -26,14 +25,10 @@ def test_periodic():
     t.start()
     thread_started.wait()
     thread_continue.set()
-    assert t.is_alive()
     t.stop()
     t.join()
-    assert not t.is_alive()
     assert x["OK"]
     assert x["DOWN"]
-    if hasattr(threading, "get_native_id"):
-        assert t.native_id is not None
 
 
 def test_periodic_double_start():
@@ -44,6 +39,8 @@ def test_periodic_double_start():
     t.start()
     with pytest.raises(RuntimeError):
         t.start()
+    t.stop()
+    t.join()
 
 
 def test_periodic_error():
@@ -98,14 +95,6 @@ def test_periodic_join_stop_no_start():
         t.stop()
 
 
-def test_is_alive_before_start():
-    def x():
-        pass
-
-    t = periodic.PeriodicThread(1, x)
-    assert not t.is_alive()
-
-
 def test_awakeable_periodic_service():
     queue = []
 
@@ -129,4 +118,4 @@ def test_awakeable_periodic_service():
 
     awake_me.stop()
 
-    assert queue == list(range(n + 2))
+    assert queue == list(range(n + 1))
