@@ -6,6 +6,11 @@ from ..constants import VERSION_KEY
 from ..internal.logger import get_logger
 
 
+if sys.version_info >= (3, 8):
+    import typing
+else:
+    import typing_extensions as typing
+
 log = get_logger(__name__)
 
 
