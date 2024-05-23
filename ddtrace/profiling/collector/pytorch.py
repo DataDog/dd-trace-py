@@ -1,9 +1,11 @@
 from __future__ import absolute_import
-import logging
+
 import abc
+import logging
 import os.path
 import sys
 import typing
+
 import attr
 import torch
 
@@ -14,7 +16,6 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
-from ddtrace.internal.datadog.profiling import ddup
 
 
 LOG = logging.getLogger(__name__)
