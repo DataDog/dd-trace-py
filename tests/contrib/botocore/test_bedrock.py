@@ -486,8 +486,6 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
-        # Need to disable and re-enable LLMObs service to use the mock tracer
-        LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations=["bedrock"])
 
         if cassette_name is None:
@@ -514,6 +512,7 @@ class TestLLMObsBedrock:
         mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
+        LLMObs.disable()
 
     @classmethod
     def _test_llmobs_invoke_stream(
@@ -522,8 +521,6 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
-        # Need to disable and re-enable LLMObs service to use the mock tracer
-        LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations=["bedrock"])
 
         if cassette_name is None:
@@ -551,6 +548,7 @@ class TestLLMObsBedrock:
         mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
+        LLMObs.disable()
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_span_writer)
@@ -622,8 +620,6 @@ class TestLLMObsBedrock:
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
         pin.override(bedrock_client, tracer=mock_tracer)
-        # Need to disable and re-enable LLMObs service to use the mock tracer
-        LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations=["bedrock"])
         with pytest.raises(botocore.exceptions.ClientError):
             with request_vcr.use_cassette("meta_invoke_error.yaml"):
@@ -655,3 +651,4 @@ class TestLLMObsBedrock:
 
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
+        LLMObs.disable()

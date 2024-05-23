@@ -1338,7 +1338,6 @@ class TestLLMObsLangchain:
         input_roles=[None],
         output_role=None,
     ):
-        LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
 
         with request_vcr.use_cassette(cassette_name):
@@ -1359,6 +1358,7 @@ class TestLLMObsLangchain:
 
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.assert_has_calls(expected_llmons_writer_calls)
+        LLMObs.disable()
 
     @classmethod
     def _test_llmobs_chain_invoke(
@@ -1370,8 +1370,6 @@ class TestLLMObsLangchain:
         cassette_name,
         expected_spans_data=[("llm", {"provider": "openai", "input_roles": [None], "output_role": None})],
     ):
-        # disable the service before re-enabling it, as it was enabled in another test
-        LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
 
         with request_vcr.use_cassette(cassette_name):
@@ -1383,6 +1381,7 @@ class TestLLMObsLangchain:
         )
         assert mock_llmobs_span_writer.enqueue.call_count == len(expected_spans_data)
         mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
+        LLMObs.disable()
 
     @flaky(1735812000)
     def test_llmobs_openai_llm(self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
