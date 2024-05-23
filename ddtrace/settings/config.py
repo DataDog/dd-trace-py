@@ -444,12 +444,11 @@ class Config(object):
 
         inferred_entrypoint = get_entrypoint_path()
         self.inferred_service = None
-        if inferred_entrypoint:
-            inferred_pkg = find_package_name(inferred_entrypoint)
-            if inferred_pkg:
-                self.inferred_service = inferred_pkg
-            else:
-                self.inferred_service = inferred_entrypoint
+        inferred_pkg = find_package_name(inferred_entrypoint if inferred_entrypoint else os.getcwd())
+        if inferred_pkg:
+            self.inferred_service = inferred_pkg
+        else:
+            self.inferred_service = inferred_entrypoint
 
         self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME)))
 

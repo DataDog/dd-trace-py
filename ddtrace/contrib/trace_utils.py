@@ -401,6 +401,9 @@ def ext_service(pin, int_config, default=None):
     if "_default_service" in int_config and int_config._default_service is not None:
         return cast(str, int_config._default_service)
 
+    if int_config.global_config.inferred_service:
+        return cast(str, int_config.global_config.inferred_service)
+
     # A default is required since it's an external service.
     return default
 
