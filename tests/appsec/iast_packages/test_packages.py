@@ -170,7 +170,7 @@ PACKAGES = [
     # PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False),
     # PackageForTesting("pyarrow", "16.1.0", "", "", "", test_e2e=False),
     PackageForTesting("exceptiongroup", "1.2.1", "", "", "", test_e2e=False),
-    PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False),
+    # PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting("pyparsing", "3.1.2", "", "", "", test_e2e=False),
     PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
