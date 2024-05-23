@@ -33,7 +33,7 @@ def test_path_traversal_open(iast_span_defaults):
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
     mod.pt_open(tainted_string)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report
     data = span_report.build_and_scrub_value_parts()
 
@@ -64,7 +64,7 @@ def test_path_traversal_open_and_mock(mock_open, iast_span_defaults):
 
     mock_open.assert_called_once_with(file_path)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None
 
 
@@ -81,7 +81,7 @@ def test_path_traversal_open_and_mock_after_patch_module(iast_span_defaults):
 
         mock_open.assert_called_once_with(file_path)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report is None
 
 
@@ -102,7 +102,7 @@ def test_path_traversal_open_secure(file_path, iast_span_defaults):
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
     mod.pt_open_secure(tainted_string)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report is None
 
 
@@ -120,7 +120,7 @@ def test_path_traversal(module, function, iast_span_defaults):
     )
 
     getattr(mod, "path_{}_{}".format(module, function))(tainted_string)
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report
     data = span_report.build_and_scrub_value_parts()
 
@@ -151,7 +151,7 @@ def test_path_traversal_deduplication(num_vuln_expected, iast_span_deduplication
     for _ in range(0, 5):
         mod.pt_open(tainted_string)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     if num_vuln_expected == 0:
         assert span_report is None

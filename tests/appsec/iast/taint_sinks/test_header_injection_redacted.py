@@ -117,7 +117,7 @@ def test_header_injection_redaction_suite(
 
     HeaderInjection.report(tainted_object)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report
 
     span_report.build_and_scrub_value_parts()

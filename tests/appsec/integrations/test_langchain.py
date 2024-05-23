@@ -31,7 +31,7 @@ def test_openai_llm_appsec_iast_cmdi(iast_span_defaults):  # noqa: F811
     res = mod.patch_langchain(prompt)
     assert res == "4"
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]

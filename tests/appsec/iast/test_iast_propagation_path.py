@@ -34,7 +34,7 @@ def test_propagation_no_path(iast_span_defaults):
     for i in range(100):
         mod.propagation_no_path(tainted_string)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     assert span_report is None
 
@@ -54,7 +54,7 @@ def test_propagation_path_1_origin_1_propagation(origin1, iast_span_defaults):
     tainted_string = taint_pyobject(origin1, source_name="path", source_value=origin1, source_origin=OriginType.PATH)
     mod.propagation_path_1_source_1_prop(tainted_string)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -89,7 +89,7 @@ def test_propagation_path_1_origins_2_propagations(origin1, iast_span_defaults):
 
     mod.propagation_path_1_source_2_prop(tainted_string_1)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -135,7 +135,7 @@ def test_propagation_path_2_origins_2_propagations(origin1, origin2, iast_span_d
     )
     mod.propagation_path_2_source_2_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -186,7 +186,7 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_span_de
     )
     mod.propagation_path_3_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]
@@ -242,7 +242,7 @@ def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_span_de
     )
     mod.propagation_path_5_prop(tainted_string_1, tainted_string_2)
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
     span_report.build_and_scrub_value_parts()
     data = span_report._to_dict()
     sources = data["sources"]

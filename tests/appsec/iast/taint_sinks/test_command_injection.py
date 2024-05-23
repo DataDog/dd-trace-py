@@ -51,7 +51,7 @@ def test_ossystem(tracer, iast_span_defaults):
             # label test_ossystem
             os.system(add_aspect("dir -l ", _BAD_DIR))
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
         vulnerability = data["vulnerabilities"][0]
@@ -91,7 +91,7 @@ def test_communicate(tracer, iast_span_defaults):
             subp.communicate()
             subp.wait()
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -130,7 +130,7 @@ def test_run(tracer, iast_span_defaults):
             # label test_run
             subprocess.run(["dir", "-l", _BAD_DIR])
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -170,7 +170,7 @@ def test_popen_wait(tracer, iast_span_defaults):
             subp = subprocess.Popen(args=["dir", "-l", _BAD_DIR])
             subp.wait()
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -210,7 +210,7 @@ def test_popen_wait_shell_true(tracer, iast_span_defaults):
             subp = subprocess.Popen(args=["dir", "-l", _BAD_DIR], shell=True)
             subp.wait()
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -276,7 +276,7 @@ def test_osspawn_variants(tracer, iast_span_defaults, function, mode, arguments,
                 # label test_osspawn_variants1
                 function(mode, copied_args[0], *copied_args)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -317,7 +317,7 @@ def test_multiple_cmdi(tracer, iast_span_defaults):
             subprocess.run(["dir", "-l", _BAD_DIR])
             subprocess.run(["dir", "-l", dir_2])
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -337,7 +337,7 @@ def test_string_cmdi(tracer, iast_span_defaults):
         with tracer.trace("test_string_cmdi"):
             subprocess.run(cmd, shell=True, check=True)
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         assert span_report
         data = span_report.build_and_scrub_value_parts()
 
@@ -360,7 +360,7 @@ def test_cmdi_deduplication(num_vuln_expected, tracer, iast_span_deduplication_e
             # label test_ossystem
             os.system(add_aspect("dir -l ", _BAD_DIR))
 
-    span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+    span_report = core.get_item(IAST.CONTEXT_KEY)
 
     if num_vuln_expected == 0:
         assert span_report is None

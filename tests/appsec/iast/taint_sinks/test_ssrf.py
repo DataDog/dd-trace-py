@@ -75,7 +75,7 @@ def test_ssrf_requests(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            span_report = core.get_item(IAST.CONTEXT_KEY)
             assert span_report
             _check_report(span_report, tainted_path, "test_ssrf_requests")
         finally:
@@ -95,7 +95,7 @@ def test_ssrf_urllib3(tracer, iast_span_defaults):
             except urllib3.exceptions.HTTPError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            span_report = core.get_item(IAST.CONTEXT_KEY)
             assert span_report
             _check_report(span_report, tainted_path, "test_ssrf_urllib3")
         finally:
@@ -117,7 +117,7 @@ def test_ssrf_httplib(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            span_report = core.get_item(IAST.CONTEXT_KEY)
             assert span_report
             _check_report(span_report, tainted_path, "test_ssrf_httplib")
         finally:
@@ -137,7 +137,7 @@ def test_ssrf_webbrowser(tracer, iast_span_defaults):
             except ConnectionError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            span_report = core.get_item(IAST.CONTEXT_KEY)
             assert span_report
             _check_report(span_report, tainted_path, "test_ssrf_webbrowser")
         finally:
@@ -157,7 +157,7 @@ def test_urllib_request(tracer, iast_span_defaults):
             except urllib.error.URLError:
                 pass
 
-            span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_defaults)
+            span_report = core.get_item(IAST.CONTEXT_KEY)
             assert span_report
             _check_report(span_report, tainted_path, "test_urllib_request")
         finally:
@@ -188,7 +188,7 @@ def test_ssrf_requests_deduplication(num_vuln_expected, tracer, iast_span_dedupl
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         requests_unpatch()
@@ -208,7 +208,7 @@ def test_ssrf_urllib3_deduplication(num_vuln_expected, tracer, iast_span_dedupli
             except urllib3.exceptions.HTTPError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         requests_unpatch()
@@ -230,7 +230,7 @@ def test_ssrf_httplib_deduplication(num_vuln_expected, tracer, iast_span_dedupli
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         httplib_unpatch()
@@ -250,7 +250,7 @@ def test_ssrf_webbrowser_deduplication(num_vuln_expected, tracer, iast_span_dedu
             except ConnectionError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         webbrowser_unpatch()
@@ -270,7 +270,7 @@ def test_ssrf_urllib_deduplication(num_vuln_expected, tracer, iast_span_deduplic
             except urllib.error.URLError:
                 pass
 
-        span_report = core.get_item(IAST.CONTEXT_KEY, span=iast_span_deduplication_enabled)
+        span_report = core.get_item(IAST.CONTEXT_KEY)
         _check_no_report_if_deduplicated(span_report, num_vuln_expected)
     finally:
         urllib_unpatch()
