@@ -194,10 +194,15 @@ PACKAGES = [
     PackageForTesting("cachetools", "5.3.3", "", "", "", test_e2e=False),
     PackageForTesting("pluggy", "1.5.0", "", "", "", test_e2e=False),
     PackageForTesting("virtualenv", "20.26.2", "", "", "", test_e2e=False),
-    PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False),
+    # docutils dropped Python 3.8 support in pandas> 1.10.10.21.2
+    PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("pyarrow", "16.1.0", "", "", "", test_e2e=False),
     PackageForTesting("exceptiongroup", "1.2.1", "", "", "", test_e2e=False),
-    PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False),
+    # jsonschema fails for Python 3.8
+    #        except KeyError:
+    # >           raise exceptions.NoSuchResource(ref=uri) from None
+    # E           referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
+    PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting("pyparsing", "3.1.2", "", "", "", test_e2e=False),
     PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
