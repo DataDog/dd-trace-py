@@ -81,6 +81,8 @@ class Event
         _cond.notify_all();
     }
 
+    bool is_set() { return _set; }
+
     void wait()
     {
         std::unique_lock<std::mutex> lock(_mutex);
@@ -103,6 +105,119 @@ class Event
     std::condition_variable _cond;
     std::mutex _mutex;
     bool _set = false;
+};
+
+// ----------------------------------------------------------------------------
+typedef struct py_event
+{
+    PyObject_HEAD
+
+      std::unique_ptr<Event>
+        event = nullptr;
+} PyEvent;
+
+// ----------------------------------------------------------------------------
+static int
+PyEvent_init(PyEvent* self, PyObject* args)
+{
+    self->event = std::make_unique<Event>();
+
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PyEvent_set(PyEvent* self, PyObject* args)
+{
+    self->event->set();
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PyEvent_is_set(PyEvent* self, PyObject* args)
+{
+    if (self->event->is_set())
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PyEvent_wait(PyEvent* self, PyObject* args, PyObject* kwargs)
+{
+    PyObject* timeout = Py_None;
+
+    if (args != NULL && kwargs != NULL) {
+        static const char* argnames[] = { "timeout", NULL };
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", (char**)argnames, &timeout))
+            return NULL;
+    }
+
+    if (timeout == Py_None) {
+        self->event->wait();
+    } else {
+        double timeout_value = 0.0;
+
+        if (PyFloat_Check(timeout)) {
+            timeout_value = PyFloat_AsDouble(timeout);
+        } else if (PyLong_Check(timeout)) {
+            timeout_value = PyLong_AsDouble(timeout);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "timeout must be a float or an int");
+            return NULL;
+        }
+
+        auto interval = std::chrono::milliseconds((long long)(timeout_value * 1000));
+
+        if (!self->event->wait(interval))
+            Py_RETURN_FALSE;
+    }
+
+    Py_RETURN_TRUE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PyEvent_clear(PyEvent* self, PyObject* args)
+{
+    self->event->clear();
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static void
+PyEvent_dealloc(PyEvent* self)
+{
+    self->event = nullptr;
+
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+// ----------------------------------------------------------------------------
+static PyMethodDef PyEvent_methods[] = {
+    { "set", (PyCFunction)PyEvent_set, METH_NOARGS, "Set the event" },
+    { "is_set", (PyCFunction)PyEvent_is_set, METH_NOARGS, "Check whether the event is set" },
+    { "wait", (PyCFunction)PyEvent_wait, METH_VARARGS | METH_KEYWORDS, "Wait for the event to be set" },
+    { "clear", (PyCFunction)PyEvent_clear, METH_NOARGS, "Clear the event" },
+    { NULL } /* Sentinel */
+};
+
+// ----------------------------------------------------------------------------
+static PyTypeObject PyEventType = {
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal._threads.Event",
+    .tp_basicsize = sizeof(PyEvent),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)PyEvent_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_doc = PyDoc_STR("Event object for thread synchronization"),
+    .tp_methods = PyEvent_methods,
+    .tp_members = NULL,
+    .tp_init = (initproc)PyEvent_init,
+    .tp_new = PyType_GenericNew,
 };
 
 // ----------------------------------------------------------------------------
@@ -501,6 +616,9 @@ PyInit__threads(void)
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return NULL;
 
+    if (PyType_Ready(&PyEventType) < 0)
+        return NULL;
+
     _periodic_threads = PyDict_New();
     if (_periodic_threads == NULL)
         return NULL;
@@ -512,6 +630,12 @@ PyInit__threads(void)
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
+        goto error;
+    }
+
+    Py_INCREF(&PyEventType);
+    if (PyModule_AddObject(m, "Event", (PyObject*)&PyEventType) < 0) {
+        Py_DECREF(&PyEventType);
         goto error;
     }
 

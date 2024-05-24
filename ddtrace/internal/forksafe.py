@@ -8,6 +8,7 @@ import threading
 import typing
 import weakref
 
+from ddtrace.internal import _threads
 from ddtrace.vendor import wrapt
 
 
@@ -130,6 +131,5 @@ def RLock():
     return ResetObject(threading.RLock)
 
 
-def Event():
-    # type: (...) -> ResetObject[threading.Event]
-    return ResetObject(threading.Event)
+def Event() -> ResetObject[_threads.Event]:
+    return ResetObject(_threads.Event)
