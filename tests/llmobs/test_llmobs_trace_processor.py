@@ -108,8 +108,8 @@ def test_set_correct_parent_id():
             with dummy_tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
                 pass
     assert _get_llmobs_parent_id(root_span) is None
-    assert _get_llmobs_parent_id(child_span) is None
-    assert _get_llmobs_parent_id(grandchild_span) == root_span.span_id
+    assert _get_llmobs_parent_id(child_span) == str(root_span.span_id)
+    assert _get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
 
 
 def test_propagate_session_id_from_ancestors():
