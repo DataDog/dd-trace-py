@@ -905,10 +905,8 @@ jobs:
           path: ddtrace
       - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          repository: https://git.launchpad.net/beautifulsoup
-          ref: v2.26.0
-          path: beautifulsoup
+        run:  |
+          git clone v2.26.0 https://git.launchpad.net/beautifulsoup
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
