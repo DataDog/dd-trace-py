@@ -912,7 +912,7 @@ jobs:
         run: pip install pytest==8.2.1
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
-        run: cd beautifulsoup && PATH=$PATH:$PWD PYTHONPATH=$PYTHONPATH:../ddtrace/tests/debugging/exploration/ ddtrace-run pytest
+        run: cd beautifulsoup && ddtrace-run pytest
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
