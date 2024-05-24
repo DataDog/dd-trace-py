@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6650137c00000000",
-      "events": "[{\"name\": \"Web page unresponsive\", \"time_unix_nano\": 1714536311886793, \"attributes\": {\"error.code\": \"403\", \"unknown values.0\": 1, \"unknown values.1.0\": \"h\", \"unknown values.1.1\": \"a\", \"unknown values.1.2.0\": false}}]",
+      "_dd.p.tid": "6650b20100000000",
+      "events": "[{\"name\": \"Web page unresponsive\", \"time_unix_nano\": 1714536311886793, \"attributes\": {\"error.code\": \"403\", \"unknown values\": \"[1, ['h', 'a', [False]]]\"}}]",
       "language": "python",
-      "runtime-id": "5e7c50be0b23468281a518bc05eef9ef"
+      "runtime-id": "bdcfb7bccb49447f978e96ccbc081b57"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9468
+      "process_id": 3287
     },
-    "duration": 198000,
-    "start": 1716523900741545000
+    "duration": 74000,
+    "start": 1716564481076253000
   }],
 [
   {
@@ -36,17 +36,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6650137c00000000",
-      "events": "[{\"name\": \"Web page loaded\", \"time_unix_nano\": 1714537311986797}, {\"name\": \"Button changed color\", \"time_unix_nano\": 1714537311986797, \"attributes\": {\"colors.0\": 112, \"colors.1\": 215, \"colors.2\": 70, \"response.time\": 134.3, \"success\": true}}]",
+      "_dd.p.tid": "6650b20100000000",
+      "events": "[{\"name\": \"Web page loaded\", \"time_unix_nano\": 1714537311986797}, {\"name\": \"Button changed color\", \"time_unix_nano\": 1714537311986797, \"attributes\": {\"colors\": \"[112, 215, 70]\", \"response.time\": 134.3, \"success\": true}}]",
       "language": "python",
-      "runtime-id": "5e7c50be0b23468281a518bc05eef9ef"
+      "runtime-id": "bdcfb7bccb49447f978e96ccbc081b57"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9468
+      "process_id": 3287
     },
-    "duration": 269000,
-    "start": 1716523900742768000
+    "duration": 358000,
+    "start": 1716564481076460000
   }]]

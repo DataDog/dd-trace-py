@@ -530,7 +530,7 @@ def test_span_event_encoding_msgpack(version):
     span._add_event("Something went so wrong", {"type": "error"}, 1)
     span._add_event(
         "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-        {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, [False, "hi"]]},
+        {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
     with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
@@ -553,9 +553,9 @@ def test_span_event_encoding_msgpack(version):
     assert (
         encoded_span_meta[b"events"]
         == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-        + b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-        + b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, [false, "hi"]]}}, '
-        + b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
+        b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
+        b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
+        b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
     )
 
 
