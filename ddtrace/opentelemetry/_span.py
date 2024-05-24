@@ -249,7 +249,7 @@ class Span(OtelSpan):
             if self._set_status_on_exception:
                 # Set the status of to Error, this will NOT set the `error.message` tag on the span
                 self.set_status(StatusCode.ERROR)
-                # Set the error type, message and stack trace on the span
+                # Set the error type, error message and error stacktrace tags on the span
                 self._ddspan._set_exc_tags(exc_type, exc_val, exc_tb)
         self.end()
 
