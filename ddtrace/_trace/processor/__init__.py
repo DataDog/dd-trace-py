@@ -306,7 +306,7 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_finished"][span._span_api] += 1
 
             if span.trace_id not in self._traces:
-                log_msg = f"No trace found for span {span} (was tracer reconfigured?), injecting one-span trace"
+                log_msg = f"Finished span not connected to a trace, adding to trace. {span}"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARNING", log_msg)
                 log.warning(log_msg)

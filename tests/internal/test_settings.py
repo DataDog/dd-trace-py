@@ -608,16 +608,10 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
 
 
-def test_tracer_reconfigure_does_not_crash_tracer(run_python_code_in_subprocess):
-    out, err, status, _ = run_python_code_in_subprocess(
-        textwrap.dedent(
-            """
-        import ddtrace
+@pytest.mark.subprocess()
+def test_tracer_reconfigure_does_not_crash_tracer():
+    import ddtrace
 
-        span = ddtrace.tracer.trace("regression")
-        ddtrace.tracer.configure(partial_flush_enabled=1, partial_flush_min_spans=1)
-        span.finish()
-        """
-        ),
-    )
-    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+    span = ddtrace.tracer.trace("regression")
+    ddtrace.tracer.configure(partial_flush_enabled=1, partial_flush_min_spans=1)
+    span.finish()

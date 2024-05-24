@@ -696,21 +696,15 @@ def test_register_unregister_span_processor():
     assert span.get_tag("on_finish") is None
 
 
-def test_tracer_trace_removed_does_not_crash(run_python_code_in_subprocess):
-    out, err, status, _ = run_python_code_in_subprocess(
-        textwrap.dedent(
-            """
-        import ddtrace
+@pytest.mark.subprocess()
+def test_tracer_trace_removed_does_not_crash():
+    import ddtrace
 
-        span1 = ddtrace.tracer.trace("regression1")
-        with span1:
-            span2 = ddtrace.tracer.trace("regression2")
-            del ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id]
-            span2.finish()
-        """
-        ),
-    )
-    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+    span1 = ddtrace.tracer.trace("regression1")
+    with span1:
+        span2 = ddtrace.tracer.trace("regression2")
+        del ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id]
+        span2.finish()
 
 
 class TestSpanProcessor(TracerTestCase):
