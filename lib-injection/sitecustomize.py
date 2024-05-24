@@ -16,11 +16,11 @@ import pkg_resources
 
 # TODO: build list from riotfile instead of hardcoding
 pkgs_allow_list = {
-    "flask": "1.0",
+    "flask": {"min": "1.0.0", "max": "3.3.0"},
 }
 
 runtimes_allow_list = {
-    "cpython": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
+    "cpython": {"min": "3.7", "max": "3.12"},
 }
 
 allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS", "").lower() in (
@@ -46,12 +46,15 @@ def create_count_metric(metric, tags=[]):
 
 def gen_telemetry_payload(telemetry_events):
     return {
-        "language_name": python_runtime,
-        "language_version": python_version,
-        "tracer_name": "python",
-        "tracer_version": installed_packages.get("ddtrace", "unknown"),
-        "pid": os.getpid(),
-        "platform": platform.system(),
+        "metadata": {
+            "language_name": "python",
+            "language_version": python_version,
+            "runtime_name": python_runtime,
+            "runtime_version": python_version,
+            "tracer_name": "python",
+            "tracer_version": installed_packages.get("ddtrace", "unknown"),
+            "pid": os.getpid(),
+        },
         "points": telemetry_events,
     }
 
@@ -121,7 +124,10 @@ def _inject():
         for package_name, package_version in installed_packages.items():
             if package_name in pkgs_allow_list:
                 # TODO: this checking code will have to be more intelligent in the future
-                if package_version < pkgs_allow_list[package_name]:
+                if (
+                    package_version < pkgs_allow_list[package_name]["min"]
+                    or package_version > pkgs_allow_list[package_name]["max"]
+                ):
                     incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
@@ -137,7 +143,8 @@ def _inject():
                             [
                                 "integration_name:" + key,
                                 "integration_version:" + value,
-                                "required_version:" + pkgs_allow_list[key],
+                                "min_supported_version:" + pkgs_allow_list[key]["min"],
+                                "max_supported_version:" + pkgs_allow_list[key]["max"],
                             ],
                         )
                     )
@@ -153,7 +160,17 @@ def _inject():
             if not allow_unsupported_runtimes:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
-                telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
+                telemetry_data.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.runtime",
+                        [
+                            "min_supported_version:"
+                            + runtimes_allow_list.get(python_runtime, {}).get("min", "unknown"),
+                            "max_supported_version:"
+                            + runtimes_allow_list.get(python_runtime, {}).get("max", "unknown"),
+                        ],
+                    )
+                )
             else:
                 _log(
                     "DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES set to True, allowing unsupported runtimes.",
@@ -164,8 +181,7 @@ def _inject():
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
-                        "runtime_abort:" + str(runtime_incomp),
-                        "integration_abort:" + str(integration_incomp),
+                        "reason:integration" if integration_incomp else "reason:incompatible_runtime",
                     ],
                 )
             )
@@ -214,19 +230,20 @@ def _inject():
                 sys.path.insert(0, bootstrap_dir)
                 _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
                 event = gen_telemetry_payload(
-                    create_count_metric(
-                        "library_entrypoint.completed",
-                        [
-                            "integration_override:" + str(integration_incomp),
-                            "runtime_override:" + str(runtime_incomp),
-                        ],
-                    )
+                    [
+                        create_count_metric(
+                            "library_entrypoint.complete",
+                            [
+                                "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                            ],
+                        )
+                    ]
                 )
                 send_telemetry(event)
             except Exception as e:
                 # maybe switch errortype since error will have too high over cardinality
                 event = gen_telemetry_payload(
-                    create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__])
+                    [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
                 )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
