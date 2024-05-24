@@ -105,6 +105,9 @@ def _start_appsec_processor() -> Optional[Any]:
 
 def _default_span_processors_factory(
     trace_filters: List[TraceFilter],
+    trace_writer: TraceWriter,
+    partial_flush_enabled: bool,
+    partial_flush_min_spans: int,
     appsec_enabled: bool,
     iast_enabled: bool,
     compute_stats_enabled: bool,
@@ -112,7 +115,7 @@ def _default_span_processors_factory(
     agent_url: str,
     trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional[Any], List[TraceProcessor]]:
+) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
@@ -168,7 +171,16 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    return span_processors, appsec_processor, trace_processors
+    # These need to run after all the other processors
+    deferred_processors: List[SpanProcessor] = [
+        SpanAggregator(
+            partial_flush_enabled=partial_flush_enabled,
+            partial_flush_min_spans=partial_flush_min_spans,
+            trace_processors=trace_processors,
+            writer=trace_writer,
+        )
+    ]
+    return span_processors, appsec_processor, deferred_processors
 
 
 class Tracer(object):
@@ -202,7 +214,6 @@ class Tracer(object):
         maybe_start_serverless_mini_agent()
 
         self._filters: List[TraceFilter] = []
-        self._deferred_processors: List[SpanProcessor] = []
 
         # globally set tags
         self._tags = config.tags.copy()
@@ -247,8 +258,11 @@ class Tracer(object):
         self._appsec_processor = None
         self._iast_enabled = asm_config._iast_enabled
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor, trace_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
             self._asm_enabled,
             self._iast_enabled,
             self._compute_stats,
@@ -256,12 +270,6 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-        )
-        self._span_aggregator: SpanAggregator = SpanAggregator(
-            partial_flush_enabled=self._partial_flush_enabled,
-            partial_flush_min_spans=self._partial_flush_min_spans,
-            trace_processors=trace_processors,
-            writer=self._writer,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -353,13 +361,15 @@ class Tracer(object):
     def _sampler(self, value):
         self._sampler_current = value
         # we need to update the processor that uses the sampler
-        if getattr(self, "_span_aggregator", None) and type(self._span_aggregator) is SpanAggregator:
-            for processor in self._span_aggregator._trace_processors:
-                if type(processor) is TraceSamplingProcessor:
-                    processor.sampler = value
-                    return
-
-        log.debug("No TraceSamplingProcessor available to update sampling rate")
+        if getattr(self, "_deferred_processors", None):
+            for aggregator in self._deferred_processors:
+                if type(aggregator) == SpanAggregator:
+                    for processor in aggregator._trace_processors:
+                        if type(processor) == TraceSamplingProcessor:
+                            processor.sampler = value
+                            break
+            else:
+                log.debug("No TraceSamplingProcessor available to update sampling rate")
 
     @property
     def debug_logging(self):
@@ -538,8 +548,11 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._span_processors, self._appsec_processor, trace_processors = _default_span_processors_factory(
+            self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
                 self._filters,
+                self._writer,
+                self._partial_flush_enabled,
+                self._partial_flush_min_spans,
                 self._asm_enabled,
                 self._iast_enabled,
                 self._compute_stats,
@@ -547,9 +560,6 @@ class Tracer(object):
                 self._agent_url,
                 self._sampler,
                 self._endpoint_call_counter_span_processor,
-            )
-            self._span_aggregator.reconfigure(
-                self._writer, partial_flush_enabled, partial_flush_min_spans, trace_processors
             )
 
         if context_provider is not None:
@@ -604,8 +614,11 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._span_processors, self._appsec_processor, trace_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
             self._asm_enabled,
             self._iast_enabled,
             self._compute_stats,
@@ -613,12 +626,6 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-        )
-        self._span_aggregator = SpanAggregator(
-            partial_flush_enabled=self._partial_flush_enabled,
-            partial_flush_min_spans=self._partial_flush_min_spans,
-            trace_processors=trace_processors,
-            writer=self._writer,
         )
 
         self._new_process = True
@@ -805,9 +812,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in chain(
-                self._span_processors, SpanProcessor.__processors__, self._deferred_processors, [self._span_aggregator]
-            ):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
 
@@ -824,9 +829,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
-            for p in chain(
-                self._span_processors, SpanProcessor.__processors__, self._deferred_processors, [self._span_aggregator]
-            ):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 
         if log.isEnabledFor(logging.DEBUG):
@@ -1060,9 +1063,7 @@ class Tracer(object):
             self._span_processors = []
             self._deferred_processors = []
 
-            for processor in chain(
-                span_processors, SpanProcessor.__processors__, deferred_processors, [self._span_aggregator]
-            ):
+            for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 

@@ -292,30 +292,6 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
-    def reconfigure(
-        self,
-        writer: Optional[TraceWriter] = None,
-        partial_flush_enabled: Optional[bool] = None,
-        partial_flush_min_spans: Optional[int] = None,
-        trace_processors: Optional[Iterable[TraceProcessor]] = None,
-    ):
-        log.debug(
-            "Reconfiguring SpanAggregator: "
-            "writer=%s, partial_flush_enabled=%s, partial_flush_min_spans=%s, trace_processors=%s",
-            writer,
-            partial_flush_enabled,
-            partial_flush_min_spans,
-            trace_processors,
-        )
-        if writer is not None:
-            self._writer = writer
-        if partial_flush_enabled is not None:
-            self._partial_flush_enabled = partial_flush_enabled
-        if partial_flush_min_spans is not None:
-            self._partial_flush_min_spans = partial_flush_min_spans
-        if trace_processors is not None:
-            self._trace_processors = trace_processors
-
     def on_span_start(self, span):
         # type: (Span) -> None
         with self._lock:
@@ -330,11 +306,11 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_finished"][span._span_api] += 1
 
             if span.trace_id not in self._traces:
-                log_msg = f"No trace found for span {span} (was tracer reconfigured?), creating new trace."
+                log_msg = f"No trace found for span {span} (was tracer reconfigured?)"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARNING", log_msg)
                 log.warning(log_msg)
-                # NOTE: cannot use self.on_span_start() due to RLock not being guaranteed
+                return
 
             trace = self._traces[span.trace_id]
             if span not in trace.spans:
