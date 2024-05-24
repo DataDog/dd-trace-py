@@ -2,24 +2,26 @@
   {
     "name": "internal",
     "service": "",
-    "resource": "rename-start-span",
+    "resource": "gg-start-span",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
-    "error": 0,
+    "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655535da00000000",
+      "_dd.p.tid": "6650a18500000000",
+      "error.message": "Exception: Sorry Otel Span, I failed you",
+      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.Exception\", \"exception.message\": \"Sorry Otel Span, I failed you\", \"exception.escaped\": \"False\"}}]",
       "language": "python",
-      "runtime-id": "b4ffa244c11343de919ca20a7e8eebcf"
+      "runtime-id": "ec59c1dfc5254f9eada9fae61606816d"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 7703
+      "process_id": 37869
     },
-    "duration": 200166,
-    "start": 1700083162370926925
+    "duration": 443000,
+    "start": 1716560261227547000
   }]]

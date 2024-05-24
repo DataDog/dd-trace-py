@@ -1,3 +1,4 @@
+import mock
 import opentelemetry
 import opentelemetry.version
 import pytest
@@ -19,51 +20,34 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_with_default_args(oteltracer):
-    otel_span = oteltracer.start_span("test-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        with opentelemetry.trace.use_span(
-            otel_span,
-            end_on_exit=False,
-            record_exception=False,
-            set_status_on_exception=False,
-        ):
-            otel_span.update_name("rename-start-span")
-            raise Exception("Sorry Otel Span, I failed you")
-
-    # set_status_on_exception is False
-    assert otel_span._ddspan.error == 0
-    # Since end_on_exit=False start_as_current_span should not call Span.end()
-    assert otel_span.is_recording()
-    otel_span.end()
+        with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
+            with oteltracer.start_as_current_span("test-start-span") as otel_span:
+                otel_span.update_name("gg-start-span")
+                raise Exception("Sorry Otel Span, I failed you")
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
-    otel_span = oteltracer.start_span(
-        "test-start-span",
-        context=opentelemetry.trace.set_span_in_context(root),
-        kind=opentelemetry.trace.SpanKind.CLIENT,
-        attributes={"start_span_tag": "start_span_val"},
-        links=None,
-        start_time=0,
-        record_exception=True,
-        set_status_on_exception=True,
-    )
-    otel_span.update_name("rename-start-span")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        with opentelemetry.trace.use_span(
-            otel_span,
-            end_on_exit=False,
+        with oteltracer.start_as_current_span(
+            "test-start-span",
+            context=opentelemetry.trace.set_span_in_context(root),
+            kind=opentelemetry.trace.SpanKind.CLIENT,
+            attributes={"start_span_tag": "start_span_val"},
+            links=None,
+            start_time=0,
             record_exception=False,
             set_status_on_exception=False,
-        ):
+            end_on_exit=False,
+        ) as otel_span:
+            otel_span.update_name("rename-start-span")
             raise Exception("Sorry Otel Span, I failed you")
 
     # set_status_on_exception is False
     assert otel_span._ddspan.error == 0
     assert otel_span.is_recording()
-    assert root.is_recording()
     otel_span.end()
     root.end()
 
