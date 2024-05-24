@@ -549,9 +549,9 @@ def test_span_event_encoding_msgpack(version):
     else:
         encoded_span_meta = decoded_trace[0][0][b"meta"]
 
-    assert b"_dd.events" in encoded_span_meta
+    assert b"events" in encoded_span_meta
     assert (
-        encoded_span_meta[b"_dd.events"]
+        encoded_span_meta[b"events"]
         == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
         + b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
         + b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, [false, "hi"]]}}, '
