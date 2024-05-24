@@ -34,7 +34,7 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..internal.utils.get_module import find_package_name
-from ..internal.utils.get_module import get_entrypoint_path
+from ..internal.utils.get_module import get_entrypoint_path_and_module
 from ..pin import Pin
 from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
@@ -442,13 +442,13 @@ class Config(object):
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
 
-        inferred_entrypoint = get_entrypoint_path()
+        inferred_path, inferred_module = get_entrypoint_path_and_module()
         self.inferred_service = None
-        inferred_pkg = find_package_name(inferred_entrypoint if inferred_entrypoint else os.getcwd())
+        inferred_pkg = find_package_name(inferred_path if inferred_path else os.getcwd())
         if inferred_pkg:
             self.inferred_service = inferred_pkg
         else:
-            self.inferred_service = inferred_entrypoint
+            self.inferred_service = inferred_module
 
         self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME)))
 
