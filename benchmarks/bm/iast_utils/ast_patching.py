@@ -11,7 +11,7 @@ NUM_MODULES = 85  # Number of modules to create
 def module_template(module_number, import_modules):
     imports_block = ""
     if import_modules:
-        imports_block = "\n".join([f"from .{import_module} import *" for import_module in import_modules])
+        imports_block = "\n".join([f"from {import_module} import *" for import_module in import_modules])
 
     body_block = f"""
 import os
