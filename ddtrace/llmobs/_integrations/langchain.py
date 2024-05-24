@@ -32,6 +32,9 @@ PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
 
+BEDROCK_PROVIDER_NAME = "amazon_bedrock"
+OPENAI_PROVIDER_NAME = "openai"
+
 ROLE_MAPPING = {
     "human": "user",
     "ai": "assistant",
@@ -57,7 +60,9 @@ class LangChainIntegration(BaseLLMIntegration):
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
-        is_workflow = LLMObs._integration_is_enabled(model_provider)
+        is_workflow = LLMObs._integration_is_enabled(
+            "bedrock" if model_provider == BEDROCK_PROVIDER_NAME else model_provider
+        )
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(
