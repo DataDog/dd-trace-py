@@ -5,11 +5,13 @@ import time
 import pytest
 
 import ddtrace
+from tests.utils import flaky
 
 
 MAX_NAMES = 64
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize("nb_service", [2, 16, 64, 256])
 def test_service_name(nb_service):
     ddtrace.config._extra_services = set()

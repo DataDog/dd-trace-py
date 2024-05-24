@@ -101,6 +101,20 @@ def rasp(request, endpoint: str):
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
+    elif endpoint == "shell":
+        res = ["shell endpoint"]
+        for param in query_params:
+            if param.startswith("cmd"):
+                cmd = query_params[param]
+                try:
+                    import subprocess
+
+                    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
+                        res.append(f"cmd stdout: {f.stdout.read()}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
     tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 

@@ -116,6 +116,7 @@ class TestTracerGeventCompatibility(object):
 
         Uses an opentracer span as the parent span.
         """
+
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with ot_tracer.start_active_span("greenlet.main"):
@@ -157,6 +158,7 @@ class TestTracerGeventCompatibility(object):
 
         Uses an opentracer span as the parent span.
         """
+
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with dd_tracer.trace("greenlet.main"):
@@ -190,4 +192,3 @@ class TestTracerGeventCompatibility(object):
         assert worker_2.name == "greenlet.worker"
         assert worker_2.resource == "greenlet.worker"
         assert worker_2.parent_id == parent_span.span_id
-

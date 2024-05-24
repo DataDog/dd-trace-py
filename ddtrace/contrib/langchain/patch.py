@@ -47,7 +47,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -885,9 +884,6 @@ def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
 
-    if config._llmobs_enabled:
-        LLMObs.enable()
-
     langchain._datadog_patch = True
 
     Pin().onto(langchain)
@@ -994,9 +990,6 @@ def patch():
 def unpatch():
     if not getattr(langchain, "_datadog_patch", False):
         return
-
-    if LLMObs.enabled:
-        LLMObs.disable()
 
     langchain._datadog_patch = False
 

@@ -1,10 +1,5 @@
 #pragma once
-#include "structmember.h"
-#include <Python.h>
-#include <iostream>
-#include <pybind11/pybind11.h>
 #include <sstream>
-#include <string.h>
 
 #include "../Constants.h"
 
@@ -46,14 +41,14 @@ struct Source
 
     [[nodiscard]] string toString() const;
 
-    inline void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
+    void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
     {
         name = std::move(name_);
         value = std::move(value_);
         origin = origin_;
     }
 
-    inline void reset()
+    void reset()
     {
         name = "";
         value = "";
@@ -62,7 +57,7 @@ struct Source
 
     [[nodiscard]] int get_hash() const;
 
-    static inline size_t hash(const string& name, const string& value, const OriginType origin)
+    static size_t hash(const string& name, const string& value, const OriginType origin)
     {
         return std::hash<size_t>()(std::hash<string>()(name + value) ^ (int)origin);
     };
@@ -71,7 +66,7 @@ struct Source
 };
 
 inline string
-origin_to_str(OriginType origin_type)
+origin_to_str(const OriginType origin_type)
 {
     switch (origin_type) {
         case OriginType::PARAMETER:
