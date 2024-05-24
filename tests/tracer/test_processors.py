@@ -1,4 +1,3 @@
-import textwrap
 from typing import Any  # noqa:F401
 
 import attr
@@ -704,11 +703,12 @@ def _stderr_contains_log(stderr: str) -> bool:
 def test_tracer_trace_removed_does_not_crash():
     import ddtrace
 
-    span1 = ddtrace.tracer.trace("regression1")
-    with span1:
-        ddtrace.tracer.enabled = False
-        with ddtrace.tracer.trace("regression2") as span2:
-            ddtrace.tracer.enabled = True
+    # Start the span with the tracer disabled so the span processors are not called
+    ddtrace.tracer.enabled = False
+    with ddtrace.tracer.trace("regression1"):
+        # Enable the tracer before the span finish is called to ensure the span processors
+        # are called on finish
+        ddtrace.tracer.enabled = True
 
 
 class TestSpanProcessor(TracerTestCase):
