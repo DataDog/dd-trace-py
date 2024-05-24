@@ -194,6 +194,7 @@ class _ProfilerInstance(service.Service):
             configured_features.append("heap")
         if self._pytorch_collector_enabled:
             configured_features.append("pytorch")
+            self._export_libdd_required = True
 
         if self._export_libdd_enabled:
             configured_features.append("exp_dd")
@@ -320,7 +321,10 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
-        if self._pytorch_collector_enabled:
+        if self._pytorch_collector_enabled and not self._export_libdd_enabled:
+            LOG.error("""PyTorch profiling requires native exporter but it is not enabled, disabling feature.""")
+
+        if self._pytorch_collector_enabled and self._export_libdd_enabled:
 
             def start_collector(collector_class: Type) -> None:
                 with self._service_lock:

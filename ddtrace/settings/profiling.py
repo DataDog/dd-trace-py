@@ -298,6 +298,7 @@ class ProfilingConfig(En):
 
 config = ProfilingConfig()
 
+
 if config.export.libdd_required and not config.export.libdd_enabled:
     logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
     config.enabled = False
