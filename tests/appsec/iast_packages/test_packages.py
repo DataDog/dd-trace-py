@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import pytest
-import requests
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
@@ -77,8 +76,12 @@ class PackageForTesting:
                 return True, f"{self.name} not yet compatible with Python {version}"
         return False, ""
 
-    def _install(self, package_name, package_version):
-        package_fullversion = package_name + "==" + package_version
+    def _install(self, package_name, package_version=""):
+        if package_version:
+            package_fullversion = package_name + "==" + package_version
+        else:
+            package_fullversion = package_name
+
         cmd = ["python", "-m", "pip", "install", package_fullversion]
         env = {}
         env.update(os.environ)
@@ -86,27 +89,16 @@ class PackageForTesting:
         # doesn't work correctly with riot environment and python packages path
         proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
         proc.wait()
-        print(proc.stdout)
-        print(proc.stderr)
 
-    def install(self, package_version=""):
-        self._install(self.name, package_version if package_version else self.package_version)
+    def install(self):
+        self._install(self.name, self.package_version)
         for package_name, package_version in self.extra_packages:
             self._install(package_name, package_version)
 
-    def get_last_version(self) -> str:
-        """Get the last version of the package from PyPI."""
-        response = requests.get(f"https://pypi.org/pypi/{self.name}/json")
-        if response.status_code == 200:
-            data = response.json()
-            return data["info"]["version"]
-        return ""
-
     def install_latest(self):
-        # TODO: get the latest packages fails in the CI with:
-        #  "OSError: Could not find a suitable TLS CA certificate bundle"
-        version = self.get_last_version()
-        self.install(version)
+        self._install(self.name)
+        for package_name, package_version in self.extra_packages:
+            self._install(package_name, package_version)
 
 
 # Top packages list imported from:
@@ -358,4 +350,35 @@ def test_packages_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install()
+        assert _iast_patched_module(package.import_name, fromlist=[])
+
+
+@pytest.mark.parametrize(
+    "package",
+    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
+    ids=lambda package: package.name,
+)
+def test_packages_latest_not_patched_import(package):
+    should_skip, reason = package.skip
+    if should_skip:
+        pytest.skip(reason)
+        return
+
+    package.install_latest()
+    importlib.import_module(package.import_name)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
+    ids=lambda package: package.name,
+)
+def test_packages_latest_patched_import(package):
+    should_skip, reason = package.skip
+    if should_skip:
+        pytest.skip(reason)
+        return
+
+    with override_env({IAST_ENV: "true"}):
+        package.install_latest()
         assert _iast_patched_module(package.import_name, fromlist=[])
