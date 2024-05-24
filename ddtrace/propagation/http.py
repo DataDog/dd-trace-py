@@ -51,6 +51,7 @@ from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
+from ..llmobs._utils import _inject_llmobs_parent_id
 from ._utils import get_wsgi_header
 
 
@@ -975,6 +976,9 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
+        if config._llmobs_enabled:
+            _inject_llmobs_parent_id(span_context)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
