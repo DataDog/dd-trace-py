@@ -168,7 +168,7 @@ class Span(OtelSpan):
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
-        """NOOP - events are not yet supported"""
+        """Records an event on span"""
         if not self.is_recording():
             return
 
@@ -222,7 +222,7 @@ class Span(OtelSpan):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
         """
         Records the type, message, and traceback of an exception as Span attributes.
-        Note - Span Events are not yet supported.
+        Note - Span Events are not currently used to record exception info.
         """
         if not self.is_recording():
             return
