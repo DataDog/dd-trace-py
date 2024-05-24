@@ -713,7 +713,7 @@ def test_tracer_trace_removed_does_not_crash():
 
 class TestSpanProcessor(TracerTestCase):
     def test_span_processor_sends_missing_traces(self):
-        """This verifies that a SpanProcessor will send a trace even when a span with an unknown trace ID appears"""
+        """This verifies that SpanAggregator will send a trace even when a span with an unknown trace ID appears"""
 
         # The goal of these regressions is to simulate a scenario when a span start is not called
         # on the SpanAggregator, but the span finish is called
