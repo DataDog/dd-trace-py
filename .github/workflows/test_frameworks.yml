@@ -903,7 +903,7 @@ jobs:
       - name: Checkout beautifulsoup
         if: needs.needs-run.outputs.outcome == 'success'
         run:  |
-          git clone v2.26.0 https://git.launchpad.net/beautifulsoup
+          git clone -b 4.12.3 https://git.launchpad.net/beautifulsoupg
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ddtrace
