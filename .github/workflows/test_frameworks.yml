@@ -903,7 +903,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+      - name: Checkout beautifulsoup
         if: needs.needs-run.outputs.outcome == 'success'
         run:  |
           git clone v2.26.0 https://git.launchpad.net/beautifulsoup
