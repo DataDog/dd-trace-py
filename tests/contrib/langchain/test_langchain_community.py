@@ -14,6 +14,8 @@ from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import flaky
 from tests.utils import override_global_config
 
@@ -1623,56 +1625,152 @@ class TestLLMObsLangchain:
         )
 
 
-def test_llmobs_langchain_with_openai_enabled(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
-    if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "PYTHONPATH": ":".join(pypath),
-            # Disable metrics because the test agent doesn't support metrics
-            "DD_LANGCHAIN_METRICS_ENABLED": "false",
-            "DD_OPENAI_METRICS_ENABLED": "false",
-            "OPENAI_API_KEY": "<not-a-real-key>",
-            "DD_API_KEY": "<not-a-real-key>",
-            "DD_LLMOBS_APP_NAME": "<ml-app-name>",
-        }
+class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
+    bedrock_env_config = dict(
+        AWS_ACCESS_KEY_ID="testing",
+        AWS_SECRET_ACCESS_KEY="testing",
+        AWS_SECURITY_TOKEN="testing",
+        AWS_SESSION_TOKEN="testing",
+        AWS_DEFAULT_REGION="us-east-1",
+        DD_LANGCHAIN_METRICS_ENABLED="false",
+        DD_API_KEY="<not-a-real-key>",
     )
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
-import mock
-from tests.contrib.langchain.test_langchain_community import get_request_vcr
-from tests.contrib.langchain.test_langchain_community import TestLLMObsLangchain
 
-patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-LLMObsSpanWriterMock = patcher.start()
-mock_llmobs_span_writer = mock.MagicMock()
-LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
-
-from ddtrace.llmobs import LLMObs
-from langchain_openai import OpenAI
-
-LLMObs.enable(
-    integrations=["langchain", "openai"],
-)
-
-llm = OpenAI()
-with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
-    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
-
-assert mock_llmobs_span_writer.enqueue.call_count == 2
-calls = mock_llmobs_span_writer.enqueue.call_args_list
-assert calls[0].args[0]['meta']['span.kind'] == 'workflow'
-assert len(calls[0].args[0]['meta']['input']['value']) > 0
-assert len(calls[0].args[0]['meta']['output']['value']) > 0
-assert calls[1].args[0]['meta']['span.kind'] == 'llm'
-
-patcher.stop()
-LLMObs.disable()
-""",
-        env=env,
+    openai_env_config = dict(
+        OPENAI_API_KEY="testing",
+        DD_API_KEY="<not-a-real-key>",
     )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
+
+    def setUp(self):
+        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+        LLMObsSpanWriterMock = patcher.start()
+        mock_llmobs_span_writer = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
+
+        self.mock_llmobs_span_writer = mock_llmobs_span_writer
+
+        super(TestLangchainTraceStructureWithLlmIntegrations, self).setUp()
+
+    def _assert_trace_structure_from_writer_call_args(self, span_kinds):
+        assert self.mock_llmobs_span_writer.enqueue.call_count == len(span_kinds)
+
+        calls = self.mock_llmobs_span_writer.enqueue.call_args_list
+
+        for span_kind, call in zip(span_kinds, calls):
+            call_args = call.args[0]
+
+            assert call_args["meta"]["span.kind"] == span_kind
+            if span_kind == "workflow":
+                assert len(call_args["meta"]["input"]["value"]) > 0
+                assert len(call_args["meta"]["output"]["value"]) > 0
+            elif span_kind == "llm":
+                assert len(call_args["meta"]["input"]["messages"]) > 0
+                assert len(call_args["meta"]["output"]["messages"]) > 0
+
+    def _call_bedrock_chat_model(self, ChatBedrock, HumanMessage):
+        chat = ChatBedrock(
+            model_id="amazon.titan-tg1-large",
+            model_kwargs={"max_tokens": 50, "temperature": 0},
+        )
+        messages = [HumanMessage(content="summarize the plot to the lord of the rings in a dozen words")]
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("bedrock_amazon_chat_invoke.yaml"):
+            chat.invoke(messages)
+
+    def _call_bedrock_llm(self, Bedrock, ConversationChain, ConversationBufferMemory):
+        llm = Bedrock(
+            model_id="amazon.titan-tg1-large",
+            region_name="us-east-1",
+            model_kwargs={"temperature": 0, "topP": 0.9, "stopSequences": [], "maxTokens": 50},
+        )
+
+        conversation = ConversationChain(llm=llm, verbose=True, memory=ConversationBufferMemory())
+
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("bedrock_amazon_invoke.yaml"):
+            conversation.predict(input="can you explain what Datadog is to someone not in the tech industry?")
+
+    def _call_openai_llm(self, OpenAI):
+        llm = OpenAI()
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
+            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_chat_model_bedrock_enabled(self):
+        from langchain_aws import ChatBedrock
+        from langchain_core.messages import HumanMessage
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "bedrock"], agentless_enabled=True)
+
+        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
+
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+        LLMObs.disable()
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_chat_model_bedrock_disabled(self):
+        from langchain_aws import ChatBedrock
+        from langchain_core.messages import HumanMessage
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+
+        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
+
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+        LLMObs.disable()
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_llm_model_bedrock_enabled(self):
+        from langchain.chains import ConversationChain
+        from langchain.memory import ConversationBufferMemory
+        from langchain_community.llms import Bedrock
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "bedrock"], agentless_enabled=True)
+        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "workflow", "llm"])
+
+        LLMObs.disable()
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_llm_model_bedrock_disabled(self):
+        from langchain.chains import ConversationChain
+        from langchain.memory import ConversationBufferMemory
+        from langchain_community.llms import Bedrock
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+        LLMObs.disable()
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_openai_enabled(self):
+        from langchain_openai import OpenAI
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "openai"], agentless_enabled=True)
+        self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+        LLMObs.disable()
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_openai_disabled(self):
+        from langchain_openai import OpenAI
+
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+        self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+        LLMObs.disable()

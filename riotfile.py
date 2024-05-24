@@ -2510,6 +2510,8 @@ venv = Venv(
                         "langsmith": "==0.1.9",
                         "openai": "==1.12.0",
                         "pinecone-client": latest,
+                        "botocore": latest,
+                        "langchain-aws": latest,
                     }
                 ),
             ],

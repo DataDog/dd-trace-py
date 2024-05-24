@@ -60,9 +60,16 @@ class LangChainIntegration(BaseLLMIntegration):
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
-        is_workflow = LLMObs._integration_is_enabled(
-            "bedrock" if model_provider == BEDROCK_PROVIDER_NAME else model_provider
-        )
+        is_workflow = False
+
+        if model_provider:
+            llmobs_integration = "custom"
+            if model_provider.startswith(BEDROCK_PROVIDER_NAME):
+                llmobs_integration = "bedrock"
+            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+                llmobs_integration = "openai"
+
+            is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
         if operation == "llm":
             self._llmobs_set_meta_tags_from_llm(
