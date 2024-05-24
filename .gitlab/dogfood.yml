@@ -1,4 +1,4 @@
-dogfood-dogweb-notify:
+dogfood-dogweb-failed:
   stage: dogfood
   tags: ["arch:amd64"]
   needs: ["dogfood-dogweb-trigger"]
