@@ -51,12 +51,12 @@ def test_otel_span_attributes(oteltracer):
 def test_otel_span_events(oteltracer):
     with oteltracer.start_span("webpage.load") as span1:
         span1.add_event(
-            "Web page unresponsive", {"error.code": "403", "unknown values": [1, ["h", "a", [False]]]}, 1714536311886793
+            "Web page unresponsive", {"error.code": "403", "unknown values": [1, ["h", "a", [False]]]}, 1714536311886
         )
 
     with oteltracer.start_span("web.response") as span2:
         # mock time_ns to ensure the event timestamp is consistent in snapshot files
-        with mock.patch("ddtrace._trace.span.time_ns", return_value=1714537311986797):
+        with mock.patch("ddtrace._trace.span.time_ns", return_value=1714537311986000):
             span2.add_event("Web page loaded")
             span2.add_event("Button changed color", {"colors": [112, 215, 70], "response.time": 134.3, "success": True})
 

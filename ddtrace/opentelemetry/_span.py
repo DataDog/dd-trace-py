@@ -172,15 +172,11 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        normalized_attrs = {}
-        for key, value in (attributes or {}).items():
-            # flatten the attributes and set them as tags
-            if is_sequence(value):
-                normalized_attrs[key] = str(value)
-            else:
-                normalized_attrs[key] = value
+        if timestamp:
+            # timestamp arg is in micoseconds we must convert it to nanoseconds
+            timestamp = timestamp * 1000
 
-        self._ddspan._add_event(name, normalized_attrs, timestamp)
+        self._ddspan._add_event(name, attributes, timestamp)
 
     def update_name(self, name):
         # type: (str) -> None
