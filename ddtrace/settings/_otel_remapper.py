@@ -1,4 +1,5 @@
 import os
+import typing
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
@@ -15,19 +16,19 @@ OTEL_UNIFIED_TAG_MAPPINGS = {
 }
 
 
-def _remap_otel_log_level(otel_value):
+def _remap_otel_log_level(otel_value: str) -> str:
     """Remaps the otel log level to ddtrace log level"""
     if otel_value == "debug":
         return "True"
     else:
         log.warning(
-            "ddtrace does not support otel log level '%s'. setting ddtrace to log level info.",
+            "ddtrace does not support otel log level '%s'. ddtrace only supports enabling debug logs.",
             otel_value,
         )
         return "False"
 
 
-def _remap_otel_propagators(otel_value):
+def _remap_otel_propagators(otel_value: str) -> str:
     """Remaps the otel propagators to ddtrace propagators"""
     accepted_styles = []
     for style in otel_value.split(","):
@@ -42,22 +43,26 @@ def _remap_otel_propagators(otel_value):
     return ",".join(accepted_styles)
 
 
-def _remap_traces_sampler(otel_value):
+def _remap_traces_sampler(otel_value: str) -> str:
     """Remaps the otel trace sampler to ddtrace trace sampler"""
     if otel_value in ["always_on", "always_off", "traceidratio"]:
-        log.warning("Trace sampler set to %s; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.", otel_value)
+        log.warning(
+            "Trace sampler set to %s; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.",
+            otel_value,
+        )
         os.environ["DD_TRACE_SAMPLE_IGNORE_PARENT"] = "True"
-    if otel_value == "always_on" or otel_value == "parentbased_always_on":
+    if otel_value in ["always_on", "parentbased_always_on"]:
         return "1.0"
-    elif otel_value == "always_off" or otel_value == "parentbased_always_off":
+    elif otel_value in ["always_off", "parentbased_always_off"]:
         return "0.0"
-    elif otel_value == "traceidratio" or otel_value == "parentbased_traceidratio":
+    elif otel_value in ["traceidratio", "parentbased_traceidratio"]:
         return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
     else:
+        log.warning("Unknown sampling configuration: %s.", otel_value)
         return otel_value
 
 
-def _remap_traces_exporter(otel_value):
+def _remap_traces_exporter(otel_value: str) -> str:
     """Remaps the otel trace exporter to ddtrace trace enabled"""
     if otel_value == "none":
         return "False"
@@ -67,53 +72,47 @@ def _remap_traces_exporter(otel_value):
     return ""
 
 
-def _remap_metrics_exporter(otel_value):
+def _remap_metrics_exporter(otel_value: str) -> str:
     """Remaps the otel metrics exporter to ddtrace metrics exporter"""
-    if otel_value != "none":
-        log.warning(
-            "An unrecognized runtime metrics exporter '%s' is being "
-            "used; setting DD_RUNTIME_METRICS_ENABLED to False.",
-            otel_value,
-        )
-    return "False"
+    if otel_value == "none":
+        return "False"
+    log.warning(
+        "Metrics exporter value is set to unrecognized value: %s.",
+        otel_value,
+    )
+    return ""
 
 
-def _remap_logs_exporter(otel_value):
+def _validate_logs_exporter(otel_value: str) -> typing.Literal[""]:
     """Logs warning when OTEL Logs exporter is configured. DDTRACE does not support this configuration."""
     if otel_value != "none":
         log.warning(
             "Unsupported OTEL logs exporter value detected: %s. Only the 'none' value is supported.", otel_value
         )
-        return ""
     return ""
 
 
-def _remap_otel_tags(otel_value):
+def _remap_otel_tags(otel_value: str) -> str:
     """Remaps the otel tags to ddtrace tags"""
-    dd_tags = []
-    remaining_tags = []
-    otel_tags = otel_value.split(",")
-    otel_user_tag_dict = dict()
+    dd_tags: typing.List[str] = []
 
     try:
-        for tag in otel_tags:
-            tag_pair = tag.split("=")
-            otel_user_tag_dict[tag_pair[0]] = tag_pair[1]
-
-        for otel_key, dd_key in OTEL_UNIFIED_TAG_MAPPINGS.items():
-            if otel_key in otel_user_tag_dict.keys():
-                dd_tags.append("{}:{}".format(dd_key, otel_user_tag_dict[otel_key]))
+        otel_user_tag_dict: typing.Dict[str, str] = dict()
+        for tag in otel_value.split(","):
+            key, value = tag.split("=")
+            otel_user_tag_dict[key] = value
 
         for key, value in otel_user_tag_dict.items():
-            if key.lower() not in OTEL_UNIFIED_TAG_MAPPINGS.keys():
-                if len(dd_tags) < 10:
-                    dd_tags.append("{}:{}".format(key, value))
-                else:
-                    remaining_tags.append("{}:{}".format(key, value))
+            if key.lower() in OTEL_UNIFIED_TAG_MAPPINGS:
+                dd_key = OTEL_UNIFIED_TAG_MAPPINGS[key.lower()]
+                dd_tags.insert(0, f"{dd_key}:{value}")
+            else:
+                dd_tags.append(f"{key}:{value}")
     except Exception:
         log.warning("DDTRACE failed to read OTEL_RESOURCE_ATTRIBUTES. This value is misformatted: %s", otel_value)
 
-    if len(otel_user_tag_dict.items()) > 10:
+    if len(dd_tags) > 10:
+        dd_tags, remaining_tags = dd_tags[:10], dd_tags[10:]
         log.warning(
             "To preserve metrics cardinality, only the following first 10 tags have been processed %s. "
             "The following tags were not ingested: %s",
@@ -123,7 +122,7 @@ def _remap_otel_tags(otel_value):
     return ",".join(dd_tags)
 
 
-def _remap_otel_sdk_config(otel_value):
+def _remap_otel_sdk_config(otel_value: str) -> str:
     """Remaps the otel sdk config to ddtrace sdk config"""
     if otel_value == "false":
         return "True"
@@ -134,7 +133,7 @@ def _remap_otel_sdk_config(otel_value):
         return otel_value
 
 
-def _remap_default(otel_value):
+def _remap_default(otel_value: str) -> str:
     """Remaps the otel default value to ddtrace default value"""
     return otel_value
 
@@ -146,7 +145,7 @@ ENV_VAR_MAPPINGS = {
     "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLE_RATE", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
-    "OTEL_LOGS_EXPORTER": ("", _remap_logs_exporter),  # Does not set a DDTRACE environment variable.
+    "OTEL_LOGS_EXPORTER": ("", _validate_logs_exporter),  # Does not set a DDTRACE environment variable.
     "OTEL_RESOURCE_ATTRIBUTES": ("DD_TAGS", _remap_otel_tags),
     "OTEL_SDK_DISABLED": ("DD_TRACE_OTEL_ENABLED", _remap_otel_sdk_config),
 }
@@ -160,10 +159,10 @@ def otel_remapping():
     user_envs = {key.upper(): value for key, value in os.environ.items()}
 
     for otel_env, otel_value in user_envs.items():
-        if otel_env not in ENV_VAR_MAPPINGS.keys():
+        if otel_env not in ENV_VAR_MAPPINGS:
             continue
 
-        dd_env, otel_config_remapper = ENV_VAR_MAPPINGS[otel_env]
+        dd_env, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
         if dd_env in user_envs:
             log.debug(
                 "Datadog configuration %s is already set. OpenTelemetry configuration will be ignored: %s=%s",
@@ -173,12 +172,12 @@ def otel_remapping():
             )
             continue
 
-        if otel_env not in ["OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"]:
+        if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
             # Resource attributes and service name are case-insensitive
             otel_value = otel_value.lower()
 
-        mapped_value = otel_config_remapper(otel_value)
-        if mapped_value != "":
+        mapped_value = otel_config_validator(otel_value)
+        if mapped_value:
             os.environ[dd_env] = mapped_value
             log.debug(
                 "OpenTelemetry configuration %s has been remapped to ddtrace configuration %s=%s",
