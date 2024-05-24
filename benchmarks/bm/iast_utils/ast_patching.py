@@ -4,7 +4,7 @@ import os
 
 
 PROJECT_NAME = "my_project"
-NUM_MODULES = 85  # Number of modules to create
+NUM_MODULES = 300  # Number of modules to create
 
 
 # Template for a Python module generator
