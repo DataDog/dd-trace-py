@@ -32,6 +32,7 @@ COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
 SPAN_LINKS_KEY = "_dd.span_links"
+SPAN_EVENTS_KEY = "_dd.events"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"

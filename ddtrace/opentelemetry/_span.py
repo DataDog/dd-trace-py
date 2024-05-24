@@ -169,7 +169,19 @@ class Span(OtelSpan):
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
         """NOOP - events are not yet supported"""
-        return
+        if not self.is_recording():
+            return
+
+        flattened_attrs = {}
+        for key, value in (attributes or {}).items():
+            # flatten the attributes and set them as tags
+            if is_sequence(value):
+                for k, v in flatten_key_value(key, value).items():
+                    flattened_attrs[k] = v
+            else:
+                flattened_attrs[key] = value
+
+        self._ddspan._add_event(name, flattened_attrs, timestamp)
 
     def update_name(self, name):
         # type: (str) -> None

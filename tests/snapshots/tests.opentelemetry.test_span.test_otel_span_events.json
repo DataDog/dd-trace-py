@@ -1,0 +1,52 @@
+[[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "webpage.load",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.events": "[{\"name\": \"Web page unresponsive\", \"time_unix_nano\": 1714536311886793, \"attributes\": {\"error.code\": \"403\", \"unknown values.0\": 1, \"unknown values.1.0\": \"h\", \"unknown values.1.1\": \"a\", \"unknown values.1.2.0\": false}}]",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6650137c00000000",
+      "language": "python",
+      "runtime-id": "5e7c50be0b23468281a518bc05eef9ef"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9468
+    },
+    "duration": 198000,
+    "start": 1716523900741545000
+  }],
+[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "web.response",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.events": "[{\"name\": \"Web page loaded\", \"time_unix_nano\": 1714537311986797}, {\"name\": \"Button changed color\", \"time_unix_nano\": 1714537311986797, \"attributes\": {\"colors.0\": 112, \"colors.1\": 215, \"colors.2\": 70, \"response.time\": 134.3, \"success\": true}}]",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6650137c00000000",
+      "language": "python",
+      "runtime-id": "5e7c50be0b23468281a518bc05eef9ef"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9468
+    },
+    "duration": 269000,
+    "start": 1716523900742768000
+  }]]
