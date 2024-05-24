@@ -696,25 +696,42 @@ def test_register_unregister_span_processor():
     assert span.get_tag("on_finish") is None
 
 
-@pytest.mark.subprocess()
+def _stderr_contains_log(stderr: str) -> bool:
+    return stderr.startswith("Finished span not connected to a trace, adding to trace.")
+
+
+@pytest.mark.subprocess(err=_stderr_contains_log)
 def test_tracer_trace_removed_does_not_crash():
     import ddtrace
 
     span1 = ddtrace.tracer.trace("regression1")
     with span1:
-        span2 = ddtrace.tracer.trace("regression2")
-        del ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id]
-        span2.finish()
+        ddtrace.tracer.enabled = False
+        with ddtrace.tracer.trace("regression2") as span2:
+            ddtrace.tracer.enabled = True
 
 
 class TestSpanProcessor(TracerTestCase):
     def test_span_processor_sends_missing_traces(self):
         """This verifies that a SpanProcessor will send a trace even when a span with an unknown trace ID appears"""
-        with self.tracer.trace("regression1") as span:
-            del self.tracer._deferred_processors[0]._traces[span.trace_id]
+
+        # The goal of these regressions is to simulate a scenario when a span start is not called
+        # on the SpanAggregator, but the span finish is called
+
+        # Create a span manually (self.tracer.on_span_start is not called), but
+        # register the tracers finish call
+        with Span("regression1", on_finish=[self.tracer._on_span_finish]) as span1:
+            pass
+
+        # Disabling the tracer means the processors won't be called, but enabling, they will again
+        self.tracer.enabled = False
+        with self.tracer.trace("regression2") as span2:
+            self.tracer.enabled = True
 
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 2
         assert spans[0].name == "regression1"
-        assert spans[0].trace_id == span.trace_id
+        assert spans[0].trace_id == span1.trace_id
+        assert spans[1].name == "regression2"
+        assert spans[1].trace_id == span2.trace_id

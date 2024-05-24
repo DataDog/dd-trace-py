@@ -292,28 +292,31 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def _on_span_start(self, span: Span) -> None:
+        """This function MUST be called with self._lock held."""
+        trace = self._traces[span.trace_id]
+        trace.spans.append(span)
+        self._span_metrics["spans_created"][span._span_api] += 1
+        self._queue_span_count_metrics("spans_created", "integration_name")
+
+    def on_span_start(self, span: Span) -> None:
         with self._lock:
-            trace = self._traces[span.trace_id]
-            trace.spans.append(span)
-            self._span_metrics["spans_created"][span._span_api] += 1
-            self._queue_span_count_metrics("spans_created", "integration_name")
+            self._on_span_start(span)
 
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
             self._span_metrics["spans_finished"][span._span_api] += 1
 
+            # Calling finish on a span that we did not see the start for
+            # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
+            #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
                 log_msg = f"Finished span not connected to a trace, adding to trace. {span}"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARNING", log_msg)
                 log.warning(log_msg)
-                # NOTE: reusing self.on_span_start() is not safe in case config._span_aggregator_rlock is False
-                self._traces[span.trace_id].spans.append(span)
-                self._span_metrics["spans_created"][span._span_api] += 1
-                self._queue_span_count_metrics("spans_created", "integration_name")
+                self._on_span_start(span)
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
@@ -332,23 +335,28 @@ class SpanAggregator(SpanProcessor):
                     finished = trace_spans
 
                 num_finished = len(finished)
+                if num_finished != trace.num_finished:
+                    log_msg = f"Finished span count of {num_finished} is not the expected {trace.num_finished}. {span}"
+                    if config._telemetry_enabled:
+                        telemetry.telemetry_writer.add_log("WARNING", log_msg)
+                    log.warning(log_msg)
 
-                if should_partial_flush:
-                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
-                    if not finished:
-                        log_msg = f"No spans to flush in partial flush for span: {span}"
-                        # Avoid potential crashes if, for some reason, we have no spans to flush even though
-                        # should_partial_flush is True.
-                        if config._telemetry_enabled:
-                            telemetry.telemetry_writer.add_log("WARNING", log_msg)
-                        log.warning(log_msg)
-                        return
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                # We have removed all finished spans from the trace while holding the lock.
+                # There should be no more finished span for this trace.
+                trace.num_finished = 0
 
-                trace.num_finished -= num_finished
-
+                # If we have removed all spans from this trace, then delete the trace from the traces dict
                 if len(trace.spans) == 0:
                     del self._traces[span.trace_id]
+
+                # No spans to process, return early
+                if not finished:
+                    return
+
+                # Set partial flush tag on the first span
+                if should_partial_flush:
+                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans = finished  # type: Optional[List[Span]]
                 for tp in self._trace_processors:
