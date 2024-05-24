@@ -15,7 +15,7 @@ from tests.utils import override_global_config
 
 
 pytestmark = pytest.mark.skipif(
-    not SHOULD_USE_LANGCHAIN_COMMUNITY or sys.version_info < (3, 10),
+    not SHOULD_PATCH_LANGCHAIN_COMMUNITY or sys.version_info < (3, 10),
     reason="This module only tests langchain_community and Python 3.10+",
 )
 

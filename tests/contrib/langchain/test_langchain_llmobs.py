@@ -7,9 +7,9 @@ import pytest
 
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._utils import _expected_llmobs_llm_span_event
-from ddtrace.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.contrib.langchain.conftest import get_request_vcr
+from tests.contrib.langchain.utils import get_request_vcr
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 pytestmark = pytest.mark.skipif(

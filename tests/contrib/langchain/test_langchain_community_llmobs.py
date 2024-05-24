@@ -8,21 +8,21 @@ import pytest
 
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._utils import _expected_llmobs_llm_span_event
-from ddtrace.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.contrib.langchain.conftest import get_request_vcr
+from tests.contrib.langchain.utils import get_request_vcr
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 
 
 pytestmark = pytest.mark.skipif(
-    not SHOULD_USE_LANGCHAIN_COMMUNITY or sys.version_info < (3, 10),
+    not SHOULD_PATCH_LANGCHAIN_COMMUNITY or sys.version_info < (3, 10),
     reason="This module only tests langchain_community and Python 3.10+",
 )
 
 
 @pytest.fixture(scope="session")
 def request_vcr():
-    yield get_request_vcr(subdirectory_name="langchain")
+    yield get_request_vcr(subdirectory_name="langchain_community")
 
 
 class TestLLMObsLangchain:
@@ -111,6 +111,7 @@ class TestLLMObsLangchain:
         output_role=None,
     ):
         LLMObs.enable(ml_app="langchain_community_test", integrations_enabled=False, _tracer=mock_tracer)
+        LLMObs._instance._llmobs_span_writer = mock_llmobs_span_writer
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
@@ -143,6 +144,7 @@ class TestLLMObsLangchain:
         expected_spans_data=[("llm", {"provider": "openai", "input_roles": [None], "output_role": None})],
     ):
         LLMObs.enable(ml_app="langchain_community_test", integrations_enabled=False, _tracer=mock_tracer)
+        LLMObs._instance._llmobs_span_writer = mock_llmobs_span_writer
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")

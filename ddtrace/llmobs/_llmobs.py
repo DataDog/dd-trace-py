@@ -201,7 +201,7 @@ class LLMObs(Service):
     @staticmethod
     def _patch_integrations() -> None:
         """Patch LLM integrations."""
-        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})
+        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
