@@ -96,6 +96,13 @@ class LLMObsTraceProcessor(TraceProcessor):
         if not meta["output"]:
             meta.pop("output")
         metrics = json.loads(span._meta.pop(METRICS, "{}"))
+
+        # short-term fix for backward compatibility
+        if "prompt_tokens" in metrics and "input_tokens" not in metrics:
+            metrics["input_tokens"] = metrics["prompt_tokens"]
+        if "completion_tokens" in metrics and "output_tokens" not in metrics:
+            metrics["output_tokens"] = metrics["completion_tokens"]
+
         ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
         session_id = _get_session_id(span)
