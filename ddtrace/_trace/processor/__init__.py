@@ -313,13 +313,6 @@ class SpanAggregator(SpanProcessor):
                 return
 
             trace = self._traces[span.trace_id]
-            if span not in trace.spans:
-                log_msg = f"Finished span {span} not found in trace"
-                if config._telemetry_enabled:
-                    telemetry.telemetry_writer.add_log("WARNING", log_msg)
-                log.warning(log_msg)
-                return
-
             trace.num_finished += 1
             should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
             if trace.num_finished == len(trace.spans) or should_partial_flush:

@@ -710,20 +710,3 @@ def test_tracer_trace_removed_does_not_crash(run_python_code_in_subprocess):
         ),
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
-
-
-def test_tracer_trace_span_removed_does_not_crash(run_python_code_in_subprocess):
-    out, err, status, _ = run_python_code_in_subprocess(
-        textwrap.dedent(
-            """
-        import ddtrace
-
-        span1 = ddtrace.tracer.trace("regression1")
-        with span1:
-            span2 = ddtrace.tracer.trace("regression2")
-            ddtrace.ddtrace.tracer._deferred_processors[0]._traces[span1.trace_id].spans.remove(span2)
-            span2.finish()
-        """
-        ),
-    )
-    assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
