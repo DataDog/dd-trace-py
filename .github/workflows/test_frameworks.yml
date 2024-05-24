@@ -891,9 +891,6 @@ jobs:
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-    defaults:
-      run:
-        working-directory: requests
     steps:
       - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
@@ -910,12 +907,15 @@ jobs:
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
-      - name: Install dependencies
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: "make init"
+        with:
+          path: beautifulsoup
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings
+        with:
+          path: beautifulsoup
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+        with:
+          path: beautifulsoup
