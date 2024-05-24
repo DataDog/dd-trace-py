@@ -221,7 +221,7 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
         # Set the error type, error message and error stacktrace tags on the span
-        self._ddspan._set_exc_tags(exc_type, exc_val, exc_tb)
+        self._ddspan._set_exc_tags(type(exception), exception, exception.__traceback__)
         # Set exception attributes in a manner that is consistent with the opentelemetry sdk
         # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
         # We will not set the exception.stacktrace attribute, this will reduce the size of the span event
