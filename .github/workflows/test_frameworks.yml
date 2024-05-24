@@ -96,7 +96,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
-   sanic-testsuite-22_12:
+  sanic-testsuite-22_12:
     strategy:
       matrix:
         include:
