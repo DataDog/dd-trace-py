@@ -906,12 +906,15 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         span_links = ""
         if span._links:
             span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
-        
+
         span_events = ""
         if span._events:
             span_events = json_dumps([vars(event)() for event in span._events])
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0))
+        ret = msgpack_pack_map(
+            &self.pk,
+            len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
+        )
         if ret != 0:
             return ret
         if span._meta:

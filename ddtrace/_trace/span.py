@@ -10,12 +10,6 @@ from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 
-
-if sys.version_info < (3, 7):
-    from typing import NamedTuple  # noqa:F401
-else:
-    from typing_extensions import NamedTuple  # noqa:F401
-
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
