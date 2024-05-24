@@ -30,6 +30,7 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.sampler import DatadogSampler
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
 
@@ -710,3 +711,16 @@ def test_tracer_trace_removed_does_not_crash(run_python_code_in_subprocess):
         ),
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
+
+
+class TestSpanProcessor(TracerTestCase):
+    def test_span_processor_sends_missing_traces(self):
+        """This verifies that a SpanProcessor will send a trace even when a span with an unknown trace ID appears"""
+        with self.tracer.trace("regression1") as span:
+            del self.tracer._deferred_processors[0]._traces[span.trace_id]
+
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].name == "regression1"
+        assert spans[0].trace_id == span.trace_id

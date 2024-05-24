@@ -306,11 +306,14 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_finished"][span._span_api] += 1
 
             if span.trace_id not in self._traces:
-                log_msg = f"No trace found for span {span} (was tracer reconfigured?)"
+                log_msg = f"No trace found for span {span} (was tracer reconfigured?), injecting one-span trace"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARNING", log_msg)
                 log.warning(log_msg)
-                return
+                # NOTE: reusing self.on_span_start() is not safe in case config._span_aggregator_rlock is False
+                self._traces[span.trace_id].spans.append(span)
+                self._span_metrics["spans_created"][span._span_api] += 1
+                self._queue_span_count_metrics("spans_created", "integration_name")
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
