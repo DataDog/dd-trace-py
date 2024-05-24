@@ -247,7 +247,7 @@ class Span(OtelSpan):
                 # Generates a span event for the exception
                 self.record_exception(exc_val)
             if self._set_status_on_exception:
-                # Set the status of to Error, not this will only set the `error.message` tag on the span
+                # Set the status of to Error, this will NOT set the `error.message` tag on the span
                 self.set_status(StatusCode.ERROR)
                 # Set the error type, message and stack trace on the span
                 self._ddspan._set_exc_tags(exc_type, exc_val, exc_tb)
