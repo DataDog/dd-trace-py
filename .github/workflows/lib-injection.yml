@@ -18,6 +18,15 @@ jobs:
       ddtrace-version: v2.6.3
       image-tag: ${{ github.sha }}
 
+  build-and-publish-latest-snapshot-image:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/lib-inject-publish.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ddtrace-version: v2.6.3
+      image-tag: latest_snapshot
+
   test-runner-test:
     needs:
       - build-and-publish-test-image
