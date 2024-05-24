@@ -1,10 +1,10 @@
 stages:
   - package
   - deploy
-  - dogfood
   - benchmarks
   - benchmarks-pr-comment
   - macrobenchmarks
+  - dogfood
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/apm/packaging.yml
