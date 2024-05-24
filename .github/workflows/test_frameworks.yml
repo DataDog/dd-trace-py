@@ -122,11 +122,11 @@ jobs:
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-     defaults:
-       run:
-         working-directory: sanic
-     steps:
-       - uses: actions/checkout@v4
+    defaults:
+      run:
+        working-directory: sanic
+    steps:
+      - uses: actions/checkout@v4
          if: needs.needs-run.outputs.outcome == 'success'
          with:
            path: ddtrace
