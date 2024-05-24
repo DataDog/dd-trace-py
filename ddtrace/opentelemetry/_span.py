@@ -168,7 +168,7 @@ class Span(OtelSpan):
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
-        """Records an event on span"""
+        """Records an event"""
         if not self.is_recording():
             return
 
