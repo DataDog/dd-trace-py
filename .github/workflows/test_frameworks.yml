@@ -869,10 +869,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # TODO: profiling is disabled due to a bug in the profiler paths
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
@@ -913,6 +914,3 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: cd beautifulsoup && ddtrace-run pytest
-      - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
