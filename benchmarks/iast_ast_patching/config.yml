@@ -1,0 +1,7 @@
+no_iast: &base_variant
+  iast_enabled: 0
+  internal_loop: 10
+
+iast_enabled: &iast_enabled
+  <<: *base_variant
+  iast_enabled: 1
