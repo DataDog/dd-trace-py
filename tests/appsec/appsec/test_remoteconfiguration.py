@@ -119,7 +119,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "C/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "wAv8"),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", "CAA="),
         (False, "false", ""),
@@ -144,7 +144,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "C/4="),  # All capabilities
+        ({}, "wAv+"),  # All capabilities
         ({"DD_APPSEC_RULES": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
     ],
 )
