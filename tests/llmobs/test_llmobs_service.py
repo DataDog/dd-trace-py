@@ -3,6 +3,8 @@ import json
 import mock
 import pytest
 
+from ddtrace._trace.span import Span
+from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -17,6 +19,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import LLMObsTraceProcessor
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -36,52 +39,79 @@ def mock_logs():
         yield mock_logs
 
 
+def run_llmobs_trace_filter(dummy_tracer):
+    for trace_filter in dummy_tracer._filters:
+        if isinstance(trace_filter, LLMObsTraceProcessor):
+            root_llm_span = Span(name="span1", span_type=SpanTypes.LLM)
+            root_llm_span.set_tag_str(SPAN_KIND, "llm")
+            trace1 = [root_llm_span]
+            return trace_filter.process_trace(trace1)
+    raise ValueError("LLMObsTraceProcessor not found in tracer filters.")
+
+
 def test_service_enable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
         assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
+        assert run_llmobs_trace_filter(dummy_tracer) is not None
+
+        llmobs_service.disable()
+
+
+def test_service_enable_with_apm_disabled(monkeypatch):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance.tracer == dummy_tracer
+        assert any(isinstance(tracer_filter, LLMObsTraceProcessor) for tracer_filter in dummy_tracer._filters)
+        assert run_llmobs_trace_filter(dummy_tracer) is None
+
         llmobs_service.disable()
 
 
 def test_service_disable():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_service.disable()
-        assert llmobs_service._instance is None
         assert llmobs_service.enabled is False
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
 
 
 def test_service_enable_no_api_key():
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is None
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
 
 
 def test_service_enable_no_ml_app_specified():
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
         dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(tracer=dummy_tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is None
+            llmobs_service.enable(_tracer=dummy_tracer)
         assert llmobs_service.enabled is False
+        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
+        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
 
 
 def test_service_enable_already_enabled(mock_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(tracer=dummy_tracer)
-        llmobs_service.enable(tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -94,19 +124,19 @@ def test_service_enable_already_enabled(mock_logs):
 def test_start_span_while_disabled_logs_warning(LLMObs, mock_logs):
     LLMObs.disable()
     _ = LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("LLMObs.llm() cannot be used while LLMObs is disabled.")
+    mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
     mock_logs.reset_mock()
     _ = LLMObs.tool(name="test_tool")
-    mock_logs.warning.assert_called_once_with("LLMObs.tool() cannot be used while LLMObs is disabled.")
+    mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
     mock_logs.reset_mock()
     _ = LLMObs.task(name="test_task")
-    mock_logs.warning.assert_called_once_with("LLMObs.task() cannot be used while LLMObs is disabled.")
+    mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
     mock_logs.reset_mock()
     _ = LLMObs.workflow(name="test_workflow")
-    mock_logs.warning.assert_called_once_with("LLMObs.workflow() cannot be used while LLMObs is disabled.")
+    mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
     mock_logs.reset_mock()
     _ = LLMObs.agent(name="test_agent")
-    mock_logs.warning.assert_called_once_with("LLMObs.agent() cannot be used while LLMObs is disabled.")
+    mock_logs.warning.assert_called_once_with(SPAN_START_WHILE_DISABLED_WARNING)
 
 
 def test_start_span_uses_kind_as_default_name(LLMObs):
@@ -167,7 +197,7 @@ def test_llm_span_no_model_raises_error(LLMObs, mock_logs):
 
 def test_llm_span_empty_model_name_logs_warning(LLMObs, mock_logs):
     _ = LLMObs.llm(model_name="", name="test_llm_call", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("model_name must be the specified name of the invoked model.")
+    mock_logs.warning.assert_called_once_with("LLMObs.llm() missing model_name")
 
 
 def test_default_model_provider_set_to_custom(LLMObs):
@@ -224,7 +254,7 @@ def test_embedding_span_no_model_raises_error(LLMObs):
 
 def test_embedding_span_empty_model_name_logs_warning(LLMObs, mock_logs):
     _ = LLMObs.embedding(model_name="", name="test_embedding", model_provider="test_provider")
-    mock_logs.warning.assert_called_once_with("model_name must be the specified name of the invoked model.")
+    mock_logs.warning.assert_called_once_with("LLMObs.embedding() missing model_name")
 
 
 def test_embedding_default_model_provider_set_to_custom(LLMObs):
@@ -250,12 +280,6 @@ def test_embedding_span(LLMObs, mock_llmobs_span_writer):
     mock_llmobs_span_writer.enqueue.assert_called_with(
         _expected_llmobs_llm_span_event(span, "embedding", model_name="test_model", model_provider="test_provider")
     )
-
-
-def test_annotate_while_disabled_logs_warning(LLMObs, mock_logs):
-    LLMObs.disable()
-    LLMObs.annotate(parameters={"test": "test"})
-    mock_logs.warning.assert_called_once_with("LLMObs.annotate() cannot be used while LLMObs is disabled.")
 
 
 def test_annotate_no_active_span_logs_warning(LLMObs, mock_logs):
@@ -668,12 +692,6 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
     )
 
 
-def test_export_span_llmobs_not_enabled_raises_warning(LLMObs, mock_logs):
-    LLMObs.disable()
-    LLMObs.export_span()
-    mock_logs.warning.assert_called_once_with("LLMObs.export_span() requires LLMObs to be enabled.")
-
-
 def test_export_span_specified_span_is_incorrect_type_raises_warning(LLMObs, mock_logs):
     LLMObs.export_span(span="asd")
     mock_logs.warning.assert_called_once_with("Failed to export span. Span must be a valid Span object.")
@@ -717,7 +735,9 @@ def test_submit_evaluation_llmobs_disabled_raises_warning(LLMObs, mock_logs):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
     )
-    mock_logs.warning.assert_called_once_with("LLMObs.submit_evaluation() requires LLMObs to be enabled.")
+    mock_logs.warning.assert_called_once_with(
+        "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+    )
 
 
 def test_submit_evaluation_span_context_incorrect_type_raises_warning(LLMObs, mock_logs):
@@ -848,3 +868,22 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             numerical_value=35,
         )
     )
+
+
+def test_flush_calls_periodic(LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer):
+    LLMObs.flush()
+    mock_llmobs_span_writer.periodic.assert_called_once()
+    mock_llmobs_eval_metric_writer.periodic.assert_called_once()
+
+
+def test_flush_does_not_call_period_when_llmobs_is_disabled(
+    LLMObs, mock_llmobs_span_writer, mock_llmobs_eval_metric_writer, mock_logs
+):
+    LLMObs.disable()
+    LLMObs.flush()
+    mock_llmobs_span_writer.periodic.assert_not_called()
+    mock_llmobs_eval_metric_writer.periodic.assert_not_called()
+    mock_logs.warning.assert_has_calls(
+        [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
+    )
+    LLMObs.enable()

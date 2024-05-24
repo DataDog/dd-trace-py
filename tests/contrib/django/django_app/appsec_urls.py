@@ -99,10 +99,10 @@ def sqli_http_request_header_name(request):
 
 def sqli_http_request_header_value(request):
     value = [x for x in request.META.values() if x == "master"][0]
-
     with connection.cursor() as cursor:
+        query = add_aspect("SELECT 1 FROM sqlite_", value)
         # label iast_enabled_sqli_http_request_header_value
-        cursor.execute(add_aspect("SELECT 1 FROM sqlite_", value))
+        cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
@@ -124,12 +124,12 @@ def taint_checking_enabled_view(request):
         with override_env({"DD_IAST_ENABLED": "True"}):
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-            from ddtrace.appsec._iast._taint_tracking import taint_ranges_as_evidence_info
+            from ddtrace.appsec._iast.reporter import IastSpanReporter
 
         def assert_origin_path(path):  # type: (Any) -> None
             assert is_pyobject_tainted(path)
-            result = taint_ranges_as_evidence_info(path)
-            assert result[1][0].origin == OriginType.PATH
+            sources, tainted_ranges_to_dict = IastSpanReporter.taint_ranges_as_evidence_info(path)
+            assert sources[0].origin == OriginType.PATH
 
     else:
 
@@ -210,6 +210,38 @@ def sqli_http_request_body(request):
     return HttpResponse(value, status=200)
 
 
+def view_insecure_cookies_insecure(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
+    return res
+
+
+def view_insecure_cookies_secure(request):
+    res = HttpResponse("OK")
+    res.set_cookie("secure2", "value", secure=True, httponly=True, samesite="Strict")
+    return res
+
+
+def view_insecure_cookies_empty(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure", "", secure=False, httponly=True, samesite="Strict")
+    return res
+
+
+def view_insecure_cookies_two_insecure_one_secure(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure1", "cookie1", secure=False, httponly=True, samesite="Strict")
+    res.set_cookie("insecure2", "cookie2", secure=True, httponly=False, samesite="Strict")
+    res.set_cookie("secure3", "cookie3", secure=True, httponly=True, samesite="Strict")
+    return res
+
+
+def view_insecure_cookies_insecure_special_chars(request):
+    res = HttpResponse("OK")
+    res.set_cookie("insecure", "cookie?()43jfM;;;===value", secure=False, httponly=True, samesite="Strict")
+    return res
+
+
 def command_injection(request):
     value = decode_aspect(bytes.decode, 1, request.body)
     # label iast_command_injection
@@ -252,6 +284,11 @@ urlpatterns = [
     handler("sqli_http_request_cookie_name/$", sqli_http_request_cookie_name, name="sqli_http_request_cookie_name"),
     handler("sqli_http_request_cookie_value/$", sqli_http_request_cookie_value, name="sqli_http_request_cookie_value"),
     handler("sqli_http_request_body/$", sqli_http_request_body, name="sqli_http_request_body"),
+    handler("insecure-cookie/test_insecure_2_1/$", view_insecure_cookies_two_insecure_one_secure),
+    handler("insecure-cookie/test_insecure_special/$", view_insecure_cookies_insecure_special_chars),
+    handler("insecure-cookie/test_insecure/$", view_insecure_cookies_insecure),
+    handler("insecure-cookie/test_secure/$", view_insecure_cookies_secure),
+    handler("insecure-cookie/test_empty_cookie/$", view_insecure_cookies_empty),
     path(
         "sqli_http_path_parameter/<str:q_http_path_parameter>/",
         sqli_http_path_parameter,

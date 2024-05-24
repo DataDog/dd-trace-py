@@ -9,6 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
@@ -211,7 +212,7 @@ def test_debugger_function_probe_on_function_with_exception():
             func_qname="throwexcstuff",
             condition=None,
         ),
-        lambda: stuff.throwexcstuff(),
+        stuff.throwexcstuff,
     )
 
     (snapshot,) = snapshots
@@ -497,7 +498,8 @@ def test_debugger_multiple_function_probes_on_same_function():
     with debugger() as d:
         d.add_probes(*probes)
 
-        assert Stuff.instancestuff.__dd_wrappers__ == {probe.probe_id: probe for probe in probes}
+        wrapping_context = DebuggerWrappingContext.extract(Stuff.instancestuff)
+        assert wrapping_context.probes == {probe.probe_id: probe for probe in probes}
         Stuff().instancestuff(42)
 
         d.collector.wait(
@@ -511,7 +513,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
         d.remove_probes(probes[1])
 
-        assert "probe-instance-method-1" not in Stuff.instancestuff.__dd_wrappers__
+        assert "probe-instance-method-1" not in wrapping_context.probes
 
         Stuff().instancestuff(42)
 
@@ -603,10 +605,6 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
         d.add_probes(*probes)
 
         wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
-        assert stuff.Stuff.instancestuff.__code__ is stuff.Stuff.instancestuff.__wrapped__.__code__
-        assert stuff.Stuff.instancestuff.__code__ is not code
-        assert stuff.Stuff.instancestuff.__wrapped__.__dd_wrapped__.__code__ is code
-        assert stuff.Stuff.instancestuff is not f
 
         stuff.Stuff().instancestuff(42)
 
@@ -1165,20 +1163,26 @@ def test_debugger_redacted_identifiers():
                     " pii_dict['jwt']=",
                     {"dsl": "pii_dict['jwt']", "json": {"index": [{"ref": "pii_dict"}, "jwt"]}},
                 ),
-            )
+            ),
+            create_snapshot_function_probe(
+                probe_id="function-probe",
+                module="tests.submod.stuff",
+                func_qname="sensitive_stuff",
+                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+            ),
         )
 
         stuff.sensitive_stuff("top secret")
 
-        ((msg,),) = d.uploader.wait_for_payloads()
+        ((msg_line, msg_func),) = d.uploader.wait_for_payloads()
 
         assert (
-            msg["message"] == f"token={REDACTED} answer=42 "
+            msg_line["message"] == f"token={REDACTED} answer=42 "
             f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
             f"pii_dict['jwt']={REDACTED}"
         )
 
-        assert msg["debugger.snapshot"]["captures"]["lines"]["169"] == {
+        assert msg_line["debugger.snapshot"]["captures"]["lines"]["169"] == {
             "arguments": {"pwd": redacted_value(str())},
             "locals": {
                 "token": redacted_value(str()),
@@ -1197,7 +1201,38 @@ def test_debugger_redacted_identifiers():
                     "size": 3,
                 },
             },
+            "staticFields": {"SensitiveData": {"type": "type", "value": "<class 'tests.submod.stuff.SensitiveData'>"}},
             "throwable": None,
+        }
+
+        assert msg_func["debugger.snapshot"]["captures"] == {
+            "entry": {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None},
+            "return": {
+                "arguments": {"pwd": {"type": "str", "notCapturedReason": "redactedIdent"}},
+                "locals": {
+                    "token": {"type": "str", "notCapturedReason": "redactedIdent"},
+                    "answer": {"type": "int", "value": "42"},
+                    "data": {
+                        "type": "SensitiveData",
+                        "fields": {"password": {"type": "str", "notCapturedReason": "redactedIdent"}},
+                    },
+                    "pii_dict": {
+                        "type": "dict",
+                        "entries": [
+                            [{"type": "str", "value": "'jwt'"}, {"type": "str", "notCapturedReason": "redactedIdent"}],
+                            [
+                                {"type": "str", "value": "'password'"},
+                                {"type": "str", "notCapturedReason": "redactedIdent"},
+                            ],
+                            [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                        ],
+                        "size": 3,
+                    },
+                    "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
+                },
+                "staticFields": {},
+                "throwable": None,
+            },
         }
 
 

@@ -52,7 +52,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.17.0"
+LIBDDWAF_VERSION = "1.18.0"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -423,6 +423,18 @@ if not IS_PYSTON:
             ],
             extra_compile_args=debug_compile_args,
         ),
+        Extension(
+            "ddtrace.internal._threads",
+            sources=["ddtrace/internal/_threads.cpp"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+        ),
+        Extension(
+            "ddtrace.internal.coverage._native",
+            sources=[
+                "ddtrace/internal/coverage/_native.c",
+            ],
+            extra_compile_args=debug_compile_args,
+        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
@@ -468,7 +480,7 @@ else:
 
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],

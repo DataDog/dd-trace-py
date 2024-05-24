@@ -1,30 +1,16 @@
-import unittest.mock
-
-import pytest
-
-from ddtrace.settings.asm import config as asm_config
-from tests.utils import TracerSpanContainer
-from tests.utils import _build_tree
+import ddtrace.auto  # noqa: F401
 
 
-@pytest.fixture
-def iast():
-    from os import environ
+# ensure the tracer is loaded and started first for possible iast patching
+print(f"ddtrace version {ddtrace.version.get_version()}")
 
-    from ddtrace import config
-    from ddtrace.appsec._iast import oce
-    from ddtrace.appsec._iast._patch_modules import patch_iast
+import unittest.mock  # noqa: E402
 
-    environ["DD_IAST_ENABLED"] = "true"
+import pytest  # noqa: E402
 
-    asm_config._iast_enabled = True
-
-    config._raise = True
-
-    oce._enabled = True
-
-    patch_iast()
-    yield
+from ddtrace.settings.asm import config as asm_config  # noqa: E402
+from tests.utils import TracerSpanContainer  # noqa: E402
+from tests.utils import _build_tree  # noqa: E402
 
 
 @pytest.fixture
@@ -42,6 +28,10 @@ def root_span(test_spans):
         for span in test_spans.spans:
             if span.parent_id is None:
                 return _build_tree(test_spans.spans, span)
+        # In case root span is not found, try to find a span with a local root
+        for span in test_spans.spans:
+            if span._local_root is not None:
+                return _build_tree(test_spans.spans, span._local_root)
 
     yield get_root_span
 
@@ -66,6 +56,11 @@ def check_waf_timeout(request, printer):
 @pytest.fixture
 def get_tag(root_span):
     yield lambda name: root_span().get_tag(name)
+
+
+@pytest.fixture
+def get_metric(root_span):
+    yield lambda name: root_span().get_metric(name)
 
 
 def no_op(msg: str) -> None:  # noqa: ARG001
