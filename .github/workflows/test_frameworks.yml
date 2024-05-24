@@ -864,3 +864,60 @@ jobs:
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+
+  beautifulsoup-testsuite-4_12_3:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Beautifulsoup 4.12.3 (with ${{ matrix.suffix }})
+    runs-on: "ubuntu-latest"
+    needs: needs-run
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+    defaults:
+      run:
+        working-directory: requests
+    steps:
+      - uses: actions/setup-python@v5
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v4
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v4
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          repository: https://git.launchpad.net/beautifulsoup
+          ref: v2.26.0
+          path: beautifulsoup
+      - name: Install ddtrace
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install ../ddtrace
+      - name: Install dependencies
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: "make init"
+      - name: Run tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
