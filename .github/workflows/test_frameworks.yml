@@ -903,6 +903,8 @@ jobs:
       - name: Checkout beautifulsoup
         if: needs.needs-run.outputs.outcome == 'success'
         run:  |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git clone -b 4.12.3 https://git.launchpad.net/beautifulsoupg
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
