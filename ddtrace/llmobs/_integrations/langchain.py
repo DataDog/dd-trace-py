@@ -10,15 +10,15 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._utils import _get_input_tag_key_from_span_kind
-from ddtrace.llmobs._utils import _get_output_tag_key_from_span_kind
 
 from .base import BaseLLMIntegration
 
@@ -56,7 +56,6 @@ class LangChainIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
             return
-
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
@@ -72,13 +71,9 @@ class LangChainIntegration(BaseLLMIntegration):
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(
-                span, inputs, response, error, span_kind="workflow" if is_workflow else "llm"
-            )
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(
-                span, inputs, response, error, span_kind="workflow" if is_workflow else "llm"
-            )
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
         span.set_tag_str(METRICS, json.dumps({}))
@@ -105,14 +100,14 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, span_kind="llm"
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow=False
     ) -> None:
-        span.set_tag_str(SPAN_KIND, span_kind)
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
-        input_tag_key = _get_input_tag_key_from_span_kind(span_kind)
-        output_tag_key = _get_output_tag_key_from_span_kind(span_kind)
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
+        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         if isinstance(prompts, str):
             prompts = [prompts]
@@ -125,14 +120,14 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(output_tag_key, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
-        self, span: Span, chat_messages: List[List[Any]], chat_completions: Any, err: bool = False, span_kind="llm"
+        self, span: Span, chat_messages: List[List[Any]], chat_completions: Any, err: bool = False, is_workflow=False
     ) -> None:
-        span.set_tag_str(SPAN_KIND, span_kind)
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
-        input_tag_key = _get_input_tag_key_from_span_kind(span_kind)
-        output_tag_key = _get_output_tag_key_from_span_kind(span_kind)
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
+        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         input_messages = []
         for message_set in chat_messages:
