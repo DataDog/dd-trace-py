@@ -900,7 +900,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - name: Checkout beautifulsoup
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         run:  |
           git config user.name "github-actions[bot]"
