@@ -97,6 +97,10 @@ def _expected_llmobs_llm_span_event(
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
         span_event["metrics"].update(token_metrics)
+        if "prompt_tokens" in token_metrics and "input_tokens" not in token_metrics:
+            span_event["metrics"]["input_tokens"] = token_metrics["prompt_tokens"]
+        if "completion_tokens" in token_metrics and "output_tokens" not in token_metrics:
+            span_event["metrics"]["output_tokens"] = token_metrics["completion_tokens"]
     return span_event
 
 
