@@ -54,7 +54,9 @@ def openai_organization():
 
 
 @pytest.fixture
-def openai(openai_api_key, openai_organization, api_key_in_env, ddtrace_global_config, ddtrace_config_openai):
+def openai(
+    openai_api_key, openai_organization, api_key_in_env, ddtrace_global_config, ddtrace_config_openai, mock_logs
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -72,7 +74,7 @@ def openai(openai_api_key, openai_organization, api_key_in_env, ddtrace_global_c
             unpatch()
             # Since unpatching doesn't work (see the unpatch() function),
             # wipe out all the OpenAI modules so that state is reset for each test case.
-            mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
+            mods = list(k for k in sys.modules.keys() if k.startswith("openai") or k.startswith("requests"))
             for m in mods:
                 del sys.modules[m]
 
@@ -184,7 +186,7 @@ def mock_tracer(ddtrace_global_config, openai, mock_logs, mock_metrics, mock_llm
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, ml_app="<ml-app-name>", integrations=["openai"])
+        LLMObs.enable(_tracer=mock_tracer, ml_app="<ml-app-name>", integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer = mock_llmobs_writer
 
     yield mock_tracer

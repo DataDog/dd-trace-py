@@ -6,7 +6,6 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.langchain.patch import patch
 from ddtrace.contrib.langchain.patch import unpatch
-from ddtrace.llmobs import LLMObs
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -87,7 +86,6 @@ def mock_llmobs_span_writer():
         yield m
     finally:
         patcher.stop()
-        LLMObs.disable()
 
 
 @pytest.fixture(scope="function")

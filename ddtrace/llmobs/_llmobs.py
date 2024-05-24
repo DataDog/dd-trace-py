@@ -2,14 +2,13 @@ import json
 import os
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
-from ddtrace import patch_all
+from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
@@ -98,7 +97,7 @@ class LLMObs(Service):
     def enable(
         cls,
         ml_app: Optional[str] = None,
-        integrations: Optional[List[str]] = None,
+        integrations_enabled: bool = True,
         agentless_enabled: bool = False,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -110,8 +109,7 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: The name of your ml application.
-        :param List[str] integrations: A list of integrations to enable auto-tracing for.
-                                        Must be subset of ("openai", "langchain", "bedrock")
+        :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
@@ -163,7 +161,8 @@ class LLMObs(Service):
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
 
-        cls._patch_integrations(integrations)
+        if integrations_enabled:
+            cls._patch_integrations()
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
@@ -200,27 +199,10 @@ class LLMObs(Service):
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
     @staticmethod
-    def _patch_integrations(integrations: Optional[List[str]] = None) -> None:
-        """
-        Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
-        """
-        if integrations is None:
-            patch_all()
-            return
-        # Assume any LLMObs integrations not passed into `integrations` is disabled.
-        integrations_to_patch = {integration: False for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
-        for integration in integrations:
-            integration = integration.lower()
-            if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
-                log.warning(
-                    "%s is unsupported - LLMObs currently supports %s",
-                    integration,
-                    list(SUPPORTED_LLMOBS_INTEGRATIONS.keys()),
-                )
-                continue
-            integrations_to_patch.update({SUPPORTED_LLMOBS_INTEGRATIONS[integration]: True})
-        patch_all(**integrations_to_patch)
-        return
+    def _patch_integrations() -> None:
+        """Patch LLM integrations."""
+        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})
+        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
