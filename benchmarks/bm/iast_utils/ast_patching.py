@@ -119,8 +119,8 @@ def create_project_structure():
         module_name = f"module_{i}.py"
         module_path = os.path.join(project_name, module_name)
 
-        # Randomly choose a number of modules to import
-        if i > 1:
+        # Import all the previous modules in the last module only
+        if i == num_modules:
             import_modules = [f"module_{j}" for j in range(1, i)]
         else:
             import_modules = None
@@ -137,6 +137,9 @@ def create_project_structure():
 def destroy_project_structure():
     project_name = PROJECT_NAME
     num_modules = NUM_MODULES
+
+    # Remove the __init__.py file
+    os.remove(os.path.join(project_name, "__init__.py"))
 
     # Remove the modules
     for i in range(1, num_modules + 1):

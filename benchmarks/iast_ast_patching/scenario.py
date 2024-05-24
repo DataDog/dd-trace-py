@@ -11,17 +11,19 @@ class IAST_AST_Patching(bm.Scenario):
     iast_enabled = bm.var_bool()
 
     def run(self):
-        python_file_path = create_project_structure()
+        try:
+            python_file_path = create_project_structure()
 
-        env = os.environ.copy()
-        env["DD_IAST_ENABLED"] = str(self.iast_enabled)
+            env = os.environ.copy()
+            env["DD_IAST_ENABLED"] = str(self.iast_enabled)
 
-        subp_cmd = ["ddtrace-run", sys.executable, python_file_path]
+            subp_cmd = ["ddtrace-run", sys.executable, python_file_path]
 
-        def _(loops):
-            for _ in range(loops):
-                subprocess.check_output(subp_cmd, env=env)
+            def _(loops):
+                for _ in range(loops):
+                    subprocess.check_output(subp_cmd, env=env)
 
-        yield _
+            yield _
 
-        destroy_project_structure()
+        finally:
+            destroy_project_structure()
