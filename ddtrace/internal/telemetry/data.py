@@ -133,7 +133,7 @@ def _get_sysconfig_var(key: str) -> str:
 
 
 def get_python_config_vars() -> List[Tuple[str, str, str]]:
-    # DEV: Usse "unknown" since these aren't user or dd defined values
+    # DEV: Use "unknown" since these aren't user or dd defined values
     return [
         ("python_soabi", _get_sysconfig_var("SOABI"), "unknown"),
         ("python_host_gnu_type", _get_sysconfig_var("HOST_GNU_TYPE"), "unknown"),
