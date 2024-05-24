@@ -66,5 +66,8 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            const py::list& split_result,
                            bool include_separator = false);
 
+bool
+has_pyerr();
+
 void
 pyexport_aspect_helpers(py::module& m);

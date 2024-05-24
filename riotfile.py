@@ -275,7 +275,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -446,6 +446,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
@@ -1580,7 +1581,6 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
-                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1608,7 +1608,6 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
-                        "httpx": latest,
                     },
                 ),
             ],
@@ -2308,13 +2307,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.3.9"],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[datalib]": ["==1.3.9"],
+                        "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
