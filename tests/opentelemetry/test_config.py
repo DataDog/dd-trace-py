@@ -111,7 +111,7 @@ def test_otel_log_level_configuration_unsupported():
     assert config._debug_mode is False, config._debug_mode
 
 
-@pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "b3, tracecontext"})
+@pytest.mark.subprocess(env={"OTEL_PROPAGATORS": "b3single, tracecontext, b3"})
 def test_otel_propagation_style_configuration():
     from ddtrace import config
 
@@ -129,7 +129,7 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to always_on; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
@@ -138,18 +138,8 @@ def test_otel_traces_sampler_configuration_alwayson():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
-)
-def test_otel_traces_sampler_configuration_ignore_parent():
-    from ddtrace import config
-
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
-
-
-@pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_off"},
-    err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to always_off; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
     from ddtrace import config
@@ -162,7 +152,7 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to traceidratio; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
