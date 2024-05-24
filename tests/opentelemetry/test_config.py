@@ -91,10 +91,9 @@ def test_otel_log_level_configuration_debug():
     assert config._debug_mode is True, config._debug_mode
 
 
-@pytest.mark.subprocess(env={
-    "OTEL_LOG_LEVEL": "trace"
-    },
-    err=b"ddtrace does not support otel log level 'trace'. setting ddtrace to log level info.\n"
+@pytest.mark.subprocess(
+    env={"OTEL_LOG_LEVEL": "trace"},
+    err=b"ddtrace does not support otel log level 'trace'. setting ddtrace to log level info.\n",
 )
 def test_otel_log_level_configuration_info():
     from ddtrace import config
@@ -130,7 +129,7 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
 
 @pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to always_on; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
@@ -139,18 +138,8 @@ def test_otel_traces_sampler_configuration_alwayson():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_TRACES_SAMPLER": "always_on"},
-    err=b"Trace sampler set to always_on; only parent based sampling is supported.\n",
-)
-def test_otel_traces_sampler_configuration_ignore_parent():
-    from ddtrace import config
-
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
-
-
-@pytest.mark.subprocess(
     env={"OTEL_TRACES_SAMPLER": "always_off"},
-    err=b"Trace sampler set to always_off; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to always_off; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
     from ddtrace import config
@@ -163,7 +152,7 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set to traceidratio; only parent based sampling is supported.\n",
+    err=b"Trace sampler set to traceidratio; setting DD_TRACE_SAMPLE_IGNORE_PARENT to True.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
