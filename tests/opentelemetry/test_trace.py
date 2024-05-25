@@ -18,7 +18,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 def test_otel_start_span_with_default_args(oteltracer):
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
