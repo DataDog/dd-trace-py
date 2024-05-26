@@ -145,12 +145,15 @@ class TorchProfilerCollector(MLProfilerCollector):
 def handle_torch_trace(prof):
     NANOS_PER_MICROSECOND = 1e3
     LOG.debug("handle_torch_trace called")
+    # need an upper bound of events collected, can be adjusted based on profile size
+    single_profile_event_limit = 1_000_000
+    num_events_collected = min(len(prof.events()), single_profile_event_limit)
     trace_start_us = prof.profiler.kineto_results.trace_start_us()
-    for i, e in enumerate(prof.events()):
+    for i, e in enumerate(prof.events()[:num_events_collected]):
         device_name = "cuda " + str(e.device_index)
         end_time_us = int(trace_start_us + e.time_range.end)
         event_duration_us = e.time_range.elapsed_us()
-        if str(e.device_type).startswith("DeviceType.CUDA") and i % 10 == 0:
+        if str(e.device_type).startswith("DeviceType.CUDA"):
             # gpu time sample
             handle = ddup.SampleHandle()
             handle.push_gpu_gputime(int(event_duration_us * NANOS_PER_MICROSECOND), 1)

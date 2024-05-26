@@ -256,7 +256,6 @@ class ProfilingConfig(En):
     class Pytorch(En):
         __item__ = __prefix__ = "pytorch"
 
-        # TODO should make libdd required
         enabled = En.v(
             bool,
             "enabled",
