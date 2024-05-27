@@ -127,12 +127,12 @@ def track_user_login_success_event(
 def track_user_login_failure_event(
     tracer: Tracer,
     user_id: Optional[str],
-    login: Optional[str] = None,
-    name: Optional[str] = None,
-    email: Optional[str] = None,
     exists: Optional[bool] = None,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> None:
     """
     Add a new login failure tracking event.
