@@ -112,7 +112,7 @@ if config._llmobs_enabled:
 
     LLMObs.enable()
 
-if asbool(os.getenv("DD_TRACE_ENABLED", default=True)) or asbool(os.getenv("DD_APPSEC_ENABLED", default=False)):
+if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     from ddtrace import patch_all
 
     @register_post_preload
