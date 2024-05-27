@@ -1,5 +1,6 @@
 from io import BytesIO
 import os
+import sys
 from typing import AsyncGenerator
 from typing import Generator
 
@@ -41,29 +42,28 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
 
 
-def test_patching(openai):
+def test_patching():
     """Ensure that the correct objects are patched and not double patched."""
 
     # for some reason these can't be specified as the real python objects...
     # no clue why (eg. openai.Completion.create doesn't work)
     methods = [
-        (openai.Completion, "create"),
-        (openai.api_resources.completion.Completion, "create"),
-        (openai.Completion, "acreate"),
-        (openai.api_resources.completion.Completion, "acreate"),
-        (openai.api_requestor, "_make_session"),
-        (openai.util, "convert_to_openai_object"),
-        (openai.Embedding, "create"),
-        (openai.Embedding, "acreate"),
+        (openai_module.Completion, "create"),
+        (openai_module.api_resources.completion.Completion, "create"),
+        (openai_module.Completion, "acreate"),
+        (openai_module.api_resources.completion.Completion, "acreate"),
+        (openai_module.api_requestor, "_make_session"),
+        (openai_module.util, "convert_to_openai_object"),
+        (openai_module.Embedding, "create"),
+        (openai_module.Embedding, "acreate"),
     ]
-    if hasattr(openai, "ChatCompletion"):
+    if hasattr(openai_module, "ChatCompletion"):
         methods += [
-            (openai.ChatCompletion, "create"),
-            (openai.api_resources.chat_completion.ChatCompletion, "create"),
-            (openai.ChatCompletion, "acreate"),
-            (openai.api_resources.chat_completion.ChatCompletion, "acreate"),
+            (openai_module.ChatCompletion, "create"),
+            (openai_module.api_resources.chat_completion.ChatCompletion, "create"),
+            (openai_module.ChatCompletion, "acreate"),
+            (openai_module.api_resources.chat_completion.ChatCompletion, "acreate"),
         ]
-
     for m in methods:
         assert not iswrapped(getattr(m[0], m[1]))
 
@@ -77,8 +77,9 @@ def test_patching(openai):
         assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_model_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
+def test_patching_list(api_key_in_env, request_api_key, openai, openai_vcr, mock_metrics, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_list",
         ignores=["meta.http.useragent", "meta.openai.base_url"],
