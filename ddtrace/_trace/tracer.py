@@ -246,6 +246,7 @@ class Tracer(object):
             self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
             # Disable compute stats
             config._trace_compute_stats = False
+            self.enabled = False
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
