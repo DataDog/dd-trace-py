@@ -338,6 +338,9 @@ class Tracer(object):
     https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
             category=DDTraceDeprecationWarning,
         )
+        if self._apm_opt_out:
+            log.error("Cannot set a custom sampler with Standalone ASM mode")
+            return
         self._sampler = value
 
     def on_start_span(self, func: Callable) -> Callable:
