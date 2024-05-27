@@ -158,11 +158,11 @@ def track_user_login_failure_event(
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
     if login:
-        span.set_tag_str("%s.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
+        span.set_tag_str("%s.failure.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
     if email:
-        span.set_tag_str("%s.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
+        span.set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
     if name:
-        span.set_tag_str("%s.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
+        span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
 
 
 def track_user_signup_event(
