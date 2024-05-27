@@ -12,9 +12,10 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib.openai.utils import chat_completion_custom_functions
+from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import iswrapped
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -23,32 +24,6 @@ TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) >= (1, 0, 0), reason="This module only tests openai < 1.0"
 )
-
-chat_completion_input_description = """
-    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
-    David is an active member of the university's Chess Club and the South Asian Student Association.
-    He hopes to pursue a career in software engineering after graduating.
-    """
-chat_completion_custom_functions = [
-    {
-        "name": "extract_student_info",
-        "description": "Get the student information from the body of the input text",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Name of the person"},
-                "major": {"type": "string", "description": "Major subject."},
-                "school": {"type": "string", "description": "The university name."},
-                "grades": {"type": "integer", "description": "GPA of the student."},
-                "clubs": {
-                    "type": "array",
-                    "description": "School clubs for extracurricular activities. ",
-                    "items": {"type": "string", "description": "Name of School Club"},
-                },
-            },
-        },
-    },
-]
 
 
 @pytest.fixture(scope="session")
