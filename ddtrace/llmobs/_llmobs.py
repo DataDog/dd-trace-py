@@ -51,6 +51,7 @@ log = get_logger(__name__)
 
 SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
 
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
