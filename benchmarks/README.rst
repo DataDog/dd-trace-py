@@ -116,7 +116,7 @@ Using the ``vizviewer`` UI you can inspect the profile/timeline from each proces
     min(dur) as min_duration,
     max(dur) as max_duration
   FROM experimental_slice_with_thread_and_process_info
-  WHERE name like '%/src/ddtrace/%'
+  WHERE name like '%/ddtrace/%'
   group by name
   having calls > 500
   order by total_duration desc
