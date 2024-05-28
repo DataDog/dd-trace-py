@@ -15,14 +15,15 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
     last_lineno = None
     for i, instr in enumerate(abstract_code):
         try:
+            if instr.lineno is None:
+                continue
+
             if instr.lineno == last_lineno:
                 continue
 
             last_lineno = instr.lineno
-            if last_lineno is None:
-                continue
 
-            if instr.name in ("NOP", "RESUME"):
+            if instr.name == "RESUME":
                 continue
 
             # Inject the hook at the beginning of the line
