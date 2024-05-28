@@ -63,7 +63,7 @@ def send_telemetry(event):
     event_json = json.dumps(event)
     print(event_json)
     p = subprocess.Popen(
-        ["/home/kyle_verhoog_datadoghq_com/dd_telemetry", str(os.getpid())],
+        [os.environ.get("DD_TELEMETRY_FORWARDER_PATH"), str(os.getpid())],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
