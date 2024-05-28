@@ -1341,7 +1341,7 @@ class TestLLMObsLangchain:
         output_role=None,
     ):
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want langchain patched
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
@@ -1374,7 +1374,7 @@ class TestLLMObsLangchain:
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want langchain patched
 
         with request_vcr.use_cassette(cassette_name):
             generate_trace("Can you explain what an LLM chain is?")
@@ -1698,9 +1698,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         from langchain_aws import ChatBedrock
         from langchain_core.messages import HumanMessage
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "bedrock"], agentless_enabled=True)
+        patch(langchain=True, botocore=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
 
         self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
 
@@ -1713,9 +1715,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         from langchain_aws import ChatBedrock
         from langchain_core.messages import HumanMessage
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
 
         self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
 
@@ -1729,9 +1733,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         from langchain.memory import ConversationBufferMemory
         from langchain_community.llms import Bedrock
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "bedrock"], agentless_enabled=True)
+        patch(langchain=True, botocore=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
         self._assert_trace_structure_from_writer_call_args(["workflow", "workflow", "llm"])
 
@@ -1743,9 +1749,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         from langchain.memory import ConversationBufferMemory
         from langchain_community.llms import Bedrock
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
@@ -1755,9 +1763,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_langchain_with_openai_enabled(self):
         from langchain_openai import OpenAI
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain", "openai"], agentless_enabled=True)
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
@@ -1767,9 +1777,12 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_langchain_with_openai_disabled(self):
         from langchain_openai import OpenAI
 
+        from ddtrace import patch
         from ddtrace.llmobs import LLMObs
 
-        LLMObs.enable(ml_app="<ml-app-name>", integrations=["langchain"], agentless_enabled=True)
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
