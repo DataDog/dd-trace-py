@@ -136,6 +136,7 @@ class TestLLMObsBedrock:
         mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
+        LLMObs.disable()
 
     @classmethod
     def _test_llmobs_invoke_stream(
@@ -173,6 +174,7 @@ class TestLLMObsBedrock:
         mock_llmobs_span_writer.enqueue.assert_called_with(
             cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
         )
+        LLMObs.disable()
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         self._test_llmobs_invoke("ai21", bedrock_client, mock_llmobs_span_writer)
@@ -277,3 +279,4 @@ class TestLLMObsBedrock:
 
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
+        LLMObs.disable()
