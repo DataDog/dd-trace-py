@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 
 
 PROJECT_NAME = "my_project"
@@ -136,16 +137,5 @@ def create_project_structure():
 
 def destroy_project_structure():
     project_name = PROJECT_NAME
-    num_modules = NUM_MODULES
-
-    # Remove the __init__.py file
-    os.remove(os.path.join(project_name, "__init__.py"))
-
-    # Remove the modules
-    for i in range(1, num_modules + 1):
-        module_name = f"module_{i}.py"
-        module_path = os.path.join(project_name, module_name)
-        os.remove(module_path)
-
     # Remove the project directory
-    os.rmdir(project_name)
+    shutil.rmtree(project_name)
