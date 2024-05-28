@@ -42,9 +42,11 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     wrapper for open file function
     """
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast.taint_sinks.path_traversal import _iast_report_ssrf
         from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 
         check_and_report_path_traversal(*args, **kwargs)
+        _iast_report_ssrf(original_open_callable, *args, *kwargs)
 
     if asm_config._asm_enabled and asm_config._ep_enabled:
         try:
