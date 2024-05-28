@@ -113,7 +113,8 @@ class IastSpanReporter(object):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
-    def taint_ranges_as_evidence_info(self, pyobject: Any) -> Tuple[List[Source], List[Dict]]:
+    @staticmethod
+    def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Source], List[Dict]]:
         """
         Extracts tainted ranges as evidence information.
 

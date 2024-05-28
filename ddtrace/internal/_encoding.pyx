@@ -21,6 +21,7 @@ from ._utils cimport PyBytesLike_Check
 
 from ..constants import ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
+from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
 
 
@@ -615,16 +616,14 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     return ret
         return 0
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin) except? -1:
+    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
 
         if PyDict_CheckExact(meta):
             d = <dict> meta
-            L = len(d)
-            if dd_origin is not NULL:
-                L += 1
+            L = len(d) + (dd_origin is not NULL) + (len(span_events) > 0)
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
@@ -641,6 +640,12 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
+                    if ret != 0:
+                        return ret
+                if span_events:
+                    ret = pack_text(&self.pk, SPAN_EVENTS_KEY)
+                    if ret == 0:
+                        ret = pack_text(&self.pk, span_events)
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -678,7 +683,8 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
+        has_span_events = <bint> (len(span._events) > 0)
+        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or has_span_events)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
@@ -775,7 +781,10 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-                ret = self._pack_meta(span._meta, <char *> dd_origin)
+                span_events = ""
+                if has_span_events:
+                    span_events = json_dumps([vars(event)()  for event in span._events])
+                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
                     return ret
 
@@ -898,7 +907,14 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if span._links:
             span_links = json_dumps([link.to_dict() for _, link in span._links.items()])
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0))
+        span_events = ""
+        if span._events:
+            span_events = json_dumps([vars(event)() for event in span._events])
+
+        ret = msgpack_pack_map(
+            &self.pk,
+            len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
+        )
         if ret != 0:
             return ret
         if span._meta:
@@ -921,6 +937,13 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
             ret = self._pack_string(span_links)
+            if ret != 0:
+                return ret
+        if span_events:
+            ret = self._pack_string(SPAN_EVENTS_KEY)
+            if ret != 0:
+                return ret
+            ret = self._pack_string(span_events)
             if ret != 0:
                 return ret
 

@@ -47,8 +47,12 @@ def patch():
     @when_imported("django.http.response")
     def _(m):
         trace_utils.wrap(m, "HttpResponse.__setitem__", _iast_h)
-        trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
         trace_utils.wrap(m, "HttpResponseBase.__setitem__", _iast_h)
+        try:
+            trace_utils.wrap(m, "ResponseHeaders.__setitem__", _iast_h)
+        except AttributeError:
+            # no ResponseHeaders in django<3
+            pass
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 

@@ -14,7 +14,7 @@ PREFIX=${1}
 test -d $PREFIX && rm -rf $PREFIX || mkdir -p $PREFIX
 
 # Create and activate the virtualenv
-python3.8 -m venv ${PREFIX}
+python3.10 -m venv ${PREFIX}
 source ${PREFIX}/bin/activate
 pip install pip --upgrade
 

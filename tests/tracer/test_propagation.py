@@ -1751,10 +1751,14 @@ EXTRACT_FIXTURES = [
         DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
             "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
-            "span_id": 5678,
+            "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
+            "meta": {
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-3",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+            },
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
@@ -1790,6 +1794,21 @@ EXTRACT_FIXTURES = [
         [],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         CONTEXT_EMPTY,
+    ),
+    (
+        "datadog_tracecontext_conflicting_span_ids",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            HTTP_HEADER_TRACE_ID: "9291375655657946024",
+            HTTP_HEADER_PARENT_ID: "15",
+            _HTTP_HEADER_TRACEPARENT: "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+        },
+        {
+            "trace_id": 9291375655657946024,
+            "span_id": 10,
+            "sampling_priority": 2,
+            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+        },
     ),
 ]
 
@@ -2110,7 +2129,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ALL_HEADERS_CHAOTIC_1,
         Context(
             trace_id=7277407061855694839,
-            span_id=5678,
+            span_id=67667974448284343,
             # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
             # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
             # in the styles configuration
@@ -2118,6 +2137,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
@@ -2668,3 +2688,71 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
+
+
+def test_llmobs_enabled_injects_parent_id(run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.propagation.http import HTTPPropagator
+
+with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = {}
+        HTTPPropagator.inject(child_span.context, headers)
+
+assert "{}={}".format(PROPAGATED_PARENT_ID_KEY, root_span.span_id) in headers["x-datadog-tags"]
+        """
+
+    env = os.environ.copy()
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+    assert stderr == b"", (stdout, stderr)
+
+
+def test_llmobs_disabled_does_not_inject_parent_id(run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.propagation.http import HTTPPropagator
+
+with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = {}
+        HTTPPropagator.inject(child_span.context, headers)
+
+assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
+        """
+
+    env = os.environ.copy()
+    env["DD_LLMOBS_ENABLED"] = "0"
+    env["DD_TRACE_ENABLED"] = "0"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+    assert stderr == b"", (stdout, stderr)
+
+
+def test_llmobs_enabled_does_not_inject_parent_id_if_no_llm_span(run_python_code_in_subprocess):
+    code = """
+from ddtrace import tracer
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.propagation.http import HTTPPropagator
+
+with tracer.trace("Non-LLMObs span") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = {}
+        HTTPPropagator.inject(child_span.context, headers)
+
+assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
+        """
+
+    env = os.environ.copy()
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_TRACE_ENABLED"] = "0"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+    assert stderr == b"", (stdout, stderr)
