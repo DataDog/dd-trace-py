@@ -31,6 +31,8 @@ from ddtrace.contrib.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.pytest.utils import _is_pytest_8_or_later
+from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 from ddtrace.contrib.unittest import unpatch as unpatch_unittest
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -73,12 +75,6 @@ _global_skipped_elements = 0
 # COVER_SESSION is an experimental feature flag that provides full coverage (similar to coverage run), and is an
 # experimental feature. It currently significantly increases test import time and should not be used.
 COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
-
-
-def _is_pytest_8_or_later():
-    if hasattr(pytest, "version_tuple"):
-        return pytest.version_tuple >= (8, 0, 0)
-    return False
 
 
 def encode_test_parameter(parameter):
@@ -868,13 +864,16 @@ class _PytestDDTracePluginV1:
                 return "%s.%s" % (item.cls.__name__, item.name)
         return item.name
 
-    @staticmethod
-    @pytest.hookimpl(trylast=True)
-    def pytest_terminal_summary(terminalreporter, exitstatus, config):
-        # Reports coverage if experimental session-level coverage is enabled.
-        if USE_DD_COVERAGE and COVER_SESSION:
-            ModuleCodeCollector.report()
-            try:
-                ModuleCodeCollector.write_json_report_to_file("dd_coverage.json")
-            except Exception:
-                log.debug("Failed to write coverage report to file", exc_info=True)
+    # Internal coverage is only used for ITR at the moment, so the hook is only added if the pytest version supports it
+    if _pytest_version_supports_itr():
+
+        @staticmethod
+        @pytest.hookimpl(trylast=True)
+        def pytest_terminal_summary(terminalreporter, exitstatus, config):
+            # Reports coverage if experimental session-level coverage is enabled.
+            if USE_DD_COVERAGE and COVER_SESSION:
+                ModuleCodeCollector.report()
+                try:
+                    ModuleCodeCollector.write_json_report_to_file("dd_coverage.json")
+                except Exception:
+                    log.debug("Failed to write coverage report to file", exc_info=True)

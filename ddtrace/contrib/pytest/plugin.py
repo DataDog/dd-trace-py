@@ -16,6 +16,8 @@ from typing import Dict  # noqa:F401
 
 import pytest
 
+from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
+
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
@@ -24,10 +26,16 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
 def _is_enabled_early(early_config):
-    """Hackily checks if the ddtrace plugin is enabled before the config is fully populated.
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
 
-    This is necessary because the module watchdog for coverage collectio needs to be enabled as early as possible.
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
     """
+    if not _pytest_version_supports_itr():
+        return False
+
     if (
         "--no-ddtrace" in early_config.invocation_params.args
         or early_config.getini("ddtrace") is False
