@@ -100,7 +100,7 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow=False
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow: bool = False
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
@@ -120,7 +120,12 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(output_tag_key, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
-        self, span: Span, chat_messages: List[List[Any]], chat_completions: Any, err: bool = False, is_workflow=False
+        self,
+        span: Span,
+        chat_messages: List[List[Any]],
+        chat_completions: Any,
+        err: bool = False,
+        is_workflow: bool = False,
     ) -> None:
         span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
