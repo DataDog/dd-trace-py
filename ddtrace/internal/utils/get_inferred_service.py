@@ -1,3 +1,4 @@
+import ast
 from importlib.util import find_spec
 import os
 from pathlib import Path
@@ -60,17 +61,37 @@ def _search_files(file_names, start_path):
     return None
 
 
+def _extract_setup_py_service_name(setup_file):
+    breakpoint()
+    with open(setup_file, "r") as f:
+        tree = ast.parse(f.read(), filename=setup_file)
+
+    class SetupVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.package_name = None
+
+        def visit_Call(self, node):
+            if isinstance(node.func, ast.Name) and node.func.id == "setup":
+                for keyword in node.keywords:
+                    if keyword.arg == "name":
+                        if isinstance(keyword.value, ast.Constant):
+                            self.package_name = keyword.value.value
+            self.generic_visit(node)
+
+    visitor = SetupVisitor()
+    visitor.visit(tree)
+    return visitor.package_name
+
+
 def _find_package_name(start_path):
     files = ["setup.py", "pyproject.toml"]
-
+    breakpoint()
     pkg_metadata = _search_files(files, start_path)
     if pkg_metadata:
         if getattr(pkg_metadata, "name", "") == files[0]:
-            with open(pkg_metadata, "r") as f:
-                for line in f:
-                    if "name=" in line or "name =" in line:
-                        package_name = line.split("=")[1].strip().strip("'\"")
-                        return re.sub(pattern, "", package_name)
+            package_name = _extract_setup_py_service_name(pkg_metadata)
+            if package_name:
+                return re.sub(pattern, "", package_name)
         elif getattr(pkg_metadata, "name", "") == files[1]:
             # Parse pyproject.toml file to get package name
             with open(pkg_metadata, "r") as f:
