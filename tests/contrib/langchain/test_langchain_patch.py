@@ -76,9 +76,6 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
         else:
-            from langchain.llms import base  # noqa: F401
-            from langchain.chat_models import base  # noqa: F401
-            from langchain.chains import base  # noqa: F401
             from langchain import embeddings  # noqa: F401
             from langchain import vectorstores  # noqa: F401
 

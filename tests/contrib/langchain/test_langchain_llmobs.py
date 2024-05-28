@@ -84,7 +84,10 @@ class BaseTestLLMObsLangchain:
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
         LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
-            llm.invoke(prompt)
+            if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+                llm.invoke(prompt)
+            else:
+                llm(prompt)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -96,7 +99,10 @@ class BaseTestLLMObsLangchain:
                 messages = [HumanMessage(content=prompt)]
             else:
                 messages = [ChatMessage(content=prompt, role="custom")]
-            chat_model.invoke(messages)
+            if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+                chat_model.invoke(messages)
+            else:
+                chat_model(messages)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0][0]
 
@@ -168,7 +174,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_chat_model(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        # TODO: Need to regenerate test cassette
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
         span = self._invoke_chat(
             chat_model=chat,
@@ -181,7 +186,6 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_openai_chat_model_custom_role(self, langchain, mock_llmobs_span_writer, mock_tracer):
-        # TODO: Need to regenerate test cassette
         chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
         span = self._invoke_chat(
             chat_model=chat,
@@ -201,7 +205,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             chain=chain,
             prompt="what is two raised to the fifty-fourth power?",
             mock_tracer=mock_tracer,
-            cassette_name="openai_math_chain_sync_tmp.yaml",
+            cassette_name="openai_math_chain_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 3
         _assert_expected_llmobs_chain_span(
@@ -222,7 +226,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 {
                     "question": "what is two raised to the fifty-fourth power?",
                     "stop": ["```output"],
-                    "text": '```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
+                    "text": '\n```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
                 }
             ),
         )
@@ -250,7 +254,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             chain=sequential_chain,
             prompt={"input_text": input_text},
             mock_tracer=mock_tracer,
-            cassette_name="openai_sequential_paraphrase_and_rhyme_sync_tmp.yaml",
+            cassette_name="openai_sequential_paraphrase_and_rhyme_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 5
         _assert_expected_llmobs_chain_span(
@@ -292,7 +296,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 "input": "What's the powerhouse of the cell?",
             },
             mock_tracer=mock_tracer,
-            cassette_name="openai_chain_schema_io_tmp.yaml",
+            cassette_name="openai_chain_schema_io.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 2
         _assert_expected_llmobs_chain_span(
@@ -310,7 +314,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                     "ability": "world capitals",
                     "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
                     "input": "What's the powerhouse of the cell?",
-                    "text": "Mitochondria",
+                    "text": "Mitochondria.",
                 }
             ),
         )

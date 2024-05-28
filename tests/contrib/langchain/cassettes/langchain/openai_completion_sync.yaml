@@ -1,63 +1,59 @@
 interactions:
 - request:
-    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Can you explain what Descartes
-      meant by ''I think, therefore I am''?"], "frequency_penalty": 0, "logit_bias":
-      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
-      1}'
+    body: '{"prompt": ["Can you explain what Descartes meant by ''I think, therefore
+      I am''?"], "model": "gpt-3.5-turbo-instruct", "temperature": 0.7, "max_tokens":
+      256, "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
+      {}}'
     headers:
-      accept:
-      - application/json
-      accept-encoding:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
       - gzip, deflate
-      connection:
+      Connection:
       - keep-alive
-      content-length:
+      Content-Length:
       - '241'
-      content-type:
+      Content-Type:
       - application/json
-      host:
-      - api.openai.com
-      user-agent:
-      - OpenAI/Python 1.6.1
-      x-stainless-arch:
-      - arm64
-      x-stainless-async:
-      - 'false'
-      x-stainless-lang:
-      - python
-      x-stainless-os:
-      - MacOS
-      x-stainless-package-version:
-      - 1.6.1
-      x-stainless-runtime:
-      - CPython
-      x-stainless-runtime-version:
-      - 3.10.5
+      User-Agent:
+      - OpenAI/v1 PythonBindings/0.27.8
+      X-OpenAI-Client-User-Agent:
+      - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
+        "3.11.1", "platform": "macOS-14.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 23.4.0 Darwin Kernel Version 23.4.0: Fri Mar 15 00:10:42
+        PDT 2024; root:xnu-10063.101.17~1/RELEASE_ARM64_T6000 arm64 arm"}'
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
+
     body:
-      string: !!binary |
-        H4sIAAAAAAAAA3xUwW7kNgy9z1cQvvTiDJoE2TS5bpvdoFigWwRYoJ0ikCXaVkcmDYmyYyz23wvK
-        M5Msku1lBhZF8vG9J37dAFTeVbdQ2WEMZzcPbvnzs8ypna4/ffl9kfuL+a/hYX/32+f2sqr1Njf/
-        ohXNEHySR8vDGFA80xq2EY2gVjy/Pn/3y9XF+c1NCQzsMGhaN8rZ5fbqTHJs+MxTkpitHLJ79hZT
-        dQt/bwAAvpZfWHtp8o529Csma6JgqsHAXUSyPYy9D5x47DHW0JqBcwoLJFEsNeyq99x54Rowdgwp
-        D7sKOMKuugfpPe1rkB4jthwR7sFo2BP0PsHMcQ+f0HkxOmQCJrjzMQn8cWy5bOFBr5ZuA5KAT8Ct
-        IIEnwThGFHRgkjaBljO5Ugu4LS1O2Bcw5DTZMiXvMGoWtHpfy5oAY/Rk/RhQ4SmjkeALJtH/5zLb
-        71iC2SRIiHtPnZbzcSh9LEYxnl4CajnCnngO6DqsFXGP0GDwOKED6Y3AkG2vwGf9mBFGjBb9hCB9
-        5Nz1wDlCQkqoY+TgoEFoTUiohDu0OIqfcAsfERznRkphBHzySZAsavH1QKcyQRUIri5M8UzQsFvq
-        MgBOSK9zDTRIOHFQIT6w28JHnnFSXxzZXyfp8QCQWFYop/O5aOVppYzcGvbUHZQO6KD3AwiX/pbJ
-        hpyUwVJBzyaMCxgrCumYDWPkqaSuo5xwF8HuCVhdqAO7VMOzgN8rUEyklV+iNU3AFY6nfYHcIJjZ
-        RDy6THqVR1Y74OTdkbDXaFQbE7t87FiI9i0Y0sQADgcmmDGWlqqpGkAJ0caD2a8fK6dK/aKwOsCQ
-        sH6L91cQoEFrcsL/F0NZ+9HLS4ikBjYajCv77EmKx0/U/vTi1RS/ewETAs/pqG+TfXCQR16tdng0
-        srzJ3MEQtAr92psf2NVvmlvHKuKXNVg2nieHT9Ut/Hw6CdyNkRvdjpRDOJ23nnzqHyOaxKRLMiB1
-        0lcl/m0D8E/ZrTmZDqvbw06txsjDKI/Ce6RU1vVasHre6M/Bi6t3h6iwmPAicH250SbfNv8BAAD/
-        /wMAPoxfkEsGAAA=
+        string: "{\n  \"id\": \"cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1687283761,\n  \"model\": \"text-davinci-003\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nDescartes' famous phrase
+        \\\"I think, therefore I am\\\" is a fundamental statement of his philosophical 
+        approach, known as Cartesian logic. This phrase is often interpreted as a
+        statement that reflects his belief in the existence of the self and one's
+        consciousness.\\n\\nIn his philosophical work, Descartes was searching for
+        a solid foundation for knowledge and truth. He doubted everything he had learned
+        and believed, even the existence of the external world and his own body. However,
+        he reached a point where he realized that even if everything else could be
+        doubted, there was one thing that he could not doubt - the fact that he was
+        doubting. This led him to the conclusion that he must exist in order to have
+        thoughts and doubts.\\n\\nTherefore, by saying \\\"I think,\\\" Descartes
+        is asserting that he is a thinking being. And by saying \\\"therefore I am,\\\"
+        he is affirming that his existence is inseparable from his ability to think.
+        In other words, the very act of thinking proves his existence as a conscious
+        being.\\n\\nThis statement also implies that the mind and consciousness are
+        essential to one's existence, rather than the physical body. While the body
+        can be doubted and can deceive the senses, the mind's ability to think and\",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 17,\n    \"completion_tokens\":
+        95,\n    \"total_tokens\": 112\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88a9c085384d5e66-EWR
+      - 88b1dec92bf84414-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -67,14 +63,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 27 May 2024 23:23:23 GMT
+      - Tue, 28 May 2024 23:02:09 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=mv3uyQAiKCxu_EF6KGZscPN4b6aR4SyWV2dEtmdoI18-1716852203-1.0.1.1-5vCCHZQsK5HneebHs9VSFXun1eknLUfpKKEnEDJ5P_kcnjwkKb0it2vGgzQQDZasYaX5vO.c.UOXSdB7JDJXhw;
-        path=/; expires=Mon, 27-May-24 23:53:23 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=GO1qX6goSJ8IacyvMS7tLMf0y55kYhL6qoz7yWHzVaw-1716937329-1.0.1.1-KvV3UvXRKv112CoSczDnRzcxKh8yFACOJH3Ze3RU6UqLAbH9hU09.k9UMn37Jjz4lL0vp_QtsV86A5CZ6pj0xg;
+        path=/; expires=Tue, 28-May-24 23:32:09 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=SbB5k.2JfU5VNlcu6PamDow1OOlL7.zzgXKqu0zmYJQ-1716852203037-0.0.1.1-604800000;
+      - _cfuvid=2wZlGKfUHYLv2py8qBP8822KGpT_cuKDJqqhhCMyEAs-1716937329373-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -87,25 +83,25 @@ interactions:
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '3707'
+      - '4278'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=15724800; includeSubDomains
       x-ratelimit-limit-requests:
-      - '3500'
+      - '3000'
       x-ratelimit-limit-tokens:
-      - '90000'
+      - '250000'
       x-ratelimit-remaining-requests:
-      - '3499'
+      - '2999'
       x-ratelimit-remaining-tokens:
-      - '89728'
+      - '249744'
       x-ratelimit-reset-requests:
       - 17ms
       x-ratelimit-reset-tokens:
       - 181ms
       x-request-id:
-      - req_83f57d716c7a4fe5b68e574428aa022d
+      - req_9c5e9d6c980fce68872534cb21e92939
     status:
       code: 200
       message: OK

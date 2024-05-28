@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -908,7 +909,7 @@ def test_vectorstore_logs(
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "meta.http.useragent", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -939,7 +940,7 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     assert err == b""
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_openai_service_name(
@@ -1153,6 +1154,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
         await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
@@ -1169,6 +1171,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
         chain.batch(inputs=["chickens", "pigs"])
 
 
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
@@ -1208,6 +1211,7 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
