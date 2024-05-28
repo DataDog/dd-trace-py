@@ -79,7 +79,7 @@ Example::
 Profiling
 ~~~~~~~~~
 
-You may also generate profiling data from each scenario using `viztracer <http://cnn.com>`_ by providing the ``PROFILE_BENCHMARKS=1`` environment variable.
+You may also generate profiling data from each scenario using `viztracer`_ by providing the ``PROFILE_BENCHMARKS=1`` environment variable.
 
 Example::
 
@@ -122,9 +122,12 @@ Using the ``vizviewer`` UI you can inspect the profile/timeline from each proces
   order by total_duration desc
 
 
-See `viztracer <https://viztracer.readthedocs.io/en/stable/basic_usage.html#display-report>`_ documentation for more details.
+See `viztracer`_ documentation for more details.
 
 Scenarios
 ^^^^^^^^^
 
 .. include:: ../benchmarks/threading/README.rst
+
+
+.. _viztracer: https://viztracer.readthedocs.io/en/stable/basic_usage.html#display-report
