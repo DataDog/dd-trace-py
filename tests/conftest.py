@@ -266,6 +266,18 @@ def run_function_from_file(item, params=None):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, config, items):
+    """Don't let ITR skip tests that use the subprocess marker because coverage collection in subprocesses is broken"""
+    for item in items:
+        if item.get_closest_marker("subprocess"):
+            if item.get_closest_marker("skipif"):
+                # Respect any existing skipif marker because they preempt ITR's decision-making
+                continue
+            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
+            item.add_marker(unskippable)
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     if item.get_closest_marker("skip"):
         return default_pytest_runtest_protocol(item, None)
