@@ -420,7 +420,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
                 if headers_req:
-                    _set_headers(span, headers_req, kind="request", only_asm_enabled=True)
+                    _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
                 if not has_triggers(span) and _asm_request_context.in_context():
