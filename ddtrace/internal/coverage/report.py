@@ -132,7 +132,9 @@ def print_coverage_report(executable_lines, covered_lines, workspace_path: Path,
     print()
 
 
-def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignore_nocover=False):
+def gen_json_report(
+    executable_lines, covered_lines, workspace_path: t.Optional[Path] = None, ignore_nocover=False
+) -> str:
     """Writes a JSON-formatted coverage report similar in structure to coverage.py 's JSON report, but only
     containing a subset (namely file-level executed and missing lines).
 
@@ -146,10 +148,13 @@ def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignor
       }
     }
 
+    Paths are relative to workspace_path if provided, and are absolute otherwise.
     """
-    output = {"files": {}}
+    output: t.Dict[str, t.Dict[str, t.Dict[str, t.List[int]]]] = {"files": {}}
 
-    relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
+    relative_path_strs: t.Dict[str, str] = {}
+    if workspace_path is not None:
+        relative_path_strs.update(_get_relative_path_strings(executable_lines, workspace_path))
 
     for path, orig_lines in sorted(executable_lines.items()):
         path_lines = orig_lines.copy()
@@ -165,7 +170,9 @@ def get_json_report(executable_lines, covered_lines, workspace_path: Path, ignor
                         path_lines.discard(no_cover_line)
                         path_covered.discard(no_cover_line)
 
-        output["files"][relative_path_strs[path]] = {
+        path_str = relative_path_strs[path] if workspace_path is not None else path
+
+        output["files"][path_str] = {
             "executed_lines": sorted(list(path_covered)),
             "missing_lines": sorted(list(path_lines - path_covered)),
         }

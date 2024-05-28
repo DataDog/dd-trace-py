@@ -101,13 +101,16 @@ def pytest_load_initial_conftests(early_config, parser, args):
         if USE_DD_COVERAGE:
             from ddtrace.ext.git import extract_workspace_path
             from ddtrace.internal.coverage.code import ModuleCodeCollector
+            from ddtrace.internal.coverage.installer import install
 
-            workspace_path = Path(extract_workspace_path())
+            try:
+                workspace_path = Path(extract_workspace_path())
+            except ValueError:
+                workspace_path = Path(os.getcwd())
 
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
 
-            if not ModuleCodeCollector.is_installed():
-                ModuleCodeCollector.install(include_paths=[workspace_path])
+            install(include_paths=[workspace_path])
             if COVER_SESSION:
                 ModuleCodeCollector.start_coverage()
         else:

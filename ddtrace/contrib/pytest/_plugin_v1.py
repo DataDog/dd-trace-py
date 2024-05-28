@@ -876,7 +876,10 @@ class _PytestDDTracePluginV1:
         if USE_DD_COVERAGE and COVER_SESSION:
             from ddtrace.ext.git import extract_workspace_path
 
-            workspace_path = Path(extract_workspace_path())
+            try:
+                workspace_path = Path(extract_workspace_path())
+            except ValueError:
+                workspace_path = Path(os.getcwd())
 
             ModuleCodeCollector.report(workspace_path)
             try:
