@@ -89,14 +89,6 @@ def print_coverage_report(executable_lines, covered_lines, workspace_path: Path,
 
     n = max(len(path_str) for path_str in relative_path_strs.values()) + 4
 
-    if len(executable_lines) == 0:
-        print("No Datadog line coverage recorded.")
-        return
-
-    relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
-
-    n = max(len(path_str) for path_str in relative_path_strs.values()) + 4
-
     covered_lines = covered_lines
 
     # Title
