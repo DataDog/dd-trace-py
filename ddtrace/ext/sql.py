@@ -53,7 +53,7 @@ parse_pg_dsn3 = _dd_parse_pg_dsn
 
 @ModuleWatchdog.after_module_imported("psycopg2")
 def use_psycopg2_parse_dsn(psycopg_module):
-    """Replaces parse_pg_dsn with the helper function defined in psycopg2"""
+    """Replaces parse_pg_dsn2 with the helper function defined in psycopg2"""
     global parse_pg_dsn2
 
     try:
@@ -67,7 +67,7 @@ def use_psycopg2_parse_dsn(psycopg_module):
 
 @ModuleWatchdog.after_module_imported("psycopg")
 def use_psycopg3_parse_dsn(psycopg_module):
-    """Replaces parse_pg_dsn with the helper function defined in psycopg3"""
+    """Replaces parse_pg_dsn3 with the helper function defined in psycopg3"""
     global parse_pg_dsn3
 
     try:
