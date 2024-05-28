@@ -335,15 +335,14 @@ class SpanAggregator(SpanProcessor):
                     finished = trace_spans
 
                 num_finished = len(finished)
-                if num_finished != trace.num_finished:
+                trace.num_finished -= num_finished           
+                if trace.num_finished != 0:
                     log_msg = f"Finished span count of {num_finished} is not the expected {trace.num_finished}. {span}"
                     if config._telemetry_enabled:
                         telemetry.telemetry_writer.add_log("WARNING", log_msg)
                     log.warning(log_msg)
+                    trace.num_finished = 0
 
-                # We have removed all finished spans from the trace while holding the lock.
-                # There should be no more finished span for this trace.
-                trace.num_finished = 0
 
                 # If we have removed all spans from this trace, then delete the trace from the traces dict
                 if len(trace.spans) == 0:
