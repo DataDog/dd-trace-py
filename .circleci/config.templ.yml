@@ -405,6 +405,21 @@ jobs:
           name: "Spelling"
           command: hatch run lint:spelling
 
+  coredump_check:
+    executor: python310
+    steps:
+      - checkout
+      - run:
+          name: "Cause a core dump"
+          command: |
+            ulimit -c unlimited
+            python -c "import ctypes;ctypes.string_at(0)" || true
+      - run:
+          name: "Check for core dumps"
+          command: |
+            echo "Core pattern: $( cat /proc/sys/kernel/core_pattern )"
+            ls -l core.*
+
   ccheck:
     executor: cimg_base
     steps:
@@ -1357,5 +1372,7 @@ workflows:
   version: 2
   test: &workflow_test
     jobs:
+      # Ensure that we are able to collect core dumps
+      - coredump_check
       # Pre-checking before running all jobs
       - pre_check
