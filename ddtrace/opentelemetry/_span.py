@@ -168,8 +168,15 @@ class Span(OtelSpan):
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None
-        """NOOP - events are not yet supported"""
-        return
+        """Records an event"""
+        if not self.is_recording():
+            return
+
+        if timestamp:
+            # timestamp arg is in micoseconds we must convert it to nanoseconds
+            timestamp = timestamp * 1000
+
+        self._ddspan._add_event(name, attributes, timestamp)
 
     def update_name(self, name):
         # type: (str) -> None
@@ -210,7 +217,7 @@ class Span(OtelSpan):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
         """
         Records the type, message, and traceback of an exception as Span attributes.
-        Note - Span Events are not yet supported.
+        Note - Span Events are not currently used to record exception info.
         """
         if not self.is_recording():
             return
