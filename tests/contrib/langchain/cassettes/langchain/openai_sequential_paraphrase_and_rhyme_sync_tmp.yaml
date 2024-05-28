@@ -1,0 +1,227 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Paraphrase this text:\n\nI
+      have convinced myself that there is absolutely nothing in the world, no sky,
+      no earth, no minds, no\nbodies. Does it now follow that I too do not exist?
+      No: if I convinced myself of something then I certainly\nexisted. But there
+      is a deceiver of supreme power and cunning who is deliberately and constantly
+      deceiving\nme. In that case I too undoubtedly exist, if he is deceiving me;
+      and let him deceive me as much as he can,\nhe will never bring it about that
+      I am nothing so long as I think that I am something. So after considering\neverything
+      very thoroughly, I must finally conclude that this proposition, I am, I exist,
+      is necessarily\ntrue whenever it is put forward by me or conceived in my mind.\n\nParaphrase:
+      "], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
+      0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '921'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.6.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA1xTwW7bMAy95ysefHaCBunaLbcOA9ZsRYFiPQxbh0KWaVuNJBoSFSco9u+DHCct
+        drFkPZGPfHx6nQGFqYs1Cu16O//02N79uGnvtPn669vPC/WwfPjurr/0F/e3jy9FmW9z9UJacoTQ
+        Xp41u96SGPZHWAdSQjnj8np59fFquVpejoDjmmwOa3uZrxYf5pJCxXPjo4SkZYru2GiKxRq/ZwDw
+        On5x5MrBT36DTu0Imh1BGNIRKrKGGkinJP8HgonwLJ3xLYwH7U0U8powh2fE7aHMK6kg3bhzxtdx
+        3FVcG4oLfE45lYmomcZccKT8kWJTwh0i2aZEzSM2EiywaXCuzu+M11RPN8ENIjsaSypzkR4buBTP
+        sbc80I5C+daAQkx9IEf2gJ4HCk2yUL6GTt7nzmrSZHYUMHScGcX4xCnaAyQYvY1wtMDGH/vQKlKJ
+        DaIYa4+kUBGWfZvXDZRDRe/S1gvcM5wSoYCOB7iku0mTE7EEQzFPwaktwU2T2BE4dzGYTPk/iRpU
+        oEnIYx25LK18FrKi09wWuGkys1aBcuOafTQ1BZWtVp7E0+y1TTWdZ48oSsiRFzwVma88sTwVo6h2
+        UIcICYkw5CkYyce07wPFSDU4QDpObSeoDlnB0ZijB42vaV+scXE+sdz2gavsV5+sPZ83xpvYPQdS
+        kX22bRTuixH9OwP+jF5PUbVUrCePF31g18uz8JZ8HJ/PxFO8PbF36OVqQoVF2TdgtVzNMsvf2T8A
+        AAD//wMAO4HLNtwDAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88aa9f0f3ad40cc1-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 May 2024 01:55:15 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=kuqmoEs_Jf9x1UCxE6poAM.7qY139JdPAj1Y9gLtg0A-1716861315-1.0.1.1-CFll.TfZDjypEEgr3DVdiovtS7SaUjzHJkoPcSuRZSJ40SVPEfgo5bQXp9FfBjf1JyiOIvlP0bv.uCMykwvzUg;
+        path=/; expires=Tue, 28-May-24 02:25:15 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=BtX_2fizu2ZgK19j2jl2DMpdepyTUz8vowVL1Zejtc4-1716861315863-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1183'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-remaining-tokens:
+      - '89560'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 293ms
+      x-request-id:
+      - req_e85a94ac306627321c1683ed2232ee1a
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Make this text rhyme:\n\nI
+      have come to the belief that there is nothing in existence - no sky, no earth,
+      no minds, no bodies. But this does not mean that I, myself, do not exist. If
+      I have convinced myself of something, then I must exist. However, there is a
+      supremely powerful and cunning deceiver who continuously tricks me. In this
+      case, I still exist as long as I am being deceived. No matter how much this
+      deceiver tries to make me believe otherwise, as long as I am aware that I exist,
+      I cannot be nothing. After careful consideration, I must conclude that the statement
+      \"I am, I exist\" is always true when it is expressed or thought by me.\nRhyme:
+      "], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
+      0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '833'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.6.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0xSTY/TMBC991c8+dJLWlHtUqA3VkIiKz6EtAgJiirHmcSm/gj2pGlY8d+R3ari
+        4rHm+c28mefnBSBMK3YQyg129eap//B1++n94/nP47ep+Wy/2/p4//vju4f7L05U+XVofpHizGA6
+        80EFN1hiE/wFVpEkU664ebXZvt5u7jbbArjQks20fuDV3frlisfYhJXxieOo+MrWwShKYocfCwB4
+        LicuvTJ572toeSKo4AgcwJrQkDXUgbVk+MDa+B50NolTBR+QjnOJJCPrcnPGtxesCa2hBOPB2iQ4
+        k3i99w8jo0ZiYy0SS9+iM9FV6EJEjaMPE+pLhwp0okwOY6+LmJYUmRNFcMyVOWCgmC51nzTNcHIG
+        x7mIj0Yd4ajCZLjQTYQavc8TTHJOFZqRIRNs8H2O9dJBTjJShXppLTzlVg0hTXKmdr33bzumCCUj
+        daO9CuP8+r+lJaKqiOU4soa9rYDyuEyOPFfYixrSVbdR9wKGlwnSZmlwtC6mFX+Mb+ksdnhxy9jQ
+        DzE02Us/WnvLd8abpA+RZAo+W5o4DKKgfxfAz/IPxiR7Erur/2KIwQ184HD8p9Q8kIGGpoYQ85QQ
+        yQ9J1sAYKluSX5KYg5AwMjXhAtlSywUAAAD//wMAhL7eZfgCAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88aa9f189aff9e05-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 May 2024 01:55:17 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=DTA5iAbJRq1.Gt5kKlArBtpsCWnmZPmG_ErtmGh7DfM-1716861317-1.0.1.1-uKw.2RS3V23QusgmkzplnRIsff8zp.mriEMuB9OV3T0cXahefI0_no3eAb0nHh0nMyizHxN4PsZMU_Q328vt_w;
+        path=/; expires=Tue, 28-May-24 02:25:17 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=P2326sHM73juNKReGPbgyy_QFvga7HOWgdcfeCFZqYc-1716861317179-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '984'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-remaining-tokens:
+      - '89581'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 279ms
+      x-request-id:
+      - req_5dddf576c1f7dd997eae38b9329b7441
+    status:
+      code: 200
+      message: OK
+version: 1
