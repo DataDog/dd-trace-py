@@ -10,20 +10,20 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6651faf500000000",
-      "error.message": "Exception: Sorry Otel Span, I failed you",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_10f03b79012d2000/lib/python3.10/site-packages/opentelemetry/trace/__init__.py\", line 462, in use_span\n    yield span\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/ddtrace/opentelemetry/_trace.py\", line 154, in start_as_current_span\n    yield span\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 27, in test_otel_start_span_with_default_args\n    raise Exception(\"Sorry Otel Span, I failed you\")\nException: Sorry Otel Span, I failed you\n",
+      "_dd.p.tid": "66549fa600000000",
+      "error.message": "Sorry Otel Span, I failed you",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 29, in test_otel_start_span_with_default_args\n    raise Exception(\"Sorry Otel Span, I failed you\")\nException: Sorry Otel Span, I failed you\n",
       "error.type": "builtins.Exception",
-      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.Exception\", \"exception.message\": \"Sorry Otel Span, I failed you\", \"exception.escaped\": \"False\"}}]",
+      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560271237812000, \"attributes\": {\"exception.type\": \"builtins.ValueError\", \"exception.message\": \"Invalid Operation\", \"exception.escaped\": \"False\", \"raied\": \"false\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.Exception\", \"exception.message\": \"Sorry Otel Span, I failed you\", \"exception.escaped\": \"False\"}}]",
       "language": "python",
-      "runtime-id": "9dfce05b8aaa454e96ac10f8a312b676"
+      "runtime-id": "5213b082ad0d49c7b3338879d32a4570"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 60120
+      "_sampling_priority_v1": 1,
+      "process_id": 66492
     },
-    "duration": 88432565995000,
-    "start": 1716560261227739000
+    "duration": 577000,
+    "start": 1716821926479913000
   }]]

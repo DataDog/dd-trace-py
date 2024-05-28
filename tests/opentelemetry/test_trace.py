@@ -21,33 +21,36 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 def test_otel_start_span_with_default_args(oteltracer):
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
+        otel_span = oteltracer.start_span("test-start-span")
         with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
-            with oteltracer.start_as_current_span("test-start-span") as otel_span:
+            with otel_span:
                 otel_span.update_name("gg-start-span")
+                otel_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"}, 1716560271237812)
                 raise Exception("Sorry Otel Span, I failed you")
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_span_without_default_args(oteltracer):
     root = oteltracer.start_span("root-span")
+    otel_span = oteltracer.start_span(
+        "test-start-span",
+        context=opentelemetry.trace.set_span_in_context(root),
+        kind=opentelemetry.trace.SpanKind.CLIENT,
+        attributes={"start_span_tag": "start_span_val"},
+        links=None,
+        start_time=0,
+        record_exception=False,
+        set_status_on_exception=False,
+    )
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        with oteltracer.start_as_current_span(
-            "test-start-span",
-            context=opentelemetry.trace.set_span_in_context(root),
-            kind=opentelemetry.trace.SpanKind.CLIENT,
-            attributes={"start_span_tag": "start_span_val"},
-            links=None,
-            start_time=0,
-            record_exception=False,
-            set_status_on_exception=False,
-            end_on_exit=False,
-        ) as otel_span:
+        with otel_span:
             otel_span.update_name("rename-start-span")
             raise Exception("Sorry Otel Span, I failed you")
 
     # set_status_on_exception is False
     assert otel_span._ddspan.error == 0
-    assert otel_span.is_recording()
+    assert otel_span.is_recording() is False
+    assert root.is_recording()
     otel_span.end()
     root.end()
 
