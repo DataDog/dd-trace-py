@@ -14,6 +14,7 @@ to be run at specific points during pytest execution. The most important hooks u
 from doctest import DocTest
 import json
 import os
+from pathlib import Path
 import re
 from typing import Dict  # noqa:F401
 
@@ -872,7 +873,11 @@ class _PytestDDTracePluginV1:
         def pytest_terminal_summary(terminalreporter, exitstatus, config):
             # Reports coverage if experimental session-level coverage is enabled.
             if USE_DD_COVERAGE and COVER_SESSION:
-                ModuleCodeCollector.report()
+                from ddtrace.ext.git import extract_workspace_path
+
+                workspace_path = Path(extract_workspace_path())
+
+                ModuleCodeCollector.report(workspace_path)
                 try:
                     ModuleCodeCollector.write_json_report_to_file("dd_coverage.json")
                 except Exception:
