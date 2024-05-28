@@ -33,8 +33,7 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ..internal.utils.get_module import find_package_name
-from ..internal.utils.get_module import get_entrypoint_path_and_module
+from ..internal.utils.get_inferred_service import get_inferred_service
 from ..pin import Pin
 from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
@@ -442,15 +441,8 @@ class Config(object):
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
 
-        inferred_path, inferred_module = get_entrypoint_path_and_module()
-        self.inferred_service = None
-        inferred_pkg = find_package_name(inferred_path if inferred_path else os.getcwd())
-        if inferred_pkg:
-            self.inferred_service = inferred_pkg
-        else:
-            self.inferred_service = inferred_module
-
-        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME)))
+        _default_service = get_inferred_service(default=DEFAULT_SPAN_SERVICE_NAME)
+        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", _default_service)))
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))

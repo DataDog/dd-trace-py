@@ -6,9 +6,9 @@ from unittest.mock import patch
 import pytest
 import toml
 
-from ddtrace.internal.utils.get_module import find_package_name
-from ddtrace.internal.utils.get_module import get_entrypoint_path_and_module
-from ddtrace.internal.utils.get_module import search_files
+from ddtrace.internal.utils.get_inferred_service import _find_package_name
+from ddtrace.internal.utils.get_inferred_service import _get_entrypoint_path_and_module
+from ddtrace.internal.utils.get_inferred_service import _search_files
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_get_entrypoint_path(mock_psutil_process, cmdline, expected_entrypoint):
     with patch("pathlib.Path.exists") as mock_exists:
         # Make exists() return True for all paths ending with 'script.py'
         mock_exists.side_effect = lambda: any(arg.endswith("script.py") for arg in cmdline)
-        _, entrypoint_module = get_entrypoint_path_and_module()
+        _, entrypoint_module = _get_entrypoint_path_and_module()
         assert entrypoint_module == expected_entrypoint
 
 
@@ -87,7 +87,7 @@ def test_find_package_name_setup_py(mock_search_files, mocker):
     mock_open_obj = mock_open(read_data=setup_py_content)
     mocker.patch("builtins.open", mock_open_obj)
 
-    package_name = find_package_name("/start/path")
+    package_name = _find_package_name("/start/path")
     assert package_name == "ddtrace"
 
 
@@ -113,7 +113,7 @@ def test_find_package_name_pyproject_toml(mock_search_files, mocker):
     mocker.patch("builtins.open", mock_open_obj)
     mocker.patch("toml.load", return_value=toml.loads(pyproject_toml_content))
 
-    package_name = find_package_name("/start/path")
+    package_name = _find_package_name("/start/path")
     assert package_name == "some_project"
 
 
@@ -144,7 +144,7 @@ def test_find_package_name_pyproject_poetry_toml(mock_search_files, mocker):
     mocker.patch("builtins.open", mock_open_obj)
     mocker.patch("toml.load", return_value=toml.loads(pyproject_toml_content))
 
-    package_name = find_package_name("/start/path")
+    package_name = _find_package_name("/start/path")
     assert package_name == "your_project"
 
 
@@ -152,16 +152,16 @@ def test_search_files(mocker):
     mocker.patch("pathlib.Path.exists", return_value=True)
     file_names = ["setup.py"]
     start_path = "/start/path"
-    found_path = search_files(file_names, start_path)
+    found_path = _search_files(file_names, start_path)
     assert found_path == Path("/start/path/setup.py")
 
     file_names = ["pyproject.toml"]
     start_path = "/start/path"
-    found_path = search_files(file_names, start_path)
+    found_path = _search_files(file_names, start_path)
     assert found_path == Path("/start/path/pyproject.toml")
 
     mocker.patch("pathlib.Path.exists", return_value=False)
     file_names = ["setup.py"]
     start_path = "/start/path"
-    found_path = search_files(file_names, start_path)
+    found_path = _search_files(file_names, start_path)
     assert found_path is None

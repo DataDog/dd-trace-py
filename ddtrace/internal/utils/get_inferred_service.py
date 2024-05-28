@@ -3,14 +3,15 @@ import os
 from pathlib import Path
 import re
 
-import psutil
 import toml  # type: ignore
+
+from ddtrace.vendor import psutil
 
 
 pattern = r"[\"':;,]"
 
 
-def path_to_module(path):
+def _path_to_module(path):
     # normalize path, split off .py extension, and replace '/' with '.'
     path = os.path.normpath(path)
     module_path = os.path.splitext(path)[0]
@@ -18,7 +19,7 @@ def path_to_module(path):
     return module_path
 
 
-def get_entrypoint_path_and_module():
+def _get_entrypoint_path_and_module():
     current_process = psutil.Process(os.getpid())
     cmdline = current_process.cmdline()
     module_name = None
@@ -41,7 +42,7 @@ def get_entrypoint_path_and_module():
                 for potential_path_str in cmdline[i + 1 :]:
                     potential_path = Path(potential_path_str).resolve()
                     if potential_path.exists():
-                        module_name = path_to_module(potential_path_str)
+                        module_name = _path_to_module(potential_path_str)
                         module_path = str(potential_path)
                         break
                 break
@@ -49,7 +50,7 @@ def get_entrypoint_path_and_module():
     return module_path, module_name
 
 
-def search_files(file_names, start_path):
+def _search_files(file_names, start_path):
     current_path = Path(start_path).resolve()
 
     for parent in [current_path] + list(current_path.parents):
@@ -59,10 +60,10 @@ def search_files(file_names, start_path):
     return None
 
 
-def find_package_name(start_path):
+def _find_package_name(start_path):
     files = ["setup.py", "pyproject.toml"]
 
-    pkg_metadata = search_files(files, start_path)
+    pkg_metadata = _search_files(files, start_path)
     if pkg_metadata:
         if getattr(pkg_metadata, "name", "") == files[0]:
             with open(pkg_metadata, "r") as f:
@@ -79,3 +80,13 @@ def find_package_name(start_path):
 
                 if "tool" in pyproject_data and "poetry" in pyproject_data["tool"]:
                     return re.sub(pattern, "", pyproject_data["tool"]["poetry"].get("name"))
+
+
+def get_inferred_service(default):
+    inferred_path, inferred_module = _get_entrypoint_path_and_module()
+    inferred_pkg = _find_package_name(inferred_path if inferred_path else os.getcwd())
+    if inferred_pkg:
+        return inferred_pkg
+    elif inferred_module:
+        return inferred_module
+    return default
