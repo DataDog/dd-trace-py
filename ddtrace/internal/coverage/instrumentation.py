@@ -31,9 +31,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
                 continue
 
             # Inject the hook at the beginning of the line
-            to_inject = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
+            abstract_code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
 
-            abstract_code[i:i] = to_inject
 
             # Track the line number
             lines.add(last_lineno)

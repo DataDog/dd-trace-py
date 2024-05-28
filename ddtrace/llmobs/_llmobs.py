@@ -2,15 +2,19 @@ import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
+from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils.formats import asbool
@@ -26,11 +30,14 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -41,6 +48,13 @@ from ddtrace.llmobs.utils import Messages
 
 
 log = get_logger(__name__)
+
+
+SUPPORTED_INTEGRATIONS = {
+    "bedrock": lambda: patch(botocore=True),
+    "langchain": lambda: patch(langchain=True),
+    "openai": lambda: patch(openai=True),
+}
 
 
 class LLMObs(Service):
@@ -88,7 +102,29 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
-    def enable(cls, tracer=None):
+    def enable(
+        cls,
+        ml_app: Optional[str] = None,
+        integrations: Optional[List[str]] = None,
+        agentless_enabled: bool = False,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        env: Optional[str] = None,
+        service: Optional[str] = None,
+        _tracer=None,
+    ):
+        """
+        Enable LLM Observability tracing.
+
+        :param str ml_app: The name of your ml application.
+        :param List[str] integrations: A list of integrations to enable auto-tracing for.
+                                        Must be subset of ("openai", "langchain", "bedrock")
+        :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
+        :param str site: Your datadog site.
+        :param str api_key: Your datadog api key.
+        :param str env: Your environment name.
+        :param str service: Your service name.
+        """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -97,9 +133,22 @@ class LLMObs(Service):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
+        # grab required values for LLMObs
+        config._dd_site = site or config._dd_site
+        config._dd_api_key = api_key or config._dd_api_key
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config.env = env or config.env
+        config.service = service or config.service
+
+        # validate required values for LLMObs
         if not config._dd_api_key:
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+        if not config._dd_site:
+            raise ValueError(
+                "DD_SITE is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._llmobs_ml_app:
@@ -108,12 +157,23 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
+        if agentless_enabled or asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", "false")):
+            os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
+
+            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
+                config._telemetry_enabled = False
+                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
+                telemetry.telemetry_writer.disable()
+
+            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                config._remote_config_enabled = False
+                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
+                remoteconfig_poller.disable()
+
+        cls._patch_integrations(integrations)
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=tracer)
-
+        cls._instance = cls(tracer=_tracer)
         cls.enabled = True
-
-        # turn on llmobs trace processing
         cls._instance.start()
 
         atexit.register(cls.disable)
@@ -145,6 +205,32 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
+
+    @staticmethod
+    def _patch_integrations(integrations: Optional[List[str]] = None):
+        """
+        Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
+        """
+        integrations_to_patch = {}
+        if integrations is None:
+            integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
+        else:
+            for integration in integrations:
+                integration = integration.lower()
+                if integration in SUPPORTED_INTEGRATIONS:
+                    integrations_to_patch.update({integration: SUPPORTED_INTEGRATIONS[integration]})
+                else:
+                    log.warning(
+                        "%s is unsupported - LLMObs currently supports %s",
+                        integration,
+                        str(SUPPORTED_INTEGRATIONS.keys()),
+                    )
+        for integration in integrations_to_patch:
+            try:
+                SUPPORTED_INTEGRATIONS[integration]()
+            except Exception:
+                log.warning("couldn't patch %s", integration, exc_info=True)
+        return
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
@@ -192,6 +278,12 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
+            # For non-distributed traces or spans in the first service of a distributed trace,
+            # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
+            # in these cases to avoid conflicting with the later propagated tags.
+            parent_id = _get_llmobs_parent_id(span) or "undefined"
+            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod

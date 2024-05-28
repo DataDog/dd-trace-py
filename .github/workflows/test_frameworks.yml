@@ -16,7 +16,7 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: run_needed
         name: Check if run is needed
         run:  |
@@ -26,26 +26,45 @@ jobs:
         continue-on-error: true
 
   bottle-testsuite-0_12_19:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Bottle 0.12.19 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+
     defaults:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: bottlepy/bottle
@@ -77,40 +96,60 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
-#   sanic-testsuite-22_12:
-#     runs-on: ubuntu-20.04
-#     needs: needs-run
-#     env:
-#       # Regression test for DataDog/dd-trace-py/issues/5722
-#       DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE: true
-#       CMAKE_BUILD_PARALLEL_LEVEL: 12
-#     defaults:
-#       run:
-#         working-directory: sanic
-#     steps:
-#       - uses: actions/checkout@v3
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         with:
-#           path: ddtrace
-#       - uses: actions/checkout@v3
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         with:
-#           repository: sanic-org/sanic
-#           ref: v22.12.0
-#           path: sanic
-#       - uses: actions/setup-python@v4
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         with:
-#           python-version: "3.11"
-#       - name: Install sanic and dependencies required to run tests
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         run: pip3 install '.[test]' aioquic
-#       - name: Install ddtrace
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         run: pip3 install ../ddtrace
-#       - name: Run tests
-#         if: needs.needs-run.outputs.outcome == 'success'
-#         run: ddtrace-run pytest -k "not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params"
+  sanic-testsuite-22_12:
+    strategy:
+      matrix:
+        include:
+          # TODO: profiling fails with a timeout error
+          #- suffix: Profiling
+          #  profiling: 1
+          #  iast: 0
+          #  appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Sanic 22.12 (with ${{ matrix.suffix }})
+    runs-on: ubuntu-20.04
+    needs: needs-run
+    env:
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
+      DD_TESTING_RAISE: true
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+    defaults:
+      run:
+        working-directory: sanic
+    steps:
+      - uses: actions/checkout@v4
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v4
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          repository: sanic-org/sanic
+          ref: v22.12.0
+          path: sanic
+      - uses: actions/setup-python@v5
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          python-version: "3.11"
+      - name: Install sanic and dependencies required to run tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip3 install '.[test]' aioquic
+      - name: Install ddtrace
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip3 install ../ddtrace
+      - name: Run tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: ddtrace-run pytest -k "not test_no_exceptions_when_cancel_pending_request and not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params"
 
   django-testsuite-3_1:
     strategy:
@@ -119,15 +158,37 @@ jobs:
           - suffix: DI profiler
             expl_profiler: 1
             expl_coverage: 0
+            profiling: 1
+            iast: 0
+            appsec: 0
           - suffix: DI coverage
             expl_profiler: 0
             expl_coverage: 1
+            profiling: 1
+            iast: 0
+            appsec: 0
+          # Disabled while the bug is investigated: APPSEC-53222
+          # - suffix: IAST
+          #   expl_profiler: 0
+          #   expl_coverage: 0
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          - suffix: APPSEC
+            expl_profiler: 0
+            expl_coverage: 0
+            profiling: 0
+            iast: 0
+            appsec: 1
+
     runs-on: ubuntu-latest
     needs: needs-run
     timeout-minutes: 15
     name: Django 3.1 (with ${{ matrix.suffix }})
     env:
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
@@ -142,17 +203,17 @@ jobs:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: django/django
           ref: stable/3.1.x
           path: django
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.8"
@@ -168,7 +229,9 @@ jobs:
         run: pip install -r tests/requirements/py3.txt
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ../ddtrace
+        run: |
+          pip install envier Cython cmake
+          pip install ../ddtrace
       - name: Install django
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install -e .
@@ -192,18 +255,35 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+        run: DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
 
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
 
   graphene-testsuite-3_0:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Graphene 3.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
-      DD_PROFILING_ENABLED: true
-      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -211,11 +291,11 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: graphql-python/graphene
@@ -223,7 +303,7 @@ jobs:
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
           ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
           path: graphene
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.9"
@@ -246,26 +326,44 @@ jobs:
         run: cat debugger-expl.txt
 
   fastapi-testsuite-0_92:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: FastAPI 0.92 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: tiangolo/fastapi
@@ -292,12 +390,30 @@ jobs:
         run: cat debugger-expl.txt
 
   flask-testsuite-1_1_4:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Flask 1.1.4 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -305,17 +421,17 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: pallets/flask
           ref: 1.1.4
           path: flask
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.8'
@@ -343,23 +459,33 @@ jobs:
         run: cat debugger-expl.txt
 
   httpx-testsuite-0_22_0:
+    strategy:
+      matrix:
+        include:
+          - suffix: IAST
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            iast: 0
+            appsec: 1
+    name: Httpx 0.22.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     defaults:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
@@ -379,16 +505,36 @@ jobs:
           DD_HTTPX_DISTRIBUTED_TRACING: "false"
           # Debugger exploration testing does not work in CI
           # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+          DD_IAST_ENABLED: ${{ matrix.iast }}
+          DD_APPSEC_ENABLED: ${{ matrix.appsec }}
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
         run: pytest -k 'not test_pool_timeout'
 
   mako-testsuite-1_3_0:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Mako 1.3.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
     env:
       TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -396,17 +542,17 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: sqlalchemy/mako
           ref: rel_1_3_0
           path: mako
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.8'
@@ -434,11 +580,30 @@ jobs:
         run: cat debugger-expl.txt
 
   starlette-testsuite-0_37_1:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          # Disabled while the bug is investigated: APPSEC-53221
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+    name: Starlette 0.37.1 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -446,7 +611,7 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
@@ -462,7 +627,9 @@ jobs:
           path: starlette
       - name: Install ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install ../ddtrace
+        run: |
+          pip install envier Cython cmake
+          pip install ../ddtrace
       - name: Install dependencies
         if: needs.needs-run.outputs.outcome == 'success'
         run: scripts/install
@@ -476,26 +643,44 @@ jobs:
         run: cat debugger-expl.txt
 
   requests-testsuite-2_26_0:
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Requests 2.26.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
     defaults:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: psf/requests
@@ -510,6 +695,9 @@ jobs:
       - name: MarkupSafe fix
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install --upgrade MarkupSafe==2.0.1
+      - name: Pytest fix
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install --upgrade pytest==5.4.3
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests
@@ -519,25 +707,43 @@ jobs:
 
   asyncpg-testsuite-0_27_0:
     # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: AsyncPG 0.27.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: asyncpg
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: magicstack/asyncpg
@@ -559,26 +765,37 @@ jobs:
         run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter' tests
 
   gunicorn-testsuite-20_1_0:
-    name: gunicorn 20.1.0
+    strategy:
+      matrix:
+        include:
+          - suffix: IAST
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            iast: 0
+            appsec: 1
+    name: gunicorn 20.1.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: benoitc/gunicorn
@@ -593,12 +810,29 @@ jobs:
           pytest -p no:warnings -k "not test_import" tests/
 
   uwsgi-testsuite-2_0_21:
-    name: uwsgi 2.0.21
+    strategy:
+      matrix:
+        include:
+          - suffix: Profiling
+            profiling: 1
+            iast: 0
+            appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: uwsgi 2.0.21 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
@@ -606,15 +840,15 @@ jobs:
       run:
         working-directory: uwsgi
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           repository: unbit/uwsgi
@@ -650,3 +884,53 @@ jobs:
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+
+  beautifulsoup-testsuite-4_12_3:
+    strategy:
+      matrix:
+        include:
+          # TODO: profiling is disabled due to a bug in the profiler paths
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
+    name: Beautifulsoup 4.12.3 (with ${{ matrix.suffix }})
+    runs-on: "ubuntu-latest"
+    needs: needs-run
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
+      DD_IAST_ENABLED: ${{ matrix.iast }}
+      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 12
+      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+    steps:
+      - uses: actions/setup-python@v5
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v4
+        if: needs.needs-run.outputs.outcome == 'success'
+        with:
+          path: ddtrace
+      - name: Checkout beautifulsoup
+        if: needs.needs-run.outputs.outcome == 'success'
+        run:  |
+          git clone -b 4.12.3 https://git.launchpad.net/beautifulsoup
+      - name: Install ddtrace
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install ddtrace
+      - name: Pytest fix
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: pip install pytest==8.2.1
+      - name: Run tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cd beautifulsoup && ddtrace-run pytest

@@ -424,6 +424,11 @@ if not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
         Extension(
+            "ddtrace.internal._threads",
+            sources=["ddtrace/internal/_threads.cpp"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+        ),
+        Extension(
             "ddtrace.internal.coverage._native",
             sources=[
                 "ddtrace/internal/coverage/_native.c",
@@ -475,7 +480,7 @@ else:
 
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],

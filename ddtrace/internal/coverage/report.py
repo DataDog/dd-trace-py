@@ -80,6 +80,7 @@ def print_coverage_report(executable_lines, covered_lines, workspace_path: Path,
     total_executable_lines = 0
     total_covered_lines = 0
     total_missed_lines = 0
+    n = max(len(path) for path in executable_lines) + 4
 
     if len(executable_lines) == 0:
         print("No Datadog line coverage recorded.")
