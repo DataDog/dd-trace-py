@@ -985,9 +985,22 @@ def test_rc_rules_data(tracer):
         config = {
             "rules_data": [],
             "custom_rules": [],
+            "actions": [],
             "rules": json.load(dd_rules)["rules"],
+            "rules_override": [],
+            "scanners": [],
+            "processors": [],
+            "ignore": [],
         }
-        assert _appsec_rules_data(config, tracer)
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data(config, tracer)
+            calls = mock_update.mock_calls
+            for v in config:
+                if v == "ignore":
+                    assert v not in calls[-1][1][1]
+                else:
+                    assert v in calls[-1][1][1]
 
 
 def test_rc_rules_data_error_empty(tracer):
