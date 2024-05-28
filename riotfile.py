@@ -2495,9 +2495,9 @@ venv = Venv(
             venvs=[
                 Venv(
                     pkgs={
-                        "langchain": "==0.0.354",
-                        "langchain-community": "==0.0.8",
-                        "openai": "==1.6.1",
+                        "langchain": "==0.0.192",
+                        "langchain-community": "==0.0.14",
+                        "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
                     }
                 ),

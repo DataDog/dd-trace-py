@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -28,7 +27,6 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain_community")
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(
     ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
@@ -80,7 +78,6 @@ def test_global_tags(
         )
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
@@ -88,7 +85,6 @@ def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
@@ -124,7 +120,6 @@ async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr)
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
@@ -220,7 +215,6 @@ def test_llm_logs(
     mock_metrics.count.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -228,7 +222,6 @@ def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_opena
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -322,7 +315,6 @@ async def test_openai_chat_model_async_stream(langchain, langchain_openai, reque
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
-@flaky(1735812000)
 def test_chat_model_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
@@ -350,7 +342,6 @@ def test_chat_model_metrics(langchain, langchain_openai, request_vcr, mock_metri
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -481,7 +472,6 @@ def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr,
     mock_metrics.count.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     """
@@ -493,7 +483,6 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
         chain.invoke("what is two raised to the fifty-fourth power?")
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
 def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -503,7 +492,6 @@ def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
         chain.invoke(input={"base": "two"})
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
 def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
@@ -591,7 +579,6 @@ def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
         sequential_chain.invoke({"text": input_text, "style": "a 90s rapper"})
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
@@ -671,7 +658,6 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
         await sequential_chain.ainvoke({"input_text": input_text})
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -995,7 +981,6 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     assert err == b""
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1114,7 +1099,6 @@ def test_embedding_logs_when_response_not_completed(
     )
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
@@ -1127,7 +1111,6 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
         chain.invoke({"input": "how can langsmith help with testing?"})
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
@@ -1170,7 +1153,6 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
         await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
@@ -1187,7 +1169,6 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
         chain.batch(inputs=["chickens", "pigs"])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
@@ -1204,7 +1185,6 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
         chain.batch(inputs=["chickens", "pigs"])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
@@ -1228,7 +1208,6 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
-@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):

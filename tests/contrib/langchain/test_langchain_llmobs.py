@@ -106,8 +106,10 @@ class BaseTestLLMObsLangchain:
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if batch:
                 chain.batch(inputs=prompt)
-            else:
+            elif SHOULD_PATCH_LANGCHAIN_COMMUNITY:
                 chain.invoke(prompt)
+            else:
+                chain.run(prompt)
         LLMObs.disable()
         return mock_tracer.pop_traces()[0]
 
@@ -208,21 +210,21 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             input_value=json.dumps({"question": "what is two raised to the fifty-fourth power?"}),
             output_value=json.dumps(
                 {"question": "what is two raised to the fifty-fourth power?", "answer": "Answer: 18014398509481984"}
-            ),  # noqa: E501
+            ),
         )
         _assert_expected_llmobs_chain_span(
             trace[1],
             mock_llmobs_span_writer,
             input_value=json.dumps(
                 {"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"]}
-            ),  # noqa: E501
+            ),
             output_value=json.dumps(
                 {
                     "question": "what is two raised to the fifty-fourth power?",
                     "stop": ["```output"],
                     "text": '```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
                 }
-            ),  # noqa: E501
+            ),
         )
         _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
 
@@ -278,7 +280,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         )
         chain = langchain.chains.LLMChain(
             prompt=prompt, llm=langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
-        )  # noqa: E501
+        )
         trace = self._invoke_chain(
             chain=chain,
             prompt={
@@ -286,7 +288,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 "history": [
                     HumanMessage(content="Can you be my science teacher instead?"),
                     AIMessage(content="Yes"),
-                ],  # noqa: E501
+                ],
                 "input": "What's the powerhouse of the cell?",
             },
             mock_tracer=mock_tracer,
@@ -374,7 +376,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
             [("system", "You are world class technical documentation writer."), ("user", "{input}")]
-        )  # noqa: E501
+        )
         chain = prompt | langchain_openai.OpenAI()
         expected_output = (
             "\nSystem: Langsmith can help with testing in several ways. "
@@ -405,7 +407,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
         prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
             "what country is the city {city} in? respond in {language}"
-        )  # noqa: E501
+        )
         model = langchain_openai.ChatOpenAI()
         chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
         chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
