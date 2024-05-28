@@ -30,11 +30,14 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -275,6 +278,12 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
+            # For non-distributed traces or spans in the first service of a distributed trace,
+            # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
+            # in these cases to avoid conflicting with the later propagated tags.
+            parent_id = _get_llmobs_parent_id(span) or "undefined"
+            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod
