@@ -5,6 +5,9 @@ This module patches the multiprocessing module to install and start coverage col
 The close, join, kill, and terminate methods are patched to ensure that coverage data is consumed when the
 process finishes. Programs that do not call one of these methods will not collect coverage for the processes
 started via multiprocessing.
+
+Inspired by the coverage.py multiprocessing support at
+https://github.com/nedbat/coveragepy/blob/401a63bf08bdfd780b662f64d2dfe3603f2584dd/coverage/multiproc.py
 """
 
 import json
@@ -96,7 +99,14 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
 
 class Stowaway:
-    """An object to pickle, so when it is unpickled, it can apply the monkey-patch."""
+    """Stowaway is unpickled as part of the child's get_preparation_data() method
+
+    This which happens at the start of the process, which is when the ModuleCodeProcessor needs to be installed in order
+    to instrument all the code being loaded in the child process.
+
+    The _bootstrap method is called too late in the spawn or forkserver process start-up sequence and installing the
+    ModuleCodeCollector in it leads to incomplete code coverage data.
+    """
 
     def __init__(self, include_paths: t.Optional[t.List[Path]] = None, dd_coverage_enabled: bool = True) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
@@ -141,7 +151,7 @@ def _patch_multiprocessing():
     else:
 
         def get_preparation_data_with_stowaway(name: str) -> t.Dict[str, t.Any]:
-            """Get the original preparation data, and also insert our stowaway."""
+            """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
             d = original_get_preparation_data(name)
             include_paths = (
                 [] if ModuleCodeCollector._instance is None else ModuleCodeCollector._instance._include_paths
