@@ -44,18 +44,22 @@ def _dd_parse_pg_dsn(dsn):
 # Do not import from psycopg directly! This reference will be updated at runtime to use
 # a better implementation that is provided by the psycopg library.
 # This is done to avoid circular imports.
-parse_pg_dsn = _dd_parse_pg_dsn
 
+# Parser for psycopg2
+parse_pg_dsn2 = _dd_parse_pg_dsn
+
+# Parser for psycopg3
+parse_pg_dsn3 = _dd_parse_pg_dsn
 
 @ModuleWatchdog.after_module_imported("psycopg2")
 def use_psycopg2_parse_dsn(psycopg_module):
     """Replaces parse_pg_dsn with the helper function defined in psycopg2"""
-    global parse_pg_dsn
+    global parse_pg_dsn2
 
     try:
         from psycopg2.extensions import parse_dsn
 
-        parse_pg_dsn = parse_dsn
+        parse_pg_dsn2 = parse_dsn
     except ImportError:
         # Best effort, we'll use our own parser: _dd_parse_pg_dsn
         pass
@@ -64,12 +68,12 @@ def use_psycopg2_parse_dsn(psycopg_module):
 @ModuleWatchdog.after_module_imported("psycopg")
 def use_psycopg3_parse_dsn(psycopg_module):
     """Replaces parse_pg_dsn with the helper function defined in psycopg3"""
-    global parse_pg_dsn
+    global parse_pg_dsn3
 
     try:
         from psycopg.conninfo import conninfo_to_dict
 
-        parse_pg_dsn = conninfo_to_dict
+        parse_pg_dsn3 = conninfo_to_dict
     except ImportError:
         # Best effort, we'll use our own parser: _dd_parse_pg_dsn
         pass

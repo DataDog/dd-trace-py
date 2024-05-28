@@ -66,9 +66,9 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     # if the connection has an info attr, we are using psycopg3
     if hasattr(conn, "dsn"):
-        dsn = sql.parse_pg_dsn(conn.dsn)
+        dsn = sql.parse_pg_dsn2(conn.dsn)
     else:
-        dsn = sql.parse_pg_dsn(conn.info.dsn)
+        dsn = sql.parse_pg_dsn3(conn.info.dsn)
 
     tags = {
         net.TARGET_HOST: dsn.get("host"),
