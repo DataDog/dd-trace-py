@@ -6,6 +6,7 @@ import sys
 
 import yaml
 
+
 SHOULD_PROFILE = os.environ.get("PROFILE_BENCHMARKS", "0") == "1"
 
 
