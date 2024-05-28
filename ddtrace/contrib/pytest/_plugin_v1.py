@@ -865,9 +865,9 @@ class _PytestDDTracePluginV1:
                 return "%s.%s" % (item.cls.__name__, item.name)
         return item.name
 
-
     # Internal coverage is only used for ITR at the moment, so the hook is only added if the pytest version supports it
     if _pytest_version_supports_itr():
+
         @staticmethod
         @pytest.hookimpl(trylast=True)
         def pytest_terminal_summary(terminalreporter, exitstatus, config):
