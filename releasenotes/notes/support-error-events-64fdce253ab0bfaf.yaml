@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    opentelemetry: Adds support for recording exceptions as span events.
