@@ -143,18 +143,20 @@ appsec-disabled-iast-worst-ep-disabled:
   extends: .macrobenchmarks
   variables:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
-    BP_PYTHON_SCENARIO_DIR: flask-iast
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_APPSEC_ENABLED: "false"
     DD_IAST_ENABLED: "true"
     DD_APPSEC_RASP_ENABLED: "false"
+    IAST_WORST: "true"
 
 appsec-enabled-iast-worst-ep-disabled:
   extends: .macrobenchmarks
   variables:
     DD_BENCHMARKS_CONFIGURATION: only-tracing
-    BP_PYTHON_SCENARIO_DIR: flask-iast
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_APPSEC_ENABLED: "true"
     DD_IAST_ENABLED: "true"
     DD_APPSEC_RASP_ENABLED: "false"
+    IAST_WORST: "true"
