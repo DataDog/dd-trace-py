@@ -8,6 +8,9 @@ from typing import Optional  # noqa:F401
 
 import attr
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 
@@ -60,20 +63,29 @@ class RateLimiter(object):
     def _has_been_configured(self):
         return self.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
 
-    def is_allowed(self, timestamp_ns: int) -> bool:
+    def is_allowed(self, timestamp_ns: Optional[int] = None) -> bool:
         """
         Check whether the current request is allowed or not
 
         This method will also reduce the number of available tokens by 1
 
-        :param int timestamp_ns: timestamp in nanoseconds for the current request.
+        :param int timestamp_ns: timestamp in nanoseconds for the current request [deprecated].
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-        # Determine if it is allowed
-        allowed = self._is_allowed(timestamp_ns)
-        # Update counts used to determine effective rate
-        self._update_rate_counts(allowed, timestamp_ns)
+        if timestamp_ns is not None:
+            deprecate(
+                "The `timestamp_ns` parameter is deprecated and will be removed in a future version."
+                "Ratelimiter will use the current time.",
+                category=DDTraceDeprecationWarning,
+            )
+        # Lock, we need this to be thread safe, it should be shared by all threads
+        with self._lock:
+            timestamp_ns = compat.monotonic_ns()
+            # Determine if it is allowed
+            allowed = self._is_allowed(timestamp_ns)
+            # Update counts used to determine effective rate
+            self._update_rate_counts(allowed, timestamp_ns)
         return allowed
 
     def _update_rate_counts(self, allowed: bool, timestamp_ns: int) -> None:
@@ -105,15 +117,13 @@ class RateLimiter(object):
         elif self.rate_limit < 0:
             return True
 
-        # Lock, we need this to be thread safe, it should be shared by all threads
-        with self._lock:
-            self._replenish(timestamp_ns)
+        self._replenish(timestamp_ns)
 
-            if self.tokens >= 1:
-                self.tokens -= 1
-                return True
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return True
 
-            return False
+        return False
 
     def _replenish(self, timestamp_ns: int) -> None:
         try:
