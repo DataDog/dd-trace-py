@@ -51,6 +51,7 @@ parse_pg_dsn2 = _dd_parse_pg_dsn
 # Parser for psycopg3
 parse_pg_dsn3 = _dd_parse_pg_dsn
 
+
 @ModuleWatchdog.after_module_imported("psycopg2")
 def use_psycopg2_parse_dsn(psycopg_module):
     """Replaces parse_pg_dsn2 with the helper function defined in psycopg2"""
