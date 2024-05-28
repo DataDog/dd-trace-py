@@ -2513,6 +2513,20 @@ venv = Venv(
                         "pinecone-client": latest,
                     }
                 ),
+                Venv(
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-community": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langsmith": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "langchain-aws": latest,
+                    }
+                ),
             ],
         ),
         Venv(

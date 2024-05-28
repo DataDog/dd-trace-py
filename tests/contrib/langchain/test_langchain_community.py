@@ -1,4 +1,3 @@
-import json
 from operator import itemgetter
 import os
 import re
@@ -10,10 +9,7 @@ import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 from tests.utils import override_global_config
 

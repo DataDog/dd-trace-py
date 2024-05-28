@@ -8,6 +8,7 @@ import pytest
 from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.utils import override_global_config
 

@@ -13,6 +13,7 @@ from tests.contrib.langchain.utils import long_input_text
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
     from langchain_core.messages import AIMessage
     from langchain_core.messages import ChatMessage
@@ -81,7 +82,7 @@ class BaseTestLLMObsLangchain:
 
     @classmethod
     def _invoke_llm(cls, llm, prompt, mock_tracer, cassette_name):
-        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False,_tracer=mock_tracer)
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             llm.invoke(prompt)
         LLMObs.disable()
@@ -89,7 +90,7 @@ class BaseTestLLMObsLangchain:
 
     @classmethod
     def _invoke_chat(cls, chat_model, prompt, mock_tracer, cassette_name, role="user"):
-        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False,_tracer=mock_tracer)
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if role == "user":
                 messages = [HumanMessage(content=prompt)]
@@ -101,7 +102,7 @@ class BaseTestLLMObsLangchain:
 
     @classmethod
     def _invoke_chain(cls, chain, prompt, mock_tracer, cassette_name, batch=False):
-        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False,_tracer=mock_tracer)
+        LLMObs.enable(ml_app=cls.ml_app, integrations_enabled=False, _tracer=mock_tracer)
         with get_request_vcr(subdirectory_name=cls.cassette_subdirectory_name).use_cassette(cassette_name):
             if batch:
                 chain.batch(inputs=prompt)
@@ -143,7 +144,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             llm=llm,
             prompt="Can you explain what Descartes meant by 'I think, therefore I am'?",
             mock_tracer=mock_tracer,
-            cassette_name="ai21_completion_sync.yaml"
+            cassette_name="ai21_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
@@ -158,7 +159,7 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             llm=llm,
             prompt="Can you explain what Descartes meant by 'I think, therefore I am'?",
             mock_tracer=mock_tracer,
-            cassette_name="huggingfacehub_completion_sync.yaml"
+            cassette_name="huggingfacehub_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
@@ -205,13 +206,23 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
             trace[0],
             mock_llmobs_span_writer,
             input_value=json.dumps({"question": "what is two raised to the fifty-fourth power?"}),
-            output_value=json.dumps({"question": "what is two raised to the fifty-fourth power?", "answer": "Answer: 18014398509481984"}),  # noqa: E501
+            output_value=json.dumps(
+                {"question": "what is two raised to the fifty-fourth power?", "answer": "Answer: 18014398509481984"}
+            ),  # noqa: E501
         )
         _assert_expected_llmobs_chain_span(
             trace[1],
             mock_llmobs_span_writer,
-            input_value=json.dumps({"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"]}),  # noqa: E501
-            output_value=json.dumps({"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"], "text": '```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n'}),  # noqa: E501
+            input_value=json.dumps(
+                {"question": "what is two raised to the fifty-fourth power?", "stop": ["```output"]}
+            ),  # noqa: E501
+            output_value=json.dumps(
+                {
+                    "question": "what is two raised to the fifty-fourth power?",
+                    "stop": ["```output"],
+                    "text": '```text\n2**54\n```\n...numexpr.evaluate("2**54")...\n',
+                }
+            ),  # noqa: E501
         )
         _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
 
@@ -241,10 +252,14 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 5
         _assert_expected_llmobs_chain_span(
-            trace[0], mock_llmobs_span_writer, input_value=json.dumps({"input_text": input_text}),
+            trace[0],
+            mock_llmobs_span_writer,
+            input_value=json.dumps({"input_text": input_text}),
         )
         _assert_expected_llmobs_chain_span(
-            trace[1], mock_llmobs_span_writer, input_value=json.dumps({"input_text": input_text}),
+            trace[1],
+            mock_llmobs_span_writer,
+            input_value=json.dumps({"input_text": input_text}),
         )
         _assert_expected_llmobs_llm_span(trace[2], mock_llmobs_span_writer)
         _assert_expected_llmobs_chain_span(trace[3], mock_llmobs_span_writer)
@@ -261,12 +276,17 @@ class TestLLMObsLangchain(BaseTestLLMObsLangchain):
                 langchain.prompts.HumanMessagePromptTemplate.from_template("{input}"),
             ]
         )
-        chain = langchain.chains.LLMChain(prompt=prompt, llm=langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256))  # noqa: E501
+        chain = langchain.chains.LLMChain(
+            prompt=prompt, llm=langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
+        )  # noqa: E501
         trace = self._invoke_chain(
             chain=chain,
             prompt={
                 "ability": "world capitals",
-                "history": [HumanMessage(content="Can you be my science teacher instead?"), AIMessage(content="Yes")],  # noqa: E501
+                "history": [
+                    HumanMessage(content="Can you be my science teacher instead?"),
+                    AIMessage(content="Yes"),
+                ],  # noqa: E501
                 "input": "What's the powerhouse of the cell?",
             },
             mock_tracer=mock_tracer,
@@ -352,7 +372,9 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="custom")
 
     def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
-        prompt = langchain_core.prompts.ChatPromptTemplate.from_messages([("system", "You are world class technical documentation writer."), ("user", "{input}")])  # noqa: E501
+        prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
+            [("system", "You are world class technical documentation writer."), ("user", "{input}")]
+        )  # noqa: E501
         chain = prompt | langchain_openai.OpenAI()
         expected_output = (
             "\nSystem: Langsmith can help with testing in several ways. "
@@ -381,7 +403,9 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
     def test_llmobs_chain_nested(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer):
         prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
-        prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template("what country is the city {city} in? respond in {language}")  # noqa: E501
+        prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
+            "what country is the city {city} in? respond in {language}"
+        )  # noqa: E501
         model = langchain_openai.ChatOpenAI()
         chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
         chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
@@ -456,7 +480,13 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             trace[0],
             mock_llmobs_span_writer,
             input_value=json.dumps(
-                [{"ability": "world capitals", "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]], "input": "What's the powerhouse of the cell?"}]
+                [
+                    {
+                        "ability": "world capitals",
+                        "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                        "input": "What's the powerhouse of the cell?",
+                    }
+                ]
             ),
             output_value=json.dumps(["assistant", "Mitochondria."]),
         )
