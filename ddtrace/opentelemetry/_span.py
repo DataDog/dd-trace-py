@@ -222,17 +222,21 @@ class Span(OtelSpan):
             return
         # Set the error type, error message and error stacktrace tags on the span
         self._ddspan._set_exc_tags(type(exception), exception, exception.__traceback__)
+        if attributes and "exception.message" in attributes:
+            # Error message stored in attributes must take precedence over the exception message
+            self.set_attribute(ERROR_MSG, attributes["exception.message"])
         # Set exception attributes in a manner that is consistent with the opentelemetry sdk
         # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
         # We will not set the exception.stacktrace attribute, this will reduce the size of the span event
-        exception_atrrs = {
+        atrrs = {
             "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
             "exception.message": str(exception),
             "exception.escaped": str(escaped),
         }
         if attributes:
-            exception_atrrs.update(attributes)
-        self.add_event(name="exception", attributes=exception_atrrs, timestamp=timestamp)
+            # User provided attributes must take precedence over atrrs
+            atrrs.update(attributes)
+        self.add_event(name="exception", attributes=atrrs, timestamp=timestamp)
 
     def __enter__(self):
         # type: () -> Span
