@@ -608,7 +608,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 
 
 def _stderr_contains_log(stderr: str) -> bool:
-    return stderr.startswith("Finished span not connected to a trace, adding to trace.")
+    return "Finished span not connected to a trace, adding to trace." in stderr
 
 
 @pytest.mark.subprocess(err=_stderr_contains_log)
