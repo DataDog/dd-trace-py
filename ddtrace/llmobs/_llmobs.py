@@ -175,6 +175,12 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
+    def _integration_is_enabled(cls, integration):
+        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+            return False
+        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+
+    @classmethod
     def disable(cls) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
