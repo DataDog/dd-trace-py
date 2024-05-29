@@ -65,7 +65,7 @@ def patch_conn(conn, traced_conn_cls, pin=None):
     c = traced_conn_cls(conn)
     dsn = sql.parse_pg_conn_dsn(conn)
 
-    if dsn:
+    if dsn is not None:
         tags = {
             net.TARGET_HOST: dsn.get("host"),
             net.TARGET_PORT: dsn.get("port", 5432),
