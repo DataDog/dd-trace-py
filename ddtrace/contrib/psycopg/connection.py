@@ -75,7 +75,9 @@ def patch_conn(conn, traced_conn_cls, pin=None):
             db.SYSTEM: "postgresql",
         }
     else:
-        tags = {}
+        tags = {
+            db.SYSTEM: "postgresql",
+        }
 
     Pin(tags=tags, _config=_config).onto(c)
     return c

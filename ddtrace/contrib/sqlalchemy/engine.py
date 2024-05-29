@@ -157,8 +157,7 @@ def _set_tags_from_cursor(span, vendor, cursor):
     """attempt to set db connection tags by introspecting the cursor."""
     if "postgres" == vendor:
         if hasattr(cursor, "connection"):
-            conn = cursor.connection
-            dsn = sqlx.parse_pg_conn_dsn(conn)
+            dsn = sqlx.parse_pg_conn_dsn(cursor.connection)
 
             if dsn:
                 span.set_tag_str(sqlx.DB, dsn.get("dbname"))
