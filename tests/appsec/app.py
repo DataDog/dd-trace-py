@@ -9,6 +9,7 @@ from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+from tests.appsec.iast_packages.packages.pkg_beautifulsoup4 import pkg_beautifulsoup4
 from tests.appsec.iast_packages.packages.pkg_chartset_normalizer import pkg_chartset_normalizer
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
@@ -17,9 +18,11 @@ from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_d
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
 from tests.appsec.iast_packages.packages.pkg_urllib3 import pkg_urllib3
+import tests.appsec.integrations.module_with_import_errors as module_with_import_errors
 
 
 app = Flask(__name__)
+app.register_blueprint(pkg_beautifulsoup4)
 app.register_blueprint(pkg_chartset_normalizer)
 app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_idna)
@@ -57,6 +60,11 @@ def iast_cmdi_vulnerability():
     resp = Response("OK")
     resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
     return resp
+
+
+@app.route("/iast-ast-patching-import-error", methods=["GET"])
+def iast_ast_patching_import_error():
+    return Response(str(module_with_import_errors.verbal_kint_is_keyser_soze))
 
 
 if __name__ == "__main__":

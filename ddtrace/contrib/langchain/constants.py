@@ -1,5 +1,4 @@
 text_embedding_models = (
-    "OpenAIEmbeddings",
     "HuggingFaceEmbeddings",
     "CohereEmbeddings",
     "ElasticsearchEmbeddings",

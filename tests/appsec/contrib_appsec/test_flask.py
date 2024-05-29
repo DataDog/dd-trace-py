@@ -1,15 +1,13 @@
-import flask
 from flask.testing import FlaskClient
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.flask import patch
-from ddtrace.contrib.flask import unpatch
+from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
 
 
-FLASK_VERSION = tuple(int(v) for v in flask.__version__.split("."))
+FLASK_VERSION = tuple(int(v) for v in get_version_for_package("flask").split("."))
 
 
 class DDFlaskTestClient(FlaskClient):
@@ -34,9 +32,6 @@ class DDFlaskTestClient(FlaskClient):
 class BaseFlaskTestCase(TracerTestCase):
     def setUp(self):
         super(BaseFlaskTestCase, self).setUp()
-
-        patch()
-
         from tests.appsec.contrib_appsec.flask_app.app import app
 
         self.app = app
@@ -46,8 +41,6 @@ class BaseFlaskTestCase(TracerTestCase):
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()
-        # Unpatch Flask
-        unpatch()
 
 
 class Test_Flask(utils.Contrib_TestClass_For_Threats):
@@ -58,6 +51,7 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
         bftc.setUp()
         bftc.app.config["SERVER_NAME"] = f"localhost:{self.SERVER_PORT}"
         interface = utils.Interface("flask", bftc.app, bftc.client)
+        interface.version = FLASK_VERSION
 
         initial_get = bftc.client.get
 

@@ -103,11 +103,13 @@ class FilterOrg(TraceFilter):
 @pytest.fixture(scope="session")
 def mock_metrics():
     patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
-    DogStatsdMock = patcher.start()
-    m = mock.MagicMock()
-    DogStatsdMock.return_value = m
-    yield m
-    patcher.stop()
+    try:
+        DogStatsdMock = patcher.start()
+        m = mock.MagicMock()
+        DogStatsdMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 
 @pytest.fixture
@@ -117,21 +119,25 @@ def mock_logs(scope="session"):
     before it is instantiated.
     """
     patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
-    V2LogWriterMock = patcher.start()
-    m = mock.MagicMock()
-    V2LogWriterMock.return_value = m
-    yield m
-    patcher.stop()
+    try:
+        V2LogWriterMock = patcher.start()
+        m = mock.MagicMock()
+        V2LogWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 
 @pytest.fixture
 def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsWriter")
-    LLMObsWriterMock = patcher.start()
-    m = mock.MagicMock()
-    LLMObsWriterMock.return_value = m
-    yield m
-    patcher.stop()
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    try:
+        LLMObsSpanWriterMock = patcher.start()
+        m = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 
 @pytest.fixture
@@ -185,9 +191,10 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
+        LLMObs.enable(_tracer=mock_tracer, integrations=["openai"])
 
     yield mock_tracer
 
     mock_logs.reset_mock()
     mock_metrics.reset_mock()
+    LLMObs.disable()

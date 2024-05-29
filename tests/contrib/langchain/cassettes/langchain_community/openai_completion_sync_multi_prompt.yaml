@@ -1,0 +1,113 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["What is the best way to
+      teach a baby multiple languages?", "How many times has Spongebob failed his
+      road test?"], "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n":
+      1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '285'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5RV224bRwx991cQepYFX+VYjylSwCh6Q9y8NIXBneXu0podbodcyWoQIL/R3+uX
+        FJxVLKW5AH0RFsPh4eGZQ+rdCcCM69kKZqEf4umLv3R5trs6vz3bxj/f/Hr3Pf/0As82y8cfrrc8
+        m/ttqR4pmGcYPdlDkH6IZCxpCodMaOSI5zdntzfXy+XVVQn0UlP0tHaw08vF9amNuZJTTmp5DLbP
+        7oQD6WwFv58AALwrvzDV8uS36W06X8Brw2xAmONuBfcdlU+mDAih41gDK9DTIEo1mEA/RuMhEkRM
+        7Ygt6RysZKknscGWY4SKoJHskd6zImFOgKmGTIacSmABr54GyqaQKUjfU6pBnQ2nFipqJFOBxpZA
+        GpBEC+d8sYCfE8FAWSXN/fiZywruzPlyP0g2TFZIEIZufx2m0lNn/3z4WyFyQ84wSFJWo2RxBzoQ
+        rj9B9isT5/uOdeqxozgc0KDmpqFMyRiNoCLbEqWDTKV73AjXXqsZlSWVfi4X8JsScN9T9sMV3E2f
+        qT1C3xN/LnIEzFqoSlNu9KIG1DQUjDcEW9xpIV9UOGohyFhgQxxr8o5TXSpyT7Bl6yBhAShaUNY5
+        bNFC53fu34B2slWQDLGIVjLdHMrhG1RLv1cL+BHX5FZpxrSCl1gx6d4iFamBdVnGtoMh4q7I1owJ
+        0PthY9IF3KUgeZDsQrfYuwdVUqvzctvEW+7QgNNG4oa+qpxTdiqltvdA6VF2WMWDewvl6wW8pCOL
+        rOC7j99h5/qvaQfbjtIksyMhVFjtvjAuPnEc1l4bIctonKjQLkx0LKZHA9pQ3vm77puoP/duwOxE
+        Y/S38JBif2TZPMa95MvJYhvWESMg17qCXzjYmF26JqJ2AXO9168SWevkAWVfSbCVXE8GHrqM6p5L
+        XxQ0YPrvWKCqhDISE0rBtY44Q5CcSQeZnDdtw4nwzQJepSBj9j58N4yJA1qZjkPgUMQERv3GO3e0
+        Axfr+aGrHRyV3g/3R4U/lbG0nZE/DiTnsmDLLuVU09NsBWfPJ1HaIUvlezeNMT6fN5xYu4dMqJJ8
+        /UZKrXWzEn8///qKfj1IaqmSCjpUaJAj1eADnAVrMJ+Xq5sytrr4nNj5/yemJsOe1gnAH+XPZFRs
+        abbaM5wNWfrBHkzWlBzw4nKCmx3+wo6Cy9t91MQwHgVuL068yPuTfwEAAP//AwDL4NsmPAcAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 86051132180942a5-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 20:24:06 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=t36Lbizu3fS3zBSLCgjK2do97J4VU5ogB47CiCVa9D0-1709756646-1.0.1.1-VNZB5yUrow70GSARFIeREg45e6flsdKmFx1HIo_LeP.u05BWFWmlMHuVmokjqX5tpEkNyHD1.ySHGx8CJxBmqg;
+        path=/; expires=Wed, 06-Mar-24 20:54:06 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=DhdIuc2pBflQbEDh6yA9gk9_HpKU_QDPi9tJiZT1gWc-1709756646847-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2572'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249462'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 129ms
+      x-request-id:
+      - req_d5462d3ec4061832658507c24c9ca550
+    status:
+      code: 200
+      message: OK
+version: 1

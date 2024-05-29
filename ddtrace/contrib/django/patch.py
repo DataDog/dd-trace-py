@@ -22,6 +22,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -37,6 +38,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
+from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
@@ -466,7 +468,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -482,6 +484,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
+                response["Content-Length"] = len(content.encode())
             utils._after_request_tags(pin, ctx["call"], request, response)
             return response
 
@@ -509,7 +512,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response = blocked_response()
                 return response
 
-            response = func(*args, **kwargs)
+            try:
+                response = func(*args, **kwargs)
+            except BlockingException as e:
+                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                response = blocked_response()
+                return response
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -817,8 +825,8 @@ def _patch(django):
     def _(m):
         import channels
 
-        channels_version = tuple(int(x) for x in channels.__version__.split("."))
-        if channels_version >= (3, 0):
+        channels_version = parse_version(channels.__version__)
+        if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
 

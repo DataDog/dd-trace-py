@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    instrumentation: fixes crashses that could occur in certain integrations with packages that use non-integer components
+    in their version specifiers

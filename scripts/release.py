@@ -58,6 +58,7 @@ MAX_GH_RELEASE_NOTES_LENGTH = 125000
 ReleaseParameters = namedtuple("ReleaseParameters", ["branch", "name", "tag", "dd_repo", "rn", "prerelease"])
 DEFAULT_BRANCH = "main"
 DRY_RUN = os.getenv("DRY_RUN", "0") == "1"
+CHANGELOG_FILENAME = "../CHANGELOG.md"
 
 
 def _ensure_current_checkout():
@@ -242,6 +243,55 @@ def get_ddtrace_repo():
             "We need a Github token to generate the release notes. Please follow the instructions in the script."
         )
     return Github(gh_token).get_repo(full_name_or_id="DataDog/dd-trace-py")
+
+
+def add_release_to_changelog(name: str, release_notes: str):
+    separator = "---"
+    with open(CHANGELOG_FILENAME, "r") as changelog_file:
+        contents = changelog_file.read()
+    existing_release_notes_lines = contents.split("\n")
+    insert_index = existing_release_notes_lines.index(separator)
+    new_notes = ["", separator, "", f"## {name}", ""] + release_notes.split("\n")
+    composite = (
+        existing_release_notes_lines[: insert_index - 1] + new_notes + existing_release_notes_lines[insert_index:]
+    )
+    with open(CHANGELOG_FILENAME, "w") as changelog_file:
+        changelog_file.write("\n".join(composite))
+
+
+def commit_and_push(dd_repo, branch_name: str, release_name: str):
+    subprocess.check_output(f"git checkout -b {branch_name}", shell=True, cwd=os.pardir)
+    try:
+        subprocess.check_output("git add CHANGELOG.md", shell=True, cwd=os.pardir)
+    except subprocess.CalledProcessError:
+        try:
+            subprocess.check_output("git add ../CHANGELOG.md", shell=True, cwd=os.pardir)
+        except subprocess.CalledProcessError:
+            raise ValueError(
+                "Couldn't find the CHANGELOG.md file when trying to modify and create pr for it."
+                "You may need to run this script from the root of the repository."
+            )
+    print(f"Committing changes to {CHANGELOG_FILENAME} on branch {branch_name}")
+    pr_body = f"update changelog for version {release_name}"
+    subprocess.check_output(f"git commit -m '{pr_body} via release script'", shell=True, cwd=os.pardir)
+    subprocess.check_output(f"git push origin {branch_name}", shell=True, cwd=os.pardir)
+    dd_repo.create_pull(
+        title=f"chore: {pr_body}", body=f"- [x] {pr_body}", base=DEFAULT_BRANCH, head=branch_name, draft=False
+    )
+
+
+def create_changelog_pull_request(dd_repo, name: str, release_notes: str):
+    subprocess.check_output(f"git checkout {DEFAULT_BRANCH}", shell=True, cwd=os.pardir)
+    add_release_to_changelog(name, release_notes)
+    if not DRY_RUN:
+        commit_and_push(dd_repo, f"release.script/changelog-update-{name}", name)
+    else:
+        diff = subprocess.check_output("git diff", shell=True, cwd=os.pardir)
+        subprocess.check_output("git stash", shell=True, cwd=os.pardir)
+        diff = "\n".join(line.decode() for line in diff.split(b"\n"))
+        print(
+            f"\nDRY RUN: The following diff would be committed:\n\n{diff}\n\nDRY RUN: These changes have been stashed."
+        )
 
 
 def create_notebook(dd_repo, name, rn, base):
@@ -446,6 +496,8 @@ if __name__ == "__main__":
                     "No notebook will be created at this time."
                 )
             )
+    else:
+        create_changelog_pull_request(dd_repo, name, rn)
 
     # switch back to original git branch
     subprocess.check_output(

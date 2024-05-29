@@ -1,7 +1,10 @@
 from contextlib import contextmanager
+import itertools
 import json
+import sys
 from typing import Dict
 from typing import List
+from urllib.parse import quote
 from urllib.parse import urlencode
 
 import pytest
@@ -23,6 +26,9 @@ class Interface:
         self.name = name
         self.framework = framework
         self.client = client
+
+    def __repr__(self):
+        return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
 def payload_to_xml(payload: Dict[str, str]) -> str:
@@ -56,10 +62,18 @@ class Contrib_TestClass_For_Threats:
     def body(self, response) -> str:
         raise NotImplementedError
 
+    def check_for_stack_trace(self, root_span):
+        appsec_traces = root_span().get_struct_tag(asm_constants.EXPLOIT_PREVENTION.STACK_TRACES) or {}
+        exploit = appsec_traces.get("exploit", [])
+        stack_ids = sorted(set(t["id"] for t in exploit))
+        triggers = get_triggers(root_span())
+        stack_id_in_triggers = sorted(set(t["stack_id"] for t in (triggers or []) if "stack_id" in t))
+        assert stack_ids == stack_id_in_triggers, f"stack_ids={stack_ids}, stack_id_in_triggers={stack_id_in_triggers}"
+        return exploit
+
     def check_single_rule_triggered(self, rule_id: str, root_span):
         triggers = get_triggers(root_span())
         assert triggers is not None, "no appsec struct in root span"
-        print(triggers)
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
 
@@ -91,6 +105,7 @@ class Contrib_TestClass_For_Threats:
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
         with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
@@ -440,6 +455,27 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
+    @pytest.mark.parametrize("uri", ["/waf/../"])
+    def test_request_suspicious_request_block_match_uri_lfi(
+        self, interface: Interface, get_tag, root_span, asm_enabled, metastruct, uri
+    ):
+        if interface.name in ("fastapi",):
+            raise pytest.skip(f"TODO: fix {interface.name}")
+
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)):
+            self.update_tracer(interface)
+            interface.client.get(uri)
+            # assert get_tag(http.URL) == f"http://localhost:8000{uri}"
+            assert get_tag(http.METHOD) == "GET"
+            if asm_enabled:
+                self.check_single_rule_triggered("crs-930-110", root_span)
+            else:
+                assert get_triggers(root_span()) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
         ("path", "blocked"),
         [
@@ -631,16 +667,16 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
     @pytest.mark.parametrize(
-        ("uri", "blocked"),
+        ("uri", "headers", "blocked"),
         [
-            ("/asm/1/a", False),
-            ("/asm/1/a?headers=header_name=MagicKey_Al4h7iCFep9s1", "tst-037-009"),
-            ("/asm/1/a?headers=key=anythin,header_name=HiddenMagicKey_Al4h7iCFep9s1Value", "tst-037-009"),
-            ("/asm/1/a?headers=header_name=NoWorryBeHappy", None),
+            ("/asm/1/a", {}, False),
+            ("/asm/1/a", {"header_name": "MagicKey_Al4h7iCFep9s1"}, "tst-037-009"),
+            ("/asm/1/a", {"key": "anything", "header_name": "HiddenMagicKey_Al4h7iCFep9s1Value"}, "tst-037-009"),
+            ("/asm/1/a", {"header_name": "NoWorryBeHappy"}, None),
         ],
     )
     def test_request_suspicious_request_block_match_response_headers(
-        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, blocked
+        self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, uri, headers, blocked
     ):
         from ddtrace.ext import http
 
@@ -648,6 +684,8 @@ class Contrib_TestClass_For_Threats:
             dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
         ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
             self.update_tracer(interface)
+            if headers:
+                uri += "?headers=" + quote(",".join(f"{k}={v}" for k, v in headers.items()))
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
             assert get_tag(http.URL) == "http://localhost:8000" + uri
@@ -661,10 +699,20 @@ class Contrib_TestClass_For_Threats:
                     get_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "text/json"
                 )
                 assert self.headers(response)["content-type"] == "text/json"
+                for k in headers:
+                    assert k not in self.headers(response)
             else:
                 assert self.status(response) == 200
                 assert get_tag(http.STATUS_CODE) == "200"
                 assert get_triggers(root_span()) is None
+            assert "content-length" in self.headers(response)
+            assert int(self.headers(response)["content-length"]) == len(self.body(response).encode())
+
+    LARGE_BODY = {
+        f"key_{i}": {f"key_{i}_{j}": {f"key_{i}_{j}_{k}": f"value_{i}_{j}_{k}" for k in range(4)} for j in range(4)}
+        for i in range(254)
+    }
+    LARGE_BODY["attack"] = "yqrweytqwreasldhkuqwgervflnmlnli"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])
@@ -674,6 +722,7 @@ class Contrib_TestClass_For_Threats:
             # json body must be blocked
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "text/json", "tst-037-003"),
+            (json.dumps(LARGE_BODY), "text/json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
@@ -694,6 +743,7 @@ class Contrib_TestClass_For_Threats:
             # other values must not be blocked
             ('{"attack": "zqrweytqwreasldhkuqxgervflnmlnli"}', "application/json", False),
         ],
+        ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
     )
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_tag, asm_enabled, metastruct, root_span, body, content_type, blocked
@@ -928,7 +978,12 @@ class Contrib_TestClass_For_Threats:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
-                        assert api in expected_value, (api, name)
+                        assert any(
+                            all(api[0].get(k) == v for k, v in expected[0].items()) for expected in expected_value
+                        ), (
+                            api,
+                            name,
+                        )
             else:
                 assert value is None, name
 
@@ -1037,6 +1092,59 @@ class Contrib_TestClass_For_Threats:
             else:
                 raise AssertionError("extra service not found")
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    def test_asm_enabled_headers(self, asm_enabled, interface, get_tag, root_span):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(
+                "/",
+                headers={"accept": "testheaders/a1b2c3", "user-agent": "UnitTestAgent", "content-type": "test/x0y9z8"},
+            )
+            assert response.status_code == 200
+            assert self.status(response) == 200
+            if asm_enabled:
+                assert get_tag("http.request.headers.accept") == "testheaders/a1b2c3"
+                assert get_tag("http.request.headers.user-agent") == "UnitTestAgent"
+                assert get_tag("http.request.headers.content-type") == "test/x0y9z8"
+            else:
+                assert get_tag("http.request.headers.accept") is None
+                assert get_tag("http.request.headers.user-agent") is None
+                assert get_tag("http.request.headers.content-type") is None
+
+    @pytest.mark.parametrize(
+        "header",
+        [
+            "X-Amzn-Trace-Id",
+            "Cloudfront-Viewer-Ja3-Fingerprint",
+            "Cf-Ray",
+            "X-Cloud-Trace-Context",
+            "X-Appgw-Trace-id",
+            "Akamai-User-Risk",
+            "X-SigSci-RequestID",
+            "X-SigSci-Tags",
+        ],
+    )
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    # RFC: https://docs.google.com/document/d/1xf-s6PtSr6heZxmO_QLUtcFzY_X_rT94lRXNq6-Ghws/edit
+    def test_asm_waf_integration_identify_requests(self, asm_enabled, header, interface, get_tag, root_span):
+        import random
+        import string
+
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            random_value = "".join(random.choices(string.ascii_letters + string.digits, k=random.randint(6, 128)))
+            response = interface.client.get(
+                "/",
+                headers={header: random_value},
+            )
+            assert response.status_code == 200
+            assert self.status(response) == 200
+            meta_tagname = "http.request.headers." + header.lower()
+            if asm_enabled:
+                assert get_tag(meta_tagname) == random_value
+            else:
+                assert get_tag(meta_tagname) is None
+
     def test_global_callback_list_length(self, interface):
         from ddtrace.appsec import _asm_request_context
 
@@ -1056,6 +1164,131 @@ class Contrib_TestClass_For_Threats:
             # only two global callbacks are expected for API Security and Nested Events
             assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 2
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("metastruct", [True, False])
+    def test_stream_response(
+        self,
+        interface: Interface,
+        get_tag,
+        asm_enabled,
+        metastruct,
+        root_span,
+    ):
+        if interface.name != "fastapi":
+            raise pytest.skip("only fastapi tests have support for stream response")
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            self.update_tracer(interface)
+            response = interface.client.get("/stream/")
+            assert self.body(response) == "0123456789"
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("ep_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ["endpoint", "parameters", "rule", "top_functions"],
+        [("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", ("rasp",))]
+        + [
+            ("ssrf", f"url_{p1}_1=169.254.169.254&url_{p2}_2=169.254.169.253", "rasp-934-100", (f1, f2))
+            for (p1, f1), (p2, f2) in itertools.product(
+                [
+                    ("urlopen_string", "urlopen"),
+                    ("urlopen_request", "urlopen"),
+                    ("requests", "request"),
+                ],
+                repeat=2,
+            )
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("rule_file", "blocking"),
+        [
+            (rules.RULES_EXPLOIT_PREVENTION, False),
+            (rules.RULES_EXPLOIT_PREVENTION_BLOCKING, True),
+        ],
+    )
+    def test_exploit_prevention(
+        self,
+        interface,
+        root_span,
+        get_tag,
+        get_metric,
+        asm_enabled,
+        ep_enabled,
+        endpoint,
+        parameters,
+        rule,
+        top_functions,
+        rule_file,
+        blocking,
+    ):
+        from unittest.mock import patch as mock_patch
+
+        from ddtrace.appsec._constants import APPSEC
+        from ddtrace.appsec._metrics import DDWAF_VERSION
+        from ddtrace.ext import http
+
+        with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
+            dict(DD_APPSEC_RULES=rule_file)
+        ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
+            self.update_tracer(interface)
+            response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+            code = 403 if blocking and asm_enabled and ep_enabled else 200
+            assert self.status(response) == code, (self.status(response), code)
+            assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
+            if code == 200:
+                assert self.body(response).startswith(f"{endpoint} endpoint")
+            if asm_enabled and ep_enabled:
+                self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
+                assert self.check_for_stack_trace(root_span)
+                for trace in self.check_for_stack_trace(root_span):
+                    assert "frames" in trace
+                    function = trace["frames"][0]["function"]
+                    assert any(function.endswith(top_function) for top_function in top_functions) or (
+                        asm_config._iast_enabled and function.endswith("ast_function")
+                    ), f"unknown top function {function}"
+                # assert mocked.call_args_list == []
+                telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+                assert (
+                    "CountMetric",
+                    "appsec.rasp.rule.match",
+                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                ) in telemetry_calls
+                assert (
+                    "CountMetric",
+                    "appsec.rasp.rule.eval",
+                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                ) in telemetry_calls
+                if blocking:
+                    assert get_tag("rasp.request.done") is None
+                else:
+                    assert get_tag("rasp.request.done") == endpoint
+                assert get_metric(APPSEC.RASP_DURATION) is not None
+                assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
+                assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
+                assert float(get_metric(APPSEC.RASP_DURATION_EXT)) >= float(get_metric(APPSEC.RASP_DURATION))
+                assert int(get_metric(APPSEC.RASP_RULE_EVAL)) > 0
+            else:
+                assert get_triggers(root_span()) is None
+                assert self.check_for_stack_trace(root_span) == []
+                assert get_tag("rasp.request.done") == endpoint
+
+    def test_iast(self, interface, root_span, get_tag):
+        if interface.name == "fastapi" and asm_config._iast_enabled:
+            raise pytest.xfail("fastapi does not fully support IAST for now")
+        from ddtrace.ext import http
+
+        url = "/rasp/shell/?cmd=ls"
+        self.update_tracer(interface)
+        response = interface.client.get(url)
+        assert self.status(response) == 200
+        assert get_tag(http.STATUS_CODE) == "200"
+        assert self.body(response).startswith("shell endpoint")
+        if asm_config._iast_enabled:
+            assert get_tag("_dd.iast.json") is not None
+        else:
+            assert get_tag("_dd.iast.json") is None
+
 
 @contextmanager
 def test_tracer():
@@ -1072,7 +1305,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = ddtrace.Pin.get_from(interface.framework).tracer
+    original_tracer = getattr(ddtrace.Pin.get_from(interface.framework), "tracer", None)
     ddtrace.Pin.override(interface.framework, tracer=interface.tracer)
     yield
-    ddtrace.Pin.override(interface.framework, tracer=original_tracer)
+    if original_tracer is not None:
+        ddtrace.Pin.override(interface.framework, tracer=original_tracer)

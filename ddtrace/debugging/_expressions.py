@@ -36,10 +36,10 @@ from typing import Tuple
 from typing import Union
 
 import attr
-import bytecode
 from bytecode import Bytecode
 from bytecode import Compare
 from bytecode import Instr
+from bytecode import Label
 
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -59,11 +59,12 @@ IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.IN) if PY < (3, 9) else Instr("C
 NOT_IN_OPERATOR_INSTR = Instr("COMPARE_OP", Compare.NOT_IN) if PY < (3, 9) else Instr("CONTAINS_OP", 1)
 
 
-def binary_op(op: str) -> Instr:
-    if PY >= (3, 11):
-        return Instr("BINARY_OP", getattr(bytecode.BinaryOp, op.upper()))
+def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
+    value = "FALSE" if op == "and" else "TRUE"
+    if PY >= (3, 12):
+        return [Instr("COPY", 1), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
 
-    return Instr(f"BINARY_{op.upper()}")
+    return [Instr(f"JUMP_IF_{value}_OR_POP", label)]
 
 
 def instanceof(value: Any, type_qname: str) -> bool:
@@ -155,7 +156,9 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return ca + cb + [binary_op(_type)]
+
+            short_circuit = Label()
+            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args

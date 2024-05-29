@@ -19,6 +19,8 @@ Usage:
 import argparse
 import itertools
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -122,3 +124,16 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         )
         # Remove the wheel as it has been unpacked
         os.remove(wheel_file)
+
+    sitepackages_root = Path(dl_dir) / f"site-packages-ddtrace-py{python_version}-{platform}"
+    directories_to_remove = [
+        sitepackages_root / "google" / "protobuf",
+        sitepackages_root / "google" / "_upb",
+    ]
+    directories_to_remove.extend(sitepackages_root.glob("protobuf-*"))  # dist-info directories
+
+    for directory in directories_to_remove:
+        try:
+            shutil.rmtree(directory)
+        except Exception:
+            pass

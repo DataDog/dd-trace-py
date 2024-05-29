@@ -26,10 +26,11 @@ if (NOT Python3_INCLUDE_DIRS)
 endif()
 
 # Add echion
+set(ECHION_COMMIT "d69048b63e7d49091659964915eb52ff0ced9fc8" CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
     GIT_REPOSITORY "https://github.com/sanchda/echion.git"
-    GIT_TAG "sanchda/more_rendering"
+    GIT_TAG ${ECHION_COMMIT}
 )
 FetchContent_GetProperties(echion)
 if(NOT echion_POPULATED)
@@ -48,6 +49,10 @@ add_ddup_config(${EXTENSION_NAME})
 add_cppcheck_target(${EXTENSION_NAME}
   DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/vendored
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/util
+          ${CMAKE_CURRENT_SOURCE_DIR}/..
+          ${echion_SOURCE_DIR}
   SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 

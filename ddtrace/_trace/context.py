@@ -11,6 +11,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal.compat import NumericType
+from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
@@ -115,7 +116,6 @@ class Context(object):
             metrics=self._metrics,
             lock=self._lock,
             baggage=self._baggage,
-            span_links=self._span_links,
             is_remote=False,
         )
 
@@ -219,6 +219,14 @@ class Context(object):
                     del self._meta[USER_ID_KEY]
                 return
             self._meta[USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
+
+    @property
+    def _trace_id_64bits(self):
+        """Return the trace ID as a 64-bit value."""
+        if self.trace_id is None:
+            return None
+        else:
+            return _MAX_UINT_64BITS & self.trace_id
 
     def _set_baggage_item(self, key, value):
         # type: (str, Any) -> None

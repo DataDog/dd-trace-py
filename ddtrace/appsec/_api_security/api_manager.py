@@ -14,13 +14,11 @@ from ddtrace.appsec._asm_request_context import remove_context_callback
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-metrics = Metrics(namespace="datadog.api_security")
 _sentinel = object()
 
 
@@ -55,7 +53,6 @@ class APIManager(Service):
 
         asm_config._api_security_active = True
         log.debug("Enabling %s", cls.__name__)
-        metrics.enable()
         cls._instance = cls()
         cls._instance.start()
         log.debug("%s enabled", cls.__name__)
@@ -70,13 +67,11 @@ class APIManager(Service):
         log.debug("Disabling %s", cls.__name__)
         cls._instance.stop()
         cls._instance = None
-        metrics.disable()
         log.debug("%s disabled", cls.__name__)
 
     def __init__(self) -> None:
         super(APIManager, self).__init__()
 
-        self._schema_meter = metrics.get_meter("schema")
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
@@ -128,8 +123,12 @@ class APIManager(Service):
 
         try:
             # check both current span and root span for sampling priority
+            # if sampling has not yet run for the span, we default to treating it as sampled
+            if root.context.sampling_priority is None and env.span.context.sampling_priority is None:
+                priorities = (1,)
+            else:
+                priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
             # if any of them is set to USER_KEEP or USER_REJECT, we should respect it
-            priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
             if constants.USER_KEEP in priorities:
                 priority = constants.USER_KEEP
             elif constants.USER_REJECT in priorities:
@@ -150,7 +149,7 @@ class APIManager(Service):
         except Exception:
             log.debug("Failed to enrich request span with headers", exc_info=True)
 
-        waf_payload = {}
+        waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
         for address, _, transform in self.COLLECTED:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
@@ -161,28 +160,25 @@ class APIManager(Service):
             if transform is not None:
                 value = transform(value)
             waf_payload[address] = value
-        if waf_payload:
-            waf_payload["PROCESSOR_SETTINGS"] = {"extract-schema": True}
-            result = call_waf_callback(waf_payload)
-            if result is None:
-                return
-            for meta, schema in result.items():
-                b64_gzip_content = b""
-                try:
-                    b64_gzip_content = base64.b64encode(
-                        gzip.compress(json.dumps(schema, separators=",:").encode())
-                    ).decode()
-                    if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
-                        raise TooLargeSchemaException
-                    root._meta[meta] = b64_gzip_content
-                except Exception as e:
-                    self._schema_meter.increment("errors", tags={"exc": e.__class__.__name__, "address": address})
-                    self._log_limiter.limit(
-                        log.warning,
-                        "Failed to get schema from %r [schema length=%d]:\n%s",
-                        address,
-                        len(b64_gzip_content),
-                        repr(value)[:256],
-                        exc_info=True,
-                    )
-        self._schema_meter.increment("spans")
+
+        result = call_waf_callback(waf_payload)
+        if result is None:
+            return
+        for meta, schema in result.derivatives.items():
+            b64_gzip_content = b""
+            try:
+                b64_gzip_content = base64.b64encode(
+                    gzip.compress(json.dumps(schema, separators=",:").encode())
+                ).decode()
+                if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
+                    raise TooLargeSchemaException
+                root._meta[meta] = b64_gzip_content
+            except Exception:
+                self._log_limiter.limit(
+                    log.warning,
+                    "Failed to get schema from %r [schema length=%d]:\n%s",
+                    address,
+                    len(b64_gzip_content),
+                    repr(value)[:256],
+                    exc_info=True,
+                )

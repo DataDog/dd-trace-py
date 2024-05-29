@@ -1,6 +1,0 @@
----
-features:
-  - |
-    tracing: Makes ``tracer.sampler`` public, now named ``tracer.sampler``. This should not be called
-    in most circumstances, but will be useful for advanced users who want to access the sampler directly,
-    once lazy sampling is implemented.

@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Translate a math problem
+      into a expression that can be executed using Python''s numexpr library. Use
+      the output of running this code to answer the question.\n\nQuestion: ${Question
+      with math problem.}\n```text\n${single line mathematical expression that solves
+      the problem}\n```\n...numexpr.evaluate(text)...\n```output\n${Output of running
+      the code}\n```\nAnswer: ${Answer}\n\nBegin.\n\nQuestion: What is 37593 * 67?\n```text\n37593
+      * 67\n```\n...numexpr.evaluate(\"37593 * 67\")...\n```output\n2518731\n```\nAnswer:
+      2518731\n\nQuestion: 37593^(1/5)\n```text\n37593**(1/5)\n```\n...numexpr.evaluate(\"37593**(1/5)\")...\n```output\n8.222831614237718\n```\nAnswer:
+      8.222831614237718\n\nQuestion: what is two raised to the fifty-fourth power?\n"],
+      "frequency_penalty": 0, "logit_bias": {}, "max_tokens": 256, "n": 1, "presence_penalty":
+      0, "stop": ["```output"], "temperature": 0.0, "top_p": 1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '940'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.12.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.12.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yQS27CMBCG9zmF5VWLGisJBEiWXfQARWXTVCQxUzA4HssZV1ERd6+cIOjGsuab
+        /6G5RIxxtecl47KzOl7/OrndwLnL5if5/rpZDKkq3pZ+q5b5B38J29ieQFJQEAy0k9hZDaTQTFg6
+        aAiCY7pKilW+WKf5CDrcgw6yg6V4LvKYvGsxVqYn5yXd1EdUEnpess+IMcYu48umrCCu6zp8K5PN
+        ZvmiMnVdV0YIYXwHg3UCfhrtG4Knik8b/FkIUU3lRidl9jDwkiX3icaDddiGVOO1vs+/lVH9ceeg
+        6dGE8J7Q8pFeI8a+xsa+bw7Ay1tTbh12lnaEZzDBMEuyyY8/DvWgaXGDhNTof6osjULINfoDAAD/
+        /wMA/e4ObKEBAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8604e48c5e7743fe-EWR
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 06 Mar 2024 19:53:35 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=yxYMKWxr5tY7sS42f1O8CQ7gSQQ.D9k3HUcRt7lB0jc-1709754815-1.0.1.1-0wC5AQskScxl4J2xASBwH3UV5U3g5FNGq7EYmji.MZHrfFLPMAyBpzHV.Okr6Mw5vhMBE1.2kZgEmGB2yse3Hw;
+        path=/; expires=Wed, 06-Mar-24 20:23:35 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=1wqR2MDyLZ1GPnAIHZEYV8Kb5pnvtBVQWTHuDvPK_eM-1709754815768-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-origin:
+      - '*'
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '248'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      x-ratelimit-limit-requests:
+      - '3000'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '2999'
+      x-ratelimit-remaining-tokens:
+      - '249569'
+      x-ratelimit-reset-requests:
+      - 20ms
+      x-ratelimit-reset-tokens:
+      - 103ms
+      x-request-id:
+      - req_955f30fd04b4e11840b94f2e06e31b7d
+    status:
+      code: 200
+      message: OK
+version: 1

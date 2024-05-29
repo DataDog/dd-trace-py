@@ -5,7 +5,7 @@ aspect_join_str(PyObject* sep,
                 PyObject* result,
                 PyObject* iterable_str,
                 size_t len_iterable,
-                TaintRangeMapType* tx_taint_map)
+                const TaintRangeMapTypePtr& tx_taint_map)
 {
     // This is the special case for unicode str and unicode iterable_str.
     // The iterable elements string will be split into 1 char-length strings.
@@ -58,11 +58,10 @@ aspect_join_str(PyObject* sep,
 }
 
 PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintRangeMapType* tx_taint_map)
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
-    // FIXME: bug. if the argument is a string instead of a tuple, it will enter
-    // into an infinite loop
+
     size_t len_iterable{ 0 };
     auto GetElement = PyList_GetItem;
     if (PyList_Check(iterable_elements)) {
@@ -96,8 +95,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
         // b"a".join(u"c", b"d") -> unicode
         const size_t& element_len = get_pyobject_size(element);
         if (element_len > 0) {
-            const auto& to_element = get_tainted_object(element, tx_taint_map);
-            if (to_element) {
+            if (const auto& to_element = get_tainted_object(element, tx_taint_map)) {
                 if (current_pos == 0 and !first_tainted_to) {
                     first_tainted_to = to_element;
                 } else {
@@ -139,10 +137,10 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, TaintR
 }
 
 PyObject*
-api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2) {
-        // TODO: any other more sane error handling?
+        py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
 
@@ -153,7 +151,7 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
         PyObject* iterator = PyObject_GetIter(arg0);
 
-        if (iterator != NULL) {
+        if (iterator != nullptr) {
             PyObject* item;
             PyObject* list_aux = PyList_New(0);
             while ((item = PyIter_Next(iterator))) {
@@ -178,16 +176,13 @@ api_join_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         result = result_ptr.ptr();
         Py_INCREF(result);
     }
-    if (get_pyobject_size(result) == 0) {
+
+    const auto ctx_map = initializer->get_tainting_map();
+    if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
         // Empty result cannot have taint ranges
         if (decref_arg0) {
             Py_DecRef(arg0);
         }
-        return result;
-    }
-
-    auto ctx_map = initializer->get_tainting_map();
-    if (not ctx_map or ctx_map->empty()) {
         return result;
     }
     auto res = aspect_join(sep, result, arg0, ctx_map);

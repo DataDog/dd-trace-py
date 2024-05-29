@@ -18,12 +18,17 @@ struct DdogProfExporterDeleter
     void operator()(ddog_prof_Exporter* ptr) const;
 };
 
+struct DdogCancellationTokenDeleter
+{
+    void operator()(ddog_CancellationToken* ptr) const;
+};
+
 class Uploader
 {
   private:
     static inline std::mutex upload_lock{};
     std::string errmsg;
-    static inline ddog_CancellationToken* cancel{ nullptr };
+    static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
     std::string runtime_id;
     std::string url;
     std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;

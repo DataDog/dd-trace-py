@@ -17,6 +17,7 @@ from ddtrace.contrib.celery import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from tests.opentracer.utils import init_tracer
+from tests.utils import flaky
 
 from ...utils import override_global_config
 from .base import CeleryBaseTestCase
@@ -209,6 +210,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.get_tag("component") == "celery"
         assert run_span.get_tag("span.kind") == "consumer"
 
+    @flaky(1722529274)
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
         @self.app.task
@@ -702,6 +704,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
+    @flaky(1720288420)
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():

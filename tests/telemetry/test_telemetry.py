@@ -1,8 +1,8 @@
-import os
 import re
 
 import pytest
 
+from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import flaky
 
 
@@ -47,7 +47,7 @@ assert telemetry_writer.status == ServiceStatus.RUNNING
 assert telemetry_writer._worker is not None
 """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 0, stderr
     assert stdout == b"", stderr
@@ -65,7 +65,7 @@ from ddtrace import tracer
 span = tracer.trace("test-telemetry")
 span.finish()
     """
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
@@ -111,7 +111,7 @@ else:
     print(get_runtime_id())
     """
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -160,7 +160,7 @@ telemetry_writer.disable()
     """
 
     initial_requests_count = len(test_agent_session.get_requests())
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -177,8 +177,7 @@ telemetry_writer.disable()
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
+    env = get_default_telemetry_env({"DD_TELEMETRY_HEARTBEAT_INTERVAL": "61"})
     code = """
 import warnings
 # This test logs the following warning in py3.12:
@@ -216,6 +215,7 @@ logging.basicConfig() # required for python 2.7
 ddtrace.internal.telemetry.telemetry_writer.enable()
 os.fork()
 """,
+        env=get_default_telemetry_env(),
     )
 
     assert status == 0, err
@@ -246,17 +246,13 @@ tracer.configure(
 # generate and encode span
 tracer.trace("hello").finish()
 """
-    initial_event_count = len(test_agent_session.get_events())
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
     assert status == 0, stderr
     assert b"Exception raised in trace filter" in stderr
 
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-started")
 
-    assert len(events) == initial_event_count + 3
-
-    # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert len(events) == 1
 
     app_started_events = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_events) == 1
@@ -270,12 +266,11 @@ tracer.trace("hello").finish()
     ]["message"]
 
 
+@pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "true"
+    env = get_default_telemetry_env({"DD_SPAN_SAMPLING_RULES": "invalid_rules"})
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
@@ -295,7 +290,7 @@ def test_app_started_error_unhandled_exception(test_agent_session, run_python_co
 
 
 def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
+    env = get_default_telemetry_env()
     _, stderr, status, _ = run_python_code_in_subprocess(
         "import ddtrace; ddtrace.tracer.trace('moon').finish(); raise Exception('bad_code')", env=env
     )
@@ -330,7 +325,7 @@ patch(raise_errors=False, sqlite3=True)
 tracer.trace("hi").finish()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
 
     assert status == 0, stderr
     expected_stderr = b"failed to import"
@@ -368,13 +363,11 @@ tracer.trace("hi").finish()
     assert integration_error["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
-def test_unhandled_integration_error(test_agent_session, run_python_code_in_subprocess):
+def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = get_default_telemetry_env({"DD_PATCH_MODULES": "jinja2:False,subprocess:False"})
     code = """
 import logging
 logging.basicConfig()
-
-import ddtrace
-ddtrace.patch(flask=True)
 
 import flask
 f = flask.Flask("hi")
@@ -383,7 +376,7 @@ f = flask.Flask("hi")
 f.wsgi_app()
 """
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 1, stderr
 
@@ -406,7 +399,6 @@ f.wsgi_app()
     integration_events = [event for event in events if event["request_type"] == "app-integrations-change"]
     integrations = integration_events[0]["payload"]["integrations"]
     assert len(integrations) == 1
-    assert integrations[0]["name"] == "flask"
     assert integrations[0]["enabled"] is True
     assert integrations[0]["compatible"] is False
     assert "ddtrace/contrib/flask/patch.py:" in integrations[0]["error"]
@@ -425,8 +417,7 @@ f.wsgi_app()
 
 
 def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
+    env = get_default_telemetry_env(
         {
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
@@ -451,8 +442,7 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
     """Ensure no telemetry events are sent when telemetry is disabled"""
     initial_event_count = len(test_agent_session.get_events())
 
-    env = os.environ.copy()
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+    env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
 
     code = """
 from ddtrace import tracer

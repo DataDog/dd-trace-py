@@ -204,10 +204,10 @@ def test_extended_sampling_w_None_meta(writer, tracer):
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_w_metrics(writer, tracer):
+@snapshot()
+def test_extended_sampling_w_metrics(tracer):
     sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
-    tracer.configure(sampler=sampler, writer=writer)
+    tracer.configure(sampler=sampler)
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -275,3 +275,25 @@ def test_extended_sampling_tags_and_name_glob(writer, tracer):
     tracer._tags = {"banana": "True"}
     tracer.trace("should_send1").finish()
     tracer.trace(name="mycoolname").finish()
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_float_special_case_do_not_match(writer, tracer):
+    """A float with a non-zero decimal and a tag with a non-* pattern
+    # should not match the rule, and should therefore be kept
+    """
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "2*"})])
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace(name="should_send") as span:
+        span.set_tag("tag", 20.1)
+
+
+@snapshot_parametrized_with_writers
+def test_extended_sampling_float_special_case_match_star(writer, tracer):
+    """A float with a non-zero decimal and a tag with a * pattern
+    # should match the rule, and should therefore should be dropped
+    """
+    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "*"})])
+    tracer.configure(sampler=sampler, writer=writer)
+    with tracer.trace(name="should_send") as span:
+        span.set_tag("tag", 20.1)

@@ -11,10 +11,12 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
@@ -50,12 +52,14 @@ class BaseLLMIntegration:
             )
             self._log_pc_sampler = RateSampler(sample_rate=integration_config.log_prompt_completion_sample_rate)
             self.start_log_writer()
-        if self.llmobs_enabled:
-            self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+        self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
     @property
     def metrics_enabled(self) -> bool:
         """Return whether submitting metrics is enabled for this integration, or global config if not set."""
+        env_metrics_enabled = asbool(os.getenv("DD_{}_METRICS_ENABLED".format(self._integration_name.upper())))
+        if not env_metrics_enabled and asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED")):
+            return False
         if hasattr(self.integration_config, "metrics_enabled"):
             return asbool(self.integration_config.metrics_enabled)
         return False
@@ -70,16 +74,20 @@ class BaseLLMIntegration:
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
-        return config._llmobs_enabled
+        return LLMObs.enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is None or span.context.sampling_priority <= 0:
-            return False
+        if span.context.sampling_priority is not None:
+            if span.context.sampling_priority <= 0:
+                return False
         return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_log(self, span: Span) -> bool:
-        sampled = span.context.sampling_priority is not None or span.context.sampling_priority <= 0  # type: ignore
-        if not self.logs_enabled or not sampled:
+        if span.context.sampling_priority is not None:
+            if span.context.sampling_priority <= 0:
+                return False
+
+        if not self.logs_enabled:
             return False
         return self._log_pc_sampler.sample(span)
 
@@ -99,7 +107,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -113,6 +121,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
+        if submit_to_llmobs:
+            span.span_type = SpanTypes.LLM
         return span
 
     @classmethod

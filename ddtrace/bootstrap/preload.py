@@ -42,6 +42,18 @@ def register_post_preload(func: t.Callable) -> None:
 log = get_logger(__name__)
 
 
+# Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
+if config._telemetry_enabled:
+    from ddtrace.internal import telemetry
+
+    telemetry.install_excepthook()
+    # In order to support 3.12, we start the writer upon initialization.
+    # See https://github.com/python/cpython/pull/104826.
+    # Telemetry events will only be sent after the `app-started` is queued.
+    # This will occur when the agent writer starts.
+    telemetry.telemetry_writer.enable()
+
+
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")
     try:
@@ -63,14 +75,14 @@ if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
 if asbool(os.getenv("DD_IAST_ENABLED", False)):
-    from ddtrace.appsec._iast._utils import _is_python_version_supported
+    """
+    This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
+    too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it
+    here and it's not a duplicate call due to `enable_iast_propagation` has a global variable to avoid multiple calls.
+    """
+    from ddtrace.appsec._iast import enable_iast_propagation
 
-    if _is_python_version_supported():
-        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-
-        log.debug("IAST enabled")
-        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+    enable_iast_propagation()
 
 if config._remote_config_enabled:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller

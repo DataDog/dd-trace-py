@@ -13,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -171,10 +172,10 @@ class TraceMiddleware:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
-            for key, value in scope["headers"]:
-                if key == b"host":
+            for key, value in _extract_headers(scope).items():
+                if key.encode() == b"host":
                     try:
-                        host_header = value.decode("ascii")
+                        host_header = value
                     except UnicodeDecodeError:
                         log.warning(
                             "failed to decode host header, host from http headers will not be considered", exc_info=True
@@ -288,6 +289,9 @@ class TraceMiddleware:
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
                 return await self.app(scope, receive, wrapped_send)
+            except BlockingException as e:
+                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except trace_utils.InterruptException:
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:

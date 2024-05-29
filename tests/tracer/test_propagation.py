@@ -76,6 +76,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
 def test_inject_128bit_trace_id_datadog():
     from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -93,7 +94,9 @@ def test_inject_128bit_trace_id_datadog():
             assert headers == {
                 "x-datadog-trace-id": str(span._trace_id_64bits),
                 "x-datadog-parent-id": str(span.span_id),
-                "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-tags": "{}=-0,".format(SAMPLING_DECISION_TRACE_TAG_KEY)
+                + "=".join([HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob_hex]),
+                "x-datadog-sampling-priority": "1",
             }
 
 
@@ -116,7 +119,7 @@ def test_inject_128bit_trace_id_b3multi():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex}
+            assert headers == {"x-b3-traceid": trace_id_hex, "x-b3-spanid": span_id_hex, "x-b3-sampled": "1"}
 
 
 @pytest.mark.subprocess(
@@ -138,7 +141,7 @@ def test_inject_128bit_trace_id_b3_single_header():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers == {"b3": "%s-%s" % (trace_id_hex, span_id_hex)}
+            assert headers == {"b3": "%s-%s-1" % (trace_id_hex, span_id_hex)}
 
 
 @pytest.mark.subprocess(
@@ -160,7 +163,7 @@ def test_inject_128bit_trace_id_tracecontext():
             HTTPPropagator.inject(span.context, headers)
             trace_id_hex = "{:032x}".format(span.trace_id)
             span_id_hex = "{:016x}".format(span.span_id)
-            assert headers["traceparent"] == "00-%s-%s-00" % (trace_id_hex, span_id_hex)
+            assert headers["traceparent"] == "00-%s-%s-01" % (trace_id_hex, span_id_hex)
 
 
 def test_inject_tags_unicode(tracer):  # noqa: F811
@@ -677,7 +680,7 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 }
 
 TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
-    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-00",
     _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
@@ -1758,7 +1761,7 @@ EXTRACT_FIXTURES = [
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        ALL_HEADERS,
+        {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
@@ -1769,8 +1772,8 @@ EXTRACT_FIXTURES = [
                 SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                    flags=1,
+                    tracestate="dd=o:rum",
+                    flags=0,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
@@ -1821,7 +1824,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "dd_origin": "rum",
             "meta": {
                 "tracestate": "dd=o:rum",
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
                 LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
@@ -2153,6 +2156,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, tracer, fastapi_t
         attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
     )
     assert spans[0][1]._links == {}
+    assert spans[0][1].context._span_links == []
 
 
 VALID_DATADOG_CONTEXT = {

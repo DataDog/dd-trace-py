@@ -122,6 +122,8 @@ send_sample(unsigned int id)
         ddup_push_frame(h, file.c_str(), func.c_str(), i, 0);
     }
     ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
 }
 
 // This emulates a single sampler, which periodically (100hz) sends a sample

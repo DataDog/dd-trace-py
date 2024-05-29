@@ -258,6 +258,18 @@ def run_function_from_file(item, params=None):
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, config, items):
+    """Don't let ITR skip tests that use the subprocess marker because coverage collection in subprocesses is broken"""
+    for item in items:
+        if item.get_closest_marker("subprocess"):
+            if item.get_closest_marker("skipif"):
+                # Respect any existing skipif marker because they preempt ITR's decision-making
+                continue
+            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
+            item.add_marker(unskippable)
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     if item.get_closest_marker("skip"):
         return default_pytest_runtest_protocol(item, None)
@@ -395,30 +407,38 @@ def remote_config_worker():
 
 
 @pytest.fixture
+def filter_heartbeat_events():
+    yield True
+
+
+@pytest.fixture
 def telemetry_writer():
-    telemetry_writer = TelemetryWriter(is_periodic=False)
+    # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
+    # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
+    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
     telemetry_writer.enable()
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
         ddtrace.internal.telemetry.telemetry_writer.disable()
-
         with mock.patch("ddtrace.internal.telemetry.telemetry_writer", telemetry_writer):
             yield telemetry_writer
 
     finally:
         if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
             telemetry_writer.disable()
-        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter()
+        ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
 
 class TelemetryTestSession(object):
-    def __init__(self, token, telemetry_writer) -> None:
+    def __init__(self, token, telemetry_writer, filter_heartbeats) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
+        self.filter_heartbeats = filter_heartbeats
+        self.gotten_events = dict()
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._agent_url)
+        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
@@ -442,9 +462,10 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
+        self.gotten_events = dict()
         return True
 
-    def get_requests(self):
+    def get_requests(self, request_type=None):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -453,14 +474,19 @@ class TelemetryTestSession(object):
 
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
-        requests = json.loads(body.decode("utf-8"))
-        for req in requests:
+        requests = []
+        for req in json.loads(body.decode("utf-8")):
             body_str = base64.b64decode(req["body"]).decode("utf-8")
             req["body"] = json.loads(body_str)
+            # filter heartbeat requests to reduce noise
+            if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
+                continue
+            if request_type is None or req["body"]["request_type"] == request_type:
+                requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self):
+    def get_events(self, event_type=None):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -468,17 +494,26 @@ class TelemetryTestSession(object):
         status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to fetch session events: %s" % self.token)
-        return sorted(json.loads(body.decode("utf-8")), key=lambda e: e["seq_id"], reverse=True)
+
+        for req in json.loads(body.decode("utf-8")):
+            # filter heartbeat events to reduce noise
+            if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
+                continue
+            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
+                continue
+            if event_type is None or req["request_type"] == event_type:
+                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
+        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
-    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
+    # type: (TelemetryWriter, bool, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token, telemetry_writer)
+    requests = TelemetryTestSession(token, telemetry_writer, filter_heartbeat_events)
 
     conn = requests.create_connection()
     MAX_RETRY = 9

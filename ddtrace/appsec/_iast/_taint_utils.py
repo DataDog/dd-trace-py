@@ -5,11 +5,11 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 
-DBAPI_INTEGRATIONS = ("sqlite", "psycopg", "mysql", "mariadb")
 DBAPI_PREFIXES = ("django-",)
 
 log = get_logger(__name__)
@@ -122,8 +122,8 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
                     todo = []
                     for k, v in list(iterable):
                         key_store = []
-                        todo.append(_DeepTaintCommand(True, k, k, key_store, is_key=True))
-                        todo.append(_DeepTaintCommand(True, k, v, res, key_store))
+                        todo.append(_DeepTaintCommand(True, str(k), k, key_store, is_key=True))
+                        todo.append(_DeepTaintCommand(True, str(k), v, res, key_store))
                     stack.extend(reversed(todo))
                 elif isinstance(command.obj, abc.Sequence):
                     res = []
@@ -529,7 +529,7 @@ def supported_dbapi_integration(integration_name):
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
 
 
-def check_tainted_args(args, kwargs, tracer, integration_name, method):
+def check_tainted_dbapi_args(args, kwargs, tracer, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
         from ._taint_tracking import is_pyobject_tainted
 

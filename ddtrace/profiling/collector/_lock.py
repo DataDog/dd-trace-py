@@ -8,6 +8,7 @@ import typing
 
 import attr
 
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
@@ -15,6 +16,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
@@ -69,8 +71,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
     def __init__(
-        self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled, export_libdd_enabled
-    ):
+        self,
+        wrapped: typing.Any,
+        recorder: Recorder,
+        tracer: typing.Optional[Tracer],
+        max_nframes: int,
+        capture_sampler: collector.CaptureSampler,
+        endpoint_collection_enabled: bool,
+        export_libdd_enabled: bool,
+    ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
@@ -114,7 +123,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     handle = ddup.SampleHandle()
                     handle.push_monotonic_ns(end)
-                    handle.push_lock_name(self._self_capture_sampler.lock_name)
+                    handle.push_lock_name(self._self_name)
                     handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -143,7 +152,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     self._self_recorder.push_event(event)
             except Exception as e:
-                LOG.error(f"Error recording lock acquire event: {e}")
+                LOG.warn(f"Error recording lock acquire event: {e}")
                 pass  # nosec
 
     def release(self, *args, **kwargs):
@@ -170,7 +179,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                             handle = ddup.SampleHandle()
                             handle.push_monotonic_ns(end)
-                            handle.push_lock_name(self._self_capture_sampler.lock_name)
+                            handle.push_lock_name(self._self_name)
                             handle.push_release(
                                 end - self._self_acquired_at,
                                 1

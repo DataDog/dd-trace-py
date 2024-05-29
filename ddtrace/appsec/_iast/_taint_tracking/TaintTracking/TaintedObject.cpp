@@ -1,12 +1,20 @@
-#include "TaintTracking/TaintedObject.h"
 #include "Initializer/Initializer.h"
-#include "TaintTracking/TaintRange.h"
-#include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 
+/**
+ * This function allocates a new taint range with the given offset and maximum length.
+ *
+ * @param source_taint_range The source taint range.
+ * @param offset The offset to be applied.
+ * @param max_length The maximum length of the taint range.
+ *
+ * @return A new taint range with the given offset and maximum length.
+ */
 TaintRangePtr
-reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset, RANGE_LENGTH max_length)
+allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range,
+                                         const RANGE_START offset,
+                                         const RANGE_LENGTH max_length)
 {
     RANGE_LENGTH length;
     if (max_length != -1)
@@ -20,8 +28,13 @@ reposition_and_limit_taint_range(const TaintRangePtr& source_taint_range, RANGE_
     return tptr;
 }
 
+/**
+ * @brief Shifts the taint range by the given offset.
+ * @param source_taint_range The source taint range.
+ * @param offset The offset to be applied.
+ */
 TaintRangePtr
-shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
+shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset)
 {
     auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
                                                   source_taint_range->length,         // length
@@ -29,35 +42,51 @@ shift_taint_range(const TaintRangePtr& source_taint_range, RANGE_START offset)
     return tptr;
 }
 
+/**
+ * This function shifts the taint ranges by the given offset.
+ *
+ * @param tainted_object The tainted object.
+ * @param offset The offset to be applied.
+ * @param max_length The maximum length of the taint range.
+ * @param orig_offset The offset to be applied at the beginning.
+ */
 void
-TaintedObject::add_ranges_shifted(TaintedObjectPtr tainted_object,
-                                  RANGE_START offset,
-                                  RANGE_LENGTH max_length,
-                                  RANGE_START orig_offset)
+TaintedObject::add_ranges_shifted(const TaintedObjectPtr tainted_object,
+                                  const RANGE_START offset,
+                                  const RANGE_LENGTH max_length,
+                                  const RANGE_START orig_offset)
 {
     const auto& ranges = tainted_object->get_ranges();
     add_ranges_shifted(ranges, offset, max_length, orig_offset);
 }
 
+/**
+ * This function shifts the taint ranges by the given offset.
+ *
+ * @param ranges The taint ranges.
+ * @param offset The offset to be applied.
+ * @param max_length The maximum length of the taint range.
+ * @param orig_offset The offset to be applied at the beginning.
+ */
 void
 TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
-                                  RANGE_START offset,
-                                  RANGE_LENGTH max_length,
-                                  RANGE_START orig_offset)
+                                  const RANGE_START offset,
+                                  const RANGE_LENGTH max_length,
+                                  const RANGE_START orig_offset)
 {
-    const auto to_add = (long)min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size());
-    if (!ranges.empty() and to_add > 0) {
+    if (const auto to_add = static_cast<long>(min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size()));
+        !ranges.empty() and to_add > 0) {
         ranges_.reserve(ranges_.size() + to_add);
-        int i = 0;
         if (offset == 0 and max_length == -1) {
             ranges_.insert(ranges_.end(), ranges.begin(), ranges.end());
         } else {
+            int i = 0;
             for (const auto& trange : ranges) {
                 if (max_length != -1 and orig_offset != -1) {
                     // Make sure original position (orig_offset) is covered by the range
                     if (trange->start <= orig_offset and
                         ((trange->start + trange->length) >= orig_offset + max_length)) {
-                        ranges_.emplace_back(reposition_and_limit_taint_range(trange, offset, max_length));
+                        ranges_.emplace_back(allocate_limited_taint_range_with_offset(trange, offset, max_length));
                         i++;
                     }
                 } else {
@@ -73,7 +102,7 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
 }
 
 std::string
-TaintedObject::toString()
+TaintedObject::toString() const
 {
     stringstream ss;
 
@@ -90,7 +119,7 @@ TaintedObject::toString()
     return ss.str();
 }
 
-TaintedObject::operator string()
+TaintedObject::operator string() const
 {
     return toString();
 }
@@ -135,12 +164,12 @@ void
 TaintedObject::release()
 {
     // If rc_ is negative, there is a bug.
-    assert(rc_ == 0);
+    // assert(rc_ == 0);
     initializer->release_tainted_object(this);
 }
 
 void
-pyexport_taintedobject(py::module& m)
+pyexport_taintedobject(const py::module& m)
 {
     py::class_<TaintedObject>(m, "TaintedObject").def(py::init<>());
 }

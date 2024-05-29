@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.19)
 # setup.py to build the wheel. Otherwise, we have to propagate a lot of state all around.
 # Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
 # ddup is used by a default for standalone/test builds.
-set(EXTENSION_NAME "_ddup" CACHE STRING "Name of the extension")
+set(EXTENSION_NAME "_ddup.so" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
@@ -30,6 +30,16 @@ endif()
 set(ENV{PY_MAJOR_VERSION} ${PY_MAJOR_VERSION})
 set(ENV{PY_MINOR_VERSION} ${PY_MINOR_VERSION})
 set(ENV{PY_MICRO_VERSION} ${PY_MICRO_VERSION})
+
+# if PYTHON_EXECUTABLE is unset or empty, but Python3_EXECUTABLE is set, use that
+if (NOT PYTHON_EXECUTABLE AND Python3_EXECUTABLE)
+  set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+endif()
+
+# If we still don't have a Python executable, we can't continue
+if (NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python executable not found")
+endif()
 
 # Cythonize the .pyx file
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)

@@ -135,29 +135,54 @@ class SpanProcessor(metaclass=abc.ABCMeta):
 
 @attr.s
 class TraceSamplingProcessor(TraceProcessor):
-    """Processor that keeps traces that have sampled spans. If all spans
-    are unsampled then ``None`` is returned.
+    """Processor that runs both trace and span sampling rules.
 
-    Note that this processor is only effective if complete traces are sent. If
-    the spans of a trace are divided in separate lists then it's possible that
-    parts of the trace are unsampled when the whole trace should be sampled.
+    * Span sampling must be applied after trace sampling priority has been set.
+    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
+      for matching spans on service and name.
+    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
+    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
+      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
     _compute_stats_enabled = attr.ib(type=bool)
+    sampler = attr.ib()
+    single_span_rules = attr.ib(type=List[SpanSamplingRule])
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
+
         if trace:
+            chunk_root = trace[0]
+            root_ctx = chunk_root._context
+
+            # only trace sample if we haven't already sampled
+            if root_ctx and root_ctx.sampling_priority is None:
+                self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
-                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                priority = root_ctx.sampling_priority if root_ctx is not None else None
                 if priority is not None and priority <= 0:
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
 
                     return single_spans or None
+
+            # single span sampling rules are applied after trace sampling
+            if self.single_span_rules:
+                for span in trace:
+                    if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+                        for rule in self.single_span_rules:
+                            if rule.match(span):
+                                rule.sample(span)
+                                # If stats computation is enabled, we won't send all spans to the agent.
+                                # In order to ensure that the agent does not update priority sampling rates
+                                # due to single spans sampling, we set all of these spans to manual keep.
+                                if config._trace_compute_stats:
+                                    span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                                break
 
             return trace
 
@@ -360,36 +385,3 @@ class SpanAggregator(SpanProcessor):
                     TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)
-
-
-@attr.s
-class SpanSamplingProcessor(SpanProcessor):
-    """SpanProcessor for sampling single spans:
-
-    * Span sampling must be applied after trace sampling priority has been set.
-    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
-      for matching spans on service and name.
-    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
-    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
-      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
-    """
-
-    rules = attr.ib(type=List[SpanSamplingRule])
-
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        pass
-
-    def on_span_finish(self, span):
-        # type: (Span) -> None
-        # only sample if the span isn't already going to be sampled by trace sampler
-        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
-            for rule in self.rules:
-                if rule.match(span):
-                    rule.sample(span)
-                    # If stats computation is enabled, we won't send all spans to the agent.
-                    # In order to ensure that the agent does not update priority sampling rates
-                    # due to single spans sampling, we set all of these spans to manual keep.
-                    if config._trace_compute_stats:
-                        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
-                    break

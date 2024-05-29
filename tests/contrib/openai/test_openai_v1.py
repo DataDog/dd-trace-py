@@ -1192,7 +1192,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
-            resp = client.completions.create(model="ada", prompt="Hello world", stream=True)
+            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
             assert isinstance(resp, Generator)
             chunks = [c for c in resp]
 
@@ -1278,6 +1278,7 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 ],
                 stream=True,
                 user="ddtrace-test",
+                n=None,
             )
             assert isinstance(resp, Generator)
             prompt_tokens = 8
@@ -1859,7 +1860,9 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert err == b""
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -1879,25 +1882,23 @@ def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmob
         )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=model,
-                    model_provider="openai",
-                    input_messages=[{"content": "Hello world"}],
-                    output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                    parameters={"temperature": 0.8, "max_tokens": 10},
-                    token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
+            metadata={"temperature": 0.8, "max_tokens": 10},
+            token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
@@ -1912,25 +1913,23 @@ def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, moc
                     pass
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=model,
-                    model_provider="openai",
-                    input_messages=[{"content": "Hello world"}],
-                    output_messages=[{"content": expected_completion}],
-                    parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
-                ),
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": expected_completion}],
+            metadata={"temperature": 0},
+            token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
+            tags={"ml_app": "<ml-app-name>"},
+        ),
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -1954,27 +1953,23 @@ def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_
         )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=resp.model,
-                    model_provider="openai",
-                    input_messages=input_messages,
-                    output_messages=[
-                        {"role": "assistant", "content": choice.message.content} for choice in resp.choices
-                    ],
-                    parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
+            metadata={"temperature": 0},
+            token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -2000,25 +1995,23 @@ def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config
                     resp_model = chunk.model
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=resp_model,
-                    model_provider="openai",
-                    input_messages=input_messages,
-                    output_messages=[{"content": expected_completion, "role": "assistant"}],
-                    parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": expected_completion, "role": "assistant"}],
+            metadata={"temperature": 0},
+            token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_chat_completion_function_call(
     openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
 ):
@@ -2033,27 +2026,67 @@ def test_llmobs_chat_completion_function_call(
             function_call="auto",
             user="ddtrace-test",
         )
+    expected_output = "[function: {}]\n\n{}".format(
+        resp.choices[0].message.function_call.name,
+        resp.choices[0].message.function_call.arguments,
+    )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=resp.model,
-                    model_provider="openai",
-                    input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                    output_messages=[{"content": resp.choices[0].message.function_call.arguments, "role": "assistant"}],
-                    parameters={"temperature": 0},
-                    token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[{"content": expected_output, "role": "assistant"}],
+            metadata={"temperature": 0},
+            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
+def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
+    with openai_vcr.use_cassette("chat_completion_tool_call.yaml"):
+        model = "gpt-3.5-turbo"
+        client = openai.OpenAI()
+        resp = client.chat.completions.create(
+            tools=chat_completion_custom_functions,
+            model=model,
+            messages=[{"role": "user", "content": chat_completion_input_description}],
+            user="ddtrace-test",
+        )
+    span = mock_tracer.pop_traces()[0][0]
+    assert mock_llmobs_writer.enqueue.call_count == 1
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[
+                {
+                    "content": "[tool: {}]\n\n{}".format(
+                        resp.choices[0].message.tool_calls[0].function.name,
+                        resp.choices[0].message.tool_calls[0].function.arguments,
+                    ),
+                    "role": "assistant",
+                }
+            ],
+            metadata={"temperature": 0},
+            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
+            tags={"ml_app": "<ml-app-name>"},
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
     with pytest.raises(Exception):
@@ -2071,28 +2104,26 @@ def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock
             )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=model,
-                    model_provider="openai",
-                    input_messages=[{"content": "Hello world"}],
-                    output_messages=[{"content": ""}],
-                    parameters={"temperature": 0.8, "max_tokens": 10},
-                    token_metrics={},
-                    error="openai.AuthenticationError",
-                    error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                    error_stack=span.get_tag("error.stack"),
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ""}],
+            metadata={"temperature": 0.8, "max_tokens": 10},
+            token_metrics={},
+            error="openai.AuthenticationError",
+            error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+            error_stack=span.get_tag("error.stack"),
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0)])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
     """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
     with pytest.raises(Exception):
@@ -2114,22 +2145,18 @@ def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config,
             )
     span = mock_tracer.pop_traces()[0][0]
     assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                _expected_llmobs_llm_span_event(
-                    span,
-                    model_name=model,
-                    model_provider="openai",
-                    input_messages=input_messages,
-                    output_messages=[{"content": ""}],
-                    parameters={"temperature": 0},
-                    token_metrics={},
-                    error="openai.AuthenticationError",
-                    error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                    error_stack=span.get_tag("error.stack"),
-                )
-            ),
-        ]
+    mock_llmobs_writer.enqueue.assert_called_with(
+        _expected_llmobs_llm_span_event(
+            span,
+            model_name=model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": ""}],
+            metadata={"temperature": 0},
+            token_metrics={},
+            error="openai.AuthenticationError",
+            error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+            error_stack=span.get_tag("error.stack"),
+            tags={"ml_app": "<ml-app-name>"},
+        )
     )

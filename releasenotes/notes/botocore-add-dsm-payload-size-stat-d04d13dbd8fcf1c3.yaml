@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: adds dsm payload size stats for botocore messaging services of kinesis, sqs and sns.
