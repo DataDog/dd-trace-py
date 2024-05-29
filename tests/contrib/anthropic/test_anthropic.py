@@ -101,24 +101,46 @@ def test_anthropic_llm_error(anthropic, request_vcr):
 # ],)
 
 
-# @pytest.mark.snapshot()
-# def test_anthropic_llm_sync_stream(anthropic, request_vcr):
-#     llm = anthropic.Anthropic()
-#     with request_vcr.use_cassette("anthropic_completion_sync_stream.yaml"):
-#         with llm.messages.stream(
-# model="claude-3-opus-20240229",
-# max_tokens=1024,
-# messages=[
-#     {
-#         "role": "user",
-#         "content": {
-#             "type": "text",
-#             "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
-#         },
-#     }
-# ],) as stream:
-#   for text in stream.text_stream:
-#         print(text, end="", flush=True)
+@pytest.mark.snapshot()
+def test_anthropic_llm_sync_stream(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_sync_stream.yaml"):
+        stream = llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                        }
+                    ],
+                },
+            ],
+            stream=True,
+        )
+        for chunk in stream:
+            print(chunk.type)
+
+
+@pytest.mark.snapshot()
+def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_sync_stream_helper.yaml"):
+        with llm.messages.stream(
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Say hello there!",
+                }
+            ],
+            model="claude-3-opus-20240229",
+        ) as stream:
+            for text in stream.text_stream:
+                print(text, end="", flush=True)
 
 
 # @pytest.mark.asyncio

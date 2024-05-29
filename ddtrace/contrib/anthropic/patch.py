@@ -2,7 +2,6 @@ import json
 import os
 import sys
 from typing import Any
-from typing import Iterable
 from typing import Optional
 from typing import Union
 
@@ -18,6 +17,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.pin import Pin
+
+from .utils import handle_stream_response
 
 
 log = get_logger(__name__)
@@ -122,7 +123,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                         "anthropic.request.messages.%d.0.message_type" % (message_set_idx),
                         "text",
                     )
-                elif isinstance(message_set.get("content", None), Iterable):
+                elif isinstance(message_set.get("content", None), list):
                     for message_idx, message in enumerate(message_set.get("content", [])):
                         if integration.is_pc_sampled_span(span):
                             if message.get("type", None) == "text":
@@ -149,9 +150,21 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                     span.set_tag_str("anthropic.request.parameters.%s" % (param), str(val))
         chat_completions = func(*args, **kwargs)
 
+        if isinstance(chat_completions, str):
+            return handle_non_stream_response(integration, chat_completions, chat_messages, span)
+        elif kwargs.get("stream") and isinstance(chat_completions, anthropic.Stream):
+            return handle_stream_response(integration, chat_completions, args, kwargs, span)
+
         #     _tag_anthropic_token_usage(span, chat_completions.llm_output)
         #     integration.record_usage(span, chat_completions.llm_output)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+        # integration.metric(span, "dist", "request.duration", span.duration_ns)
 
+
+def handle_non_stream_response(integration, chat_completions, chat_messages, span):
+    try:
         for idx, chat_completion in enumerate(chat_completions.content):
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str(
@@ -162,14 +175,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                 "anthropic.response.completions.%d.message_type" % (idx),  # TO-DO: change to .type?
                 chat_completion.type,
             )
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
     finally:
         # if integration.is_pc_sampled_llmobs(span):
         integration.llmobs_set_tags(span, chat_messages, chat_completions, err=bool(span.error))
         span.finish()
-        # integration.metric(span, "dist", "request.duration", span.duration_ns)
     return chat_completions
 
 
