@@ -2484,7 +2484,6 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
@@ -2499,6 +2498,7 @@ venv = Venv(
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
+                        "cohere": "==4.57",
                     }
                 ),
                 Venv(
@@ -2513,6 +2513,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "langchain-aws": latest,
+                        "cohere": latest,
                     }
                 ),
                 Venv(
@@ -2527,6 +2528,7 @@ venv = Venv(
                         "pinecone-client": latest,
                         "botocore": latest,
                         "langchain-aws": latest,
+                        "cohere": latest,
                     }
                 ),
             ],

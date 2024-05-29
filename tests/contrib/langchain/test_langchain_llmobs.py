@@ -348,6 +348,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
+    @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
         span = self._invoke_llm(
             llm=langchain_community.llms.AI21(),
