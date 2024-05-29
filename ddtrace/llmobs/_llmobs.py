@@ -2,7 +2,6 @@ import json
 import os
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -654,6 +653,7 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
             log.warning(
@@ -687,27 +687,29 @@ class LLMObs(Service):
             log.warning("tags must be a dictionary of string key-value pairs.")
             return
 
-        eval_metric_event: Dict[str, Union[str, float, List[str]]] = {
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "label": str(label),
-            "metric_type": metric_type.lower(),
-            "{}_value".format(metric_type): value,
+        # initialize tags with default values that will be overridden by user-provided tags
+        evaluation_tags = {
+            "ddtrace.version": ddtrace.__version__,
+            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
         }
-
-        tag_list = []
 
         if tags:
             for k, v in tags.items():
                 try:
-                    k = ensure_text(k)
-                    v = ensure_text(v)
-                    tag_list.append("{}:{}".format(k, v))
+                    evaluation_tags[ensure_text(k)] = ensure_text(v)
                 except TypeError:
                     log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
-            eval_metric_event["tags"] = tag_list
 
-        cls._instance._llmobs_eval_metric_writer.enqueue(eval_metric_event)
+        cls._instance._llmobs_eval_metric_writer.enqueue(
+            {
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "label": str(label),
+                "metric_type": metric_type.lower(),
+                "{}_value".format(metric_type): value,
+                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+            }
+        )
 
 
 # initialize the default llmobs instance

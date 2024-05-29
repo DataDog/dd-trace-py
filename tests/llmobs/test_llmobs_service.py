@@ -3,6 +3,7 @@ import json
 import mock
 import pytest
 
+import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -807,6 +808,10 @@ def test_submit_evaluation_invalid_tags_raises_warning(LLMObs, mock_logs):
     mock_logs.reset_mock()
 
 
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_ml_app="test_app_name")],
+)
 def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
     LLMObs, mock_logs, mock_llmobs_eval_metric_writer
 ):
@@ -826,7 +831,31 @@ def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["foo:bar"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:test_app_name", "foo:bar"],
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(ddtrace="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
+)
+def test_submit_evaluation_metric_tags(LLMObs, mock_llmobs_eval_metric_writer):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
 
@@ -847,7 +876,6 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
             label="toxicity",
             metric_type="categorical",
             value="high",
-            tags={"foo": "far"},
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -856,7 +884,6 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["foo:far"],
         )
     )
 
@@ -902,7 +929,6 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             label="token_count",
             metric_type="numerical",
             value=35,
-            tags={"foo": "far", "bar": "baz"},
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -911,7 +937,6 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             label="token_count",
             metric_type="numerical",
             numerical_value=35,
-            tags=["foo:far", "bar:baz"],
         )
     )
 
