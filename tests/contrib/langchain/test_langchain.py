@@ -1352,7 +1352,7 @@ class TestLLMObsLangchain:
         different_py39_cassette=False,
     ):
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want langchain patched
 
         if sys.version_info < (3, 10, 0) and different_py39_cassette:
             cassette_name = cassette_name.replace(".yaml", "_39.yaml")
@@ -1388,7 +1388,7 @@ class TestLLMObsLangchain:
     ):
         # disable the service before re-enabling it, as it was enabled in another test
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations=["langchain"])
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want langchain patched
 
         if sys.version_info < (3, 10, 0) and different_py39_cassette:
             cassette_name = cassette_name.replace(".yaml", "_39.yaml")
