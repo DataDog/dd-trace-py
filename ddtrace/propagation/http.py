@@ -18,13 +18,13 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal  # noqa:F401
 
-
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
+from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -173,6 +173,8 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _is_valid_datadog_trace_tag_key(key):
+        if asm_config._appsec_standalone_enabled:
+            return key.startswith("_dd.p.appsec")
         return key.startswith("_dd.p.")
 
     @staticmethod
