@@ -49,22 +49,28 @@ class PackageForTesting:
         self.test_import = test_import
         self.test_import_python_versions_to_skip = skip_python_version
         self.test_e2e = test_e2e
+
         if expected_param:
             self.expected_param = expected_param
+
         if expected_result1:
             self.expected_result1 = expected_result1
+
         if expected_result2:
             self.expected_result2 = expected_result2
+
         if extras:
             self.extra_packages = extras
+
         if import_name:
             self.import_name = import_name
         else:
             self.import_name = self.name
+
         if import_module_to_validate:
             self.import_module_to_validate = import_module_to_validate
         else:
-            self.import_module_to_validate = self.name
+            self.import_module_to_validate = self.import_name
 
     @property
     def url(self):
