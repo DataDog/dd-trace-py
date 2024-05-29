@@ -1,7 +1,8 @@
 name: All checks pass
 on:
     pull_request:
-      types: [ opened, synchronize, reopened, ready_for_review ]
+      # Include labeled and unlabeled for the `changelog/no-changelog` label
+      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
 jobs:
   allchecks:
     runs-on: ubuntu-latest
