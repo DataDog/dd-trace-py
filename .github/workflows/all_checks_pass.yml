@@ -15,4 +15,9 @@ jobs:
           delay: 5
           retries: 20
           polling_interval: 3
+          # These jobs are:
+          #   - set in branch protection rules
+          #   - not required
+          #   - expected to fail until an action is taken (like a review)
+          checks_exclude: 'require-checklist'
           
