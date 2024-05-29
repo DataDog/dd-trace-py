@@ -178,8 +178,6 @@ class TraceSamplingProcessor(TraceProcessor):
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
                 for span in trace:
-                    if self.apm_opt_out:
-                        span.set_metric(MK_APM_ENABLED, 0)
                     if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
                         for rule in self.single_span_rules:
                             if rule.match(span):
