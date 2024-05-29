@@ -5,10 +5,8 @@ WORKDIR /build
 ARG DDTRACE_PYTHON_VERSION
 RUN python3 -m pip install -U pip==23.0.1
 RUN python3 -m pip install packaging==23.0
-RUN python3 -m pip install riot==0.19.0
 RUN mkdir -p pkgs
 ADD ./dl_wheels.py .
-ADD ../scripts/all_requirements.py .
 # Note that we only get Python >= 3.7. This is to keep the size of the image
 # as small as possible.
 RUN python3 dl_wheels.py \
@@ -25,7 +23,6 @@ RUN python3 dl_wheels.py \
         --platform manylinux2014 \
         --output-dir /build/pkgs \
         --verbose
-RUN python3 all_requirements.py
 
 FROM alpine:3.18.3
 COPY --from=0 /build/pkgs /datadog-init/ddtrace_pkgs
@@ -34,8 +31,8 @@ RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
 RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
 RUN chmod -R 755 /datadog-init/ddtrace_pkgs
-COPY --from=0 min_versions.csv /datadog-init/min_versions.csv
 USER ${UID}
 WORKDIR /datadog-init
+ADD min_compatible_versions.csv /datadog-init/min_compatible_versions.csv
 ADD sitecustomize.py /datadog-init/sitecustomize.py
 ADD copy-lib.sh /datadog-init/copy-lib.sh
