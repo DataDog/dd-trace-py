@@ -46,6 +46,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     categorical_value: str
     numerical_value: float
     score_value: float
+    tags: List[str]
 
 
 class BaseLLMObsWriter(PeriodicService):
