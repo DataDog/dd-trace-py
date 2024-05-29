@@ -116,7 +116,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
             except ValueError:
                 workspace_path = Path(os.getcwd())
 
-            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+            log.debug("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
 
             install(include_paths=[workspace_path])
             if COVER_SESSION:
