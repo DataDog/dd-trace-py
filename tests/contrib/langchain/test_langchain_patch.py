@@ -55,6 +55,7 @@ class TestLangchainPatch(PatchTestCase.Base):
     def assert_not_module_patched(self, langchain):
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
             from langchain import chains  # noqa: F401
+            from langchain.chains import base  # noqa: F401
             import langchain_community as gated_langchain
             from langchain_community import embeddings  # noqa: F401
             from langchain_community import vectorstores  # noqa: F401
@@ -95,6 +96,7 @@ class TestLangchainPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, langchain):
         if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+            from langchain.chains import base  # noqa: F401
             import langchain_community as gated_langchain
             import langchain_core
             import langchain_openai

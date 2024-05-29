@@ -2,7 +2,6 @@ import json
 import os
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -13,6 +12,7 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
@@ -50,11 +50,7 @@ from ddtrace.llmobs.utils import Messages
 log = get_logger(__name__)
 
 
-SUPPORTED_INTEGRATIONS = {
-    "bedrock": lambda: patch(botocore=True),
-    "langchain": lambda: patch(langchain=True),
-    "openai": lambda: patch(openai=True),
-}
+SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
 
 
 class LLMObs(Service):
@@ -69,13 +65,13 @@ class LLMObs(Service):
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
     def _start_service(self) -> None:
@@ -105,7 +101,7 @@ class LLMObs(Service):
     def enable(
         cls,
         ml_app: Optional[str] = None,
-        integrations: Optional[List[str]] = None,
+        integrations_enabled: bool = True,
         agentless_enabled: bool = False,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -117,8 +113,7 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: The name of your ml application.
-        :param List[str] integrations: A list of integrations to enable auto-tracing for.
-                                        Must be subset of ("openai", "langchain", "bedrock")
+        :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
@@ -170,7 +165,8 @@ class LLMObs(Service):
                 log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                 remoteconfig_poller.disable()
 
-        cls._patch_integrations(integrations)
+        if integrations_enabled:
+            cls._patch_integrations()
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
@@ -178,6 +174,12 @@ class LLMObs(Service):
 
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
+
+    @classmethod
+    def _integration_is_enabled(cls, integration):
+        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+            return False
+        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -207,30 +209,10 @@ class LLMObs(Service):
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
     @staticmethod
-    def _patch_integrations(integrations: Optional[List[str]] = None):
-        """
-        Patch LLM integrations based on a list of integrations passed in. Patch all supported integrations by default.
-        """
-        integrations_to_patch = {}
-        if integrations is None:
-            integrations_to_patch.update(SUPPORTED_INTEGRATIONS)
-        else:
-            for integration in integrations:
-                integration = integration.lower()
-                if integration in SUPPORTED_INTEGRATIONS:
-                    integrations_to_patch.update({integration: SUPPORTED_INTEGRATIONS[integration]})
-                else:
-                    log.warning(
-                        "%s is unsupported - LLMObs currently supports %s",
-                        integration,
-                        str(SUPPORTED_INTEGRATIONS.keys()),
-                    )
-        for integration in integrations_to_patch:
-            try:
-                SUPPORTED_INTEGRATIONS[integration]()
-            except Exception:
-                log.warning("couldn't patch %s", integration, exc_info=True)
-        return
+    def _patch_integrations() -> None:
+        """Patch LLM integrations."""
+        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
+        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
@@ -667,6 +649,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float],
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -676,6 +659,7 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
             log.warning(
@@ -705,6 +689,23 @@ class LLMObs(Service):
         if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
             log.warning("value must be an integer or float for a numerical/score metric.")
             return
+        if tags is not None and not isinstance(tags, dict):
+            log.warning("tags must be a dictionary of string key-value pairs.")
+            return
+
+        # initialize tags with default values that will be overridden by user-provided tags
+        evaluation_tags = {
+            "ddtrace.version": ddtrace.__version__,
+            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+        }
+
+        if tags:
+            for k, v in tags.items():
+                try:
+                    evaluation_tags[ensure_text(k)] = ensure_text(v)
+                except TypeError:
+                    log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+
         cls._instance._llmobs_eval_metric_writer.enqueue(
             {
                 "span_id": span_id,
@@ -712,6 +713,7 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type.lower(),
                 "{}_value".format(metric_type): value,
+                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
 
