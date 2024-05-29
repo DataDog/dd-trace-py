@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the LLM Observability SDK, which enhances the observability of Python-based LLM applications. 
+    See the `LLM Observability SDK <https://docs.datadoghq.com/tracing/llm_observability/sdk>`_ documentation for more information about this feature.
