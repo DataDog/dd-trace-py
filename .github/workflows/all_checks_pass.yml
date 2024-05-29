@@ -1,0 +1,18 @@
+name: All checks pass
+on:
+    pull_request:
+      types: [ opened, synchronize, reopened, ready_for_review ]
+jobs:
+  allchecks:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - uses: wechuli/allcheckspassed@v1
+        with:
+          # Wait 5 minutes, then poll every 3 minutes for up to 60 minutes (65 minutes total)
+          delay: 5
+          retries: 20
+          polling_interval: 3
+          
