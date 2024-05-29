@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where a writer recreate (for example in a subprocess) would not keep extra headers.
