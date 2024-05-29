@@ -71,7 +71,6 @@ if di_config.enabled or ed_config.enabled:
 
     DynamicInstrumentation.enable()
 
-# if asbool(os.getenv("DD_TRACE_ENABLED", default=True)) and config._runtime_metrics_enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
