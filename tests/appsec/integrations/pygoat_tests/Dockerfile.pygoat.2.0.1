@@ -35,6 +35,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # install pygoat
 EXPOSE 8321
 
+# Note: admin login from the fixtures is "admin/adminpassword"
 RUN python3 manage.py migrate
 RUN python3 manage.py loaddata ../fixtures/*
 CMD ["ddtrace-run", "python", "manage.py", "runserver", "0.0.0.0:8321"]
