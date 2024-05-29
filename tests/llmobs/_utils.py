@@ -192,7 +192,7 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None
+    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
 ):
     eval_metric_event = {"span_id": span_id, "trace_id": trace_id, "metric_type": metric_type, "label": label}
     if categorical_value is not None:
@@ -201,4 +201,6 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if tags is not None:
+        eval_metric_event["tags"] = tags
     return eval_metric_event

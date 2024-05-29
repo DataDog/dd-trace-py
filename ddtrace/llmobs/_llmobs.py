@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -12,6 +13,7 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
@@ -642,6 +644,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float],
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -680,15 +683,31 @@ class LLMObs(Service):
         if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
             log.warning("value must be an integer or float for a numerical/score metric.")
             return
-        cls._instance._llmobs_eval_metric_writer.enqueue(
-            {
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "label": str(label),
-                "metric_type": metric_type.lower(),
-                "{}_value".format(metric_type): value,
-            }
-        )
+        if tags is not None and not isinstance(tags, dict):
+            log.warning("tags must be a dictionary of string key-value pairs.")
+            return
+
+        eval_metric_event: Dict[str, Union[str, float, List[str]]] = {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "label": str(label),
+            "metric_type": metric_type.lower(),
+            "{}_value".format(metric_type): value,
+        }
+
+        tag_list = []
+
+        if tags:
+            for k, v in tags.items():
+                try:
+                    k = ensure_text(k)
+                    v = ensure_text(v)
+                    tag_list.append("{}:{}".format(k, v))
+                except TypeError:
+                    log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+            eval_metric_event["tags"] = tag_list
+
+        cls._instance._llmobs_eval_metric_writer.enqueue(eval_metric_event)
 
 
 # initialize the default llmobs instance

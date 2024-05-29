@@ -795,6 +795,42 @@ def test_submit_evaluation_incorrect_score_value_type_raises_warning(LLMObs, moc
     mock_logs.warning.assert_called_once_with("value must be an integer or float for a numerical/score metric.")
 
 
+def test_submit_evaluation_invalid_tags_raises_warning(LLMObs, mock_logs):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags=["invalid"],
+    )
+    mock_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+    mock_logs.reset_mock()
+
+
+def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
+    LLMObs, mock_logs, mock_llmobs_eval_metric_writer
+):
+    LLMObs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={1: 2, "foo": "bar"},
+    )
+    mock_logs.warning.assert_called_once_with("Failed to parse tags. Tags for evaluation metrics must be strings.")
+    mock_logs.reset_mock()
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["foo:bar"],
+        )
+    )
+
+
 def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_llmobs_eval_metric_writer):
     LLMObs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value="high"
@@ -807,7 +843,11 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span), label="toxicity", metric_type="categorical", value="high"
+            span_context=LLMObs.export_span(span),
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            tags={"foo": "far"},
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -816,6 +856,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
+            tags=["foo:far"],
         )
     )
 
@@ -857,7 +898,11 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span), label="token_count", metric_type="numerical", value=35
+            span_context=LLMObs.export_span(span),
+            label="token_count",
+            metric_type="numerical",
+            value=35,
+            tags={"foo": "far", "bar": "baz"},
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -866,6 +911,7 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
             label="token_count",
             metric_type="numerical",
             numerical_value=35,
+            tags=["foo:far", "bar:baz"],
         )
     )
 
