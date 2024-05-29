@@ -1,8 +1,8 @@
 interactions:
 - request:
     body: '{"prompt": ["Can you explain what Descartes meant by ''I think, therefore
-      I am''?"], "model": "text-davinci-003", "temperature": 0.7, "max_tokens": 256,
-      "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
+      I am''?"], "model": "gpt-3.5-turbo-instruct", "temperature": 0.7, "max_tokens":
+      256, "top_p": 1, "frequency_penalty": 0, "presence_penalty": 0, "n": 1, "logit_bias":
       {}}'
     headers:
       Accept:
@@ -12,36 +12,48 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '235'
+      - '241'
       Content-Type:
       - application/json
       User-Agent:
       - OpenAI/v1 PythonBindings/0.27.8
       X-OpenAI-Client-User-Agent:
       - '{"bindings_version": "0.27.8", "httplib": "requests", "lang": "python", "lang_version":
-        "3.10.5", "platform": "macOS-13.4-arm64-arm-64bit", "publisher": "openai",
-        "uname": "Darwin 22.5.0 Darwin Kernel Version 22.5.0: Mon Apr 24 20:52:24
-        PDT 2023; root:xnu-8796.121.2~5/RELEASE_ARM64_T6000 arm64"}'
+        "3.11.1", "platform": "macOS-14.4.1-arm64-arm-64bit", "publisher": "openai",
+        "uname": "Darwin 23.4.0 Darwin Kernel Version 23.4.0: Fri Mar 15 00:10:42
+        PDT 2024; root:xnu-10063.101.17~1/RELEASE_ARM64_T6000 arm64 arm"}'
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
+
     body:
-      string: "{\n  \"id\": \"cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP\",\n  \"object\":
+        string: "{\n  \"id\": \"cmpl-7TZs9SoIjYLVNCYmAqIz9ihMX1grP\",\n  \"object\":
         \"text_completion\",\n  \"created\": 1687283761,\n  \"model\": \"text-davinci-003\",\n
         \ \"choices\": [\n    {\n      \"text\": \"\\n\\nDescartes' famous phrase
-        \\\"I think, therefore I am\\\" is a fundamental statement of his philosophical
-        approach, known as Cartesian dualism. This phrase expresses his belief that
-        the very act of thinking proves one's existence. Descartes reasoned that even
-        if he was tricked by an evil genius into believing false ideas, he still must
-        exist in order to be tricked. Therefore, he concluded that his own existence
-        was certain, even if all else was uncertain.\",\n      \"index\": 0,\n      \"logprobs\":
-        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        17,\n    \"completion_tokens\": 95,\n    \"total_tokens\": 112\n  }\n}\n"
+        \\\"I think, therefore I am\\\" is a fundamental statement of his philosophical 
+        approach, known as Cartesian logic. This phrase is often interpreted as a
+        statement that reflects his belief in the existence of the self and one's
+        consciousness.\\n\\nIn his philosophical work, Descartes was searching for
+        a solid foundation for knowledge and truth. He doubted everything he had learned
+        and believed, even the existence of the external world and his own body. However,
+        he reached a point where he realized that even if everything else could be
+        doubted, there was one thing that he could not doubt - the fact that he was
+        doubting. This led him to the conclusion that he must exist in order to have
+        thoughts and doubts.\\n\\nTherefore, by saying \\\"I think,\\\" Descartes
+        is asserting that he is a thinking being. And by saying \\\"therefore I am,\\\"
+        he is affirming that his existence is inseparable from his ability to think.
+        In other words, the very act of thinking proves his existence as a conscious
+        being.\\n\\nThis statement also implies that the mind and consciousness are
+        essential to one's existence, rather than the physical body. While the body
+        can be doubted and can deceive the senses, the mind's ability to think and\",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 17,\n    \"completion_tokens\":
+        95,\n    \"total_tokens\": 112\n  }\n}\n"
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 7da5e2d45d89a211-YYZ
+      - 88b1dec92bf84414-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -51,9 +63,15 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 20 Jun 2023 17:56:03 GMT
+      - Tue, 28 May 2024 23:02:09 GMT
       Server:
       - cloudflare
+      Set-Cookie:
+      - __cf_bm=GO1qX6goSJ8IacyvMS7tLMf0y55kYhL6qoz7yWHzVaw-1716937329-1.0.1.1-KvV3UvXRKv112CoSczDnRzcxKh8yFACOJH3Ze3RU6UqLAbH9hU09.k9UMn37Jjz4lL0vp_QtsV86A5CZ6pj0xg;
+        path=/; expires=Tue, 28-May-24 23:32:09 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=2wZlGKfUHYLv2py8qBP8822KGpT_cuKDJqqhhCMyEAs-1716937329373-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       access-control-allow-origin:
@@ -61,11 +79,11 @@ interactions:
       alt-svc:
       - h3=":443"; ma=86400
       openai-model:
-      - text-davinci-003
+      - gpt-3.5-turbo-instruct
       openai-organization:
       - datadog-4
       openai-processing-ms:
-      - '2066'
+      - '4278'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -79,11 +97,11 @@ interactions:
       x-ratelimit-remaining-tokens:
       - '249744'
       x-ratelimit-reset-requests:
-      - 20ms
+      - 17ms
       x-ratelimit-reset-tokens:
-      - 61ms
+      - 181ms
       x-request-id:
-      - 0f687e05c8e1f21d8431c83ea86acb0f
+      - req_9c5e9d6c980fce68872534cb21e92939
     status:
       code: 200
       message: OK
