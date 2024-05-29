@@ -14,12 +14,23 @@ trap clean EXIT
 
 if [[ "$1" == "update" ]]
 then
-    THIS_PATH="$(realpath "$0")"
-    THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
-    for file in $(find "$THIS_DIR" -name '*.[c|cpp|h]' | grep -v '.riot/' | grep -v 'ddtrace/vendor/' | grep -v 'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/')
-    do
-    clang-format --style="{BasedOnStyle: Mozilla, IndentWidth: 4, ColumnLimit: 120}" -i "$file"
-    done
+  THIS_PATH="$(realpath "$0")"
+  THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
+  # Find .c, .cpp, and .h files, excluding specified directories
+  find "$THIS_DIR" -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
+    | grep -v '.eggs/' \
+    | grep -v 'dd-trace-py/build/' \
+    | grep -v '_taint_tracking/CMakeFiles' \
+    | grep -v '_taint_tracking/_deps/' \
+    | grep -v '.riot/' \
+    | grep -v 'ddtrace/vendor/' \
+    | grep -v '_taint_tracking/_vendor/' \
+    | grep -v 'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/' \
+    | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/' \
+    | while IFS= read -r file; do
+  clang-format --style="{BasedOnStyle: Mozilla, IndentWidth: 4, ColumnLimit: 120}" -i $file
+  echo "Formatting $file"
+done
 else
   git ls-files '*.c' '*.cpp' '*.h' | grep -v '^ddtrace/vendor/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'  | while read filename
   do
