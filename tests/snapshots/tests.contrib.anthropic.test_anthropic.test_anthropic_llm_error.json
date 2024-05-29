@@ -16,7 +16,7 @@
       "_ml_obs.meta.model_name": "claude-3-opus-20240229",
       "_ml_obs.meta.output.messages": "[{\"content\": \"\"}]",
       "_ml_obs.meta.span.kind": "llm",
-      "anthropic.request.api_key": "...8gAA",
+      "anthropic.request.api_key": "...key>",
       "anthropic.request.model": "claude-3-opus-20240229",
       "anthropic.request.parameters.max_tokens": "1024",
       "anthropic.request.parameters.model": "claude-3-opus-20240229",
