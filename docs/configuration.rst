@@ -68,6 +68,16 @@ The following environment variables for the tracer are supported:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_ENABLED``
 
+   DD_REMOTE_CONFIGURATION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Enable or disable the remote configuration feature. When disabled, the agent will not fetch configuration from the Datadog agent.
+         This feature is only enabled by default if ``ddtrace-run`` is used, ``import ddtrace.auto`` is done,
+         or if ``ddtrace.config.enable_remote_configuration()`` is called.
+     version_added:
+       v1.19.0
+
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
      default: False
