@@ -1,16 +1,15 @@
-from ddtrace.ext import SpanTypes
+from openai.version import VERSION as OPENAI_VERSION
 
-from .utils import _construct_completion_from_streamed_chunks
-from .utils import _construct_message_from_streamed_chunks
-from .utils import _format_openai_api_key
-from .utils import _is_async_generator
-from .utils import _is_generator
-from .utils import _loop_handler
-from .utils import _set_metrics_on_request
-from .utils import _set_metrics_on_streamed_response
-from .utils import _tag_streamed_chat_completion_response
-from .utils import _tag_streamed_completion_response
-from .utils import _tag_tool_calls
+from ddtrace.contrib.openai.utils import TracedOpenAIAsyncStream
+from ddtrace.contrib.openai.utils import TracedOpenAIStream
+from ddtrace.contrib.openai.utils import _format_openai_api_key
+from ddtrace.contrib.openai.utils import _is_async_generator
+from ddtrace.contrib.openai.utils import _is_generator
+from ddtrace.contrib.openai.utils import _loop_handler
+from ddtrace.contrib.openai.utils import _process_finished_stream
+from ddtrace.contrib.openai.utils import _tag_tool_calls
+from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -96,37 +95,23 @@ class _EndpointHook:
 class _BaseCompletionHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
-    def _handle_streamed_response(self, integration, span, kwargs, resp, operation_id):
-        """Handle streamed response objects returned from endpoint calls.
+    def _handle_streamed_response(self, integration, span, kwargs, resp, is_completion=False):
+        """Handle streamed response objects returned from completions/chat endpoint calls.
 
-        This method helps with streamed responses by wrapping the generator returned with a
-        generator that traces the reading of the response.
+        This method returns a wrapped version of the OpenAIStream/OpenAIAsyncStream objects
+        to trace the response while it is read by the user.
         """
+        if parse_version(OPENAI_VERSION) >= (1, 6, 0):
+            if _is_async_generator(resp):
+                return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
+            elif _is_generator(resp):
+                return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
 
         def shared_gen():
-            completions = None
-            messages = None
             try:
                 streamed_chunks = yield
-                _set_metrics_on_request(
-                    integration, span, kwargs, prompts=kwargs.get("prompt", None), messages=kwargs.get("messages", None)
-                )
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
-                else:
-                    messages = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
-                _set_metrics_on_streamed_response(integration, span, completions=completions, messages=messages)
+                _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion)
             finally:
-                if operation_id == _CompletionHook.OPERATION_ID:
-                    if integration.is_pc_sampled_span(span):
-                        _tag_streamed_completion_response(integration, span, completions)
-                    if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("completion", resp, span, kwargs, streamed_completions=completions)
-                else:
-                    if integration.is_pc_sampled_span(span):
-                        _tag_streamed_chat_completion_response(integration, span, messages)
-                    if integration.is_pc_sampled_llmobs(span):
-                        integration.llmobs_set_tags("chat", resp, span, kwargs, streamed_completions=messages)
                 span.finish()
                 integration.metric(span, "dist", "request.duration", span.duration_ns)
 
@@ -135,8 +120,8 @@ class _BaseCompletionHook(_EndpointHook):
             async def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                n = kwargs.get("n", 1)
-                if operation_id == _CompletionHook.OPERATION_ID:
+                n = kwargs.get("n", 1) or 1
+                if is_completion:
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
                         n *= len(prompts)
@@ -158,8 +143,8 @@ class _BaseCompletionHook(_EndpointHook):
             def traced_streamed_response():
                 g = shared_gen()
                 g.send(None)
-                n = kwargs.get("n", 1)
-                if operation_id == _CompletionHook.OPERATION_ID:
+                n = kwargs.get("n", 1) or 1
+                if is_completion:
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
                         n *= len(prompts)
@@ -175,7 +160,6 @@ class _BaseCompletionHook(_EndpointHook):
                         pass
 
             return traced_streamed_response()
-
         return resp
 
 
@@ -205,7 +189,8 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.span_type = SpanTypes.LLM
+        if integration.is_pc_sampled_llmobs(span):
+            span.set_tag_str(SPAN_KIND, "llm")
         if integration.is_pc_sampled_span(span):
             prompt = kwargs.get("prompt", "")
             if isinstance(prompt, str):
@@ -216,7 +201,7 @@ class _CompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=True)
         if integration.is_pc_sampled_log(span):
             attrs_dict = {"prompt": kwargs.get("prompt", "")}
             if error is None:
@@ -262,7 +247,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
-        span.span_type = SpanTypes.LLM
+        if integration.is_pc_sampled_llmobs(span):
+            span.set_tag_str(SPAN_KIND, "llm")
         for idx, m in enumerate(kwargs.get("messages", [])):
             role = getattr(m, "role", "")
             name = getattr(m, "name", "")
@@ -279,7 +265,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, operation_id=self.OPERATION_ID)
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         if integration.is_pc_sampled_log(span):
             log_choices = resp.choices
             if hasattr(resp.choices[0], "model_dump"):
@@ -359,8 +345,6 @@ class _ListHook(_EndpointHook):
             span.resource = "listModels"
         elif endpoint.endswith("/files"):
             span.resource = "listFiles"
-        elif endpoint.endswith("/fine-tunes"):
-            span.resource = "listFineTunes"
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -386,15 +370,6 @@ class _FileListHook(_ListHook):
 
     ENDPOINT_NAME = "files"
     OPERATION_ID = "listFiles"
-
-
-class _FineTuneListHook(_ListHook):
-    """
-    Hook for openai.resources.fine_tunes.FineTunes.list (v1)
-    """
-
-    ENDPOINT_NAME = "fine-tunes"
-    OPERATION_ID = "listFineTunes"
 
 
 class _RetrieveHook(_EndpointHook):
@@ -431,11 +406,6 @@ class _RetrieveHook(_EndpointHook):
         elif endpoint.endswith("/files"):
             span.resource = "retrieveFile"
             span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
-        elif endpoint.endswith("/fine-tunes"):
-            span.resource = "retrieveFineTune"
-            span.set_tag_str(
-                "openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", "")
-            )
         span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -478,19 +448,6 @@ class _FileRetrieveHook(_RetrieveHook):
     def _record_request(self, pin, integration, span, args, kwargs):
         super()._record_request(pin, integration, span, args, kwargs)
         span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 2 else kwargs.get("file_id", ""))
-
-
-class _FineTuneRetrieveHook(_RetrieveHook):
-    """
-    Hook for openai.resources.fine_tunes.FineTunes.retrieve
-    """
-
-    ENDPOINT_NAME = "fine-tunes"
-    OPERATION_ID = "retrieveFineTune"
-
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
 
 
 class _DeleteHook(_EndpointHook):
@@ -542,49 +499,6 @@ class _ModelDeleteHook(_DeleteHook):
     """
 
     ENDPOINT_NAME = "models"
-
-
-class _EditHook(_EndpointHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = ("model", "n", "temperature", "top_p", "user")
-    _response_attrs = ("created",)
-    ENDPOINT_NAME = "edits"
-    HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "createEdit"
-
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-        if integration.is_pc_sampled_span(span):
-            instruction = kwargs.get("instruction")
-            input_text = kwargs.get("input", "")
-            span.set_tag_str("openai.request.instruction", integration.trunc(instruction))
-            span.set_tag_str("openai.request.input", integration.trunc(input_text))
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            integration.log(
-                span,
-                "info" if error is None else "error",
-                "sampled %s" % self.OPERATION_ID,
-                attrs={
-                    "instruction": kwargs.get("instruction"),
-                    "input": kwargs.get("input", ""),
-                    "choices": log_choices,
-                },
-            )
-        if not resp:
-            return
-        choices = resp.choices
-        if integration.is_pc_sampled_span(span):
-            for choice in choices:
-                idx = choice.index
-                span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(choice.text)))
-        integration.record_usage(span, resp.usage)
-        return resp
 
 
 class _ImageHook(_EndpointHook):
@@ -838,81 +752,4 @@ class _FileDownloadHook(_BaseFileHook):
             span.set_metric("openai.response.total_bytes", len(resp))
         else:
             span.set_metric("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
-        return resp
-
-
-class _BaseFineTuneHook(_EndpointHook):
-    _response_attrs = ("id", "model", "fine_tuned_model", "status", "created_at", "updated_at")
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        span.set_metric("openai.response.events_count", len(resp.events))
-        span.set_metric("openai.response.result_files_count", len(resp.result_files))
-        span.set_metric("openai.response.training_files_count", len(resp.training_files))
-        span.set_metric("openai.response.validation_files_count", len(resp.validation_files))
-        hyperparams = resp.hyperparams
-        for hyperparam in ("batch_size", "learning_rate_multiplier", "n_epochs", "prompt_loss_weight"):
-            span.set_tag_str("openai.response.hyperparams.%s" % hyperparam, str(getattr(hyperparams, hyperparam, "")))
-
-        return resp
-
-
-class _FineTuneCreateHook(_BaseFineTuneHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = (
-        "training_file",
-        "validation_file",
-        "model",
-        "n_epochs",
-        "batch_size",
-        "learning_rate_multiplier",
-        "prompt_loss_weight",
-        "compute_classification_metrics",
-        "classification_n_classes",
-        "classification_positive_class",
-        "suffix",
-    )
-    ENDPOINT_NAME = "fine-tunes"
-    HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "createFineTune"
-
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-        if "classification_betas" in kwargs:
-            classification_betas = kwargs.get("classification_betas", [])
-            if classification_betas:
-                span.set_metric("openai.request.classification_betas_count", len(classification_betas))
-            else:
-                span.set_metric("openai.request.classification_betas_count", 0)
-
-
-class _FineTuneCancelHook(_BaseFineTuneHook):
-    _request_arg_params = (None, "api_key", "api_type", "request_id", "api_version")
-    _request_kwarg_params = ("user",)
-    ENDPOINT_NAME = "fine-tunes/*/cancel"
-    HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "cancelFineTune"
-
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
-
-
-class _FineTuneListEventsHook(_EndpointHook):
-    _request_kwarg_params = ("stream", "user")
-    ENDPOINT_NAME = "fine-tunes/*/events"
-    HTTP_METHOD_TYPE = "GET"
-    OPERATION_ID = "listFineTuneEvents"
-
-    def _record_request(self, pin, integration, span, args, kwargs):
-        super()._record_request(pin, integration, span, args, kwargs)
-        span.set_tag_str("openai.request.fine_tune_id", args[1] if len(args) >= 2 else kwargs.get("fine_tune_id", ""))
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        span.set_metric("openai.response.count", len(resp.data))
         return resp

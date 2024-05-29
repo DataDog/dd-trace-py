@@ -1,10 +1,6 @@
 #pragma once
 #include "Initializer/Initializer.h"
-#include "TaintTracking/TaintRange.h"
-#include "TaintTracking/TaintedObject.h"
 #include "Utils/StringUtils.h"
-#include <Python.h>
-#include <pybind11/pybind11.h>
 
 using namespace std;
 using namespace pybind11::literals;

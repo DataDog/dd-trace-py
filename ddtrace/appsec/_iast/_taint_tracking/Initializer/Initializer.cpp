@@ -34,17 +34,16 @@ Initializer::create_tainting_map()
 void
 Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
 {
-    if (not tx_map)
+    if (not tx_map or tx_map->empty())
         return;
 
-    auto it = active_map_addreses.find(tx_map.get());
-    if (it == active_map_addreses.end()) {
+    if (const auto it = active_map_addreses.find(tx_map.get()); it == active_map_addreses.end()) {
         // Map wasn't in the active addresses, do nothing
         return;
     }
 
-    for (auto& kv_taint_map : *tx_map) {
-        kv_taint_map.second.second->decref();
+    for (const auto& [fst, snd] : *tx_map) {
+        snd.second->decref();
     }
 
     tx_map->clear();
@@ -71,8 +70,7 @@ Initializer::clear_tainting_maps()
 int
 Initializer::num_objects_tainted()
 {
-    auto ctx_map = initializer->get_tainting_map();
-    if (ctx_map) {
+    if (const auto ctx_map = initializer->get_tainting_map()) {
         return static_cast<int>(ctx_map->size());
     }
     return 0;
@@ -81,30 +79,29 @@ Initializer::num_objects_tainted()
 string
 Initializer::debug_taint_map()
 {
-    auto ctx_map = initializer->get_tainting_map();
+    const auto ctx_map = initializer->get_tainting_map();
     if (!ctx_map) {
         return ("[]");
     }
 
     std::stringstream output;
     output << "[";
-    for (const auto& item : *ctx_map) {
-        output << "{ 'Id-Key': " << item.first << ",";
-        output << "'Value': { 'Hash': " << item.second.first << ", 'TaintedObject': '" << item.second.second->toString()
-               << "'}},";
+    for (const auto& [fst, snd] : *ctx_map) {
+        output << "{ 'Id-Key': " << fst << ",";
+        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString() << "'}},";
     }
     output << "]";
     return output.str();
 }
 
 int
-Initializer::initializer_size()
+Initializer::initializer_size() const
 {
     return sizeof(*this);
 }
 
 int
-Initializer::active_map_addreses_size()
+Initializer::active_map_addreses_size() const
 {
     return static_cast<int>(active_map_addreses.size());
 }
@@ -124,7 +121,7 @@ Initializer::allocate_tainted_object()
 TaintedObjectPtr
 Initializer::allocate_ranges_into_taint_object(TaintRangeRefs ranges)
 {
-    auto toptr = allocate_tainted_object();
+    const auto toptr = allocate_tainted_object();
     toptr->set_values(std::move(ranges));
     return toptr;
 }
@@ -132,7 +129,7 @@ Initializer::allocate_ranges_into_taint_object(TaintRangeRefs ranges)
 TaintedObjectPtr
 Initializer::allocate_ranges_into_taint_object_copy(const TaintRangeRefs& ranges)
 {
-    auto toptr = allocate_tainted_object();
+    const auto toptr = allocate_tainted_object();
     toptr->copy_values(ranges);
     return toptr;
 }
@@ -165,7 +162,7 @@ Initializer::release_tainted_object(TaintedObjectPtr tobj)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(RANGE_START start, RANGE_LENGTH length, Source origin)
+Initializer::allocate_taint_range(const RANGE_START start, const RANGE_LENGTH length, const Source& origin)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();

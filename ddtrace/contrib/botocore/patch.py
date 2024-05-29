@@ -13,7 +13,6 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
@@ -86,9 +85,6 @@ def patch():
         return
     botocore.client._datadog_patch = True
 
-    if config._llmobs_enabled:
-        LLMObs.enable()
-
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
     Pin(service="aws").onto(botocore.client.BaseClient)
@@ -103,8 +99,6 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
-    if LLMObs.enabled:
-        LLMObs.disable()
 
 
 def patch_submodules(submodules):
