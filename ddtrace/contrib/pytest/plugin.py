@@ -12,9 +12,12 @@ to be run at specific points during pytest execution. The most important hooks u
 
 """
 import os
+from pathlib import Path
 from typing import Dict  # noqa:F401
 
 import pytest
+
+from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
@@ -24,14 +27,21 @@ PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
 
 
 def _is_enabled_early(early_config):
-    """Hackily checks if the ddtrace plugin is enabled before the config is fully populated.
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
 
-    This is necessary because the module watchdog for coverage collectio needs to be enabled as early as possible.
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
     """
+    if not _pytest_version_supports_itr():
+        return False
+
     if (
         "--no-ddtrace" in early_config.invocation_params.args
-        or early_config.getini("ddtrace") is False
         or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
     ):
         return False
 
@@ -97,10 +107,15 @@ def pytest_load_initial_conftests(early_config, parser, args):
         COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
         if USE_DD_COVERAGE:
+            from ddtrace.ext.git import extract_workspace_path
             from ddtrace.internal.coverage.code import ModuleCodeCollector
 
+            workspace_path = Path(extract_workspace_path())
+
+            log.debug("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+
             if not ModuleCodeCollector.is_installed():
-                ModuleCodeCollector.install()
+                ModuleCodeCollector.install(include_paths=[workspace_path])
             if COVER_SESSION:
                 ModuleCodeCollector.start_coverage()
         else:
