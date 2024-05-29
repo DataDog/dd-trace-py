@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "internal",
+    "service": "",
+    "resource": "test-start-span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6657881800000000",
+      "error.message": "Sorry Otel Span, I failed you",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 38, in test_otel_start_span_record_exception\n    raise Exception(\"Sorry Otel Span, I failed you\")\nException: Sorry Otel Span, I failed you\n",
+      "error.type": "builtins.Exception",
+      "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560271237812000, \"attributes\": {\"exception.type\": \"builtins.ValueError\", \"exception.message\": \"Invalid Operation\", \"exception.escaped\": \"False\", \"raied\": \"false\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560271237812000, \"attributes\": {\"exception.type\": \"RandoException\", \"exception.message\": \"MoonEar Fire!!!\", \"exception.escaped\": \"False\", \"exception.stacktrace\": \"Fake traceback\", \"exception.details\": \"This is FAKE, I overwrote the real exception details\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560261227739000, \"attributes\": {\"exception.type\": \"builtins.Exception\", \"exception.message\": \"Sorry Otel Span, I failed you\", \"exception.escaped\": \"False\"}}]",
+      "language": "python",
+      "runtime-id": "7ad665c85fcb4c67b56b8cf0b2c66ab5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9751
+    },
+    "duration": 691000,
+    "start": 1717012504126452000
+  }]]
