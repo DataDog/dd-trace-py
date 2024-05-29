@@ -17,6 +17,8 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.compat import PYTHON_INTERPRETER
+from ddtrace.internal.compat import PYTHON_VERSION
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -704,6 +706,23 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+def test_writer_recreate_keeps_headers():
+    expected_headers = {
+        "Content-Type": "application/msgpack",
+        "Datadog-Meta-Lang": "python",
+        "Datadog-Meta-Lang-Version": PYTHON_VERSION,
+        "Datadog-Meta-Lang-Interpreter": PYTHON_INTERPRETER,
+        "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+        "Datadog-Client-Computed-Top-Level": "yes",
+        "Datadog-Client-Computed-Stats": "yes",
+    }
+    writer = AgentWriter("http://dne:1234", headers={"Datadog-Client-Computed-Stats": "yes"})
+    assert writer._headers == expected_headers
+
+    writer = writer.recreate()
+    assert writer._headers == expected_headers
 
 
 @pytest.mark.parametrize(
