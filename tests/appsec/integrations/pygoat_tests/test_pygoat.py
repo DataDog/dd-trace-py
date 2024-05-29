@@ -4,6 +4,11 @@ import time
 import pytest
 import requests
 
+from tests.appsec.iast.conftest import iast_span_defaults
+
+
+span_defaults = iast_span_defaults  # So ruff does not remove it
+
 
 # Note: these tests require the testagent and pygoat images to be up from the docker-compose file
 # dc up -d pygoat testagent
@@ -148,7 +153,7 @@ def test_ssrf1(client, tracer, iast_span_defaults):
     assert vulnerability_in_traces("SSRF", client.agent_session)
 
 
-def test_ssrf2(client, tracer, iast_span_defaults):
+def test_ssrf2(client, tracer, span_defaults):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
