@@ -12,6 +12,7 @@ from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
@@ -642,6 +643,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float],
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -651,6 +653,7 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
             log.warning(
@@ -680,6 +683,23 @@ class LLMObs(Service):
         if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
             log.warning("value must be an integer or float for a numerical/score metric.")
             return
+        if tags is not None and not isinstance(tags, dict):
+            log.warning("tags must be a dictionary of string key-value pairs.")
+            return
+
+        # initialize tags with default values that will be overridden by user-provided tags
+        evaluation_tags = {
+            "ddtrace.version": ddtrace.__version__,
+            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+        }
+
+        if tags:
+            for k, v in tags.items():
+                try:
+                    evaluation_tags[ensure_text(k)] = ensure_text(v)
+                except TypeError:
+                    log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+
         cls._instance._llmobs_eval_metric_writer.enqueue(
             {
                 "span_id": span_id,
@@ -687,6 +707,7 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type.lower(),
                 "{}_value".format(metric_type): value,
+                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
 
