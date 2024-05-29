@@ -28,6 +28,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.execute", wrapped_execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
@@ -135,6 +136,53 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                 )
                 if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
                     raise BlockingException(core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "ssrf", url)
+
+    return original_request_callable(*args, **kwargs)
+
+
+_DB_DIALECTS = {
+    "mariadb": "mariadb",
+    "mysql": "mysql",
+    "postgres": "postgresql",
+    "pymysql": "mysql",
+    "pyodbc": "odbc",
+    "sql": "sql",
+    "sqlite": "sqlite",
+    "vertica": "vertica",
+}
+
+
+def wrapped_execute_4C9BAC8E228EB347(original_request_callable, instance, args, kwargs):
+    """
+    wrapper for dbapi execute function
+    """
+    if asm_config._asm_enabled and asm_config._ep_enabled:
+        try:
+            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import in_context
+            from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+        except ImportError:
+            # execute is used during module initialization
+            # and shouldn't be changed at that time
+            return original_request_callable(*args, **kwargs)
+
+        instrument_self = args[0] if args else None
+        command = args[1] if len(args) > 1 else kwargs.get("sql", None)
+        if instrument_self and command and in_context():
+            db_type = _DB_DIALECTS.get(
+                getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
+            )
+
+            if isinstance(command, str):
+                res = call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.SQLI: command, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
+                    crop_trace="wrapped_execute_4C9BAC8E228EB347",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
+                )
+                if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
+                    raise BlockingException(
+                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "sqli", command
+                    )
 
     return original_request_callable(*args, **kwargs)
 

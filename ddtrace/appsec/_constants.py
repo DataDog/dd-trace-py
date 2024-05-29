@@ -134,6 +134,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     PROCESSOR_SETTINGS = "waf.context.processor"
     LFI_ADDRESS = "server.io.fs.file"
     SSRF_ADDRESS = "server.io.net.url"
+    SQLI_ADDRESS = "server.db.statement"
+    SQLI_SYSTEM_ADDRESS = "server.db.system"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -260,3 +262,5 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     class ADDRESS(metaclass=Constant_Class):
         LFI = "LFI_ADDRESS"
         SSRF = "SSRF_ADDRESS"
+        SQLI = "SQLI_ADDRESS"
+        SQLI_TYPE = "SQLI_SYSTEM_ADDRESS"
