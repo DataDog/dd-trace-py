@@ -158,13 +158,7 @@ def _set_tags_from_cursor(span, vendor, cursor):
     if "postgres" == vendor:
         if hasattr(cursor, "connection"):
             conn = cursor.connection
-
-            if hasattr(conn, "dsn"):
-                dsn = sqlx.parse_pg_dsn2(conn.dsn)
-            elif hasattr(conn, "info") and hasattr(conn.info, "dsn"):
-                dsn = sqlx.parse_pg_dsn3(conn.info.dsn)
-            else:
-                dsn = None
+            dsn = sqlx.parse_pg_conn_dsn(conn)
 
             if dsn:
                 span.set_tag_str(sqlx.DB, dsn.get("dbname"))
