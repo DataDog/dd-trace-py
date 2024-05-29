@@ -157,7 +157,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sync_mode=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
-        report_metrics=True,  # type: Optional[bool]
+        report_metrics=True,  # type: bool
     ):
         # type: (...) -> None
 
@@ -546,6 +546,7 @@ class AgentWriter(HTTPWriter):
             sync_mode=self._sync_mode,
             api_version=self._api_version,
             headers=self._headers,
+            report_metrics=self._report_metrics,
         )
 
     @property
