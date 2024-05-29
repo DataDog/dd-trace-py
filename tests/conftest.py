@@ -16,12 +16,14 @@ from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Tuple  # noqa:F401
 from unittest import mock
+import warnings
 
 from _pytest.runner import call_and_report
 from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
+from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -65,6 +67,17 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+@pytest.fixture(autouse=True)
+def clear_context_after_every_test():
+    try:
+        yield
+    finally:
+        ctx = _DD_CONTEXTVAR.get()
+        if ctx is not None:
+            warnings.warn(f"Context was not cleared after test, expected None, got {ctx}")
+        _DD_CONTEXTVAR.set(None)
 
 
 @pytest.fixture
@@ -383,8 +396,8 @@ def git_repo(git_repo_empty):
 
 
 def _stop_remote_config_worker():
-    if remoteconfig_poller._worker:
-        remoteconfig_poller._stop_service(True)
+    if remoteconfig_poller.status == ServiceStatus.RUNNING:
+        remoteconfig_poller.stop(join=True)
         remoteconfig_poller._worker = None
 
 
