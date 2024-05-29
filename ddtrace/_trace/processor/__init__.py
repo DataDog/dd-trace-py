@@ -158,6 +158,9 @@ class TraceSamplingProcessor(TraceProcessor):
             chunk_root = trace[0]
             root_ctx = chunk_root._context
 
+            if self.apm_opt_out:
+                chunk_root.set_metric(MK_APM_ENABLED, 0)
+
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
                 self.sampler.sample(trace[0])
@@ -175,8 +178,6 @@ class TraceSamplingProcessor(TraceProcessor):
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
                 for span in trace:
-                    if self.apm_opt_out:
-                        span.set_metric(MK_APM_ENABLED, 0)
                     if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
                         for rule in self.single_span_rules:
                             if rule.match(span):
