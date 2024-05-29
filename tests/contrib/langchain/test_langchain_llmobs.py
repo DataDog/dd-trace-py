@@ -6,12 +6,15 @@ import sys
 import mock
 import pytest
 
+from ddtrace import patch
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
 
 if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
@@ -497,3 +500,144 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             output_value=json.dumps(["assistant", "Mitochondria."]),
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
+
+
+@pytest.mark.skipif(not SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="These tests are for langchain >= 0.1.0")
+class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
+    bedrock_env_config = dict(
+        AWS_ACCESS_KEY_ID="testing",
+        AWS_SECRET_ACCESS_KEY="testing",
+        AWS_SECURITY_TOKEN="testing",
+        AWS_SESSION_TOKEN="testing",
+        AWS_DEFAULT_REGION="us-east-1",
+        DD_LANGCHAIN_METRICS_ENABLED="false",
+        DD_API_KEY="<not-a-real-key>",
+    )
+
+    openai_env_config = dict(
+        OPENAI_API_KEY="testing",
+        DD_API_KEY="<not-a-real-key>",
+    )
+
+    def setUp(self):
+        patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+        LLMObsSpanWriterMock = patcher.start()
+        mock_llmobs_span_writer = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
+
+        self.mock_llmobs_span_writer = mock_llmobs_span_writer
+
+        super(TestLangchainTraceStructureWithLlmIntegrations, self).setUp()
+
+    def tearDown(self):
+        LLMObs.disable()
+
+    def _assert_trace_structure_from_writer_call_args(self, span_kinds):
+        assert self.mock_llmobs_span_writer.enqueue.call_count == len(span_kinds)
+
+        calls = self.mock_llmobs_span_writer.enqueue.call_args_list
+
+        for span_kind, call in zip(span_kinds, calls):
+            call_args = call.args[0]
+
+            assert call_args["meta"]["span.kind"] == span_kind
+            if span_kind == "workflow":
+                assert len(call_args["meta"]["input"]["value"]) > 0
+                assert len(call_args["meta"]["output"]["value"]) > 0
+            elif span_kind == "llm":
+                assert len(call_args["meta"]["input"]["messages"]) > 0
+                assert len(call_args["meta"]["output"]["messages"]) > 0
+
+    @staticmethod
+    def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
+        chat = ChatBedrock(
+            model_id="amazon.titan-tg1-large",
+            model_kwargs={"max_tokens": 50, "temperature": 0},
+        )
+        messages = [HumanMessage(content="summarize the plot to the lord of the rings in a dozen words")]
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("bedrock_amazon_chat_invoke.yaml"):
+            chat.invoke(messages)
+
+    @staticmethod
+    def _call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory):
+        llm = Bedrock(
+            model_id="amazon.titan-tg1-large",
+            region_name="us-east-1",
+            model_kwargs={"temperature": 0, "topP": 0.9, "stopSequences": [], "maxTokens": 50},
+        )
+
+        conversation = ConversationChain(llm=llm, verbose=True, memory=ConversationBufferMemory())
+
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("bedrock_amazon_invoke.yaml"):
+            conversation.predict(input="can you explain what Datadog is to someone not in the tech industry?")
+
+    @staticmethod
+    def _call_openai_llm(OpenAI):
+        llm = OpenAI()
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
+            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_chat_model_bedrock_enabled(self):
+        from langchain_aws import ChatBedrock
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True, botocore=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+
+        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
+
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_chat_model_bedrock_disabled(self):
+        from langchain_aws import ChatBedrock
+        from langchain_core.messages import HumanMessage
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+
+        self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
+
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_llm_model_bedrock_enabled(self):
+        from langchain.chains import ConversationChain
+        from langchain.memory import ConversationBufferMemory
+        from langchain_community.llms import Bedrock
+
+        patch(langchain=True, botocore=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=bedrock_env_config)
+    def test_llmobs_with_llm_model_bedrock_disabled(self):
+        from langchain.chains import ConversationChain
+        from langchain.memory import ConversationBufferMemory
+        from langchain_community.llms import Bedrock
+
+        patch(langchain=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_bedrock_llm(Bedrock, ConversationChain, ConversationBufferMemory)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_openai_enabled(self):
+        from langchain_openai import OpenAI
+
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=openai_env_config)
+    def test_llmobs_langchain_with_openai_disabled(self):
+        from langchain_openai import OpenAI
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
