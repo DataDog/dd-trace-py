@@ -805,7 +805,6 @@ def test_submit_evaluation_invalid_tags_raises_warning(LLMObs, mock_logs):
         tags=["invalid"],
     )
     mock_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
-    mock_logs.reset_mock()
 
 
 @pytest.mark.parametrize(
@@ -872,10 +871,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(LLMObs, mock_
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span),
-            label="toxicity",
-            metric_type="categorical",
-            value="high",
+            span_context=LLMObs.export_span(span), label="toxicity", metric_type="categorical", value="high"
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
@@ -925,10 +921,7 @@ def test_submit_evaluation_enqueues_writer_with_numerical_metric(LLMObs, mock_ll
     mock_llmobs_eval_metric_writer.reset_mock()
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         LLMObs.submit_evaluation(
-            span_context=LLMObs.export_span(span),
-            label="token_count",
-            metric_type="numerical",
-            value=35,
+            span_context=LLMObs.export_span(span), label="token_count", metric_type="numerical", value=35
         )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
