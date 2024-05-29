@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    lib-injection: update base Alpine image to 3.20.
