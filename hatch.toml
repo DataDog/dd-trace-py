@@ -37,10 +37,10 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
-    "cformat_check",
     "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
+    "cformat_check",
 ]
 fmt = [
     "black {args:.}",
