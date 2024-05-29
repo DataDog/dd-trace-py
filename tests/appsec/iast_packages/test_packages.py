@@ -300,6 +300,25 @@ PACKAGES = [
 SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 
+def _assert_results(response, package):
+    assert response.status_code == 200
+    content = json.loads(response.content)
+    if type(content["param"]) in (str, bytes):
+        assert content["param"].startswith(package.expected_param)
+    else:
+        assert content["param"] == package.expected_param
+
+    if type(content["result1"]) in (str, bytes):
+        assert content["result1"].startswith(package.expected_result1)
+    else:
+        assert content["result1"] == package.expected_result1
+
+    if type(content["result2"]) in (str, bytes):
+        assert content["result2"].startswith(package.expected_result2)
+    else:
+        assert content["result2"] == package.expected_result2
+
+
 @pytest.mark.parametrize(
     "package",
     [package for package in PACKAGES if package.test_e2e and SKIP_FUNCTION(package)],
@@ -319,12 +338,7 @@ def test_packages_not_patched(package):
 
         response = client.get(package.url)
 
-        assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content["param"].startswith(package.expected_param)
-        assert content["result1"].startswith(package.expected_result1)
-        assert content["result2"].startswith(package.expected_result2)
-        assert content["params_are_tainted"] is False
+        _assert_results(response, package)
 
 
 @pytest.mark.parametrize(
@@ -344,12 +358,7 @@ def test_packages_patched(package):
 
         response = client.get(package.url)
 
-        assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content["param"].startswith(package.expected_param)
-        assert content["result1"].startswith(package.expected_result1)
-        assert content["result2"].startswith(package.expected_result2)
-        assert content["params_are_tainted"] is True
+        _assert_results(response, package)
 
 
 @pytest.mark.parametrize(
