@@ -1,7 +1,5 @@
-import ast
 import csv
 from typing import Dict
-from typing import List
 from typing import Set
 
 from packaging.version import parse as parse_version
@@ -26,78 +24,8 @@ def _tree_pkgs_from_riot(node: riotfile.Venv) -> Dict[str, Set]:
     return result
 
 
-def tree_pkgs(node: ast.AST) -> Dict[str, Set[str]]:
-    result = {pkg: set(versions) for pkg, versions in node.pkgs.items()}
-    for child_venv in node.venvs:
-        child_pkgs = tree_pkgs(child_venv)
-        for pkg_name, versions in child_pkgs.items():
-            if pkg_name in result:
-                result[pkg_name] = result[pkg_name].union(versions)
-            else:
-                result[pkg_name] = versions
-    return result
-
-
-def get_venv_root_ast_node(syntax_tree: ast.AST) -> ast.AST:
-    for node in reversed(syntax_tree.body):
-        if hasattr(node, "targets"):
-            if node.targets[0].id == "venv":
-                return node.value
-
-
-def get_children(venv_ast_node: ast.AST) -> List[ast.AST]:
-    for keyword in getattr(venv_ast_node, "keywords", []):
-        if keyword.arg == "venvs":
-            return keyword.value.elts
-    return []
-
-
-def _parse_requirements_from_node(venv_ast_node: ast.AST) -> Dict[str, Set[str]]:
-    pkgs_node = None
-    for keyword in getattr(venv_ast_node, "keywords", []):
-        if keyword.arg == "pkgs":
-            pkgs_node = keyword
-
-    if not pkgs_node:
-        return dict()
-
-    requirements = dict()
-    for key, value in zip(pkgs_node.value.keys, pkgs_node.value.values):
-        versions = set()
-        if isinstance(value, ast.Constant):
-            versions = set([value.value])
-        elif isinstance(value, ast.List):
-            versions = set([getattr(item, "value", "") for item in value.elts])
-        requirements[key.value] = _format_version_specifiers(versions)
-    return requirements
-
-
 def _format_version_specifiers(spec: Set[str]) -> Set[str]:
     return set([part.strip("~<>==") for v in [v.split(",") for v in spec if v] for part in v if "!=" not in part])
-
-
-def _requirements_at_node(venv_ast_node: ast.AST) -> Dict[str, Set[str]]:
-    result = _parse_requirements_from_node(venv_ast_node)
-    for child in get_children(venv_ast_node):
-        child_pkgs = _requirements_at_node(child)
-        for pkg_name, versions in child_pkgs.items():
-            if pkg_name in result:
-                result[pkg_name] = result[pkg_name].union(versions)
-            else:
-                result[pkg_name] = versions
-    return result
-
-
-def parse_riotfile_ast(riotfile_ast: ast.AST) -> Dict[str, Set[str]]:
-    root_venv_node = get_venv_root_ast_node(riotfile_ast)
-    requirements = _requirements_at_node(root_venv_node)
-    return requirements
-
-
-def tree_pkgs_from_ast() -> Dict[str, Set[str]]:
-    with open("riotfile.py", "r") as f:
-        riotfile_content = f.read()
-    return parse_riotfile_ast(ast.parse(riotfile_content))
 
 
 def write_out(all_pkgs: Dict[str, Set[str]]) -> None:
@@ -117,10 +45,7 @@ def main():
 
     Writes to stdout and min_versions.csv
     """
-    all_pkgs_ast = tree_pkgs_from_ast()
-    all_pkgs_riot = tree_pkgs_from_riot()
-    assert all_pkgs_ast == all_pkgs_riot
-    write_out(all_pkgs_riot)
+    write_out(tree_pkgs_from_riot())
 
 
 main()
