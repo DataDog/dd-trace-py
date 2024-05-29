@@ -10,6 +10,7 @@ from flask import request
 
 import ddtrace.auto  # noqa: F401  # isort: skip
 from tests.appsec.iast_packages.packages.pkg_beautifulsoup4 import pkg_beautifulsoup4
+from tests.appsec.iast_packages.packages.pkg_certifi import pkg_certifi
 from tests.appsec.iast_packages.packages.pkg_chartset_normalizer import pkg_chartset_normalizer
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
@@ -25,6 +26,7 @@ import tests.appsec.integrations.module_with_import_errors as module_with_import
 
 app = Flask(__name__)
 app.register_blueprint(pkg_beautifulsoup4)
+app.register_blueprint(pkg_certifi)
 app.register_blueprint(pkg_chartset_normalizer)
 app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_idna)

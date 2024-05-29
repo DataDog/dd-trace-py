@@ -178,6 +178,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
+                "astunparse": latest,
                 "flask": "~=3.0",
             },
             env={

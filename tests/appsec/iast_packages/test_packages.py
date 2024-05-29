@@ -42,6 +42,7 @@ class PackageForTesting:
         skip_python_version=[],
         test_e2e=True,
         import_name=None,
+        import_module_to_validate=None,
     ):
         self.name = name
         self.package_version = version
@@ -60,6 +61,10 @@ class PackageForTesting:
             self.import_name = import_name
         else:
             self.import_name = self.name
+        if import_module_to_validate:
+            self.import_module_to_validate = import_module_to_validate
+        else:
+            self.import_module_to_validate = self.name
 
     @property
     def url(self):
@@ -115,6 +120,9 @@ class PackageForTesting:
 PACKAGES = [
     PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
     PackageForTesting(
+        "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
+    ),
+    PackageForTesting(
         "charset-normalizer", "3.3.2", "my-bytes-string", "my-bytes-string", "", import_name="charset_normalizer"
     ),
     PackageForTesting(
@@ -169,7 +177,6 @@ PACKAGES = [
         "www.datadoghq.com",
     ),
     PackageForTesting("setuptools", "70.0.0", "", "", "", test_e2e=False),
-    PackageForTesting("certifi", "2024.2.2", "", "", "", test_e2e=False),
     PackageForTesting("cryptography", "42.0.7", "", "", "", test_e2e=False),
     PackageForTesting("fsspec", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
     PackageForTesting("boto3", "1.34.110", "", "", "", test_e2e=False, test_import=False),
@@ -308,9 +315,9 @@ def test_packages_not_patched(package):
 
         assert response.status_code == 200
         content = json.loads(response.content)
-        assert content["param"] == package.expected_param
-        assert content["result1"] == package.expected_result1
-        assert content["result2"] == package.expected_result2
+        assert content["param"].startswith(package.expected_param)
+        assert content["result1"].startswith(package.expected_result1)
+        assert content["result2"].startswith(package.expected_result2)
         assert content["params_are_tainted"] is False
 
 
@@ -333,9 +340,9 @@ def test_packages_patched(package):
 
         assert response.status_code == 200
         content = json.loads(response.content)
-        assert content["param"] == package.expected_param
-        assert content["result1"] == package.expected_result1
-        assert content["result2"] == package.expected_result2
+        assert content["param"].startswith(package.expected_param)
+        assert content["result1"].startswith(package.expected_result1)
+        assert content["result2"].startswith(package.expected_result2)
         assert content["params_are_tainted"] is True
 
 
@@ -367,7 +374,7 @@ def test_packages_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install(install_extra=False)
-        assert _iast_patched_module(package.import_name, fromlist=[])
+        assert _iast_patched_module(package.import_name)
 
 
 @pytest.mark.parametrize(
@@ -398,7 +405,7 @@ def test_packages_latest_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install_latest(install_extra=False)
-        module, patched_source = _iast_patched_module_and_patched_source(package.import_name, fromlist=[])
+        module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
         new_code = astunparse.unparse(patched_source)
