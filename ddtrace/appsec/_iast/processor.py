@@ -75,11 +75,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         report_data: IastSpanReporter = core.get_item(IAST.CONTEXT_KEY, span=span)  # type: ignore
 
         if report_data:
-            from ddtrace import tracer
-
             report_data.build_and_scrub_value_parts()
             span.set_tag_str(IAST.JSON, report_data._to_str())
-            _asm_manual_keep(span, apm_opt_out=tracer._apm_opt_out)
+            _asm_manual_keep(span)
 
         _set_metric_iast_request_tainted()
         _set_span_tag_iast_request_tainted(span)
