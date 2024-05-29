@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    opentelemetry: Ensures exceptions are recorded on spans in a manner that is consistent with the `otel specification <https://opentelemetry.io/docs/specs/otel/trace/exceptions/#recording-an-exception>`_ 
+    opentelemetry: Records exceptions on spans in a manner that is consistent with the `otel specification <https://opentelemetry.io/docs/specs/otel/trace/exceptions/#recording-an-exception>`_ 
