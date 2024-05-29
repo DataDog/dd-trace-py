@@ -12,6 +12,7 @@ def init(
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
     max_nframes: Optional[int],
     url: Optional[str],
+    timeline_anbled: Optional[bool],
 ) -> None: ...
 def upload() -> None: ...
 

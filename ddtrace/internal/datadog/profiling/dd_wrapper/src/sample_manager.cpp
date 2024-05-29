@@ -21,10 +21,16 @@ Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
     }
 }
 
+void
+Datadog::SampleManager::set_timeline_enabled(bool _timeline_enabled)
+{
+  timeline_enabled = _timeline_enabled;
+}
+
 Datadog::Sample*
 Datadog::SampleManager::start_sample()
 {
-    return new Datadog::Sample(type_mask, max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
+    return new Datadog::Sample(type_mask, max_nframes, timeline_enabled); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void

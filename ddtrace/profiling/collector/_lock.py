@@ -11,6 +11,7 @@ import attr
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -20,7 +21,7 @@ from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
 
-from ddtrace.internal.logger import get_logger
+
 LOG = get_logger(__name__)
 
 
@@ -91,7 +92,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
-
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
 
@@ -152,7 +152,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     self._self_recorder.push_event(event)
             except Exception as e:
-                LOG.warn(f"Error recording lock acquire event: {e}")
+                LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
     def release(self, *args, **kwargs):
@@ -181,8 +181,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                             handle.push_monotonic_ns(end)
                             handle.push_lock_name(self._self_name)
                             handle.push_release(
-                                end - self._self_acquired_at,
-                                1
+                                end - self._self_acquired_at, 1
                             )  # AFAICT, capture_pct does not adjust anything here
                             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                             handle.push_task_id(task_id)
@@ -217,7 +216,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     finally:
                         del self._self_acquired_at
             except Exception as e:
-                LOG.error(f"Error recording lock release event: {e}")
+                LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
     acquire_lock = acquire

@@ -40,6 +40,7 @@ cdef extern from "interface.hpp":
     void ddup_config_profiler_version(string_view profiler_version)
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
+    void ddup_config_timeline_enabled(bool enabled)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -131,7 +132,8 @@ def init(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None) -> None:
+        url: StringType = None,
+        timeline_enabled: Optional[bool] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -157,6 +159,8 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+    if timeline_enabled is not None:
+        ddup_config_timeline_enabled(timeline_enabled)
     ddup_init()
 
 

@@ -3,9 +3,10 @@
 #include <chrono>
 #include <thread>
 
-Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
+Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes, bool _timeline_enabled)
   : max_nframes{ _max_nframes }
   , type_mask{ _type_mask }
+  , timeline_enabled{ _timeline_enabled }
 {
     // Initialize values
     values.resize(profile_state.get_sample_type_length());
@@ -337,7 +338,11 @@ Sample::push_monotonic_ns(int64_t _monotonic_ns)
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;
     }();
-    endtime_ns = _monotonic_ns + offset;
+
+    // If timeline is not enabled, then this is a no-op
+    if (timeline_enabled) {
+      endtime_ns = _monotonic_ns + offset;
+    }
 }
 
 ddog_prof_Profile&

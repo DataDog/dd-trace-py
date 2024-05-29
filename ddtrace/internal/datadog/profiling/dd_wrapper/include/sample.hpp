@@ -37,6 +37,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
+    bool timeline_enabled = false;
     int64_t endtime_ns = 0; // end of the event
 
   public:
@@ -82,7 +83,7 @@ class Sample
     static void profile_release();
     static void profile_clear_state();
     static void postfork_child();
-    Sample(SampleType _type_mask, unsigned int _max_nframes);
+    Sample(SampleType _type_mask, unsigned int _max_nframes, bool _timeline_enabled);
 
     // friend class SampleManager;
     friend class SampleManager;
