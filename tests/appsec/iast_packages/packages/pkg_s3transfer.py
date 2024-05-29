@@ -1,0 +1,39 @@
+"""
+s3transfer==0.10.1
+
+https://pypi.org/project/s3transfer/
+"""
+from flask import Blueprint
+from flask import request
+
+from .utils import ResultResponse
+
+
+pkg_s3transfer = Blueprint("package_s3transfer", __name__)
+
+
+@pkg_s3transfer.route("/s3transfer")
+def pkg_requests_view():
+    import boto3
+    from botocore.exceptions import NoCredentialsError
+    import s3transfer
+
+    response = ResultResponse(request.args.get("package_param"))
+
+    try:
+        s3_client = boto3.client("s3")
+        transfer = s3transfer.S3Transfer(s3_client)
+
+        bucket_name = "example-bucket"
+        object_key = "example-object"
+        file_path = "/path/to/local/file"
+
+        transfer.download_file(bucket_name, object_key, file_path)
+
+        response.result1 = f"File {object_key} downloaded from bucket {bucket_name} to {file_path}"
+    except NoCredentialsError:
+        response.result1 = "Credentials not available"
+    except Exception as e:
+        response.result1 = str(e)
+
+    return response.json()

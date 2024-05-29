@@ -4,11 +4,13 @@ import os
 import subprocess
 import sys
 
+import astunparse
 import pytest
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.aspects.conftest import _iast_patched_module_and_patched_source
 from tests.utils import override_env
 
 
@@ -90,15 +92,17 @@ class PackageForTesting:
         proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
         proc.wait()
 
-    def install(self):
+    def install(self, install_extra=True):
         self._install(self.name, self.package_version)
-        for package_name, package_version in self.extra_packages:
-            self._install(package_name, package_version)
+        if install_extra:
+            for package_name, package_version in self.extra_packages:
+                self._install(package_name, package_version)
 
-    def install_latest(self):
+    def install_latest(self, install_extra=True):
         self._install(self.name)
-        for package_name, package_version in self.extra_packages:
-            self._install(package_name, package_version)
+        if install_extra:
+            for package_name, package_version in self.extra_packages:
+                self._install(package_name, package_version)
 
 
 # Top packages list imported from:
@@ -109,6 +113,7 @@ class PackageForTesting:
 # wheel, importlib-metadata and pip is discarded because they are package to build projects
 # colorama and awscli are terminal commands
 PACKAGES = [
+    PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
     PackageForTesting(
         "charset-normalizer", "3.3.2", "my-bytes-string", "my-bytes-string", "", import_name="charset_normalizer"
     ),
@@ -140,7 +145,22 @@ PACKAGES = [
         "a: 1\nb:\n  c: 3\n  d: 4\n",
         import_name="yaml",
     ),
-    PackageForTesting("requests", "2.31.0", "", "", ""),
+    PackageForTesting(
+        "requests",
+        "2.31.0",
+        "",
+        "",
+        "",
+    ),
+    PackageForTesting(
+        "s3transfer",
+        "0.10.1",
+        "",
+        "An error occurred (403) when calling the HeadObject operation: Forbidden",
+        "",
+        extras=[("boto3", "1.34.110")],
+    ),
+    PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
     PackageForTesting(
         "urllib3",
         "2.1.0",
@@ -148,10 +168,7 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
-    PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
     PackageForTesting("setuptools", "70.0.0", "", "", "", test_e2e=False),
-    PackageForTesting("six", "1.16.0", "", "", "", test_e2e=False),
-    PackageForTesting("s3transfer", "0.10.1", "", "", "", test_e2e=False),
     PackageForTesting("certifi", "2024.2.2", "", "", "", test_e2e=False),
     PackageForTesting("cryptography", "42.0.7", "", "", "", test_e2e=False),
     PackageForTesting("fsspec", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
@@ -333,7 +350,7 @@ def test_packages_not_patched_import(package):
         pytest.skip(reason)
         return
 
-    package.install()
+    package.install(install_extra=False)
     importlib.import_module(package.import_name)
 
 
@@ -349,7 +366,7 @@ def test_packages_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install()
+        package.install(install_extra=False)
         assert _iast_patched_module(package.import_name, fromlist=[])
 
 
@@ -364,7 +381,7 @@ def test_packages_latest_not_patched_import(package):
         pytest.skip(reason)
         return
 
-    package.install_latest()
+    package.install_latest(install_extra=False)
     importlib.import_module(package.import_name)
 
 
@@ -380,5 +397,14 @@ def test_packages_latest_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install_latest()
-        assert _iast_patched_module(package.import_name, fromlist=[])
+        package.install_latest(install_extra=False)
+        module, patched_source = _iast_patched_module_and_patched_source(package.import_name, fromlist=[])
+        assert module
+        assert patched_source
+        new_code = astunparse.unparse(patched_source)
+        assert new_code.startswith(
+            "\n"
+            + "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks\n"
+            + "import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
+        )
+        assert "ddtrace_aspects." in new_code
