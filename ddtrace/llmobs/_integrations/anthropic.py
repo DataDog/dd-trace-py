@@ -18,6 +18,12 @@ from .base import BaseLLMIntegration
 log = get_logger(__name__)
 
 
+API_KEY = "anthropic.request.api_key"
+MODEL = "anthropic.request.model"
+TOTAL_COST = "anthropic.tokens.total_cost"
+TYPE = "anthropic.request.type"
+
+
 class AnthropicIntegration(BaseLLMIntegration):
     _integration_name = "anthropic"
 
@@ -47,6 +53,24 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(formatted_response)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
+    def _set_base_span_tags(
+        self,
+        span: Span,
+        interface_type: str = "",
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        **kwargs: Dict[str, Any],
+    ) -> None:
+        """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
+        span.set_tag_str(TYPE, interface_type)
+        if model is not None:
+            span.set_tag_str(MODEL, model)
+        if api_key is not None:
+            if len(api_key) >= 4:
+                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
+            else:
+                span.set_tag_str(API_KEY, api_key)
+
     @staticmethod
     def _extract_input_message(messages):
         """Extract input messages from the stored prompt.
@@ -57,6 +81,10 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         input_messages = []
         for message in messages:
+            if not isinstance(message, dict):
+                log.warning("Anthropic message input must be a list of message param dicts.")
+                continue
+
             content = message.get("content", None)
             role = message.get("role", None)
 
@@ -92,6 +120,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             for response in formatted_response.content:
                 if isinstance(response.text, str):
                     output_messages.append({"content": response.text})
+        return output_messages
 
     # def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
     #     if not usage or self.metrics_enabled is False:

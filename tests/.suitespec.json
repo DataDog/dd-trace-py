@@ -246,6 +246,9 @@
         "langchain": [
             "ddtrace/contrib/langchain/*"
         ],
+        "anthropic": [
+            "ddtrace/contrib/anthropic/*"
+        ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*"
         ],
@@ -1377,6 +1380,17 @@
             "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "anthropic": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@anthropic",
+            "@requests",
+            "@llmobs",
+            "tests/contrib/anthropic/*",
+            "tests/snapshots/tests.contrib.anthropic.*"
         ],
         "runtime": [
             "@core",

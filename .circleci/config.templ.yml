@@ -1299,6 +1299,14 @@ jobs:
           pattern: "langchain"
           snapshot: true
 
+  anthropic:
+    <<: *machine_executor
+    parallelism: 3
+    steps:
+      - run_test:
+          pattern: "anthropic"
+          snapshot: true
+
   logbook:
     <<: *machine_executor
     steps:

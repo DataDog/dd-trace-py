@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "anthropic.resources.messages.Messages",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "66575bd600000000",
+      "_ml_obs.meta.input.messages": "[{\"content\": \"Can you explain what Descartes meant by 'I think, therefore I am'?\", \"role\": \"user\"}]",
+      "_ml_obs.meta.metadata": "{\"temperature\": 0.0, \"max_tokens\": 1024}",
+      "_ml_obs.meta.model_name": "claude-3-opus-20240229",
+      "_ml_obs.meta.output.messages": "[{\"content\": \"The famous philosophical statement \\\"I think, therefore I am\\\" (originally in Latin as \\\"Cogito, ergo sum\\\") was coined by the French philosopher Ren\\u00e9 Descartes in his work \\\"Discourse on the Method\\\" (1637). It is a foundational element of his philosophy of radical doubt.\\n\\nDescartes sought to find a solid foundation for knowledge by doubting everything that could be doubted. He reasoned that he could doubt the existence of his body, the external world, and even mathematical truths. However, he realized that he could not doubt the existence of his own mind and his own thinking. Even in the act of doubting, he was thinking.\\n\\nFrom this, Descartes concluded that the one thing he could be certain of was his own existence as a thinking being. Even if an evil demon were deceiving him about everything else, it could not deceive him about the fact that he was thinking, and therefore, he must exist.\\n\\nIn other words, \\\"I think, therefore I am\\\" means that the very act of thinking is proof of one's existence. It establishes self-awareness and consciousness as the bedrock of all other knowledge. This principle became a starting point for Descartes' further philosophical explorations and had a significant influence on the development of Western philosophy, particularly in the areas of epistemology (the study of knowledge) and metaphysics (the study of the nature of reality).\"}]",
+      "_ml_obs.meta.span.kind": "llm",
+      "anthropic.request.api_key": "...8gAA",
+      "anthropic.request.messages.0.0.content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+      "anthropic.request.messages.0.0.message_type": "text",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters.max_tokens": "1024",
+      "anthropic.request.parameters.model": "claude-3-opus-20240229",
+      "anthropic.request.type": "chat_model",
+      "anthropic.response.completions.0.content": "The famous philosophical statement \"I think, therefore I am\" (originally in Latin as \"Cogito, ergo sum\") was coined by the Frenc...",
+      "anthropic.response.completions.0.message_type": "text",
+      "language": "python",
+      "runtime-id": "1841ab56c47043d7808878f4d52b9498"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 20876
+    },
+    "duration": 12330471000,
+    "start": 1717001174997527000
+  }]]

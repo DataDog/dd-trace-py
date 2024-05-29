@@ -1,0 +1,97 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": [{"type":
+      "text", "text": "Hello, I am looking for information about some books!"}, {"type":
+      "text", "text": "Can you explain what Descartes meant by ''I think, therefore
+      I am''?"}]}], "model": "claude-3-opus-20240229"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '279'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.26.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2xUwW7kNgz9FUKXbADHSCabpplb0UWRKZJLkZ46RaCx6bE2MumI1My6wX5Qv6M/
+        VlCeJJOiJwOSSL73+J5fXGjd0g2yfTy/uNxdXz2ln+8ubhb3D3/9/nBzd3d/tXOV02lEe4Uifouu
+        comjHXiRIOpJXeUGbjG6pWuizy2eXZ7xmOVscb74fL5Y3LjKNUyKpG75x8trQ8VvVlo+S/fQI4x9
+        8oKwdivQPtBTBdpjwo4Twgr8sHbwiVPYBvIxThAIfklITb+EtfsVYUQSrKBlauArguQga3cKQcBD
+        5wfOAmMfIguPfWh8BFGvOCApbCb4Demfv+ELSuOTolTg4eJa+7MGSXOaDqPeO2ACTy0MXnscvIYm
+        eKphpeDHEX0Sg9cHgT2nJ1i7L0EazkkQmIwW3KP23Bqlix8ur0/rNa3pbTrsvYBXxWHUQFtQBhT1
+        mxikNzacqfUamKDjBE/E+4jtFkF7r6V2gxNTCy3njdZwi4DDGHnCFjwMZTJwBzKJzuDnlxU8ZxTr
+        a0Nxh2myRWyhR9hgDLjD1rBsEDRlrCBQE3NbXgQB3hOILUGKNNpz3vYqhdptEEjoZW5d6Al0HCPv
+        ZWkPLmpYQeNpRnI0/HjKMB0PGCbYcDvVa1rUcMt7qymeASsG36iRLP2sOOFzDgkFBnwlYS4LtK3X
+        dFnDqisuezstrQhWMGRRwG9BtIafOrXNx1iBsClpnYnprNyblxpPJzo3qdf0uYaHVxPP2JjmwdsD
+        3w1Cg0l9IEMbxGiZkoeGDZpS/g0VbHBGvKYVAVtCzGOtVKYZQeiOF4dRsCSAIMSYxSzDCVpscLQ9
+        z5A6k6p454MAVhioDTJm8x7CmJg7QzlM7/CMYJDjMGHjB/xgUx8B43wb6D1kJ+9xmspGvbVJZVsj
+        B9Jib+ve5VSYfgxwoJ3ZdVtmzD5b6YlAGEZO9muyPRPrIRj6EWfLKLaqMfEOwdOxZIWdxUhCi1JE
+        KqpgsoyfCHw1T/wv3PcQm8lyiC3ksZD4D1kcTcGBI28n+KQ9cppM3Lc4n0KXeAB/aM7dq1F0qt33
+        PysnyuPjnCq3dEjto+ZE7nAh+JxtQW5JOcbK5fL/Xr64QGPWR+UnJHHLyx8rx1k/HJ1fff/+LwAA
+        AP//AwA9fRoJHgYAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88b7d42c8976c35e-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 29 May 2024 16:23:38 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '4'
+      anthropic-ratelimit-requests-reset:
+      - '2024-05-29T16:23:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '10000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-05-29T16:23:57Z'
+      request-id:
+      - req_01RsAfchh1gm4afGw3baAVZ8
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - d5787f42497e97c38e715ba65097c2c2
+    status:
+      code: 200
+      message: OK
+version: 1

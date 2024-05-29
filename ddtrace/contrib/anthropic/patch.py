@@ -42,19 +42,13 @@ config._add(
 )
 
 
-def _extract_model_name(instance: Any) -> Optional[str]:
+def _extract_model_name(kwargs: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
-    for attr in "model":
-        if hasattr(instance, attr):
-            return getattr(instance, attr)
-    return None
+    return kwargs.get("model", "")
 
 
 def _format_api_key(api_key: Union[str, SecretStr]) -> str:
     """Obfuscate a given LLM provider API key by returning the last four characters."""
-    if hasattr(api_key, "get_secret_value"):
-        api_key = api_key.get_secret_value()
-
     if not api_key or len(api_key) < 4:
         return ""
     return "...%s" % api_key[-4:]
@@ -63,15 +57,10 @@ def _format_api_key(api_key: Union[str, SecretStr]) -> str:
 def _extract_api_key(instance: Any) -> str:
     """
     Extract and format LLM-provider API key from instance.
-    Note that langchain's LLM/ChatModel/Embeddings interfaces do not have a
-    standard attribute name for storing the provider-specific API key, so make a
-    best effort here by checking for attributes that end with `api_key/api_token`.
     """
-    api_key_attrs = [a for a in dir(instance) if a.endswith(("api_token", "api_key"))]
-    if api_key_attrs and hasattr(instance, str(api_key_attrs[0])):
-        api_key = getattr(instance, api_key_attrs[0], None)
-        if api_key:
-            return _format_api_key(api_key)
+    api_key = getattr(getattr(instance, "_client", ""), "api_key", None)
+    if api_key:
+        return _format_api_key(api_key)
     return ""
 
 
@@ -117,40 +106,40 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
-        model=_extract_model_name(instance),
+        model=_extract_model_name(kwargs),
         api_key=_extract_api_key(instance),
     )
-    breakpoint()
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
-            if isinstance(message_set.get("content", None), str):
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.0.content" % (message_set_idx),
-                    integration.trunc(message_set.get("content", "")),
-                )
-                span.set_tag_str(
-                    "anthropic.request.messages.%d.0.message_type" % (message_set_idx),
-                    "text",
-                )
-            elif isinstance(message_set.get("content", None), Iterable):
-                for message_idx, message in enumerate(message_set.get("content", [])):
-                    if integration.is_pc_sampled_span(span):
-                        if message.get("type", None) == "text":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                                integration.trunc(str(message.get("text", ""))),
-                            )
-                        elif message.get("type", None) == "image":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                                integration.trunc(json.dumps(message.get("source", ""))),
-                            )
-
+            if isinstance(message_set, dict):
+                if isinstance(message_set.get("content", None), str):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
-                        message.get("type", "text"),
+                        "anthropic.request.messages.%d.0.content" % (message_set_idx),
+                        integration.trunc(message_set.get("content", "")),
                     )
+                    span.set_tag_str(
+                        "anthropic.request.messages.%d.0.message_type" % (message_set_idx),
+                        "text",
+                    )
+                elif isinstance(message_set.get("content", None), Iterable):
+                    for message_idx, message in enumerate(message_set.get("content", [])):
+                        if integration.is_pc_sampled_span(span):
+                            if message.get("type", None) == "text":
+                                span.set_tag_str(
+                                    "anthropic.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                                    integration.trunc(str(message.get("text", ""))),
+                                )
+                            elif message.get("type", None) == "image":
+                                span.set_tag_str(
+                                    "anthropic.request.messages.%d.%d.content" % (message_set_idx, message_idx),
+                                    integration.trunc(json.dumps(message.get("source", ""))),
+                                )
+
+                        span.set_tag_str(
+                            "anthropic.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
+                            message.get("type", "text"),
+                        )
         for param, val in kwargs.items():
             if param != "messages":
                 if isinstance(val, dict):
@@ -158,7 +147,6 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                         span.set_tag_str("anthropic.request.parameters.%s.%s" % (param, k), str(v))
                 else:
                     span.set_tag_str("anthropic.request.parameters.%s" % (param), str(val))
-        breakpoint()
         chat_completions = func(*args, **kwargs)
 
         #     _tag_anthropic_token_usage(span, chat_completions.llm_output)
@@ -190,7 +178,7 @@ def patch():
         return
 
     anthropic._datadog_patch = True
-    breakpoint()
+
     Pin().onto(anthropic)
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
