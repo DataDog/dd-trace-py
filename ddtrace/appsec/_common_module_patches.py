@@ -166,13 +166,12 @@ def wrapped_execute_4C9BAC8E228EB347(original_request_callable, instance, args, 
             # and shouldn't be changed at that time
             return original_request_callable(*args, **kwargs)
 
-        instrument_self = args[0] if args else None
-        command = args[1] if len(args) > 1 else kwargs.get("sql", None)
+        instrument_self = instance
+        command = args[0] if len(args) > 0 else kwargs.get("sql", None)
         if instrument_self and command and in_context():
             db_type = _DB_DIALECTS.get(
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
             )
-
             if isinstance(command, str):
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SQLI: command, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},

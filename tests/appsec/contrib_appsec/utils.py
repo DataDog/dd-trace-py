@@ -1198,7 +1198,8 @@ class Contrib_TestClass_For_Threats:
                 ],
                 repeat=2,
             )
-        ],
+        ]
+        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("execute",))],
     )
     @pytest.mark.parametrize(
         ("rule_file", "blocking"),
@@ -1232,6 +1233,7 @@ class Contrib_TestClass_For_Threats:
             dict(DD_APPSEC_RULES=rule_file)
         ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
             self.update_tracer(interface)
+            assert asm_config._asm_enabled == asm_enabled
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
             code = 403 if blocking and asm_enabled and ep_enabled else 200
             assert self.status(response) == code, (self.status(response), code)
