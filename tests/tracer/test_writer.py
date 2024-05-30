@@ -187,6 +187,29 @@ class AgentWriterTests(BaseTestCase):
                 any_order=True,
             )
 
+    def test_report_metrics_disabled(self):
+        statsd = mock.Mock()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False, report_metrics=False)
+
+            # Queue 3 health metrics where each metric has the same name but different tags
+            writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1, ["k1:v1"])
+            writer.write([Span(name="name", trace_id=2, span_id=2, parent_id=None)])
+            writer._metrics_dist(
+                "test_trace.queued",
+                1,
+                [
+                    "k2:v2",
+                    "k22:v22",
+                ],
+            )
+            writer.write([Span(name="name", trace_id=3, span_id=3, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1)
+
+            # Ensure that the metrics are not reported
+            statsd.distribution.assert_not_called()
+
     def test_write_sync(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
