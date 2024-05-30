@@ -431,6 +431,7 @@ def test_packages_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install()
+        del sys.modules[package.import_name]
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
@@ -471,6 +472,7 @@ def test_packages_latest_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install_latest()
+        del sys.modules[package.import_name]
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
