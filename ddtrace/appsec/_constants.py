@@ -42,6 +42,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV = "DD_APPSEC_ENABLED"
+    STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
     STRUCT = "appsec"
