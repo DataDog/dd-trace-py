@@ -10,6 +10,7 @@ _SINGLE_SPAN_SAMPLING_MECHANISM = "_dd.span_sampling.mechanism"
 _SINGLE_SPAN_SAMPLING_RATE = "_dd.span_sampling.rule_rate"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
+_APM_ENABLED_METRIC_KEY = "_dd.apm.enabled"
 
 ORIGIN_KEY = "_dd.origin"
 USER_ID_KEY = "_dd.p.usr.id"
@@ -26,6 +27,7 @@ KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
+APPSEC_STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
 
 IAST_ENV = "DD_IAST_ENABLED"
 
