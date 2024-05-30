@@ -17,14 +17,19 @@ def handle_stream_response(integration, resp, args, kwargs, span):
         return TracedOpenAIAsyncStream(resp, integration, span, args, kwargs)
     elif _is_generator(resp):
         return TracedOpenAIStream(resp, integration, span, args, kwargs)
+    elif _is_stream_manager(resp):
+        return TracedOpenAIStreamManager(resp, integration, span, args, kwargs)
 
 
-def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
+def _process_finished_stream(integration, span, args, kwargs, streamed_chunks, message_accumulated=False):
     messages = None
     messages = kwargs.get("messages", None)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     try:
-        messages = _construct_messages(streamed_chunks)
+        if message_accumulated:
+            messages = _construct_accumulated_messages(streamed_chunks)
+        else:
+            messages = _construct_unaccumulated_messages(streamed_chunks)
         if integration.is_pc_sampled_span(span):
             _tag_streamed_chat_completion_response(integration, span, messages)
         if integration.is_pc_sampled_llmobs(span):
@@ -38,7 +43,7 @@ def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
 
 
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, args, kwargs):
+    def __init__(self, wrapped, integration, span, args, kwargs, is_message_stream=False):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         self._dd_span = span
@@ -46,6 +51,9 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
         self._dd_integration = integration
         self._kwargs = kwargs
         self._args = args
+        self._is_message_stream = (
+            is_message_stream  # message stream helper will have accumulated the message for us already
+        )
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
@@ -66,7 +74,12 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._args, self._kwargs, self._streamed_chunks
+                self._dd_integration,
+                self._dd_span,
+                self._args,
+                self._kwargs,
+                self._streamed_chunks,
+                self._is_message_stream,
             )
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
@@ -76,6 +89,26 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
+
+    def __stream_text__(self):
+        for chunk in self:
+            if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+                yield chunk.delta.text
+
+
+class TracedOpenAIStreamManager(BaseTracedOpenAIStream):
+    def __enter__(self):
+        self.__wrapped__.__enter__()
+        stream = TracedOpenAIStream(
+            self.__wrapped__._MessageStreamManager__stream,
+            self._dd_integration,
+            self._dd_span,
+            self._args,
+            self._kwargs,
+            is_message_stream=True,
+        )
+        stream.text_stream = stream.__stream_text__()
+        return stream
 
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
@@ -96,7 +129,12 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             return chunk
         except StopAsyncIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._args, self._kwargs, self._streamed_chunks
+                self._dd_integration,
+                self._dd_span,
+                self._args,
+                self._kwargs,
+                self._streamed_chunks,
+                self._is_message_stream,
             )
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
@@ -108,7 +146,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             raise
 
 
-def _construct_messages(streamed_chunks):
+def _construct_unaccumulated_messages(streamed_chunks):
     """Iteratively build up a list of messages."""
     messages = []
     message = {}
@@ -124,6 +162,27 @@ def _construct_messages(streamed_chunks):
 
         if message_complete:
             messages.append(message)
+    return messages
+
+
+def _construct_accumulated_messages(streamed_chunks):
+    """Iteratively build up a list of messages."""
+    messages = []
+    for chunk in streamed_chunks:
+        if chunk and chunk.type == "message_start" and chunk.message:
+            for content in chunk.message.content:
+                if content.type == "text":
+                    messages.append(
+                        {
+                            "content": content.text,
+                            "role": chunk.message.role,
+                            "finish_reason": chunk.message.stop_reason,
+                            "usage": {
+                                "input": chunk.message.usage.input_tokens,
+                                "output": chunk.message.usage.output_tokens,
+                            },
+                        }
+                    )
     return messages
 
 
@@ -205,3 +264,10 @@ def _is_async_generator(resp):
     if hasattr(anthropic, "AsyncStream") and isinstance(resp, anthropic.AsyncStream):
         return True
     return False
+
+
+def _is_stream_manager(resp):
+    # type: (...) -> bool
+    import anthropic
+
+    return isinstance(resp, anthropic.lib.streaming._messages.MessageStreamManager)

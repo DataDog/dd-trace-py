@@ -2,11 +2,8 @@ import json
 import os
 import sys
 from typing import Any
-from typing import Optional
-from typing import Union
 
 import anthropic
-from pydantic import SecretStr
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
@@ -14,7 +11,6 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.pin import Pin
 
@@ -29,11 +25,6 @@ def get_version():
     return getattr(anthropic, "__version__", "")
 
 
-ANTHROPIC_VERSION = parse_version(get_version())
-BASE_MODULE = anthropic
-BASE_MODULE_NAME = getattr(anthropic, "__name__", "anthropic")
-
-
 config._add(
     "anthropic",
     {
@@ -43,26 +34,12 @@ config._add(
 )
 
 
-def _extract_model_name(kwargs: Any) -> Optional[str]:
-    """Extract model name or ID from llm instance."""
-    return kwargs.get("model", "")
-
-
-def _format_api_key(api_key: Union[str, SecretStr]) -> str:
-    """Obfuscate a given LLM provider API key by returning the last four characters."""
-    if not api_key or len(api_key) < 4:
-        return ""
-    return "...%s" % api_key[-4:]
-
-
 def _extract_api_key(instance: Any) -> str:
     """
     Extract and format LLM-provider API key from instance.
     """
     api_key = getattr(getattr(instance, "_client", ""), "api_key", None)
-    if api_key:
-        return _format_api_key(api_key)
-    return ""
+    return api_key
 
 
 # def _tag_anthropic_token_usage(
@@ -107,7 +84,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
-        model=_extract_model_name(kwargs),
+        model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
     )
     chat_completions = None
@@ -149,16 +126,17 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                 else:
                     span.set_tag_str("anthropic.request.parameters.%s" % (param), str(val))
         chat_completions = func(*args, **kwargs)
-
-        if isinstance(chat_completions, str):
-            return handle_non_stream_response(integration, chat_completions, chat_messages, span)
-        elif kwargs.get("stream") and isinstance(chat_completions, anthropic.Stream):
+        if isinstance(chat_completions, anthropic.Stream) or isinstance(
+            chat_completions, anthropic.lib.streaming._messages.MessageStreamManager
+        ):
             return handle_stream_response(integration, chat_completions, args, kwargs, span)
-
-        #     _tag_anthropic_token_usage(span, chat_completions.llm_output)
-        #     integration.record_usage(span, chat_completions.llm_output)
+        else:
+            return handle_non_stream_response(integration, chat_completions, chat_messages, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(span, chat_messages, chat_completions, err=bool(span.error))
+        span.finish()
         raise
         # integration.metric(span, "dist", "request.duration", span.duration_ns)
 
@@ -176,8 +154,8 @@ def handle_non_stream_response(integration, chat_completions, chat_messages, spa
                 chat_completion.type,
             )
     finally:
-        # if integration.is_pc_sampled_llmobs(span):
-        integration.llmobs_set_tags(span, chat_messages, chat_completions, err=bool(span.error))
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(span, chat_messages, chat_completions, err=bool(span.error))
         span.finish()
     return chat_completions
 
@@ -193,6 +171,9 @@ def patch():
     anthropic._datadog_integration = integration
 
     wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate(anthropic))
+    wrap("anthropic", "resources.messages.Messages.stream", traced_chat_model_generate(anthropic))
+
+    # wrap("anthropic", "lib.streaming._messages.MessageStream.__init__", TracedOpenAIStream.__init__)
     # wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
 
     # if _is_iast_enabled():

@@ -19,9 +19,9 @@ def iswrapped(obj):
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 #       between cassettes generated for requests and aiohttp.
-def get_anthropic_vcr(subdirectory_name=""):
+def get_request_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],

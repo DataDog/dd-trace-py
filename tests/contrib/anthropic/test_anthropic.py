@@ -1,12 +1,12 @@
 import pytest
 
-from tests.contrib.anthropic.utils import get_anthropic_vcr
+from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import override_global_config
 
 
 @pytest.fixture(scope="session")
 def request_vcr():
-    yield get_anthropic_vcr(subdirectory_name="")
+    yield get_request_vcr()
 
 
 def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
@@ -134,7 +134,7 @@ def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
             messages=[
                 {
                     "role": "user",
-                    "content": "Say hello there!",
+                    "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
                 }
             ],
             model="claude-3-opus-20240229",
