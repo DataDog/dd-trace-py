@@ -118,6 +118,19 @@ def handle_non_stream_response(integration, chat_completions, chat_messages, spa
                 "anthropic.response.completions.%d.type" % (idx),
                 chat_completion.type,
             )
+        usage = getattr(chat_completions, "usage", {})
+        if usage:
+            input_token = getattr(usage, "input_tokens", 0)
+            output_token = getattr(usage, "output_tokens", 0)
+            span.set_metric(
+                "anthropic.response.completions.usage.input",
+                input_token,
+            )
+            span.set_metric(
+                "anthropic.response.completions.usage.output",
+                output_token,
+            )
+
     finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(span, chat_messages, chat_completions, err=bool(span.error))

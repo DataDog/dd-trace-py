@@ -54,6 +54,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(formatted_response)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
+        # To-Do: record usage here as a metric of some sort?
+
     def _set_base_span_tags(
         self,
         span: Span,
@@ -117,15 +119,3 @@ class AnthropicIntegration(BaseLLMIntegration):
                 if isinstance(getattr(response, "text", None), str):
                     output_messages.append({"content": response.text})
         return output_messages
-
-    # def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-    #     if not usage or self.metrics_enabled is False:
-    #         return
-    #     for token_type in ("prompt", "completion", "total"):
-    #         num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
-    #         if not num_tokens:
-    #             continue
-    #         self.metric(span, "dist", "tokens.%s" % token_type, num_tokens)
-    #     total_cost = span.get_metric(TOTAL_COST)
-    #     if total_cost:
-    #         self.metric(span, "incr", "tokens.total_cost", total_cost)

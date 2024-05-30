@@ -192,14 +192,19 @@ def _construct_message_from_streamed_chunks(chunk, prev_message=None) -> Tuple[D
     """
     message = prev_message if prev_message is not None else {"content": ""}
     message_finished = False
-    if getattr(chunk, "message", None):
+    if getattr(chunk, "type", "") == "message_start":
         # this is the starting chunk
         chunk_content = getattr(chunk.message, "content", "")
         chunk_role = getattr(chunk.message, "role", "")
+        chunk_usage = getattr(chunk.message, "usage", "")
         if chunk_content:
             message["content"] += chunk_content
         if chunk_role:
             message["role"] = chunk_role
+        if chunk_usage:
+            message["usage"] = {}
+            message["usage"]["input"] = getattr(chunk_usage, "input_tokens", 0)
+            message["usage"]["output"] = getattr(chunk_usage, "output_tokens", 0)
     elif getattr(chunk, "delta", None):
         # delta events contain new content
         content_block = chunk.delta
@@ -215,9 +220,12 @@ def _construct_message_from_streamed_chunks(chunk, prev_message=None) -> Tuple[D
                 message["finish_reason"] = content_block.stop_reason
                 message["content"] = message["content"].strip()
 
-                chunk_usage = getattr(chunk, "usage", "")
+                chunk_usage = getattr(chunk, "usage", {})
                 if chunk_usage:
-                    message["usage"] = {"output": chunk_usage.output_tokens}
+                    message_usage = message.get("usage", {"output": 0, "input": 0})
+                    message_usage["output"] += getattr(chunk_usage, "output_tokens", 0)
+                    message_usage["input"] += getattr(chunk_usage, "input_tokens", 0)
+                    message["usage"] = message_usage
                 message_finished = True
 
     return message, message_finished
@@ -230,8 +238,11 @@ def _tag_streamed_chat_completion_response(integration, span, messages):
     for idx, message in enumerate(messages):
         span.set_tag_str("anthropic.response.completions.%d.content" % idx, integration.trunc(message["content"]))
         span.set_tag_str("anthropic.response.completions.%d.role" % idx, message["role"])
-        if message.get("finish_reason") is not None:
+        if message.get("finish_reason", None) is not None:
             span.set_tag_str("anthropic.response.completions.%d.finish_reason" % idx, message["finish_reason"])
+        if message.get("usage", None) is not None:
+            span.set_metric("anthropic.response.completions.%d.usage.input" % idx, message["usage"].get("input", 0))
+            span.set_metric("anthropic.response.completions.%d.usage.output" % idx, message["usage"].get("output", 0))
 
 
 def _loop_handler(span, chunk, streamed_chunks):

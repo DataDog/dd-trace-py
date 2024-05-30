@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6658b19700000000",
+      "_dd.p.tid": "6658d17200000000",
       "anthropic.request.api_key": "...key>",
       "anthropic.request.messages.0.0.content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
       "anthropic.request.messages.0.0.type": "text",
@@ -19,15 +19,17 @@
       "anthropic.response.completions.0.content": "The famous philosophical statement \"I think, therefore I am\" (originally in Latin as \"Cogito, ergo sum\") was coined by the Frenc...",
       "anthropic.response.completions.0.type": "text",
       "language": "python",
-      "runtime-id": "8fd97107abd7487885a5dc3c5b2aeb7a"
+      "runtime-id": "3b85b420d960416d9e6a99023a95eb24"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10056
+      "anthropic.response.completions.usage.input": 27,
+      "anthropic.response.completions.usage.output": 305,
+      "process_id": 49117
     },
-    "duration": 2407000,
-    "start": 1717088663342667000
+    "duration": 2466000,
+    "start": 1717096818997460000
   }]]
