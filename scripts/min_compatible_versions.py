@@ -13,6 +13,7 @@ import riotfile  # noqa:E402
 
 OUT_FILENAME = "min_compatible_versions.csv"
 OUT_DIRECTORIES = (".", "lib-injection")
+IGNORED_PACKAGES = {"setuptools"}
 
 
 def _format_version_specifiers(spec: Set[str]) -> Set[str]:
@@ -25,10 +26,16 @@ def tree_pkgs_from_riot() -> Dict[str, Set[str]]:
 
 
 def _tree_pkgs_from_riot(node: riotfile.Venv) -> Dict[str, Set]:
-    result = {pkg: _format_version_specifiers(set(versions)) for pkg, versions in node.pkgs.items()}
+    result = {
+        pkg: _format_version_specifiers(set(versions))
+        for pkg, versions in node.pkgs.items()
+        if pkg not in IGNORED_PACKAGES
+    }
     for child_venv in node.venvs:
         child_pkgs = _tree_pkgs_from_riot(child_venv)
         for pkg_name, versions in child_pkgs.items():
+            if pkg_name in IGNORED_PACKAGES:
+                continue
             if pkg_name in result:
                 result[pkg_name] = result[pkg_name].union(versions)
             else:
