@@ -12,12 +12,15 @@ import ddtrace.auto  # noqa: F401  # isort: skip
 from tests.appsec.iast_packages.packages.pkg_beautifulsoup4 import pkg_beautifulsoup4
 from tests.appsec.iast_packages.packages.pkg_certifi import pkg_certifi
 from tests.appsec.iast_packages.packages.pkg_chartset_normalizer import pkg_chartset_normalizer
+from tests.appsec.iast_packages.packages.pkg_cryptography import pkg_cryptography
+from tests.appsec.iast_packages.packages.pkg_fsspec import pkg_fsspec
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
 from tests.appsec.iast_packages.packages.pkg_numpy import pkg_numpy
 from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_dateutil
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
+from tests.appsec.iast_packages.packages.pkg_s3fs import pkg_s3fs
 from tests.appsec.iast_packages.packages.pkg_s3transfer import pkg_s3transfer
 from tests.appsec.iast_packages.packages.pkg_setuptools import pkg_setuptools
 from tests.appsec.iast_packages.packages.pkg_six import pkg_six
@@ -29,12 +32,15 @@ app = Flask(__name__)
 app.register_blueprint(pkg_beautifulsoup4)
 app.register_blueprint(pkg_certifi)
 app.register_blueprint(pkg_chartset_normalizer)
+app.register_blueprint(pkg_cryptography)
+app.register_blueprint(pkg_fsspec)
 app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_idna)
 app.register_blueprint(pkg_numpy)
 app.register_blueprint(pkg_python_dateutil)
 app.register_blueprint(pkg_pyyaml)
 app.register_blueprint(pkg_requests)
+app.register_blueprint(pkg_s3fs)
 app.register_blueprint(pkg_s3transfer)
 app.register_blueprint(pkg_setuptools)
 app.register_blueprint(pkg_six)

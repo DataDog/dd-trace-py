@@ -19,7 +19,6 @@ def pkg_setuptools_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        # Ejemplo de uso común del paquete setuptools
         distribution = setuptools.Distribution(
             {
                 "name": "example_package",

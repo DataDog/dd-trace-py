@@ -125,6 +125,17 @@ class PackageForTesting:
 PACKAGES = [
     PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
     PackageForTesting(
+        "boto3",
+        "1.34.110",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        extras=[("pyopenssl", "24.1.0")],
+        import_module_to_validate="boto3.session",
+    ),
+    PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
+    PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
     PackageForTesting(
@@ -136,6 +147,15 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
     ),
+    PackageForTesting(
+        "cryptography",
+        "42.0.7",
+        "This is a secret message.",
+        "This is a secret message.",
+        "",
+        import_module_to_validate="cryptography.fernet",
+    ),
+    PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
         "google-api-python-client",
         "2.111.0",
@@ -190,6 +210,9 @@ PACKAGES = [
         "",
     ),
     PackageForTesting(
+        "s3fs", "2024.5.0", "", "", "", extras=[("pyopenssl", "24.1.0")], import_module_to_validate="s3fs.core"
+    ),
+    PackageForTesting(
         "s3transfer",
         "0.10.1",
         "",
@@ -197,6 +220,7 @@ PACKAGES = [
         "",
         extras=[("boto3", "1.34.110")],
     ),
+    PackageForTesting("setuptools", "70.0.0", "", {"description": "An example package", "name": "example_package"}, ""),
     PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
     PackageForTesting(
         "urllib3",
@@ -205,10 +229,7 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
-    PackageForTesting("setuptools", "70.0.0", "", {"description": "An example package", "name": "example_package"}, ""),
-    PackageForTesting("cryptography", "42.0.7", "", "", "", test_e2e=False),
-    PackageForTesting("fsspec", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
-    PackageForTesting("boto3", "1.34.110", "", "", "", test_e2e=False, test_import=False),
+    # PENDING TO TEST
     # Python 3.8 fails in test_packages_patched_import with
     # TypeError: '>' not supported between instances of 'int' and 'object'
     # TODO: try to fix it
@@ -222,13 +243,11 @@ PACKAGES = [
         test_e2e=False,
         skip_python_version=[(3, 8)],
     ),
-    PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
     PackageForTesting("packaging", "24.0", "", "", "", test_e2e=False),
     PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
-    PackageForTesting("s3fs", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
     PackageForTesting("google-api-core", "2.19.0", "", "", "", test_e2e=False, import_name="google"),
     PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("pycparser", "2.22", "", "", "", test_e2e=False),
@@ -395,7 +414,7 @@ def test_packages_not_patched_import(package):
         pytest.skip(reason)
         return
 
-    package.install(install_extra=False)
+    package.install()
     importlib.import_module(package.import_name)
 
 
@@ -411,7 +430,7 @@ def test_packages_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install(install_extra=False)
+        package.install()
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
@@ -451,7 +470,7 @@ def test_packages_latest_patched_import(package):
         return
 
     with override_env({IAST_ENV: "true"}):
-        package.install_latest(install_extra=False)
+        package.install_latest()
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
