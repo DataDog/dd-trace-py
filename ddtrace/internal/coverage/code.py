@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections import deque
+import os
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -13,8 +14,6 @@ from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.vendor.contextvars import ContextVar
 
-
-CWD = Path.cwd()
 
 _original_exec = exec
 
@@ -61,6 +60,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self.coverage_enabled = False
         self.lines = defaultdict(set)
         self.covered = defaultdict(set)
+        self._include_paths: t.List[Path] = []
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -69,6 +69,19 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             par.exec = self._exec
         except ImportError:
             pass
+
+    @classmethod
+    def install(cls, include_paths: t.Optional[t.List[Path]] = None, coverage_queue=None):
+        if ModuleCodeCollector.is_installed():
+            return
+
+        super().install()
+
+        if not include_paths:
+            include_paths = [Path(os.getcwd())]
+
+        if cls._instance is not None:
+            cls._instance._include_paths = include_paths
 
     def hook(self, arg):
         path, line = arg
@@ -84,7 +97,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
                 ctx_lines.add(line)
 
     @classmethod
-    def report(cls, ignore_nocover: bool = False):
+    def report(cls, workspace_path: Path, ignore_nocover: bool = False):
         if cls._instance is None:
             return
         instance: ModuleCodeCollector = cls._instance
@@ -92,10 +105,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         executable_lines = instance.lines
         covered_lines = instance._get_covered_lines()
 
-        print_coverage_report(executable_lines, covered_lines, ignore_nocover=ignore_nocover)
+        print_coverage_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover)
 
     @classmethod
-    def write_json_report_to_file(cls, filename: str, ignore_nocover: bool = False):
+    def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
         if cls._instance is None:
             return
         instance: ModuleCodeCollector = cls._instance
@@ -104,7 +117,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         covered_lines = instance._get_covered_lines()
 
         with open(filename, "w") as f:
-            f.write(get_json_report(executable_lines, covered_lines, ignore_nocover=ignore_nocover))
+            f.write(get_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
 
     def _get_covered_lines(self) -> t.Dict[str, t.Set[int]]:
         if ctx_coverage_enabed.get(False):
@@ -171,9 +184,9 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return files
 
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
-        code_path = Path(code.co_filename).resolve()
-        # TODO: Remove hardcoded paths
-        if not code_path.is_relative_to(CWD):
+        code_path = Path(code.co_filename)
+
+        if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
 
@@ -201,13 +214,11 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        path = str(Path(code.co_filename).resolve().relative_to(CWD))
-
-        new_code, lines = instrument_all_lines(code, self.hook, path)
+        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename)
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
-        self.lines[path] |= lines
+        self.lines[code.co_filename] |= lines
 
         return new_code
 
