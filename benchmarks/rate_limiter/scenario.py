@@ -1,5 +1,6 @@
-import bm
 import math
+
+import bm
 
 
 class RateLimiter(bm.Scenario):
