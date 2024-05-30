@@ -11,11 +11,11 @@ import platform
 import subprocess
 import sys
 import time
+from typing import Tuple
 
-import pkg_resources
 
-
-Version = pkg_resources.parse_version
+def Version(version: str) -> Tuple:
+    return tuple(int(p) for p in version.split("."))
 
 
 runtimes_allow_list = {
@@ -29,8 +29,20 @@ allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_
 )
 allow_unsupported_runtimes = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES", "").lower() in ("true", "1", "t")
 
-installed_packages = pkg_resources.working_set
-installed_packages = {pkg.key: pkg.version for pkg in installed_packages}
+
+def build_installed_pkgs():
+    if sys.version_info >= (3, 8):
+        from importlib import metadata as importlib_metadata
+
+        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+    else:
+        import pkg_resources
+
+        installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+    return installed_packages
+
+
+installed_packages = build_installed_pkgs()
 
 python_runtime = platform.python_implementation().lower()
 python_version = ".".join(str(i) for i in sys.version_info[:2])
