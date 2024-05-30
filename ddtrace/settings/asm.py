@@ -12,7 +12,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import APPSEC_STANDALONE_ENV
 from ddtrace.constants import IAST_ENV
 
 
@@ -48,7 +47,7 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     _asm_can_be_enabled = (APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled) or _asm_enabled
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
-    _appsec_standalone_enabled = Env.var(bool, APPSEC_STANDALONE_ENV, default=False)
+    _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
