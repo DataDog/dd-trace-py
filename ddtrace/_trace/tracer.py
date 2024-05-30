@@ -115,6 +115,7 @@ def _default_span_processors_factory(
     agent_url: str,
     trace_sampler: BaseSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
+    apm_opt_out: bool = False,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
@@ -122,7 +123,7 @@ def _default_span_processors_factory(
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules),
+        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules, apm_opt_out),
         TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
@@ -232,7 +233,10 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler: Optional[BaseSampler] = DatadogSampler()
+        self._asm_enabled = asm_config._asm_enabled
+        self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
         self._sampler: BaseSampler = DatadogSampler()
+        self._maybe_opt_out()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
@@ -270,6 +274,7 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
+            self._apm_opt_out,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -291,6 +296,9 @@ class Tracer(object):
         config._subscribe(["logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
+
+    def _maybe_opt_out(self):
+        self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -434,6 +442,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
+        appsec_standalone_enabled: Optional[bool] = None,
     ) -> None:
         """Configure a Tracer.
 
@@ -471,9 +480,14 @@ class Tracer(object):
         if iast_enabled is not None:
             self._iast_enabled = asm_config._iast_enabled = iast_enabled
 
+        if appsec_standalone_enabled is not None:
+            self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
+
         if sampler is not None:
             self._sampler = sampler
             self._user_sampler = self._sampler
+
+        self._maybe_opt_out()
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
@@ -560,6 +574,7 @@ class Tracer(object):
                 self._agent_url,
                 self._sampler,
                 self._endpoint_call_counter_span_processor,
+                self._apm_opt_out,
             )
 
         if context_provider is not None:
@@ -626,6 +641,7 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
+            self._apm_opt_out,
         )
 
         self._new_process = True
