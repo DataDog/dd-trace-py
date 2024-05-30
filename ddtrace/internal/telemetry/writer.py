@@ -93,6 +93,7 @@ from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_host_info
+from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
@@ -504,6 +505,7 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
+            + get_python_config_vars()
         )
 
         if config._config["_sca_enabled"].value() is None:

@@ -34,6 +34,7 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
+from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -385,10 +386,12 @@ class Config(object):
             return False
 
     def __init__(self):
+        # Must map Otel configurations to Datadog configurations before creating the config object.
+        _otel_remapping()
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
-        # use a dict as underlying storing mechanism for integration configs
+        # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
@@ -825,7 +828,7 @@ class Config(object):
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
-        flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key)
+        flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
         tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)

@@ -38,6 +38,7 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import DEFAULT_LAST_PARENT_ID
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -921,6 +922,18 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
+                if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
+                    dd_context = None
+                    if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
+                        dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
+                    if context._meta.get(LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID) != DEFAULT_LAST_PARENT_ID:
+                        # tracecontext headers contain a p value, ensure this value is sent to backend
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
+                    elif dd_context:
+                        # if p value is not present in tracestate, use the parent id from the datadog headers
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
+                    # the span_id in tracecontext takes precedence over the first extracted propagation style
+                    primary_context.span_id = context.span_id
         primary_context._span_links = links
         return primary_context
 
@@ -975,6 +988,11 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
+        if config._llmobs_enabled:
+            from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+
+            _inject_llmobs_parent_id(span_context)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
