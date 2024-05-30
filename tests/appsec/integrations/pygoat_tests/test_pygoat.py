@@ -4,6 +4,11 @@ import time
 import pytest
 import requests
 
+from tests.appsec.iast.conftest import iast_span_defaults
+
+
+span_defaults = iast_span_defaults  # So ruff does not remove it
+
 
 # Note: these tests require the testagent and pygoat images to be up from the docker-compose file
 # dc up -d pygoat testagent
@@ -128,3 +133,38 @@ def test_sqli(client):
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("SQL_INJECTION", client.agent_session)
+
+
+@pytest.mark.skip("TODO: SSRF is not implemented for open()")
+def test_ssrf1(client, tracer, iast_span_defaults):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    s = "templates/Lab/ssrf/blogs/blog2.txt"
+    tainted_path = taint_pyobject(
+        pyobject=s,
+        source_name="test_ssrf",
+        source_value=s,
+        source_origin=OriginType.PARAMETER,
+    )
+    payload = {"blog": tainted_path, "csrfmiddlewaretoken": client.csrftoken}
+    reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab", data=payload, headers=TESTAGENT_HEADERS)
+    assert reply.status_code == 200
+    assert vulnerability_in_traces("SSRF", client.agent_session)
+
+
+def test_ssrf2(client, tracer, span_defaults):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+    s = "http://example.com"
+    tainted_path = taint_pyobject(
+        pyobject=s,
+        source_name="test_ssrf",
+        source_value=s,
+        source_origin=OriginType.PARAMETER,
+    )
+    payload = {"url": tainted_path, "csrfmiddlewaretoken": client.csrftoken}
+    reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab2", data=payload, headers=TESTAGENT_HEADERS)
+    assert reply.status_code == 200
+    assert vulnerability_in_traces("SSRF", client.agent_session)
