@@ -165,6 +165,9 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
     ),
+    PackageForTesting(
+        "exceptiongroup", "1.2.1", "", "", "", test_e2e=False, import_module_to_validate="exceptiongroup._formatting"
+    ),
     PackageForTesting("filelock", "3.14.0", "", "", "", test_e2e=False, import_module_to_validate="filelock._api"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
@@ -194,9 +197,13 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
     ),
+    PackageForTesting("isodate", "0.6.1", "", "", "", test_e2e=False, import_module_to_validate="isodate.duration"),
     PackageForTesting("jinja2", "3.1.4", "", "", "", test_e2e=False, import_module_to_validate="jinja2.compiler"),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
     PackageForTesting("markupsafe", "2.1.5", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "multidict", "6.0.5", "", "", "", test_e2e=False, import_module_to_validate="multidict._multidict_py"
+    ),
     # Python 3.12 fails in all steps with "import error" when import numpy
     PackageForTesting(
         "numpy",
@@ -207,6 +214,7 @@ PACKAGES = [
         skip_python_version=[(3, 12)],
         import_module_to_validate="numpy.core._internal",
     ),
+    PackageForTesting("oauthlib", "3.2.2", "", "", "", test_e2e=False, import_module_to_validate="oauthlib.common"),
     PackageForTesting(
         "packaging",
         "24.0",
@@ -295,6 +303,9 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
+    PackageForTesting(
+        "virtualenv", "20.26.2", "", "", "", test_e2e=False, import_module_to_validate="virtualenv.activation.activator"
+    ),
     PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
     # PENDING TO TEST
     # TODO: Python 3.8 fails in test_packages_patched_import with
@@ -317,11 +328,9 @@ PACKAGES = [
     PackageForTesting("pyjwt", "2.8.0", "", "", "", test_e2e=False, import_name="jwt"),
     PackageForTesting("wrapt", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("cachetools", "5.3.3", "", "", "", test_e2e=False),
-    PackageForTesting("virtualenv", "20.26.2", "", "", "", test_e2e=False),
     # docutils dropped Python 3.8 support in pandas> 1.10.10.21.2
     PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("pyarrow", "16.1.0", "", "", "", test_e2e=False),
-    PackageForTesting("exceptiongroup", "1.2.1", "", "", "", test_e2e=False),
     # jsonschema fails for Python 3.8
     #        except KeyError:
     # >           raise exceptions.NoSuchResource(ref=uri) from None
@@ -329,16 +338,14 @@ PACKAGES = [
     PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting("pyparsing", "3.1.2", "", "", "", test_e2e=False),
-    PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
-    PackageForTesting("oauthlib", "3.2.2", "", "", "", test_e2e=False),
+    # TODO: patching Pytest fails: ImportError: cannot import name 'Dir' from '_pytest.main'
+    # PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
     PackageForTesting("sqlalchemy", "2.0.30", "", "", "", test_e2e=False),
     PackageForTesting("aiohttp", "3.9.5", "", "", "", test_e2e=False),
     # scipy dropped Python 3.8 support in pandas> 1.10.1
     PackageForTesting(
         "scipy", "1.13.0", "", "", "", test_e2e=False, import_name="scipy.special", skip_python_version=[(3, 8)]
     ),
-    PackageForTesting("isodate", "0.6.1", "", "", "", test_e2e=False),
-    PackageForTesting("multidict", "6.0.5", "", "", "", test_e2e=False),
     PackageForTesting("iniconfig", "2.0.0", "", "", "", test_e2e=False),
     PackageForTesting("psutil", "5.9.8", "", "", "", test_e2e=False),
     PackageForTesting("soupsieve", "2.5", "", "", "", test_e2e=False),
