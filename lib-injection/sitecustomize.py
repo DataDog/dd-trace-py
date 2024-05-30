@@ -34,9 +34,9 @@ python_version = ".".join(str(i) for i in sys.version_info[:2])
 
 
 def build_min_pkgs():
-    print(os.listdir())
+    print(os.listdir(".."))
     min_pkgs = dict()
-    with open("datadog-lib/min_compatible_versions.csv", "r") as csvfile:
+    with open("../datadog-lib/min_compatible_versions.csv", "r") as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=",")
         for idx, row in enumerate(csv_reader):
             if idx < 2:
