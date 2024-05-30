@@ -4,6 +4,7 @@ containing the ddtrace package compatible with the current Python version and pl
 """
 from __future__ import print_function  # noqa: E402
 
+import csv
 import json
 import os
 import platform
@@ -13,11 +14,6 @@ import time
 
 import pkg_resources
 
-
-# TODO: build list from riotfile instead of hardcoding
-pkgs_allow_list = {
-    "flask": {"min": "1.0.0", "max": "3.3.0"},
-}
 
 runtimes_allow_list = {
     "cpython": {"min": "3.7", "max": "3.12"},
@@ -35,6 +31,20 @@ installed_packages = {pkg.key: pkg.version for pkg in installed_packages}
 
 python_runtime = platform.python_implementation().lower()
 python_version = ".".join(str(i) for i in sys.version_info[:2])
+
+
+def build_min_pkgs():
+    min_pkgs = dict()
+    with open("min_compatible_versions.csv", "r") as csvfile:
+        csv_reader = csv.reader(csvfile, delimiter=",")
+        for idx, row in enumerate(csv_reader):
+            if idx < 2:
+                continue
+            min_pkgs[row[0]] = row[1]
+    return min_pkgs
+
+
+pkgs_allow_list = build_min_pkgs()
 
 
 def create_count_metric(metric, tags=[]):
@@ -123,11 +133,7 @@ def _inject():
         incompatible_packages = {}
         for package_name, package_version in installed_packages.items():
             if package_name in pkgs_allow_list:
-                # TODO: this checking code will have to be more intelligent in the future
-                if (
-                    package_version < pkgs_allow_list[package_name]["min"]
-                    or package_version > pkgs_allow_list[package_name]["max"]
-                ):
+                if package_version < pkgs_allow_list[package_name]:
                     incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
@@ -143,8 +149,7 @@ def _inject():
                             [
                                 "integration_name:" + key,
                                 "integration_version:" + value,
-                                "min_supported_version:" + pkgs_allow_list[key]["min"],
-                                "max_supported_version:" + pkgs_allow_list[key]["max"],
+                                "min_supported_version:" + pkgs_allow_list[key],
                             ],
                         )
                     )
