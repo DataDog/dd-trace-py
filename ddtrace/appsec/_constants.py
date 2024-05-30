@@ -71,6 +71,7 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
+    PROPAGATION_HEADER = "_dd.p.appsec"
 
 
 class IAST(metaclass=Constant_Class):
