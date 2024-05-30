@@ -122,7 +122,7 @@ def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
     t.configure(appsec_enabled=True, appsec_standalone_enabled=True)
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     assert not t._compute_stats
-    assert t._writer._headers.get("X-Datadog-Trace-Compute-Stats") == "true"
+    assert t._writer._headers.get("X-Datadog-Client-Computed-Stats") == "true"
 
     # Test enabling via environment variable
     env = os.environ.copy()
@@ -134,7 +134,7 @@ from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 assert config._trace_compute_stats is False
 
-assert tracer._writer._headers.get("X-Datadog-Trace-Compute-Stats") == "true"
+assert tracer._writer._headers.get("X-Datadog-Client-Computes-Stats") == "true"
 """,
         env=env,
     )
