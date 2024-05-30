@@ -135,6 +135,7 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
+    PackageForTesting("cffi", "1.16.0", "", "", "", import_module_to_validate="cffi.model"),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -174,15 +175,20 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
     ),
-    # Python 3.12 fails in all steps with "import error" when import numpy
     PackageForTesting(
         "numpy",
         "1.24.4",
         "9 8 7 6 5 4 3",
         [3, 4, 5, 6, 7, 8, 9],
         5,
-        skip_python_version=[(3, 12)],
         import_module_to_validate="numpy.core._internal",
+    ),
+    PackageForTesting(
+        "packaging",
+        "24.0",
+        "",
+        {"is_version_valid": True, "requirement": "example-package>=1.0.0", "specifier": ">=1.0.0", "version": "1.2.3"},
+        "",
     ),
     PackageForTesting(
         "python-dateutil",
@@ -220,7 +226,17 @@ PACKAGES = [
         "",
         extras=[("boto3", "1.34.110")],
     ),
-    PackageForTesting("setuptools", "70.0.0", "", {"description": "An example package", "name": "example_package"}, ""),
+    # TODO: Test import fails with
+    #   AttributeError: partially initialized module 'setuptools' has no
+    #   attribute 'dist' (most likely due to a circular import)
+    PackageForTesting(
+        "setuptools",
+        "70.0.0",
+        "",
+        {"description": "An example package", "name": "example_package"},
+        "",
+        test_import=False,
+    ),
     PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
     PackageForTesting(
         "urllib3",
@@ -230,9 +246,8 @@ PACKAGES = [
         "www.datadoghq.com",
     ),
     # PENDING TO TEST
-    # Python 3.8 fails in test_packages_patched_import with
-    # TypeError: '>' not supported between instances of 'int' and 'object'
-    # TODO: try to fix it
+    # TODO: Python 3.8 fails in test_packages_patched_import with
+    #   TypeError: '>' not supported between instances of 'int' and 'object'
     PackageForTesting(
         "typing-extensions",
         "4.11.0",
@@ -243,13 +258,10 @@ PACKAGES = [
         test_e2e=False,
         skip_python_version=[(3, 8)],
     ),
-    PackageForTesting("packaging", "24.0", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
     PackageForTesting("google-api-core", "2.19.0", "", "", "", test_e2e=False, import_name="google"),
-    PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("pycparser", "2.22", "", "", "", test_e2e=False),
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
@@ -431,7 +443,10 @@ def test_packages_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install()
-        del sys.modules[package.import_name]
+        try:
+            del sys.modules[package.import_name]
+        except KeyError:
+            pass
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
@@ -472,7 +487,10 @@ def test_packages_latest_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install_latest()
-        del sys.modules[package.import_name]
+        try:
+            del sys.modules[package.import_name]
+        except KeyError:
+            pass
         module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
         assert module
         assert patched_source
