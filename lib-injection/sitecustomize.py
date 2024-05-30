@@ -163,7 +163,7 @@ def _inject():
                             [
                                 "integration_name:" + key,
                                 "integration_version:" + value,
-                                "min_supported_version:" + pkgs_allow_list[key],
+                                "min_supported_version:" + str(pkgs_allow_list[key]),
                             ],
                         )
                     )
@@ -184,9 +184,9 @@ def _inject():
                         "library_entrypoint.abort.runtime",
                         [
                             "min_supported_version:"
-                            + runtimes_allow_list.get(python_runtime, {}).get("min", "unknown"),
+                            + str(runtimes_allow_list.get(python_runtime, {}).get("min", "unknown")),
                             "max_supported_version:"
-                            + runtimes_allow_list.get(python_runtime, {}).get("max", "unknown"),
+                            + str(runtimes_allow_list.get(python_runtime, {}).get("max", "unknown")),
                         ],
                     )
                 )
