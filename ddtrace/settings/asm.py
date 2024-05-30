@@ -12,7 +12,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import APPSEC_STANDALONE_ENV
 from ddtrace.constants import IAST_ENV
 
 
