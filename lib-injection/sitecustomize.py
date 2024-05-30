@@ -23,12 +23,11 @@ runtimes_allow_list = {
     "cpython": {"min": Version("3.7"), "max": Version("3.12")},
 }
 
-allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS", "").lower() in (
+force_inject = os.environ.get("DD_INJECT_FORCE", "").lower() in (
     "true",
     "1",
     "t",
 )
-allow_unsupported_runtimes = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES", "").lower() in ("true", "1", "t")
 
 
 def build_installed_pkgs():
@@ -166,7 +165,7 @@ def _inject():
         if incompatible_packages:
             _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
             integration_incomp = True
-            if not allow_unsupported_integrations:
+            if not force_inject:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
                 for key, value in incompatible_packages.items():
@@ -183,13 +182,13 @@ def _inject():
 
             else:
                 _log(
-                    "DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS set to True, allowing unsupported integrations.",
+                    "DD_INJECT_FORCE set to True, allowing unsupported integrations.",
                     level="debug",
                 )
         if not runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
             _log("Found incompatible runtime: %s %s." % (python_runtime, python_version), level="debug")
             runtime_incomp = True
-            if not allow_unsupported_runtimes:
+            if not force_inject:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
                 telemetry_data.append(
@@ -205,7 +204,7 @@ def _inject():
                 )
             else:
                 _log(
-                    "DD_TRACE_ALLOW_UNSUPPORTED_SSI_RUNTIMES set to True, allowing unsupported runtimes.",
+                    "DD_INJECT_FORCE set to True, allowing unsupported runtimes.",
                     level="debug",
                 )
         if telemetry_data:
