@@ -123,6 +123,14 @@ class PackageForTesting:
 # wheel, importlib-metadata and pip is discarded because they are package to build projects
 # colorama and awscli are terminal commands
 PACKAGES = [
+    PackageForTesting(
+        "attrs",
+        "23.2.0",
+        "Bruce Dickinson",
+        {"age": 65, "name": "Bruce Dickinson"},
+        "",
+        import_module_to_validate="attr.validators",
+    ),
     PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
     PackageForTesting(
         "boto3",
@@ -158,6 +166,15 @@ PACKAGES = [
     ),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
+        "google-api-core",
+        "2.19.0",
+        "",
+        "",
+        "",
+        import_name="google",
+        import_module_to_validate="google.auth.transport.grpc",
+    ),
+    PackageForTesting(
         "google-api-python-client",
         "2.111.0",
         "",
@@ -190,6 +207,17 @@ PACKAGES = [
         {"is_version_valid": True, "requirement": "example-package>=1.0.0", "specifier": ">=1.0.0", "version": "1.2.3"},
         "",
     ),
+    # Pandas dropped Python 3.8 support in pandas>2.0.3
+    PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
+    PackageForTesting(
+        "pyasn1",
+        "0.6.0",
+        "Bruce Dickinson",
+        {"decoded_age": 65, "decoded_name": "Bruce Dickinson"},
+        "",
+        import_module_to_validate="pyasn1.codec.native.decoder",
+    ),
+    PackageForTesting("pycparser", "2.22", "", "", ""),
     PackageForTesting(
         "python-dateutil",
         "2.8.2",
@@ -214,6 +242,14 @@ PACKAGES = [
         "",
         "",
         "",
+    ),
+    PackageForTesting(
+        "rsa",
+        "4.9",
+        "Bruce Dickinson",
+        {"decrypted_message": "Bruce Dickinson", "message": "Bruce Dickinson"},
+        "",
+        import_module_to_validate="rsa.pkcs1",
     ),
     PackageForTesting(
         "s3fs", "2024.5.0", "", "", "", extras=[("pyopenssl", "24.1.0")], import_module_to_validate="s3fs.core"
@@ -245,6 +281,7 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
+    PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
     # PENDING TO TEST
     # TODO: Python 3.8 fails in test_packages_patched_import with
     #   TypeError: '>' not supported between instances of 'int' and 'object'
@@ -261,14 +298,6 @@ PACKAGES = [
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
-    PackageForTesting("google-api-core", "2.19.0", "", "", "", test_e2e=False, import_name="google"),
-    PackageForTesting("pycparser", "2.22", "", "", "", test_e2e=False),
-    # Pandas dropped Python 3.8 support in pandas>2.0.3
-    PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
-    PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
-    PackageForTesting("attrs", "23.2.0", "", "", "", test_e2e=False),
-    PackageForTesting("pyasn1", "0.6.0", "", "", "", test_e2e=False),
-    PackageForTesting("rsa", "4.9", "", "", "", test_e2e=False),
     # protobuf fails for all python versions with No module named 'protobuf
     # PackageForTesting("protobuf", "5.26.1", "", "", "", test_e2e=False),
     PackageForTesting("jmespath", "1.0.1", "", "", "", test_e2e=False),
