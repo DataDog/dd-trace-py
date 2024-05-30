@@ -175,7 +175,6 @@ def get_app():
                         res.append(f"Url: {list(cursor)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            print(res)
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "shell":
