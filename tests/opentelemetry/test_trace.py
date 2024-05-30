@@ -20,22 +20,24 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 def test_otel_start_span_record_exception(oteltracer):
-    with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        otel_span = oteltracer.start_span("test-start-span")
-        with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
-            with otel_span:
-                otel_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"}, 1716560271237812)
-                otel_span.record_exception(
-                    Exception("Real Exception"),
-                    {
-                        "exception.type": "RandoException",
-                        "exception.message": "MoonEar Fire!!!",
-                        "exception.stacktrace": "Fake traceback",
-                        "exception.details": "This is FAKE, I overwrote the real exception details",
-                    },
-                    1716560271237812,
-                )
+    with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
+        with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
+            with oteltracer.start_span("test-raised-exception") as raised_span:
+                raised_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"}, 1716560271237812)
                 raise Exception("Sorry Otel Span, I failed you")
+
+        with oteltracer.start_span("test-recorded-exception") as not_raised_span:
+            not_raised_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"})
+            not_raised_span.record_exception(
+                Exception("Real Exception"),
+                {
+                    "exception.type": "RandoException",
+                    "exception.message": "MoonEar Fire!!!",
+                    "exception.stacktrace": "Fake traceback",
+                    "exception.details": "This is FAKE, I overwrote the real exception details",
+                },
+                1716560271237812,
+            )
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
