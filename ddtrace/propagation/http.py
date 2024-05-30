@@ -24,11 +24,13 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
+from ..constants import USER_REJECT
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
@@ -173,8 +175,6 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _is_valid_datadog_trace_tag_key(key):
-        if asm_config._appsec_standalone_enabled:
-            return key.startswith("_dd.p.appsec")
         return key.startswith("_dd.p.")
 
     @staticmethod
@@ -315,6 +315,9 @@ class _DatadogMultiHeader:
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
+
+            if asm_config._appsec_standalone_enabled and APPSEC.PROPAGATION_HEADER not in meta.keys():
+                sampling_priority = USER_REJECT  # type: ignore[assignment]
 
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
