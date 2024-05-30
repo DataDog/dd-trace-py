@@ -21,7 +21,7 @@
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
+      "_sampling_priority_v1": 1,
       "process_id": 71659
     },
     "duration": 518127750028000,
@@ -50,7 +50,7 @@
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
+      "_sampling_priority_v1": 1,
       "process_id": 71659
     },
     "duration": 518127750240000,
