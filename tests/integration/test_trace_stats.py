@@ -112,6 +112,35 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
+def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
+    """Ensure stats computation can be enabled."""
+
+    # Test enabling via `configure`
+    t = Tracer()
+    assert not t._compute_stats
+    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
+    t.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
+    assert not t._compute_stats
+    assert t._writer._headers.get("X-Datadog-Trace-Compute-Stats") == "true"
+
+    # Test enabling via environment variable
+    env = os.environ.copy()
+    env.update({"DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED": "true", "DD_APPSEC_ENABLED": "true"})
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace import tracer
+from ddtrace import config
+from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+assert config._trace_compute_stats is False
+
+assert tracer._writer._headers.get("X-Datadog-Trace-Compute-Stats") == "true"
+""",
+        env=env,
+    )
+    assert status == 0, out + err
+
+
 @mock.patch("ddtrace.internal.processor.stats.get_hostname")
 def test_stats_report_hostname(get_hostname):
     get_hostname.return_value = "test-hostname"
