@@ -27,6 +27,9 @@ def _asm_manual_keep(span: Span) -> None:
     # set decision maker to ASM = -5
     span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
 
+    # set Security propagation tag
+    span.set_tag_str(APPSEC.PROPAGATION_HEADER, "1")
+
 
 def _track_user_login_common(
     tracer: Tracer,
