@@ -20,7 +20,7 @@ pkg_google_api_core = Blueprint("package_google_api_core", __name__)
 
 
 @pkg_google_api_core.route("/google-api-python-client")
-def pkg_idna_view():
+def pkg_google_view():
     response = ResultResponse(request.args.get("package_param"))
     # from googleapiclient.discovery import build
     # from googleapiclient.errors import HttpError

@@ -13,7 +13,7 @@ pkg_certifi = Blueprint("package_certifi", __name__)
 
 
 @pkg_certifi.route("/certifi")
-def pkg_requests_view():
+def pkg_certifi_view():
     import certifi
 
     response = ResultResponse(request.args.get("package_param"))

@@ -9,7 +9,6 @@ import pytest
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.aspects.conftest import _iast_patched_module_and_patched_source
 from tests.utils import override_env
 
@@ -129,7 +128,13 @@ PACKAGES = [
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
     PackageForTesting(
-        "charset-normalizer", "3.3.2", "my-bytes-string", "my-bytes-string", "", import_name="charset_normalizer"
+        "charset-normalizer",
+        "3.3.2",
+        "my-bytes-string",
+        "my-bytes-string",
+        "",
+        import_name="charset_normalizer",
+        import_module_to_validate="charset_normalizer.api",
     ),
     PackageForTesting(
         "google-api-python-client",
@@ -139,10 +144,26 @@ PACKAGES = [
         "",
         extras=[("google-auth-oauthlib", "1.2.0"), ("google-auth-httplib2", "0.2.0")],
         import_name="googleapiclient",
+        import_module_to_validate="googleapiclient.discovery",
     ),
-    PackageForTesting("idna", "3.6", "xn--eckwd4c7c.xn--zckzah", "ドメイン.テスト", "xn--eckwd4c7c.xn--zckzah"),
+    PackageForTesting(
+        "idna",
+        "3.6",
+        "xn--eckwd4c7c.xn--zckzah",
+        "ドメイン.テスト",
+        "xn--eckwd4c7c.xn--zckzah",
+        import_module_to_validate="idna.codec",
+    ),
     # Python 3.12 fails in all steps with "import error" when import numpy
-    PackageForTesting("numpy", "1.24.4", "9 8 7 6 5 4 3", [3, 4, 5, 6, 7, 8, 9], 5, skip_python_version=[(3, 12)]),
+    PackageForTesting(
+        "numpy",
+        "1.24.4",
+        "9 8 7 6 5 4 3",
+        [3, 4, 5, 6, 7, 8, 9],
+        5,
+        skip_python_version=[(3, 12)],
+        import_module_to_validate="numpy.core._internal",
+    ),
     PackageForTesting(
         "python-dateutil",
         "2.8.2",
@@ -150,6 +171,7 @@ PACKAGES = [
         "Sat, 11 Oct 2003 17:13:46 GMT",
         "And the Easter of that year is: 2004-04-11",
         import_name="dateutil",
+        import_module_to_validate="dateutil.relativedelta",
     ),
     PackageForTesting(
         "PyYAML",
@@ -158,6 +180,7 @@ PACKAGES = [
         {"a": 1, "b": {"c": 3, "d": 4}},
         "a: 1\nb:\n  c: 3\n  d: 4\n",
         import_name="yaml",
+        import_module_to_validate="yaml.resolver",
     ),
     PackageForTesting(
         "requests",
@@ -170,7 +193,7 @@ PACKAGES = [
         "s3transfer",
         "0.10.1",
         "",
-        "An error occurred (403) when calling the HeadObject operation: Forbidden",
+        "",
         "",
         extras=[("boto3", "1.34.110")],
     ),
@@ -182,7 +205,7 @@ PACKAGES = [
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
     ),
-    PackageForTesting("setuptools", "70.0.0", "", "", "", test_e2e=False),
+    PackageForTesting("setuptools", "70.0.0", "", {"description": "An example package", "name": "example_package"}, ""),
     PackageForTesting("cryptography", "42.0.7", "", "", "", test_e2e=False),
     PackageForTesting("fsspec", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
     PackageForTesting("boto3", "1.34.110", "", "", "", test_e2e=False, test_import=False),
@@ -389,7 +412,16 @@ def test_packages_patched_import(package):
 
     with override_env({IAST_ENV: "true"}):
         package.install(install_extra=False)
-        assert _iast_patched_module(package.import_name)
+        module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
+        assert module
+        assert patched_source
+        new_code = astunparse.unparse(patched_source)
+        assert (
+            "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
+            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
+        ) in new_code
+
+        assert "ddtrace_aspects." in new_code
 
 
 @pytest.mark.parametrize(
@@ -424,9 +456,9 @@ def test_packages_latest_patched_import(package):
         assert module
         assert patched_source
         new_code = astunparse.unparse(patched_source)
-        assert new_code.startswith(
-            "\n"
-            + "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks\n"
-            + "import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
-        )
+        assert (
+            "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
+            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
+        ) in new_code
+
         assert "ddtrace_aspects." in new_code

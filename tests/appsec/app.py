@@ -19,6 +19,7 @@ from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_d
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
 from tests.appsec.iast_packages.packages.pkg_s3transfer import pkg_s3transfer
+from tests.appsec.iast_packages.packages.pkg_setuptools import pkg_setuptools
 from tests.appsec.iast_packages.packages.pkg_six import pkg_six
 from tests.appsec.iast_packages.packages.pkg_urllib3 import pkg_urllib3
 import tests.appsec.integrations.module_with_import_errors as module_with_import_errors
@@ -35,6 +36,7 @@ app.register_blueprint(pkg_python_dateutil)
 app.register_blueprint(pkg_pyyaml)
 app.register_blueprint(pkg_requests)
 app.register_blueprint(pkg_s3transfer)
+app.register_blueprint(pkg_setuptools)
 app.register_blueprint(pkg_six)
 app.register_blueprint(pkg_urllib3)
 

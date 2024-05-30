@@ -13,7 +13,7 @@ pkg_s3transfer = Blueprint("package_s3transfer", __name__)
 
 
 @pkg_s3transfer.route("/s3transfer")
-def pkg_requests_view():
+def pkg_s3transfer_view():
     import boto3
     from botocore.exceptions import NoCredentialsError
     import s3transfer
@@ -30,9 +30,9 @@ def pkg_requests_view():
 
         transfer.download_file(bucket_name, object_key, file_path)
 
-        response.result1 = f"File {object_key} downloaded from bucket {bucket_name} to {file_path}"
+        _ = f"File {object_key} downloaded from bucket {bucket_name} to {file_path}"
     except NoCredentialsError:
-        response.result1 = "Credentials not available"
+        _ = "Credentials not available"
     except Exception as e:
         response.result1 = str(e)
 

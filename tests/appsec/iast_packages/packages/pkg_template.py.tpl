@@ -19,7 +19,7 @@ pkg_[PACKAGE_NAME] = Blueprint("package_[PACKAGE_NAME]", __name__)
 
 
 @pkg_[PACKAGE_NAME].route("/[PACKAGE_NAME]")
-def pkg_requests_view():
+def pkg_[PACKAGE_NAME]_view():
     import [PACKAGE_NAME]
 
     response = ResultResponse(request.args.get("package_param"))
