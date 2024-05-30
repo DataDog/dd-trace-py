@@ -12,11 +12,12 @@ import subprocess
 import sys
 import time
 
+from packaging.version import Version
 import pkg_resources
 
 
 runtimes_allow_list = {
-    "cpython": {"min": "3.7", "max": "3.12"},
+    "cpython": {"min": Version("3.7"), "max": Version("3.12")},
 }
 
 allow_unsupported_integrations = os.environ.get("DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS", "").lower() in (
@@ -116,6 +117,13 @@ def _log(msg, *args, **kwargs):
         print(msg, file=sys.stderr)
 
 
+def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
+    supported_versions = runtimes_allow_list.get(python_runtime, {})
+    if not supported_versions:
+        return False
+    return supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
+
+
 def _inject():
     telemetry_data = []
     integration_incomp = False
@@ -163,7 +171,7 @@ def _inject():
                     "DD_TRACE_ALLOW_UNSUPPORTED_SSI_INTEGRATIONS set to True, allowing unsupported integrations.",
                     level="debug",
                 )
-        if python_version not in runtimes_allow_list.get(python_runtime, []):
+        if not runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
             _log("Found incompatible runtime: %s %s." % (python_runtime, python_version), level="debug")
             runtime_incomp = True
             if not allow_unsupported_runtimes:
