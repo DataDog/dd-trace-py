@@ -657,6 +657,7 @@ class Tracer(object):
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
+            self._apm_opt_out,
         )
 
         self._new_process = True
