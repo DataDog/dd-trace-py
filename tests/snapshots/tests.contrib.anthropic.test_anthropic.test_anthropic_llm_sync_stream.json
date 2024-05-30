@@ -10,29 +10,26 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "665878bd00000000",
+      "_dd.p.tid": "6658b19700000000",
       "anthropic.request.api_key": "...key>",
       "anthropic.request.messages.0.0.content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
-      "anthropic.request.messages.0.0.message_type": "text",
+      "anthropic.request.messages.0.0.type": "text",
       "anthropic.request.model": "claude-3-opus-20240229",
-      "anthropic.request.parameters.max_tokens": "1024",
-      "anthropic.request.parameters.model": "claude-3-opus-20240229",
-      "anthropic.request.parameters.stream": "True",
-      "anthropic.request.type": "chat_model",
+      "anthropic.request.parameters": "{\"model\": \"claude-3-opus-20240229\", \"max_tokens\": 1024, \"stream\": true}",
       "anthropic.response.completions.0.content": "The famous phrase \"I think, therefore I am\" (originally in Latin as \"Cogito, ergo sum\") comes from the French philosopher Ren\u00e9 D...",
       "anthropic.response.completions.0.finish_reason": "end_turn",
       "anthropic.response.completions.0.role": "assistant",
       "anthropic.response.model": "claude-3-opus-20240229",
       "language": "python",
-      "runtime-id": "d9d1dd1171d8469280d3c083487c7905"
+      "runtime-id": "8fd97107abd7487885a5dc3c5b2aeb7a"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 42736
+      "process_id": 10056
     },
-    "duration": 3064520000,
-    "start": 1717074109348682000
+    "duration": 19156000,
+    "start": 1717088663434999000
   }]]

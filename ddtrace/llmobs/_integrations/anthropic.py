@@ -37,10 +37,11 @@ class AnthropicIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         # if not self.llmobs_enabled:
         #     return
-        parameters = {"temperature": float(span.get_tag("anthropic.request.parameters.temperature") or 0.0)}
-        max_tokens = int(span.get_tag("anthropic.request.parameters.max_tokens") or 0)
-        if max_tokens:
-            parameters["max_tokens"] = max_tokens
+        parameters = {
+            "temperature": float(span.get_tag("anthropic.request.parameters.temperature") or 1.0),
+            "max_tokens": int(span.get_tag("anthropic.request.parameters.max_tokens") or 0),
+        }
+
         input_messages = self._extract_input_message(input_messages)
 
         span.set_tag_str(SPAN_KIND, "llm")
@@ -56,18 +57,16 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _set_base_span_tags(
         self,
         span: Span,
-        interface_type: str = "",
         model: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
         if model is not None:
             span.set_tag_str(MODEL, model)
         if api_key is not None:
             if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
+                span.set_tag_str(API_KEY, f"...{str(api_key[-4:])}")
             else:
                 span.set_tag_str(API_KEY, api_key)
 
@@ -88,9 +87,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             content = message.get("content", None)
             role = message.get("role", None)
 
-            # TO-DO: do we want to truncate these inputs ?
-
-            if not role or not content:
+            if role is None or content is None:
                 log.warning("Anthropic input message must have content and role.")
 
             if isinstance(content, str):
@@ -111,14 +108,13 @@ class AnthropicIntegration(BaseLLMIntegration):
     @staticmethod
     def _extract_output_message(formatted_response):
         """Extract output messages from the stored response."""
-        # TO-DO: do we want to truncate these outputs ?
 
         output_messages = []
         if isinstance(formatted_response.content, str):
             return [{"content": formatted_response.content}]
         if isinstance(formatted_response.content, list):
             for response in formatted_response.content:
-                if isinstance(response.text, str):
+                if isinstance(getattr(response, "text", None), str):
                     output_messages.append({"content": response.text})
         return output_messages
 
