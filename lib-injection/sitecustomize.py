@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -15,7 +16,7 @@ from typing import Tuple
 
 
 def Version(version: str) -> Tuple:
-    return tuple(int(p) for p in version.split("."))
+    return tuple(int(re.sub("[^0-9]", "", p)) for p in version.split("."))
 
 
 runtimes_allow_list = {
