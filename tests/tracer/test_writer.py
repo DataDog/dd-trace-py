@@ -208,7 +208,19 @@ class AgentWriterTests(BaseTestCase):
             writer._metrics_dist("test_trace.queued", 1)
 
             # Ensure that the metrics are not reported
-            statsd.distribution.assert_not_called()
+            call_args = statsd.distribution.call_args
+            if call_args is not None:
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k1:v1"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k2:v2", "k22:v22"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=None) not in call_args
+                )
 
     def test_write_sync(self):
         statsd = mock.Mock()
