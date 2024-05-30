@@ -31,6 +31,7 @@ services:
       - PYTHONPATH=/datadog-lib
       - PYTHONVERBOSE=1
       - DD_TRACE_AGENT_URL=http://testagent:8126
+      - DD_TELEMETRY_FORWARDER_PATH=
     volumes:
       - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib
 
@@ -47,5 +48,6 @@ services:
       - PYTHONVERBOSE=1
       - DD_TRACE_AGENT_URL=http://testagent:8126
       - DD_TRACE_DEBUG=1
+      - DD_TELEMETRY_FORWARDER_PATH=
     volumes:
       - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib

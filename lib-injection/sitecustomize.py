@@ -73,8 +73,11 @@ def gen_telemetry_payload(telemetry_events):
 def send_telemetry(event):
     event_json = json.dumps(event)
     print(event_json)
+    forwarder_executable = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
+    if not forwarder_executable:
+        return
     p = subprocess.Popen(
-        [os.environ.get("DD_TELEMETRY_FORWARDER_PATH"), str(os.getpid())],
+        [forwarder_executable, str(os.getpid())],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
