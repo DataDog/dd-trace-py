@@ -19,6 +19,7 @@ from tests.appsec.iast_packages.packages.pkg_fsspec import pkg_fsspec
 from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_api_core
 from tests.appsec.iast_packages.packages.pkg_google_api_python_client import pkg_google_api_python_client
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
+from tests.appsec.iast_packages.packages.pkg_jmespath import pkg_jmespath
 from tests.appsec.iast_packages.packages.pkg_numpy import pkg_numpy
 from tests.appsec.iast_packages.packages.pkg_packaging import pkg_packaging
 from tests.appsec.iast_packages.packages.pkg_pyasn1 import pkg_pyasn1
@@ -46,6 +47,7 @@ app.register_blueprint(pkg_fsspec)
 app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_google_api_python_client)
 app.register_blueprint(pkg_idna)
+app.register_blueprint(pkg_jmespath)
 app.register_blueprint(pkg_numpy)
 app.register_blueprint(pkg_packaging)
 app.register_blueprint(pkg_pyasn1)

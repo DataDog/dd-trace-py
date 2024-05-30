@@ -156,6 +156,7 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
     ),
+    PackageForTesting("click", "8.1.7", "", "", "", test_e2e=False, import_module_to_validate="click.core"),
     PackageForTesting(
         "cryptography",
         "42.0.7",
@@ -164,6 +165,7 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
     ),
+    PackageForTesting("filelock", "3.14.0", "", "", "", test_e2e=False, import_module_to_validate="filelock._api"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
         "google-api-core",
@@ -192,12 +194,17 @@ PACKAGES = [
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
     ),
+    PackageForTesting("jinja2", "3.1.4", "", "", "", test_e2e=False, import_module_to_validate="jinja2.compiler"),
+    PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
+    PackageForTesting("markupsafe", "2.1.5", "", "", "", test_e2e=False),
+    # Python 3.12 fails in all steps with "import error" when import numpy
     PackageForTesting(
         "numpy",
         "1.24.4",
         "9 8 7 6 5 4 3",
         [3, 4, 5, 6, 7, 8, 9],
         5,
+        skip_python_version=[(3, 12)],
         import_module_to_validate="numpy.core._internal",
     ),
     PackageForTesting(
@@ -210,6 +217,10 @@ PACKAGES = [
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting(
+        "platformdirs", "4.2.2", "", "", "", test_e2e=False, import_module_to_validate="platformdirs.unix"
+    ),
+    PackageForTesting("pluggy", "1.5.0", "", "", "", test_e2e=False, import_module_to_validate="pluggy._hooks"),
+    PackageForTesting(
         "pyasn1",
         "0.6.0",
         "Bruce Dickinson",
@@ -218,6 +229,7 @@ PACKAGES = [
         import_module_to_validate="pyasn1.codec.native.decoder",
     ),
     PackageForTesting("pycparser", "2.22", "", "", ""),
+    PackageForTesting("pydantic", "2.7.1", "", "", "", test_e2e=False),
     PackageForTesting(
         "python-dateutil",
         "2.8.2",
@@ -227,6 +239,7 @@ PACKAGES = [
         import_name="dateutil",
         import_module_to_validate="dateutil.relativedelta",
     ),
+    PackageForTesting("pytz", "2024.1", "", "", "", test_e2e=False),
     PackageForTesting(
         "PyYAML",
         "6.0.1",
@@ -274,6 +287,7 @@ PACKAGES = [
         test_import=False,
     ),
     PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
+    PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False, import_module_to_validate="tomli._parser"),
     PackageForTesting(
         "urllib3",
         "2.1.0",
@@ -300,19 +314,9 @@ PACKAGES = [
     ),
     # protobuf fails for all python versions with No module named 'protobuf
     # PackageForTesting("protobuf", "5.26.1", "", "", "", test_e2e=False),
-    PackageForTesting("jmespath", "1.0.1", "", "", "", test_e2e=False),
-    PackageForTesting("click", "8.1.7", "", "", "", test_e2e=False),
-    PackageForTesting("pydantic", "2.7.1", "", "", "", test_e2e=False),
-    PackageForTesting("pytz", "2024.1", "", "", "", test_e2e=False),
-    PackageForTesting("markupsafe", "2.1.5", "", "", "", test_e2e=False),
-    PackageForTesting("jinja2", "3.1.4", "", "", "", test_e2e=False),
-    PackageForTesting("platformdirs", "4.2.2", "", "", "", test_e2e=False),
     PackageForTesting("pyjwt", "2.8.0", "", "", "", test_e2e=False, import_name="jwt"),
-    PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False),
-    PackageForTesting("filelock", "3.14.0", "", "", "", test_e2e=False),
     PackageForTesting("wrapt", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("cachetools", "5.3.3", "", "", "", test_e2e=False),
-    PackageForTesting("pluggy", "1.5.0", "", "", "", test_e2e=False),
     PackageForTesting("virtualenv", "20.26.2", "", "", "", test_e2e=False),
     # docutils dropped Python 3.8 support in pandas> 1.10.10.21.2
     PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
