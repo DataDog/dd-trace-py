@@ -12,8 +12,10 @@ import subprocess
 import sys
 import time
 
-from packaging.version import Version
 import pkg_resources
+
+
+Version = pkg_resources.parse_version
 
 
 runtimes_allow_list = {
@@ -42,7 +44,7 @@ def build_min_pkgs():
         for idx, row in enumerate(csv_reader):
             if idx < 2:
                 continue
-            min_pkgs[row[0]] = row[1]
+            min_pkgs[row[0]] = Version(row[1])
     return min_pkgs
 
 
@@ -145,7 +147,7 @@ def _inject():
         incompatible_packages = {}
         for package_name, package_version in installed_packages.items():
             if package_name in pkgs_allow_list:
-                if package_version < pkgs_allow_list[package_name]:
+                if Version(package_version) < pkgs_allow_list[package_name]:
                     incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
