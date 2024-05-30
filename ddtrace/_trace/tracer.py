@@ -299,6 +299,16 @@ class Tracer(object):
 
     def _maybe_opt_out(self):
         self._apm_opt_out = self._asm_enabled and self._appsec_standalone_enabled
+        if self._apm_opt_out:
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            from ddtrace.internal.rate_limiter import RateLimiter
+
+            self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
+            # Disable compute stats
+            config._trace_compute_stats = False
+            self.enabled = False
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
