@@ -29,6 +29,8 @@ def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.execute", wrapped_execute_4C9BAC8E228EB347)
+    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.executemany", wrapped_execute_4C9BAC8E228EB347)
+    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.executescript", wrapped_execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
@@ -167,7 +169,9 @@ def wrapped_execute_4C9BAC8E228EB347(original_request_callable, instance, args, 
             return original_request_callable(*args, **kwargs)
 
         instrument_self = instance
+        # parameters are ignored as they are properly handled by the dbapi without risk of injections
         command = args[0] if len(args) > 0 else kwargs.get("sql", None)
+
         if instrument_self and command and in_context():
             db_type = _DB_DIALECTS.get(
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
