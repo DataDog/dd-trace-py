@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
+from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
@@ -148,6 +149,7 @@ class TraceSamplingProcessor(TraceProcessor):
     _compute_stats_enabled = attr.ib(type=bool)
     sampler = attr.ib()
     single_span_rules = attr.ib(type=List[SpanSamplingRule])
+    apm_opt_out = attr.ib(type=bool)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
@@ -155,6 +157,9 @@ class TraceSamplingProcessor(TraceProcessor):
         if trace:
             chunk_root = trace[0]
             root_ctx = chunk_root._context
+
+            if self.apm_opt_out:
+                chunk_root.set_metric(MK_APM_ENABLED, 0)
 
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
