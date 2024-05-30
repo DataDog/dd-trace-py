@@ -59,6 +59,14 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
 
+def traced_route_init(wrapped, _instance, args, kwargs):
+    handler = get_argument_value(args, kwargs, 1, "endpoint")
+
+    core.dispatch("service_entrypoint.patch", (inspect.unwrap(handler),))
+
+    return wrapped(*args, **kwargs)
+
+
 def patch():
     if getattr(starlette, "_datadog_patch", False):
         return
@@ -69,6 +77,8 @@ def patch():
     Pin().onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
+    if not isinstance(starlette.routing.Route.__init__, ObjectProxy):
+        _w("starlette.routing", "Route.__init__", traced_route_init)
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):
         _w("starlette.routing", "Route.handle", traced_handler)
     if not isinstance(starlette.routing.Mount.handle, ObjectProxy):

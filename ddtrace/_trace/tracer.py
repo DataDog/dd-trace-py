@@ -292,6 +292,9 @@ class Tracer(object):
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
+        config._subscribe(["_trace_span_origin_enabled"], self._on_global_config_update)
+        config._subscribe(["_trace_span_origin_enriched"], self._on_global_config_update)
+
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
         log.debug(

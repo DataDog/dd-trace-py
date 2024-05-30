@@ -22,3 +22,17 @@ class SpanKind(object):
     SERVER = "server"
     PRODUCER = "producer"
     CONSUMER = "consumer"
+
+
+EXIT_SPAN_TYPES = frozenset(
+    {
+        SpanTypes.CACHE,
+        SpanTypes.CASSANDRA,
+        SpanTypes.ELASTICSEARCH,
+        SpanTypes.GRPC,
+        SpanTypes.HTTP,
+        SpanTypes.REDIS,
+        SpanTypes.SQL,
+        SpanTypes.WORKER,
+    }
+)
