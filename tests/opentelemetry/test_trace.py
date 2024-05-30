@@ -23,11 +23,12 @@ def test_otel_start_span_record_exception(oteltracer):
     with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560261227739000):
         with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
             with oteltracer.start_span("test-raised-exception") as raised_span:
-                raised_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"}, 1716560271237812)
+                raised_span.record_exception(ValueError("Invalid Operation 1"))
                 raise Exception("Sorry Otel Span, I failed you")
 
+    with mock.patch("ddtrace._trace.span.time_ns", return_value=1716560281337739000):
         with oteltracer.start_span("test-recorded-exception") as not_raised_span:
-            not_raised_span.record_exception(ValueError("Invalid Operation"), {"raied": "false"})
+            not_raised_span.record_exception(IndexError("Invalid Operation 2"), {"exception.stuff": "thing 2"})
             not_raised_span.record_exception(
                 Exception("Real Exception"),
                 {
