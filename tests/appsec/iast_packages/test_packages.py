@@ -145,6 +145,7 @@ PACKAGES = [
         "",
         "",
         "",
+        test_e2e=False,
         import_name="azure",
         import_module_to_validate="azure.core.settings",
     ),
@@ -397,12 +398,14 @@ PACKAGES = [
     PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False, import_module_to_validate="tomli._parser"),
     PackageForTesting("tomlkit", "0.12.5", "", "", "", test_e2e=False, import_module_to_validate="tomlkit.items"),
     PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
+    # Python 3.8 and 3.9 fial with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
     PackageForTesting(
         "urllib3",
         "2.1.0",
         "https://www.datadoghq.com/",
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
+        skip_python_version=[(3, 8), (3, 9)],
     ),
     PackageForTesting(
         "virtualenv", "20.26.2", "", "", "", test_e2e=False, import_module_to_validate="virtualenv.activation.activator"
