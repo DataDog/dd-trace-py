@@ -343,7 +343,7 @@ class Tracer(object):
             category=DDTraceDeprecationWarning,
         )
         if self._apm_opt_out:
-            log.error("Cannot set a custom sampler with Standalone ASM mode")
+            log.warning("Cannot set a custom sampler with Standalone ASM mode")
             return
         self._sampler = value
 
