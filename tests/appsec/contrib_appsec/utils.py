@@ -1199,7 +1199,7 @@ class Contrib_TestClass_For_Threats:
                 repeat=2,
             )
         ]
-        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("execute",))],
+        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))],
     )
     @pytest.mark.parametrize(
         ("rule_file", "blocking"),

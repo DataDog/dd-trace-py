@@ -28,9 +28,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.execute", wrapped_execute_4C9BAC8E228EB347)
-    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.executemany", wrapped_execute_4C9BAC8E228EB347)
-    try_wrap_function_wrapper("ddtrace.contrib.dbapi", "TracedCursor.executescript", wrapped_execute_4C9BAC8E228EB347)
+    core.on("asm.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 
@@ -154,9 +152,10 @@ _DB_DIALECTS = {
 }
 
 
-def wrapped_execute_4C9BAC8E228EB347(original_request_callable, instance, args, kwargs):
+def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     """
-    wrapper for dbapi execute function
+    listener for dbapi execute and executemany function
+    parameters are ignored as they are properly handled by the dbapi without risk of injections
     """
     if asm_config._asm_enabled and asm_config._ep_enabled:
         try:
@@ -166,28 +165,22 @@ def wrapped_execute_4C9BAC8E228EB347(original_request_callable, instance, args, 
         except ImportError:
             # execute is used during module initialization
             # and shouldn't be changed at that time
-            return original_request_callable(*args, **kwargs)
+            return
 
-        instrument_self = instance
-        # parameters are ignored as they are properly handled by the dbapi without risk of injections
-        command = args[0] if len(args) > 0 else kwargs.get("sql", None)
-
-        if instrument_self and command and in_context():
+        if instrument_self and query and in_context():
             db_type = _DB_DIALECTS.get(
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
             )
-            if isinstance(command, str):
+            if isinstance(query, str):
                 res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.SQLI: command, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
-                    crop_trace="wrapped_execute_4C9BAC8E228EB347",
+                    {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
+                    crop_trace="execute_4C9BAC8E228EB347",
                     rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
                 )
                 if res and WAF_ACTIONS.BLOCK_ACTION in res.actions:
                     raise BlockingException(
-                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "sqli", command
+                        core.get_item(WAF_CONTEXT_NAMES.BLOCKED), "exploit_prevention", "sqli", query
                     )
-
-    return original_request_callable(*args, **kwargs)
 
 
 def try_unwrap(module, name):
