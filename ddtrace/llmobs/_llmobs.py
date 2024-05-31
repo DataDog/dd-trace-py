@@ -45,6 +45,7 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -716,6 +717,48 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
+
+    @classmethod
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Span = None) -> Dict[str, str]:
+        """Injects the span's distributed context into the given request headers."""
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.inject_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be injected."
+            )
+            return request_headers
+        if not isinstance(request_headers, dict):
+            log.warning("request_headers must be a dictionary of string key-value pairs.")
+            return request_headers
+        if span is None:
+            span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no currently active span found.")
+            return request_headers
+        HTTPPropagator.inject(span.context, request_headers)
+        return request_headers
+
+    @classmethod
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
+        """
+        Activates distributed tracing headers for the current request.
+
+        :param request_headers: A dictionary containing the headers for the current request.
+        """
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.activate_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be activated."
+            )
+            return
+        context = HTTPPropagator.extract(request_headers)
+        if context.trace_id is None or context.span_id is None:
+            log.warning("Failed to extract trace ID or span ID from request headers.")
+            return
+        if PROPAGATED_PARENT_ID_KEY not in context._meta:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
+            return
+        cls._instance.tracer.context_provider.activate(context)
 
 
 # initialize the default llmobs instance
