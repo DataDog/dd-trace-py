@@ -1,8 +1,6 @@
 import json
 import os
 
-import pytest
-
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -159,16 +157,14 @@ print(json.dumps(headers))
         assert _get_llmobs_parent_id(span) == "undefined"
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [{"_llmobs_enabled": True}])
-def test_inject_distributed_headers_simple(LLMObs, ddtrace_global_config):
+def test_inject_distributed_headers_simple(LLMObs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
         request_headers = LLMObs.inject_distributed_headers({}, span=root_span)
     assert PROPAGATED_PARENT_ID_KEY in request_headers["x-datadog-tags"]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [{"_llmobs_enabled": True}])
-def test_inject_distributed_headers_nested_llmobs_non_llmobs(LLMObs, ddtrace_global_config):
+def test_inject_distributed_headers_nested_llmobs_non_llmobs(LLMObs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM):
         with dummy_tracer.trace("Non-LLMObs span") as child_span:
@@ -176,8 +172,7 @@ def test_inject_distributed_headers_nested_llmobs_non_llmobs(LLMObs, ddtrace_glo
     assert PROPAGATED_PARENT_ID_KEY in request_headers["x-datadog-tags"]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [{"_llmobs_enabled": True}])
-def test_inject_distributed_headers_non_llmobs_root_span(LLMObs, ddtrace_global_config):
+def test_inject_distributed_headers_non_llmobs_root_span(LLMObs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("Non-LLMObs span"):
         with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as child_span:
@@ -185,8 +180,7 @@ def test_inject_distributed_headers_non_llmobs_root_span(LLMObs, ddtrace_global_
     assert PROPAGATED_PARENT_ID_KEY in request_headers["x-datadog-tags"]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [{"_llmobs_enabled": True}])
-def test_inject_distributed_headers_nested_llmobs_spans(LLMObs, ddtrace_global_config):
+def test_inject_distributed_headers_nested_llmobs_spans(LLMObs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("LLMObs span", span_type=SpanTypes.LLM):
         with dummy_tracer.trace("LLMObs child span", span_type=SpanTypes.LLM):

@@ -129,6 +129,9 @@ class LLMObs(Service):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
+        if not config._llmobs_enabled:
+            config._llmobs_enabled = True
+
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
@@ -719,7 +722,7 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Span = None) -> Dict[str, str]:
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
         if cls.enabled is False:
             log.warning(
@@ -757,7 +760,6 @@ class LLMObs(Service):
             return
         if PROPAGATED_PARENT_ID_KEY not in context._meta:
             log.warning("Failed to extract LLMObs parent ID from request headers.")
-            return
         cls._instance.tracer.context_provider.activate(context)
 
 

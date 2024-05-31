@@ -1035,10 +1035,13 @@ def test_activate_distributed_headers_no_span_id_does_nothing(LLMObs, mock_logs)
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(LLMObs, mock_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(trace_id="123", span_id="456")
-        LLMObs.activate_distributed_headers({})
-        assert mock_extract.call_count == 1
-        mock_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+        dummy_context = Context(trace_id="123", span_id="456")
+        mock_extract.return_value = dummy_context
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+            LLMObs.activate_distributed_headers({})
+            assert mock_extract.call_count == 1
+            mock_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+            mock_activate.assert_called_once_with(dummy_context)
 
 
 def test_activate_distributed_headers_activates_context(LLMObs, mock_logs):
