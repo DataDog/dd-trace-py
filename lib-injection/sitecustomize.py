@@ -4,6 +4,7 @@ containing the ddtrace package compatible with the current Python version and pl
 """
 from __future__ import print_function  # noqa: E402
 
+from collections import namedtuple
 import csv
 import json
 import os
@@ -15,12 +16,19 @@ import time
 from typing import Tuple
 
 
-def Version(version: str) -> Tuple:
-    return tuple(int(re.sub("[^0-9]", "", p)) for p in version.split("."))
+Version = namedtuple("Version", ["version", "constraint"])
+
+
+def parse_version(version: str) -> Tuple:
+    constraint_idx = re.search(r"\d", version).start()
+    numeric = version[constraint_idx:]
+    constraint = version[:constraint_idx]
+    parsed_version = (int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
+    return Version(parsed_version, constraint)
 
 
 runtimes_allow_list = {
-    "cpython": {"min": Version("3.7"), "max": Version("3.12")},
+    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.12")},
 }
 
 force_inject = os.environ.get("DD_INJECT_FORCE", "").lower() in (
@@ -55,7 +63,7 @@ def build_min_pkgs():
         for idx, row in enumerate(csv_reader):
             if idx < 2:
                 continue
-            min_pkgs[row[0]] = Version(row[1])
+            min_pkgs[row[0]] = parse_version(row[1])
     return min_pkgs
 
 
@@ -134,7 +142,16 @@ def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_ver
     supported_versions = runtimes_allow_list.get(python_runtime, {})
     if not supported_versions:
         return False
-    return supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
+    return supported_versions["min"] <= parse_version(python_version).version <= supported_versions["max"]
+
+
+def package_is_compatible(pkgs_allow_list, package_name, package_version):
+    installed_version = parse_version(package_version)
+    supported_version_spec = pkgs_allow_list.get(package_name, Version((0,), ""))
+    if supported_version_spec.constraint in ("<", "<="):
+        return True  # minimum "less than" means there is no minimum
+    elif not supported_version_spec.constraint:
+        return installed_version >= supported_version_spec.version
 
 
 def _inject():
@@ -157,9 +174,8 @@ def _inject():
         # check installed packages against allow list
         incompatible_packages = {}
         for package_name, package_version in installed_packages.items():
-            if package_name in pkgs_allow_list:
-                if Version(package_version) < pkgs_allow_list[package_name]:
-                    incompatible_packages[package_name] = package_version
+            if not package_is_compatible(pkgs_allow_list, package_name, package_version):
+                incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
             _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
