@@ -28,7 +28,7 @@ _DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
 def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    core.on("asm.dbapi.execute", execute_4C9BAC8E228EB347)
+    core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
 

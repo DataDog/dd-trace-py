@@ -142,7 +142,7 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        core.dispatch("asm.dbapi.execute", (self, query, args, kwargs))
+        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
@@ -161,7 +161,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        core.dispatch("asm.dbapi.execute", (self, query, args, kwargs))
+        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,
