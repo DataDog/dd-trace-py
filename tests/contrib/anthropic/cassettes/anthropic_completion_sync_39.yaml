@@ -38,30 +38,28 @@ interactions:
   response:
     body:
       string: !!binary |
-        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
+        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
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88b7b2c51e7e43bf-EWR
+      - 88c87a3dfe767cfc-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -69,7 +67,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 29 May 2024 16:00:52 GMT
+      - Fri, 31 May 2024 16:53:18 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -79,19 +77,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-05-29T16:00:57Z'
+      - '2024-05-31T16:53:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-05-29T16:00:57Z'
+      - '2024-05-31T16:53:57Z'
       request-id:
-      - req_019ZruP99mS1hovRPfRsk847
+      - req_01TtGXjngAMam3Lsu13Uo93K
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - cfe6846079e775d095c70f4ed896c8e0
+      - d680d03f800501d611121906b77d36da;o=1
     status:
       code: 200
       message: OK
