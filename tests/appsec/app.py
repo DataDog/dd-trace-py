@@ -20,6 +20,7 @@ from tests.appsec.iast_packages.packages.pkg_google_api_core import pkg_google_a
 from tests.appsec.iast_packages.packages.pkg_google_api_python_client import pkg_google_api_python_client
 from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
 from tests.appsec.iast_packages.packages.pkg_jmespath import pkg_jmespath
+from tests.appsec.iast_packages.packages.pkg_jsonschema import pkg_jsonschema
 from tests.appsec.iast_packages.packages.pkg_numpy import pkg_numpy
 from tests.appsec.iast_packages.packages.pkg_packaging import pkg_packaging
 from tests.appsec.iast_packages.packages.pkg_pyasn1 import pkg_pyasn1
@@ -32,6 +33,7 @@ from tests.appsec.iast_packages.packages.pkg_s3fs import pkg_s3fs
 from tests.appsec.iast_packages.packages.pkg_s3transfer import pkg_s3transfer
 from tests.appsec.iast_packages.packages.pkg_setuptools import pkg_setuptools
 from tests.appsec.iast_packages.packages.pkg_six import pkg_six
+from tests.appsec.iast_packages.packages.pkg_sqlalchemy import pkg_sqlalchemy
 from tests.appsec.iast_packages.packages.pkg_urllib3 import pkg_urllib3
 import tests.appsec.integrations.module_with_import_errors as module_with_import_errors
 
@@ -48,6 +50,7 @@ app.register_blueprint(pkg_google_api_core)
 app.register_blueprint(pkg_google_api_python_client)
 app.register_blueprint(pkg_idna)
 app.register_blueprint(pkg_jmespath)
+app.register_blueprint(pkg_jsonschema)
 app.register_blueprint(pkg_numpy)
 app.register_blueprint(pkg_packaging)
 app.register_blueprint(pkg_pyasn1)
@@ -60,6 +63,7 @@ app.register_blueprint(pkg_s3fs)
 app.register_blueprint(pkg_s3transfer)
 app.register_blueprint(pkg_setuptools)
 app.register_blueprint(pkg_six)
+app.register_blueprint(pkg_sqlalchemy)
 app.register_blueprint(pkg_urllib3)
 
 

@@ -19,7 +19,6 @@ def pkg_jmespath_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        # Ejemplo de uso común del paquete jmespath: buscar en un objeto JSON
         data = {
             "locations": [
                 {"name": "Seattle", "state": "WA"},

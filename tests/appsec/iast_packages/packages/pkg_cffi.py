@@ -19,7 +19,6 @@ def pkg_cffi_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        # Ejemplo de uso común del paquete cffi: Compilar y ejecutar una función C
         ffi = cffi.FFI()
         ffi.cdef("int add(int, int);")
         C = ffi.verify(

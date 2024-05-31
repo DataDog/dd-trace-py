@@ -19,7 +19,6 @@ def pkg_certifi_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        # Ejemplo de uso común del paquete certifi
         ca_bundle_path = certifi.where()
         response.result1 = f"The path to the CA bundle is: {ca_bundle_path}"
     except Exception as e:

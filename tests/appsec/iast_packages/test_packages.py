@@ -1,3 +1,17 @@
+"""
+Top packages list imported from:
+https://pypistats.org/top
+https://hugovk.github.io/top-pypi-packages/
+
+Some popular packages are not included in the list:
+- pypular package is discarded because it is not a real top package
+- wheel, importlib-metadata and pip is discarded because they are package to build projects
+- colorama and awscli are terminal commands
+- protobuf fails for all python versions with No module named 'protobuf
+- sniffio and tzdata have no python files to patch
+- greenlet is a CPP project, no files to patch
+- coverage is a testing package
+"""
 import importlib
 import json
 import os
@@ -115,13 +129,6 @@ class PackageForTesting:
                 self._install(package_name, package_version)
 
 
-# Top packages list imported from:
-# https://pypistats.org/top
-# https://hugovk.github.io/top-pypi-packages/
-
-# pypular package is discarded because it is not a real top package
-# wheel, importlib-metadata and pip is discarded because they are package to build projects
-# colorama and awscli are terminal commands
 PACKAGES = [
     PackageForTesting("asn1crypto", "1.5.1", "", "", "", test_e2e=False, import_module_to_validate="asn1crypto.core"),
     PackageForTesting(
@@ -138,7 +145,6 @@ PACKAGES = [
         "",
         "",
         "",
-        test_e2e=False,
         import_name="azure",
         import_module_to_validate="azure.core.settings",
     ),
@@ -168,7 +174,6 @@ PACKAGES = [
         import_module_to_validate="charset_normalizer.api",
     ),
     PackageForTesting("click", "8.1.7", "", "", "", test_e2e=False, import_module_to_validate="click.core"),
-    PackageForTesting("coverage", "7.5.1", "", "", "", test_e2e=False, import_module_to_validate="coverage.parser"),
     PackageForTesting(
         "cryptography",
         "42.0.7",
@@ -184,8 +189,6 @@ PACKAGES = [
     PackageForTesting("filelock", "3.14.0", "", "", "", test_e2e=False, import_module_to_validate="filelock._api"),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
-    # Greenlet is a CPP project, no files to patch
-    # PackageForTesting("greenlet", "3.0.3", "", "", "", test_e2e=False),
     PackageForTesting(
         "google-api-core",
         "2.19.0",
@@ -230,6 +233,26 @@ PACKAGES = [
     ),
     PackageForTesting("jinja2", "3.1.4", "", "", "", test_e2e=False, import_module_to_validate="jinja2.compiler"),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
+    # jsonschema fails for Python 3.8
+    #        except KeyError:
+    # >           raise exceptions.NoSuchResource(ref=uri) from None
+    # E           referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
+    PackageForTesting(
+        "jsonschema",
+        "4.22.0",
+        "Bruce Dickinson",
+        {
+            "data": {"age": 65, "name": "Bruce Dickinson"},
+            "schema": {
+                "properties": {"age": {"type": "number"}, "name": {"type": "string"}},
+                "required": ["name", "age"],
+                "type": "object",
+            },
+            "validation": "successful",
+        },
+        "",
+        skip_python_version=[(3, 8)],
+    ),
     PackageForTesting("markupsafe", "2.1.5", "", "", "", test_e2e=False),
     PackageForTesting(
         "lxml",
@@ -337,7 +360,14 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
     ),
-    PackageForTesting("sniffio", "1.3.1", "", "", "", test_e2e=False, import_module_to_validate="sniffio._impl"),
+    PackageForTesting(
+        "sqlalchemy",
+        "2.0.30",
+        "Bruce Dickinson",
+        {"age": 65, "id": 1, "name": "Bruce Dickinson"},
+        "",
+        import_module_to_validate="sqlalchemy.orm.session",
+    ),
     PackageForTesting(
         "s3fs", "2024.5.0", "", "", "", extras=[("pyopenssl", "24.1.0")], import_module_to_validate="s3fs.core"
     ),
@@ -362,13 +392,11 @@ PACKAGES = [
     ),
     PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
     # TODO: Test import fails with AttributeError: 'FormattedValue' object has no attribute 'values'
-    #   PackageForTesting("soupsieve", "2.5", "", "", "", test_e2e=False,
-    #   import_module_to_validate="soupsieve.css_match"),
+    # PackageForTesting("soupsieve", "2.5", "", "", "", test_e2e=False,
+    # import_module_to_validate="soupsieve.css_match"),
     PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False, import_module_to_validate="tomli._parser"),
     PackageForTesting("tomlkit", "0.12.5", "", "", "", test_e2e=False, import_module_to_validate="tomlkit.items"),
     PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
-    # No Python files
-    # PackageForTesting("tzdata", "2024.1", "", "", "", test_e2e=False),
     PackageForTesting(
         "urllib3",
         "2.1.0",
@@ -399,24 +427,16 @@ PACKAGES = [
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
-    # protobuf fails for all python versions with No module named 'protobuf
-    # PackageForTesting("protobuf", "5.26.1", "", "", "", test_e2e=False),
     PackageForTesting("pyjwt", "2.8.0", "", "", "", test_e2e=False, import_name="jwt"),
     PackageForTesting("wrapt", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("cachetools", "5.3.3", "", "", "", test_e2e=False),
-    # docutils dropped Python 3.8 support in pandas> 1.10.10.21.2
+    # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
     PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("pyarrow", "16.1.0", "", "", "", test_e2e=False),
-    # jsonschema fails for Python 3.8
-    #        except KeyError:
-    # >           raise exceptions.NoSuchResource(ref=uri) from None
-    # E           referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
-    PackageForTesting("jsonschema", "4.22.0", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting("pyparsing", "3.1.2", "", "", "", test_e2e=False),
-    PackageForTesting("sqlalchemy", "2.0.30", "", "", "", test_e2e=False),
     PackageForTesting("aiohttp", "3.9.5", "", "", "", test_e2e=False),
-    # scipy dropped Python 3.8 support in pandas> 1.10.1
+    # scipy dropped Python 3.8 support in scipy > 1.10.1
     PackageForTesting(
         "scipy", "1.13.0", "", "", "", test_e2e=False, import_name="scipy.special", skip_python_version=[(3, 8)]
     ),

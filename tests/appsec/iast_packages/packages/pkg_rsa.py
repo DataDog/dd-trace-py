@@ -19,7 +19,6 @@ def pkg_rsa_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        # Ejemplo de uso común del paquete rsa: generar claves, cifrar y descifrar un mensaje
         (public_key, private_key) = rsa.newkeys(512)
 
         message = response.package_param
