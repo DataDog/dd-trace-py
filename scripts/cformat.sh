@@ -16,8 +16,8 @@ if [[ "$1" == "update" ]]
 then
   THIS_PATH="$(realpath "$0")"
   THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
-  # Find .c, .cpp, and .h files, excluding specified directories
-  find "$THIS_DIR" -type f \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
+  # Find .c, , .h, .cpp, and .hpp files, excluding specified directories
+  find "$THIS_DIR" -type f \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \) \
     | grep -v '.eggs/' \
     | grep -v 'dd-trace-py/build/' \
     | grep -v '_taint_tracking/CMakeFiles' \
