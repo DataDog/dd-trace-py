@@ -151,7 +151,7 @@ def package_is_compatible(pkgs_allow_list, package_name, package_version):
     if supported_version_spec.constraint in ("<", "<="):
         return True  # minimum "less than" means there is no minimum
     elif not supported_version_spec.constraint:
-        return installed_version >= supported_version_spec.version
+        return installed_version.version >= supported_version_spec.version
 
 
 def _inject():
