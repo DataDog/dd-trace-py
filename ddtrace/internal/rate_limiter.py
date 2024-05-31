@@ -8,11 +8,15 @@ from typing import Optional  # noqa:F401
 
 import attr
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+
+
+log = get_logger(__name__)
 
 
 class RateLimiter(object):
@@ -139,6 +143,11 @@ class RateLimiter(object):
             # we can't update at the beginning of the function, since if we did, our calculation for
             # elapsed would be incorrect
             self.last_update_ns = timestamp_ns
+
+        if elapsed < 0:
+            # Note - this should never happen, but if it does, we should reset the elapsed time to avoid negative tokens
+            log.debug("RateLimiter does not support decreasing time intervals, resetting elapsed time to 0.")
+            elapsed = 0
 
         # Update the number of available tokens, but ensure we do not exceed the max
         self.tokens = min(
