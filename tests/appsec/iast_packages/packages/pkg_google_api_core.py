@@ -1,54 +1,30 @@
 """
-google-api-python-client==2.111.0
+google-api-core==2.19.0
 
 https://pypi.org/project/google-api-core/
 """
-
 from flask import Blueprint
 from flask import request
 
 from .utils import ResultResponse
 
 
-# If modifying these scopes, delete the file token.json.
-SCOPES = ["https://www.googleapis.com/auth/documents.readonly"]
-
-# The ID of a sample document.
-DOCUMENT_ID = "test1234"
-
 pkg_google_api_core = Blueprint("package_google_api_core", __name__)
 
 
-@pkg_google_api_core.route("/google-api-python-client")
-def pkg_idna_view():
+@pkg_google_api_core.route("/google-api-core")
+def pkg_google_api_core_view():
     response = ResultResponse(request.args.get("package_param"))
-    # from googleapiclient.discovery import build
-    # from googleapiclient.errors import HttpError
-    #
-    # """Shows basic usage of the Docs API.
-    # Prints the title of a sample document.
-    # """
-    #
-    # class FakeResponse:
-    #     status = 200
-    #
-    # class FakeHttp:
-    #     def request(self, *args, **kwargs):
-    #         return FakeResponse(), '{"a": "1"}'
-    #
-    # class FakeCredentials:
-    #     def to_json(self):
-    #         return "{}"
-    #
-    #     def authorize(self, *args, **kwargs):
-    #         return FakeHttp()
-    #
-    # creds = FakeCredentials()
-    # try:
-    #     service = build("docs", "v1", credentials=creds)
-    #     # Retrieve the documents contents from the Docs service.
-    #     document = service.documents().get(documentId=DOCUMENT_ID).execute()
-    #     _ = f"The title of the document is: {document.get('title')}"
-    # except HttpError:
-    #     pass
+
+    try:
+        from google.auth import credentials
+        from google.auth.exceptions import DefaultCredentialsError
+
+        try:
+            credentials.Credentials()
+        except DefaultCredentialsError:
+            response.result1 = "No credentials"
+    except Exception as e:
+        response.result1 = str(e)
+
     return response.json()
