@@ -187,8 +187,10 @@ def test_rate_limiter_effective_rate_starting_rate(time_window):
 
 def test_rate_limiter_3():
     limiter = RateLimiter(rate_limit=2)
+
+    now_ns = compat.monotonic_ns()
     for i in range(3):
-        decision = limiter.is_allowed(compat.monotonic_ns())
+        decision = limiter.is_allowed(now_ns)
         # the first two should be allowed, the third should not
         if i < 2:
             assert decision is True
