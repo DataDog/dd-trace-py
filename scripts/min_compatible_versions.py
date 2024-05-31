@@ -2,6 +2,7 @@ import csv
 import pathlib
 import sys
 from typing import Dict
+from typing import List
 from typing import Set
 
 from packaging.version import parse as parse_version
@@ -15,7 +16,7 @@ OUT_FILENAME = "min_compatible_versions.csv"
 
 
 def _format_version_specifiers(spec: Set[str]) -> Set[str]:
-    return set([part.strip("~<>==") for v in [v.split(",") for v in spec if v] for part in v if "!=" not in part])
+    return set([part for v in [v.split(",") for v in spec if v] for part in v if "!=" not in part])
 
 
 def tree_pkgs_from_riot() -> Dict[str, Set[str]]:
@@ -35,6 +36,17 @@ def _tree_pkgs_from_riot(node: riotfile.Venv) -> Dict[str, Set]:
     return result
 
 
+def min_version_spec(version_specs: List[str]) -> str:
+    min_numeric = ""
+    min_spec = ""
+    for spec in version_specs:
+        numeric = parse_version(spec.strip("~==<>"))
+        if not min_numeric or numeric < min_numeric:
+            min_numeric = numeric
+            min_spec = spec
+    return min_spec
+
+
 def write_out(all_pkgs: Dict[str, Set[str]]) -> None:
     with open(OUT_FILENAME, "w") as csvfile:
         csv_writer = csv.writer(csvfile, delimiter=",")
@@ -43,7 +55,7 @@ def write_out(all_pkgs: Dict[str, Set[str]]) -> None:
         for pkg, versions in sorted(all_pkgs.items()):
             min_version = "0"
             if versions:
-                min_version = str(min((parse_version(v) for v in versions))).strip()
+                min_version = str(min_version_spec(versions)).strip()
             print("%s\n\tTested versions: %s\n\tMinimum: %s" % (pkg, sorted(list(versions)), min_version))
             csv_writer.writerow([pkg, min_version])
 
