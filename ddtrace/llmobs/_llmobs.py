@@ -40,6 +40,7 @@ from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
@@ -128,9 +129,6 @@ class LLMObs(Service):
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
-
-        if not config._llmobs_enabled:
-            config._llmobs_enabled = True
 
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
@@ -738,6 +736,7 @@ class LLMObs(Service):
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
+        _inject_llmobs_parent_id(span.context)
         HTTPPropagator.inject(span.context, request_headers)
         return request_headers
 
