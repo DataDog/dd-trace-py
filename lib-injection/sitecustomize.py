@@ -49,7 +49,6 @@ python_version = ".".join(str(i) for i in sys.version_info[:2])
 
 
 def build_min_pkgs():
-    print(os.listdir(".."))
     min_pkgs = dict()
     with open("../datadog-lib/min_compatible_versions.csv", "r") as csvfile:
         csv_reader = csv.reader(csvfile, delimiter=",")
@@ -133,9 +132,12 @@ def _log(msg, *args, **kwargs):
 
 def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
     supported_versions = runtimes_allow_list.get(python_runtime, {})
+    print(supported_versions)
     if not supported_versions:
         return False
-    return supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
+    result = supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
+    print(result)
+    return result
 
 
 def _inject():
