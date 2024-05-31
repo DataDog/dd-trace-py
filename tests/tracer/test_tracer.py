@@ -2001,3 +2001,5 @@ def test_asm_standalone_configuration():
     assert tracer._sampler.limiter.time_window == 60e9
 
     assert tracer._compute_stats is False
+    # reset tracer values
+    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
