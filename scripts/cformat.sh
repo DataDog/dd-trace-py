@@ -32,7 +32,7 @@ then
   echo "Formatting $file"
 done
 else
-  git ls-files '*.c' '*.cpp' '*.h' | grep -v '^ddtrace/vendor/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'  | while read filename
+  git ls-files '*.c' '*.h' '*.cpp' '*.hpp' | grep -v '^ddtrace/vendor/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'  | while read filename
   do
     CFORMAT_TMP=`mktemp`
     clang-format --style="{BasedOnStyle: Mozilla, IndentWidth: 4, ColumnLimit: 120}" "$filename" > "$CFORMAT_TMP"
