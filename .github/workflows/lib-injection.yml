@@ -131,6 +131,7 @@ jobs:
       matrix:
         variant: [
           'dd-lib-python-init-test-django-unsupported-python',
+          'dd-lib-python-init-test-django-unsupported-package',
         ]
       fail-fast: false
     steps:
