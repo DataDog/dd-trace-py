@@ -842,7 +842,7 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        # Only call span processors if the tracer is enabled
+        # Only call span processors if the tracer or ASM is enabled
         if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
@@ -859,7 +859,7 @@ class Tracer(object):
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
-        # Only call span processors if the tracer is enabled
+        # Only call span processors if the tracer or ASM is enabled
         if self.enabled or self._asm_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
