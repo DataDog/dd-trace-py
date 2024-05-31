@@ -23,10 +23,7 @@ def _process_finished_stream(
 ):
     resp_message = {}
     try:
-        if message_accumulated_via_stream_helper:
-            resp_message = _construct_accumulated_messages(streamed_chunks)
-        else:
-            resp_message = _construct_unaccumulated_messages(streamed_chunks)
+        resp_message = _construct_message(streamed_chunks)
         if integration.is_pc_sampled_span(span):
             _tag_streamed_chat_completion_response(integration, span, resp_message)
         if integration.is_pc_sampled_llmobs(span):
@@ -141,104 +138,109 @@ class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
             raise
 
 
-def _construct_unaccumulated_messages(streamed_chunks):
-    """Iteratively build up a response message. This is for non-accumulated responses from
-    calling `Anthropic.messages.Messages.create(stream=true)`. This function does not build up
-    the response content for the user, and we will need to do the same using the streamed chunks.
-    """
-    message = {}
-    message_complete = True
-    prev_message = None
+def _construct_message(streamed_chunks):
+    """Iteratively build up a response message from streamed chunks."""
+    message = {"content": []}
     for chunk in streamed_chunks:
-        # if message wasn't completed, use the message in the function as we are still completing it
-        if not message_complete:
-            prev_message = message
-        else:
-            prev_message = None
-        message, message_complete = _construct_message_from_streamed_chunks(chunk, prev_message=prev_message)
+        message = _extract_from_chunk(chunk, message)
 
-        if message_complete:
+        if "finish_reason" in message:
             return message
     return message
 
 
-def _construct_accumulated_messages(streamed_chunks):
-    """Iteratively build up a response message. This is for accumulated responses from
-    calling `Anthropic.messages.Messages.stream` helper method. This function does build up
-    the response content for the user, and we only need to look at message_start blocks for the content.
-    """
-    resp = {"content": []}
-    for chunk in streamed_chunks:
-        if chunk and chunk.type == "message_start" and chunk.message:
-            content_text = ""
-            for content in chunk.message.content:
-                if content.type == "text":
-                    content_text += content.text
-                    content_type = "text"
-                elif content.type == "image":
-                    content_text = "([IMAGE DETECTED])"
-                    content_type = "image"
-            resp["content"].append({"text": content_text, "type": content_type})
-            resp.update(
-                {
-                    "role": chunk.message.role,
-                    "finish_reason": chunk.message.stop_reason,
-                    "usage": {
-                        "prompt": chunk.message.usage.input_tokens,
-                        "completion": chunk.message.usage.output_tokens,
-                    },
-                }
-            )
-            content = ""
-            content_type = None
-    return resp
-
-
-def _construct_message_from_streamed_chunks(chunk, prev_message=None) -> Tuple[Dict[str, str], bool]:
+def _extract_from_chunk(chunk, message={}) -> Tuple[Dict[str, str], bool]:
     """Constructs a chat message dictionary from streamed chunks.
 
     The resulting message dictionary is of form:
       {"content": [{"type": [TYPE], "text": "[TEXT]"}], "role": "...", "finish_reason": "...", "usage": ...}
     """
-    message = prev_message if prev_message is not None else {"content": []}
-    message_finished = False
-    if getattr(chunk, "type", "") == "message_start":
-        # this is the starting chunk of the message
-        chunk_role = getattr(chunk.message, "role", "")
-        chunk_usage = getattr(chunk.message, "usage", "")
+    TRANSFORMATIONS_BY_BLOCK_TYPE = {
+        "message_start": _on_message_start_chunk,
+        "content_block_start": _on_content_block_start_chunk,
+        "content_block_delta": _on_content_block_delta_chunk,
+        "message_delta": _on_message_delta_chunk,
+    }
+    chunk_type = getattr(chunk, "type", "")
+    transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type, None)
+    if transformation is not None:
+        message = transformation(chunk, message)
+
+    return message
+
+
+def _on_message_start_chunk(chunk, message):
+    # this is the starting chunk of the message
+    if getattr(chunk, "type", "") != "message_start":
+        return message
+
+    chunk_message = getattr(chunk, "message", "")
+    if chunk_message:
+        content_text = ""
+        contents = getattr(chunk.message, "content", [])
+        for content in contents:
+            if content.type == "text":
+                content_text += content.text
+                content_type = "text"
+            elif content.type == "image":
+                content_text = "([IMAGE DETECTED])"
+                content_type = "image"
+            message["content"].append({"text": content_text, "type": content_type})
+
+        chunk_role = getattr(chunk_message, "role", "")
+        chunk_usage = getattr(chunk_message, "usage", "")
+        chunk_finish_reason = getattr(chunk_message, "stop_reason", "")
         if chunk_role:
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {}
             message["usage"]["prompt"] = getattr(chunk_usage, "input_tokens", 0)
             message["usage"]["completion"] = getattr(chunk_usage, "output_tokens", 0)
-    elif getattr(chunk, "type", "") == "content_block_start":
-        # this is the start to a message.content block (possible 1 of several content blocks)
-        message["content"].append({"type": "text", "text": ""})
-    elif getattr(chunk, "delta", None):
-        # delta events contain new content for the current message.content block
-        content_block = chunk.delta
-        if getattr(content_block, "type", "") == "text_delta":
-            chunk_content = getattr(content_block, "text", "")
-            if chunk_content:
-                message["content"][-1]["text"] += chunk_content
+        if chunk_finish_reason:
+            message["finish_reason"] = chunk_finish_reason
+    return message
 
-        elif getattr(chunk, "type", "") == "message_delta":
-            # message delta events signal the end of the message
-            chunk_finish_reason = getattr(content_block, "stop_reason", "")
-            if chunk_finish_reason:
-                message["finish_reason"] = content_block.stop_reason
-                message["content"][-1]["text"] = message["content"][-1]["text"].strip()
 
-                chunk_usage = getattr(chunk, "usage", {})
-                if chunk_usage:
-                    message_usage = message.get("usage", {"completion": 0, "prompt": 0})
-                    message_usage["completion"] += getattr(chunk_usage, "output_tokens", 0)
-                    message_usage["prompt"] += getattr(chunk_usage, "input_tokens", 0)
-                    message["usage"] = message_usage
-                message_finished = True
+def _on_content_block_start_chunk(chunk, message):
+    # this is the start to a message.content block (possibly 1 of several content blocks)
+    if getattr(chunk, "type", "") != "content_block_start":
+        return message
 
-    return message, message_finished
+    message["content"].append({"type": "text", "text": ""})
+    return message
+
+
+def _on_content_block_delta_chunk(chunk, message):
+    # delta events contain new content for the current message.content block
+    if getattr(chunk, "type", "") != "content_block_delta":
+        return message
+
+    delta_block = getattr(chunk, "delta", "")
+    chunk_content = getattr(delta_block, "text", "")
+    if chunk_content:
+        message["content"][-1]["text"] += chunk_content
+    return message
+
+
+def _on_message_delta_chunk(chunk, message):
+    # message delta events signal the end of the message
+    if getattr(chunk, "type", "") != "message_delta":
+        return message
+
+    delta_block = getattr(chunk, "delta", "")
+    chunk_finish_reason = getattr(delta_block, "stop_reason", "")
+    if chunk_finish_reason:
+        message["finish_reason"] = chunk_finish_reason
+        message["content"][-1]["text"] = message["content"][-1]["text"].strip()
+
+    chunk_usage = getattr(chunk, "usage", {})
+    if chunk_usage:
+        message_usage = message.get("usage", {"completion": 0, "prompt": 0})
+        message_usage["completion"] += getattr(chunk_usage, "output_tokens", 0)
+        message_usage["prompt"] += getattr(chunk_usage, "input_tokens", 0)
+        message["usage"] = message_usage
+
+    return message
 
 
 def _tag_streamed_chat_completion_response(integration, span, message):
