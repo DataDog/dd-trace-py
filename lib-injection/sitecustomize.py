@@ -132,12 +132,9 @@ def _log(msg, *args, **kwargs):
 
 def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
     supported_versions = runtimes_allow_list.get(python_runtime, {})
-    print(supported_versions)
     if not supported_versions:
         return False
-    result = supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
-    print(result)
-    return result
+    return supported_versions["min"] <= Version(python_version) <= supported_versions["max"]
 
 
 def _inject():
