@@ -7,4 +7,4 @@ ADD . /src
 EXPOSE 18080
 RUN pip install django==3.2
 
-CMD ddtrace-run python -m django runserver 0.0.0.0:18080
+CMD python -m django runserver 0.0.0.0:18080
