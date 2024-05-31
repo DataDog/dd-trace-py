@@ -166,11 +166,9 @@ jobs:
         run: |
           curl http://localhost:18080
           sleep 1  # wait for traces to be sent
+      - name: Print traces
+        run: curl http://localhost:8126/test/traces
       - name: Check test agent received no trace
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
           [[ $N == "0" ]]
-      - name: Output app logs (LOOK HERE IF THE JOB FAILS)
-        if: success() || failure()
-        run: |
-          docker compose logs
