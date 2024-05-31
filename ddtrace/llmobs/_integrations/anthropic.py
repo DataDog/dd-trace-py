@@ -57,16 +57,11 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        if isinstance(resp, dict) and "usage" in "response":
-            self.record_usage(span, resp["usage"])
-        elif getattr(resp, "usage", None) is not None:
-            self.record_usage(
-                span,
-                {
-                    "prompt": getattr(resp.usage, "input_tokens", 0),
-                    "completion": getattr(resp.usage, "output_tokens", 0),
-                },
-            )
+        usage = _get_attr(resp, "usage")
+        self.record_usage(
+            span,
+            {"prompt": _get_attr(usage, "input_tokens", 0), "completion": getattr(usage, "output_tokens", 0)},
+        )
 
     def _set_base_span_tags(
         self,
@@ -84,8 +79,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             else:
                 span.set_tag_str(API_KEY, api_key)
 
-    @staticmethod
-    def _extract_input_message(messages):
+    def _extract_input_message(self, messages):
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -105,33 +99,34 @@ class AnthropicIntegration(BaseLLMIntegration):
                 log.warning("Anthropic input message must have content and role.")
 
             if isinstance(content, str):
-                input_messages.append({"content": content, "role": role})
+                input_messages.append({"content": self.trunc(content), "role": role})
 
             elif isinstance(content, list):
                 for entry in content:
                     if entry.get("type") == "text":
-                        input_messages.append({"content": entry.get("text", ""), "role": role})
+                        input_messages.append({"content": self.trunc(entry.get("text", "")), "role": role})
                     elif entry.get("type") == "image":
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
                     else:
-                        input_messages.append({"content": entry, "role": role})
+                        input_messages.append({"content": str(entry), "role": role})
 
         return input_messages
 
-    @staticmethod
-    def _extract_output_message(response):
+    def _extract_output_message(self, response):
         """Extract output messages from the stored response."""
-
         output_messages = []
-        if isinstance(_get_attr(response, "content", None), str):
-            return [{"content": response.content}]
-        elif isinstance(_get_attr(response, "content", None), list):
-            for completion in _get_attr(response, "content", []):
-                if isinstance(_get_attr(completion, "text", None), str):
-                    output_messages.append(
-                        {"content": _get_attr(completion, "text", ""), "role": _get_attr(response, "role", "")}
-                    )
+        content = _get_attr(response, "content", None)
+        role = _get_attr(response, "role", "")
+
+        if isinstance(content, str):
+            return [{"content": self.trunc(content), "role": role}]
+
+        elif isinstance(content, list):
+            for completion in content:
+                text = _get_attr(completion, "text", None)
+                if isinstance(text, str):
+                    output_messages.append({"content": self.trunc(text), "role": role})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:

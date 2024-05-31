@@ -18,27 +18,8 @@ def tag_streamed_response(integration, resp, args, kwargs, span):
         return TracedAnthropicStreamManager(resp, integration, span, args, kwargs)
 
 
-def _process_finished_stream(
-    integration, span, args, kwargs, streamed_chunks, message_accumulated_via_stream_helper=False
-):
-    resp_message = {}
-    try:
-        resp_message = _construct_message(streamed_chunks)
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_chat_completion_response(integration, span, resp_message)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                span,
-                response=resp_message,
-                args=args,
-                kwargs=kwargs,
-            )
-    except Exception:
-        log.warning("Error processing streamed completion/chat response.", exc_info=True)
-
-
 class BaseTracedAnthropicStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, args, kwargs, _is_message_stream_manager=False):
+    def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         self._dd_span = span
@@ -46,10 +27,6 @@ class BaseTracedAnthropicStream(wrapt.ObjectProxy):
         self._dd_integration = integration
         self._kwargs = kwargs
         self._args = args
-
-        # Anthropic's message stream helper will have accumulated the message for us already.
-        # We need to identify if a AnthropicStreamManager was used as we will not have to build up the message
-        self._is_message_stream_manager = _is_message_stream_manager
 
 
 class TracedAnthropicStream(BaseTracedAnthropicStream):
@@ -70,12 +47,7 @@ class TracedAnthropicStream(BaseTracedAnthropicStream):
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration,
-                self._dd_span,
-                self._args,
-                self._kwargs,
-                self._streamed_chunks,
-                self._is_message_stream_manager,
+                self._dd_integration, self._dd_span, self._args, self._kwargs, self._streamed_chunks
             )
             self._dd_span.finish()
             raise
@@ -84,7 +56,7 @@ class TracedAnthropicStream(BaseTracedAnthropicStream):
             self._dd_span.finish()
             raise
 
-    def __stream_text__(self):
+    def _text_stream(self):
         for chunk in self:
             if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
                 yield chunk.delta.text
@@ -99,9 +71,8 @@ class TracedAnthropicStreamManager(BaseTracedAnthropicStream):
             self._dd_span,
             self._args,
             self._kwargs,
-            _is_message_stream_manager=True,
         )
-        stream.text_stream = stream.__stream_text__()
+        stream.text_stream = stream._text_stream()
         return stream
 
 
@@ -128,7 +99,6 @@ class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
                 self._args,
                 self._kwargs,
                 self._streamed_chunks,
-                self._is_message_stream_manager,
             )
             self._dd_span.finish()
             raise
@@ -138,8 +108,30 @@ class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
             raise
 
 
+def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
+    # builds the response message given streamed chunks and sets according span tags
+    resp_message = {}
+    try:
+        resp_message = _construct_message(streamed_chunks)
+        if integration.is_pc_sampled_span(span):
+            _tag_streamed_chat_completion_response(integration, span, resp_message)
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(
+                span,
+                response=resp_message,
+                args=args,
+                kwargs=kwargs,
+            )
+    except Exception:
+        log.warning("Error processing streamed completion/chat response.", exc_info=True)
+
+
 def _construct_message(streamed_chunks):
-    """Iteratively build up a response message from streamed chunks."""
+    """Iteratively build up a response message from streamed chunks.
+
+    The resulting message dictionary is of form:
+      {"content": [{"type": [TYPE], "text": "[TEXT]"}], "role": "...", "finish_reason": "...", "usage": ...}
+    """
     message = {"content": []}
     for chunk in streamed_chunks:
         message = _extract_from_chunk(chunk, message)
@@ -150,11 +142,7 @@ def _construct_message(streamed_chunks):
 
 
 def _extract_from_chunk(chunk, message={}) -> Tuple[Dict[str, str], bool]:
-    """Constructs a chat message dictionary from streamed chunks.
-
-    The resulting message dictionary is of form:
-      {"content": [{"type": [TYPE], "text": "[TEXT]"}], "role": "...", "finish_reason": "...", "usage": ...}
-    """
+    """Constructs a chat message dictionary from streamed chunks given chunk type"""
     TRANSFORMATIONS_BY_BLOCK_TYPE = {
         "message_start": _on_message_start_chunk,
         "content_block_start": _on_content_block_start_chunk,
@@ -194,8 +182,8 @@ def _on_message_start_chunk(chunk, message):
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {}
-            message["usage"]["prompt"] = getattr(chunk_usage, "input_tokens", 0)
-            message["usage"]["completion"] = getattr(chunk_usage, "output_tokens", 0)
+            message["usage"]["input_tokens"] = getattr(chunk_usage, "input_tokens", 0)
+            message["usage"]["output_tokens"] = getattr(chunk_usage, "output_tokens", 0)
         if chunk_finish_reason:
             message["finish_reason"] = chunk_finish_reason
     return message
@@ -235,9 +223,9 @@ def _on_message_delta_chunk(chunk, message):
 
     chunk_usage = getattr(chunk, "usage", {})
     if chunk_usage:
-        message_usage = message.get("usage", {"completion": 0, "prompt": 0})
-        message_usage["completion"] += getattr(chunk_usage, "output_tokens", 0)
-        message_usage["prompt"] += getattr(chunk_usage, "input_tokens", 0)
+        message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
+        message_usage["output_tokens"] += getattr(chunk_usage, "output_tokens", 0)
+        message_usage["input_tokens"] += getattr(chunk_usage, "input_tokens", 0)
         message["usage"] = message_usage
 
     return message
