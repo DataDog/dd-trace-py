@@ -304,6 +304,82 @@ def test_extract(tracer):  # noqa: F811
             }
 
 
+def test_extract_asm_standalone_missing_appsec_tag_sampling_priority_not_honored(tracer):  # noqa: F811
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "_dd.p.test=value,any=tag",
+        "ot-baggage-key1": "value1",
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == -1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
+            "_dd.p.test": "value",
+        }
+        with tracer.trace("child_span") as child_span:
+            assert child_span.trace_id == 1234
+            assert child_span.parent_id != 5678
+            assert child_span.context.sampling_priority == -1
+            assert child_span.context.dd_origin == "synthetics"
+            assert child_span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
+                "_dd.p.test": "value",
+            }
+    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
+def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tracer):  # noqa: F811
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "_dd.p.appsec=value,any=tag",
+        "ot-baggage-key1": "value1",
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.p.dm": "-3",
+            "_dd.p.appsec": "value",
+        }
+        with tracer.trace("child_span") as child_span:
+            assert child_span.trace_id == 1234
+            assert child_span.parent_id != 5678
+            assert child_span.context.sampling_priority == 1
+            assert child_span.context.dd_origin == "synthetics"
+            assert child_span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.dm": "-3",
+                "_dd.p.appsec": "value",
+            }
+    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+
+
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
     with override_global_config(dict(propagation_http_baggage_enabled=True)):
         headers = {
