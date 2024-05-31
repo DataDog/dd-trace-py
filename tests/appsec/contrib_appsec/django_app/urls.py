@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 
 import django
@@ -58,6 +59,13 @@ def multi_view(request, param_int=0, param_str=""):
     return json_response
 
 
+DB = sqlite3.connect(":memory:")
+DB.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
+DB.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
+DB.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
+DB.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
+
+
 @csrf_exempt
 def rasp(request, endpoint: str):
     query_params = request.GET.dict()
@@ -99,6 +107,19 @@ def rasp(request, endpoint: str):
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
+    elif endpoint == "sql_injection":
+        res = ["sql_injection endpoint"]
+        for param in query_params:
+            if param.startswith("user_id"):
+                user_id = query_params[param]
+            try:
+                if param.startswith("user_id"):
+                    cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
+                    res.append(f"Url: {list(cursor)}")
+            except Exception as e:
+                res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "shell":
