@@ -42,6 +42,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV = "DD_APPSEC_ENABLED"
+    STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
     STRUCT = "appsec"
@@ -71,6 +72,7 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
+    PROPAGATION_HEADER = "_dd.p.appsec"
 
 
 class IAST(metaclass=Constant_Class):
