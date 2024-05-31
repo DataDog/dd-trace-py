@@ -13,16 +13,6 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
-
-
-@pytest.fixture
 def ddtrace_config_anthropic():
     return {}
 
@@ -43,10 +33,8 @@ def mock_tracer(anthropic):
 
 
 @pytest.fixture
-def anthropic(ddtrace_global_config, ddtrace_config_anthropic):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
+def anthropic(ddtrace_config_anthropic):
+    with override_global_config({"_dd_api_key": "<not-a-real-api-key>"}):
         with override_config("anthropic", ddtrace_config_anthropic):
             with override_env(
                 dict(
