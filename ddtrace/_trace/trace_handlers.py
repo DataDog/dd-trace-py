@@ -106,7 +106,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     distributed_headers_config = ctx.get_item("distributed_headers_config")
 
     # Only attempt to parse distributed headers if we are not already in a trace
-    if distributed_headers_config and not tracer.current_span():
+    if distributed_headers_config:
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )

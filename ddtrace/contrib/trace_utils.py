@@ -545,6 +545,16 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     if override is False:
         return None
 
+    # Only extract and activate if we don't already have an activate span
+    # DEV: Only do this if there is an active Span, an active Context is fine to override
+    if tracer.current_span():
+        span = tracer.current_span()
+        log.debug(
+            "will not extract distributed headers, a Span(trace_id%d, span_id=%d) is already active",
+            span.trace_id,
+            span.span_id,
+        )
+
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
 
