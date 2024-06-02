@@ -109,8 +109,8 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer=None,
-    ):
+        _tracer: Optional[ddtrace.Tracer] = None,
+    ) -> None:
         """
         Enable LLM Observability tracing.
 
@@ -178,7 +178,7 @@ class LLMObs(Service):
         log.debug("%s enabled", cls.__name__)
 
     @classmethod
-    def _integration_is_enabled(cls, integration):
+    def _integration_is_enabled(cls, integration: str) -> bool:
         if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
             return False
         return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
@@ -197,7 +197,7 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     @classmethod
-    def flush(cls):
+    def flush(cls) -> None:
         """
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
         """
@@ -278,7 +278,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
@@ -305,9 +305,7 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def tool(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a call to an external interface or API.
 
@@ -323,9 +321,7 @@ class LLMObs(Service):
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def task(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a standalone non-LLM operation which does not involve an external request.
 
@@ -341,9 +337,7 @@ class LLMObs(Service):
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
-    def agent(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
@@ -361,7 +355,7 @@ class LLMObs(Service):
     @classmethod
     def workflow(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a predefined or static sequence of operations.
 
@@ -384,7 +378,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a call to an embedding model or function to create an embedding.
 
@@ -418,7 +412,7 @@ class LLMObs(Service):
     @classmethod
     def retrieval(
         cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
-    ) -> Optional[Span]:
+    ) -> Span:
         """
         Trace a vector search operation involving a list of documents being returned from an external knowledge base.
 
