@@ -198,6 +198,7 @@ def test_rate_limiter_effective_rate_starting_rate(time_window):
 
 def test_rate_limiter_3():
     limiter = RateLimiter(rate_limit=2)
+
     for i in range(3):
         decision = limiter.is_allowed()
         # the first two should be allowed, the third should not

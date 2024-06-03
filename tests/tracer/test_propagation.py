@@ -2747,7 +2747,7 @@ with tracer.trace("Non-LLMObs span") as root_span:
         headers = {}
         HTTPPropagator.inject(child_span.context, headers)
 
-assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
+assert f"{PROPAGATED_PARENT_ID_KEY}=undefined" in headers["x-datadog-tags"]
         """
 
     env = os.environ.copy()
