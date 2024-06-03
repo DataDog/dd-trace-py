@@ -118,9 +118,7 @@ def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_logs):
         assert llmobs_service.enabled is True
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        mock_logs.warning.assert_called_once_with(
-            "`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead."
-        )
+        mock_logs.warning.assert_called_once_with("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
         llmobs_service.disable()
 
 
