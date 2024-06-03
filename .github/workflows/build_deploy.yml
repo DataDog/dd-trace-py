@@ -48,28 +48,27 @@ jobs:
     uses: ./.github/workflows/build_python_3.yml
     with:
       cibw_build: 'cp312*'
-      cibw_prerelease_pythons: 'True'
 
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/setup-python@v5
         name: Install Python
         with:
           python-version: '3.7'
-
       - name: Build sdist
         run: |
-          pip install cython cmake
+          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
           python setup.py sdist
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: source-dist
           path: dist/*.tar.gz
 
   test_alpine_sdist:
@@ -80,10 +79,10 @@ jobs:
     container:
       image: python:3.9-alpine
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: artifact
+          name: source-dist
           path: dist
 
       - name: Install build dependencies
@@ -114,10 +113,10 @@ jobs:
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published')
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: artifact
           path: dist
+          merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:

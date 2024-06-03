@@ -8,9 +8,13 @@ from typing import Union
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
+from ddtrace.internal import telemetry
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils.formats import asbool
@@ -26,21 +30,29 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+
+SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
 
 
 class LLMObs(Service):
@@ -55,13 +67,13 @@ class LLMObs(Service):
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 2.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
 
     def _start_service(self) -> None:
@@ -88,7 +100,28 @@ class LLMObs(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
     @classmethod
-    def enable(cls, tracer=None):
+    def enable(
+        cls,
+        ml_app: Optional[str] = None,
+        integrations_enabled: bool = True,
+        agentless_enabled: bool = False,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        env: Optional[str] = None,
+        service: Optional[str] = None,
+        _tracer=None,
+    ):
+        """
+        Enable LLM Observability tracing.
+
+        :param str ml_app: The name of your ml application.
+        :param bool integrations_enabled: Set to `true` to enable LLM integrations.
+        :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
+        :param str site: Your datadog site.
+        :param str api_key: Your datadog api key.
+        :param str env: Your environment name.
+        :param str service: Your service name.
+        """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -97,9 +130,22 @@ class LLMObs(Service):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
 
+        # grab required values for LLMObs
+        config._dd_site = site or config._dd_site
+        config._dd_api_key = api_key or config._dd_api_key
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config.env = env or config.env
+        config.service = service or config.service
+
+        # validate required values for LLMObs
         if not config._dd_api_key:
             raise ValueError(
                 "DD_API_KEY is required for sending LLMObs data. "
+                "Ensure this configuration is set before running your application."
+            )
+        if not config._dd_site:
+            raise ValueError(
+                "DD_SITE is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
         if not config._llmobs_ml_app:
@@ -108,16 +154,34 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
+        if agentless_enabled or asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", "false")):
+            os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = "1"
+
+            if not os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED"):
+                config._telemetry_enabled = False
+                log.debug("Telemetry disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
+                telemetry.telemetry_writer.disable()
+
+            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                config._remote_config_enabled = False
+                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
+                remoteconfig_poller.disable()
+
+        if integrations_enabled:
+            cls._patch_integrations()
         # override the default _instance with a new tracer
-        cls._instance = cls(tracer=tracer)
-
+        cls._instance = cls(tracer=_tracer)
         cls.enabled = True
-
-        # turn on llmobs trace processing
         cls._instance.start()
 
         atexit.register(cls.disable)
         log.debug("%s enabled", cls.__name__)
+
+    @classmethod
+    def _integration_is_enabled(cls, integration):
+        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+            return False
+        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -145,6 +209,12 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
+
+    @staticmethod
+    def _patch_integrations() -> None:
+        """Patch LLM integrations."""
+        patch(**{integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()})  # type: ignore[arg-type]
+        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
@@ -192,6 +262,12 @@ class LLMObs(Service):
         if ml_app is None:
             ml_app = _get_ml_app(span)
         span.set_tag_str(ML_APP, ml_app)
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
+            # For non-distributed traces or spans in the first service of a distributed trace,
+            # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
+            # in these cases to avoid conflicting with the later propagated tags.
+            parent_id = _get_llmobs_parent_id(span) or "undefined"
+            span.set_tag_str(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod
@@ -575,6 +651,7 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float],
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
@@ -584,6 +661,7 @@ class LLMObs(Service):
         :param str metric_type: The type of the evaluation metric. One of "categorical", "numerical", and "score".
         :param value: The value of the evaluation metric.
                       Must be a string (categorical), integer (numerical/score), or float (numerical/score).
+        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         """
         if cls.enabled is False:
             log.warning(
@@ -613,6 +691,23 @@ class LLMObs(Service):
         if metric_type in ("numerical", "score") and not isinstance(value, (int, float)):
             log.warning("value must be an integer or float for a numerical/score metric.")
             return
+        if tags is not None and not isinstance(tags, dict):
+            log.warning("tags must be a dictionary of string key-value pairs.")
+            return
+
+        # initialize tags with default values that will be overridden by user-provided tags
+        evaluation_tags = {
+            "ddtrace.version": ddtrace.__version__,
+            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+        }
+
+        if tags:
+            for k, v in tags.items():
+                try:
+                    evaluation_tags[ensure_text(k)] = ensure_text(v)
+                except TypeError:
+                    log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+
         cls._instance._llmobs_eval_metric_writer.enqueue(
             {
                 "span_id": span_id,
@@ -620,8 +715,51 @@ class LLMObs(Service):
                 "label": str(label),
                 "metric_type": metric_type.lower(),
                 "{}_value".format(metric_type): value,
+                "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
+
+    @classmethod
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
+        """Injects the span's distributed context into the given request headers."""
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.inject_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be injected."
+            )
+            return request_headers
+        if not isinstance(request_headers, dict):
+            log.warning("request_headers must be a dictionary of string key-value pairs.")
+            return request_headers
+        if span is None:
+            span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no currently active span found.")
+            return request_headers
+        _inject_llmobs_parent_id(span.context)
+        HTTPPropagator.inject(span.context, request_headers)
+        return request_headers
+
+    @classmethod
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
+        """
+        Activates distributed tracing headers for the current request.
+
+        :param request_headers: A dictionary containing the headers for the current request.
+        """
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.activate_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be activated."
+            )
+            return
+        context = HTTPPropagator.extract(request_headers)
+        if context.trace_id is None or context.span_id is None:
+            log.warning("Failed to extract trace ID or span ID from request headers.")
+            return
+        if PROPAGATED_PARENT_ID_KEY not in context._meta:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
+        cls._instance.tracer.context_provider.activate(context)
 
 
 # initialize the default llmobs instance

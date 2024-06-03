@@ -1,6 +1,4 @@
 import os
-from typing import AsyncGenerator
-from typing import Generator
 
 import mock
 import openai as openai_module
@@ -10,9 +8,10 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
+from tests.contrib.openai.utils import chat_completion_custom_functions
+from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import iswrapped
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -21,32 +20,6 @@ TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 0, 0), reason="This module only tests openai >= 1.0"
 )
-
-chat_completion_input_description = """
-    David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
-    David is an active member of the university's Chess Club and the South Asian Student Association.
-    He hopes to pursue a career in software engineering after graduating.
-    """
-chat_completion_custom_functions = [
-    {
-        "name": "extract_student_info",
-        "description": "Get the student information from the body of the input text",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Name of the person"},
-                "major": {"type": "string", "description": "Major subject."},
-                "school": {"type": "string", "description": "The university name."},
-                "grades": {"type": "integer", "description": "GPA of the student."},
-                "clubs": {
-                    "type": "array",
-                    "description": "School clubs for extracurricular activities. ",
-                    "items": {"type": "string", "description": "Name of School Club"},
-                },
-            },
-        },
-    },
-]
 
 
 @pytest.fixture(scope="session")
@@ -77,8 +50,6 @@ def test_patching(openai):
         (openai.resources.models.Models, "retrieve"),
         (openai.resources.models.AsyncModels, "list"),
         (openai.resources.models.AsyncModels, "retrieve"),
-        (openai.resources.edits.Edits, "create"),
-        (openai.resources.edits.AsyncEdits, "create"),
         (openai.resources.images.Images, "generate"),
         (openai.resources.images.Images, "edit"),
         (openai.resources.images.Images, "create_variation"),
@@ -101,16 +72,6 @@ def test_patching(openai):
         (openai.resources.files.AsyncFiles, "list"),
         (openai.resources.files.AsyncFiles, "delete"),
         (openai.resources.files.AsyncFiles, "retrieve_content"),
-        (openai.resources.fine_tunes.FineTunes, "create"),
-        (openai.resources.fine_tunes.FineTunes, "retrieve"),
-        (openai.resources.fine_tunes.FineTunes, "list"),
-        (openai.resources.fine_tunes.FineTunes, "cancel"),
-        (openai.resources.fine_tunes.FineTunes, "list_events"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "create"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "retrieve"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "list"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "cancel"),
-        (openai.resources.fine_tunes.AsyncFineTunes, "list_events"),
     ]
 
     for m in methods:
@@ -566,83 +527,6 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_edit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("edit.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.edits.create(
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-                temperature=0.2,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_aedit(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_edit",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("edit_async.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.edits.create(
-                model="text-davinci-edit-001",
-                input="thsi si a spelilgn imstkae.",
-                instruction="fix spelling mistakes",
-                n=3,
-                temperature=0.2,
-            )
-
-
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
-def test_logs_edit(openai_vcr, openai, ddtrace_config_openai, mock_logs, mock_tracer):
-    """Ensure logs are emitted for edit endpoint when configured.
-
-    Also ensure the logs have the correct tagging including the trace-logs correlation tagging.
-    """
-    with openai_vcr.use_cassette("edit.yaml"):
-        client = openai.OpenAI()
-        client.edits.create(
-            model="text-davinci-edit-001",
-            input="thsi si a spelilgn imstkae.",
-            instruction="fix spelling mistakes",
-            n=3,
-            temperature=0.2,
-        )
-    span = mock_tracer.pop_traces()[0][0]
-    trace_id, span_id = span.trace_id, span.span_id
-
-    assert mock_logs.enqueue.call_count == 1
-    mock_logs.assert_has_calls(
-        [
-            mock.call.start(),
-            mock.call.enqueue(
-                {
-                    "timestamp": mock.ANY,
-                    "message": mock.ANY,
-                    "hostname": mock.ANY,
-                    "ddsource": "openai",
-                    "service": "",
-                    "status": "info",
-                    "ddtags": "env:,version:,openai.request.endpoint:/v1/edits,openai.request.method:POST,openai.request.model:text-davinci-edit-001,openai.organization.name:datadog-4,openai.user.api_key:sk-...key>",  # noqa: E501
-                    "dd.trace_id": "{:x}".format(trace_id),
-                    "dd.span_id": str(span_id),
-                    "instruction": "fix spelling mistakes",
-                    "input": "thsi si a spelilgn imstkae.",
-                    "choices": mock.ANY,
-                }
-            ),
-        ]
-    )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_image_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_image_create",
@@ -947,124 +831,6 @@ async def test_file_adownload(api_key_in_env, request_api_key, openai, openai_vc
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_list(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.list()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_alist(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.list()
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_create(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_create",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.n_epochs"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_create.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.create(
-                training_file="file-llDq0Q9la7EBTScAowIotxxc",
-                prompt_loss_weight=0.01,
-                model="babbage",
-                suffix="dummy-fine-tune-model",
-                batch_size=5,
-                learning_rate_multiplier=0.05,
-                compute_classification_metrics=False,
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_acreate(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_create",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.n_epochs"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_create.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.create(
-                training_file="file-llDq0Q9la7EBTScAowIotxxc",
-                prompt_loss_weight=0.01,
-                model="babbage",
-                suffix="dummy-fine-tune-model",
-                batch_size=5,
-                learning_rate_multiplier=0.05,
-                compute_classification_metrics=False,
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_retrieve(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_retrieve",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_retrieve.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.retrieve(
-                fine_tune_id="ft-sADEaavxRFrjOQ65XkQKm0zM",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_cancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=[
-            "meta.http.useragent",
-            "meta.openai.api_type",
-            "meta.openai.api_base",
-            "meta.openai.request.user",
-            "meta.openai.response.hyperparams.batch_size",
-            "meta.openai.response.hyperparams.learning_rate_multiplier",
-            "meta.openai.response.hyperparams.batch_size",
-        ],
-    ):
-        with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.cancel(
-                fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST",
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_acancel(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_cancel",
-        ignores=[
-            "meta.http.useragent",
-            "meta.openai.api_type",
-            "meta.openai.api_base",
-            "meta.openai.request.user",
-            "meta.openai.response.hyperparams.batch_size",
-            "meta.openai.response.hyperparams.learning_rate_multiplier",
-            "meta.openai.response.hyperparams.batch_size",
-        ],
-    ):
-        with openai_vcr.use_cassette("fine_tune_cancel.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.cancel(
-                fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST",
-            )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_model_delete(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_model_delete",
@@ -1089,29 +855,6 @@ async def test_model_adelete(api_key_in_env, request_api_key, openai, openai_vcr
             await client.models.delete(
                 model="babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
             )
-
-
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_fine_tune_list_events(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
-            client = openai.OpenAI(api_key=request_api_key)
-            client.fine_tunes.list_events(fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST", stream=False)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_fine_tune_alist_events(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_fine_tune_list_events",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base", "meta.openai.request.user"],
-    ):
-        with openai_vcr.use_cassette("fine_tune_list_events.yaml"):
-            client = openai.AsyncOpenAI(api_key=request_api_key)
-            await client.fine_tunes.list_events(fine_tune_id="ft-N6ggcFNqJNuREixR9ShDWzST", stream=False)
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -1192,8 +935,7 @@ def test_completion_stream(openai, openai_vcr, mock_metrics, mock_tracer):
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.OpenAI()
-            resp = client.completions.create(model="ada", prompt="Hello world", stream=True)
-            assert isinstance(resp, Generator)
+            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
             chunks = [c for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])
@@ -1233,8 +975,49 @@ async def test_completion_async_stream(openai, openai_vcr, mock_metrics, mock_tr
             expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
             client = openai.AsyncOpenAI()
             resp = await client.completions.create(model="ada", prompt="Hello world", stream=True)
-            assert isinstance(resp, AsyncGenerator)
             chunks = [c async for c in resp]
+
+    completion = "".join([c.choices[0].text for c in chunks])
+    assert completion == expected_completion
+
+    traces = mock_tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    assert traces[0][0].get_tag("openai.response.choices.0.text") == expected_completion
+    assert traces[0][0].get_tag("openai.response.choices.0.finish_reason") == "length"
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.request.model:ada",
+        "openai.request.endpoint:/v1/completions",
+        "openai.request.method:POST",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+        "openai.estimated:true",
+    ]
+    if TIKTOKEN_AVAILABLE:
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", 2, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
+def test_completion_stream_context_manager(openai, openai_vcr, mock_metrics, mock_tracer):
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
+            expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+            client = openai.OpenAI()
+            with client.completions.create(model="ada", prompt="Hello world", stream=True, n=None) as resp:
+                chunks = [c for c in resp]
 
     completion = "".join([c.choices[0].text for c in chunks])
     assert completion == expected_completion
@@ -1278,8 +1061,8 @@ def test_chat_completion_stream(openai, openai_vcr, mock_metrics, snapshot_trace
                 ],
                 stream=True,
                 user="ddtrace-test",
+                n=None,
             )
-            assert isinstance(resp, Generator)
             prompt_tokens = 8
             span = snapshot_tracer.current_span()
             chunks = [c for c in resp]
@@ -1329,13 +1112,68 @@ async def test_chat_completion_async_stream(openai, openai_vcr, mock_metrics, sn
                 stream=True,
                 user="ddtrace-test",
             )
-            assert isinstance(resp, AsyncGenerator)
             prompt_tokens = 8
             span = snapshot_tracer.current_span()
             chunks = [c async for c in resp]
             assert len(chunks) == 15
             completion = "".join([c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None])
             assert completion == expected_completion
+
+    assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
+    assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
+    assert span.get_tag("openai.response.choices.0.finish_reason") == "stop"
+
+    expected_tags = [
+        "version:",
+        "env:",
+        "service:",
+        "openai.request.model:gpt-3.5-turbo",
+        "openai.request.endpoint:/v1/chat/completions",
+        "openai.request.method:POST",
+        "openai.organization.id:",
+        "openai.organization.name:datadog-4",
+        "openai.user.api_key:sk-...key>",
+        "error:0",
+    ]
+    assert mock.call.distribution("request.duration", span.duration_ns, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.requests", 3000, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.gauge("ratelimit.remaining.requests", 2999, tags=expected_tags) in mock_metrics.mock_calls
+    expected_tags += ["openai.estimated:true"]
+    if TIKTOKEN_AVAILABLE:
+        expected_tags = expected_tags[:-1]
+    assert mock.call.distribution("tokens.prompt", prompt_tokens, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.completion", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+    assert mock.call.distribution("tokens.total", mock.ANY, tags=expected_tags) in mock_metrics.mock_calls
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
+    reason="Streamed response context managers are only available v1.6.0+",
+)
+@pytest.mark.asyncio
+async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, mock_metrics, snapshot_tracer):
+    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
+        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
+            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+            client = openai.AsyncOpenAI()
+            async with await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                stream=True,
+                user="ddtrace-test",
+                n=None,
+            ) as resp:
+                prompt_tokens = 8
+                span = snapshot_tracer.current_span()
+                chunks = [c async for c in resp]
+                assert len(chunks) == 15
+                completion = "".join(
+                    [c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None]
+                )
+                assert completion == expected_completion
 
     assert span.get_tag("openai.response.choices.0.message.content") == expected_completion
     assert span.get_tag("openai.response.choices.0.message.role") == "assistant"
@@ -1547,25 +1385,12 @@ def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_o
                 {"role": "user", "content": "Count from 1 to 100"},
             ],
         )
-        assert resp.choices[0].model_dump() == {
-            "finish_reason": "stop",
-            "index": 0,
-            "message": {
-                "content": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, "
-                "16, 17, 18, 19, 20, "
-                "21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, "
-                "34, 35, 36, 37, 38, 39, 40, "
-                "41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, "
-                "54, 55, 56, 57, 58, 59, 60, "
-                "61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, "
-                "74, 75, 76, 77, 78, 79, 80, "
-                "81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, "
-                "94, 95, 96, 97, 98, 99, 100",
-                "role": "assistant",
-                "function_call": None,
-                "tool_calls": None,
-            },
-        }
+        assert resp.choices[0].message.content == (
+            "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,"
+            " 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,"
+            " 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,"
+            " 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100"
+        )
 
     traces = mock_tracer.pop_traces()
     assert len(traces) == 2
@@ -1857,305 +1682,3 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         assert status == 0, err
         assert out == b""
         assert err == b""
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Ensure llmobs records are emitted for completion endpoints when configured.
-
-    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
-    """
-    with openai_vcr.use_cassette("completion.yaml"):
-        model = "ada"
-        client = openai.OpenAI()
-        client.completions.create(
-            model=model,
-            prompt="Hello world",
-            temperature=0.8,
-            n=2,
-            stop=".",
-            max_tokens=10,
-            user="ddtrace-test",
-        )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=model,
-            model_provider="openai",
-            input_messages=[{"content": "Hello world"}],
-            output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-            metadata={"temperature": 0.8, "max_tokens": 10},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 12, "total_tokens": 14},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
-                mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                mock_est.return_value = 2
-                model = "ada"
-                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-                client = openai.OpenAI()
-                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                for _ in resp:
-                    pass
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=model,
-            model_provider="openai",
-            input_messages=[{"content": "Hello world"}],
-            output_messages=[{"content": expected_completion}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 2, "completion_tokens": 2, "total_tokens": 4},
-            tags={"ml_app": "<ml-app-name>"},
-        ),
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_chat_completion(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
-    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
-    """
-    with openai_vcr.use_cassette("chat_completion.yaml"):
-        model = "gpt-3.5-turbo"
-        input_messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Who won the world series in 2020?"},
-            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-            {"role": "user", "content": "Where was it played?"},
-        ]
-        client = openai.OpenAI()
-        resp = client.chat.completions.create(
-            model=model,
-            messages=input_messages,
-            top_p=0.9,
-            n=2,
-            user="ddtrace-test",
-        )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=resp.model,
-            model_provider="openai",
-            input_messages=input_messages,
-            output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 57, "completion_tokens": 34, "total_tokens": 91},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_chat_completion_stream(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Ensure llmobs records are emitted for chat completion endpoints when configured.
-
-    Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
-    """
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            with mock.patch("ddtrace.contrib.openai.utils._est_tokens") as mock_est:
-                mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-                mock_est.return_value = 8
-                model = "gpt-3.5-turbo"
-                resp_model = model
-                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-                client = openai.OpenAI()
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=input_messages,
-                    stream=True,
-                    user="ddtrace-test",
-                )
-                for chunk in resp:
-                    resp_model = chunk.model
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=resp_model,
-            model_provider="openai",
-            input_messages=input_messages,
-            output_messages=[{"content": expected_completion, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 8, "completion_tokens": 8, "total_tokens": 16},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_chat_completion_function_call(
-    openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-):
-    """Test that function call chat completion calls are recorded as LLMObs events correctly."""
-    with openai_vcr.use_cassette("chat_completion_function_call.yaml"):
-        model = "gpt-3.5-turbo"
-        client = openai.OpenAI()
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": chat_completion_input_description}],
-            functions=chat_completion_custom_functions,
-            function_call="auto",
-            user="ddtrace-test",
-        )
-    expected_output = "[function: {}]\n\n{}".format(
-        resp.choices[0].message.function_call.name,
-        resp.choices[0].message.function_call.arguments,
-    )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=resp.model,
-            model_provider="openai",
-            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-            output_messages=[{"content": expected_output, "role": "assistant"}],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_chat_completion_tool_call(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
-    with openai_vcr.use_cassette("chat_completion_tool_call.yaml"):
-        model = "gpt-3.5-turbo"
-        client = openai.OpenAI()
-        resp = client.chat.completions.create(
-            tools=chat_completion_custom_functions,
-            model=model,
-            messages=[{"role": "user", "content": chat_completion_input_description}],
-            user="ddtrace-test",
-        )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=resp.model,
-            model_provider="openai",
-            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-            output_messages=[
-                {
-                    "content": "[tool: {}]\n\n{}".format(
-                        resp.choices[0].message.tool_calls[0].function.name,
-                        resp.choices[0].message.tool_calls[0].function.arguments,
-                    ),
-                    "role": "assistant",
-                }
-            ],
-            metadata={"temperature": 0},
-            token_metrics={"prompt_tokens": 157, "completion_tokens": 57, "total_tokens": 214},
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
-    with pytest.raises(Exception):
-        with openai_vcr.use_cassette("completion_error.yaml"):
-            model = "babbage-002"
-            client = openai.OpenAI()
-            client.completions.create(
-                model=model,
-                prompt="Hello world",
-                temperature=0.8,
-                n=2,
-                stop=".",
-                max_tokens=10,
-                user="ddtrace-test",
-            )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=model,
-            model_provider="openai",
-            input_messages=[{"content": "Hello world"}],
-            output_messages=[{"content": ""}],
-            metadata={"temperature": 0.8, "max_tokens": 10},
-            token_metrics={},
-            error="openai.AuthenticationError",
-            error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-            error_stack=span.get_tag("error.stack"),
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
-def test_llmobs_chat_completion_error(openai_vcr, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-    """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
-    with pytest.raises(Exception):
-        with openai_vcr.use_cassette("chat_completion_error.yaml"):
-            model = "gpt-3.5-turbo"
-            client = openai.OpenAI()
-            input_messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Who won the world series in 2020?"},
-                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                {"role": "user", "content": "Where was it played?"},
-            ]
-            client.chat.completions.create(
-                model=model,
-                messages=input_messages,
-                top_p=0.9,
-                n=2,
-                user="ddtrace-test",
-            )
-    span = mock_tracer.pop_traces()[0][0]
-    assert mock_llmobs_writer.enqueue.call_count == 1
-    mock_llmobs_writer.enqueue.assert_called_with(
-        _expected_llmobs_llm_span_event(
-            span,
-            model_name=model,
-            model_provider="openai",
-            input_messages=input_messages,
-            output_messages=[{"content": ""}],
-            metadata={"temperature": 0},
-            token_metrics={},
-            error="openai.AuthenticationError",
-            error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-            error_stack=span.get_tag("error.stack"),
-            tags={"ml_app": "<ml-app-name>"},
-        )
-    )

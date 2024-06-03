@@ -920,18 +920,11 @@ def _on_finish_session(finish_args: CISession.FinishArgs):
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
-@_requires_civisibility_enabled
-def _on_get_session_settings(session_id: CISessionId):
-    log.debug("Handling get session settings for session id %s", session_id)
-    return CIVisibility.get_session_settings(session_id)
-
-
 def _register_session_handlers():
     log.debug("Registering session handlers")
     core.on("ci_visibility.session.discover", _on_discover_session)
     core.on("ci_visibility.session.start", _on_start_session)
     core.on("ci_visibility.session.finish", _on_finish_session)
-    core.on("ci_visibility.session.get_settings", _on_get_session_settings)
 
 
 @_requires_civisibility_enabled
@@ -1139,7 +1132,7 @@ def _on_itr_mark_forced_run(item_id: Union[CISuiteId, CITestId]) -> None:
 @_requires_civisibility_enabled
 def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
-    log.debug("Handling get skippable items")
+    log.debug("Handling is item skippable for item id %s", item_id)
 
     if not isinstance(item_id, (CISuiteId, CITestId)):
         log.warning("Only suites or tests can be skippable, not %s", type(item_id))
@@ -1155,7 +1148,7 @@ def _on_itr_is_item_skippable(item_id: Union[CISuiteId, CITestId]) -> bool:
 def _register_itr_handlers():
     log.debug("Registering ITR-related handlers")
     core.on("ci_visibility.itr.finish_skipped_by_itr", _on_itr_finish_item_skipped)
-    core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable)
+    core.on("ci_visibility.itr.is_item_skippable", _on_itr_is_item_skippable, "is_item_skippable")
     core.on("ci_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
     core.on("ci_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
 

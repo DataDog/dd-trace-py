@@ -28,6 +28,7 @@ from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
@@ -119,7 +120,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "C/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "wAv8"),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", "CAA="),
         (False, "false", ""),
@@ -144,7 +145,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "C/4="),  # All capabilities
+        ({}, "wAv+"),  # All capabilities
         ({"DD_APPSEC_RULES": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
     ],
 )
@@ -899,8 +900,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 ]
             }
         }
-        # flaky test
-        # assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
         with _asm_request_context.asm_request_context_manager("8.8.4.4", {}):
@@ -930,7 +930,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
             }
         }
 
-        assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
 
@@ -960,7 +960,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
             }
         }
 
-        assert not remoteconfig_poller._worker
+        assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
         _appsec_callback(rc_config, tracer)
 
@@ -985,9 +985,22 @@ def test_rc_rules_data(tracer):
         config = {
             "rules_data": [],
             "custom_rules": [],
+            "actions": [],
             "rules": json.load(dd_rules)["rules"],
+            "rules_override": [],
+            "scanners": [],
+            "processors": [],
+            "ignore": [],
         }
-        assert _appsec_rules_data(config, tracer)
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data(config, tracer)
+            calls = mock_update.mock_calls
+            for v in config:
+                if v == "ignore":
+                    assert v not in calls[-1][1][1]
+                else:
+                    assert v in calls[-1][1][1]
 
 
 def test_rc_rules_data_error_empty(tracer):
