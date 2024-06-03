@@ -306,7 +306,7 @@ class Tracer(object):
             from ddtrace.internal.rate_limiter import RateLimiter
 
             self._sampler.limiter = RateLimiter(rate_limit=1, time_window=60e9)  # 1 trace per minute
-            # Disable compute stats
+            # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             self.enabled = False
 
@@ -415,7 +415,7 @@ class Tracer(object):
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
         active: Optional[Union[Context, Span]] = None
-        if self.enabled or self._asm_enabled:
+        if self.enabled or self._apm_opt_out:
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
@@ -547,6 +547,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
+                # if apm opt out, neither agent or tracer should compute the stats
                 headers={"Datadog-Client-Computed-Stats": "yes"}
                 if (compute_stats_enabled or self._apm_opt_out)
                 else {},
@@ -842,8 +843,8 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        # Only call span processors if the tracer or ASM is enabled
-        if self.enabled or self._asm_enabled:
+        # Only call span processors if the tracer is enabled (even if APM opted out)
+        if self.enabled or self._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
@@ -859,8 +860,8 @@ class Tracer(object):
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
-        # Only call span processors if the tracer or ASM is enabled
-        if self.enabled or self._asm_enabled:
+        # Only call span processors if the tracer is enabled (even if APM opted out)
+        if self.enabled or self._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
 

@@ -138,10 +138,11 @@ def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
 from ddtrace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-# the stats computation is disabled
+# the stats computation is disabled (completely, for both agent and tracer)
 assert config._trace_compute_stats is False
 
 # but it's reported as enabled
+# to avoid the agent from doing it either.
 assert tracer._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
 """,
         env=env,
