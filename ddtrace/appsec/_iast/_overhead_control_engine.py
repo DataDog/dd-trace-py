@@ -4,24 +4,21 @@ limit. It will measure operations being executed in a request and it will deacti
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
 import os
-import threading
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Set
+from typing import Text
+from typing import Tuple
+from typing import Type
 
+from ddtrace._trace.span import Span
+from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.sampler import RateSampler
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Set  # noqa:F401
-    from typing import Tuple  # noqa:F401
-    from typing import Type  # noqa:F401
-
-    from ddtrace._trace.span import Span  # noqa:F401
-
 log = get_logger(__name__)
 
 
-def get_request_sampling_value():  # type: () -> float
+def get_request_sampling_value() -> float:
     # Percentage of requests analyzed by IAST (default: 30%)
     return float(os.environ.get("DD_IAST_REQUEST_SAMPLING", 30.0))
 
@@ -37,7 +34,7 @@ class Operation(object):
 
     _lock = threading.Lock()
     _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
-    _reported_vulnerabilities = set()  # type: Set[Tuple[str, int]]
+    _reported_vulnerabilities: Set[Tuple[str, int]] = set()
 
     @classmethod
     def reset(cls):
@@ -45,8 +42,7 @@ class Operation(object):
         cls._reported_vulnerabilities = set()
 
     @classmethod
-    def acquire_quota(cls):
-        # type: () -> bool
+    def acquire_quota(cls) -> bool:
         cls._lock.acquire()
         result = False
         if cls._vulnerability_quota > 0:
@@ -56,8 +52,7 @@ class Operation(object):
         return result
 
     @classmethod
-    def increment_quota(cls):
-        # type: () -> bool
+    def increment_quota(cls) -> bool:
         cls._lock.acquire()
         result = False
         if cls._vulnerability_quota < MAX_VULNERABILITIES_PER_REQUEST:
@@ -67,16 +62,14 @@ class Operation(object):
         return result
 
     @classmethod
-    def has_quota(cls):
-        # type: () -> bool
+    def has_quota(cls) -> bool:
         cls._lock.acquire()
         result = cls._vulnerability_quota > 0
         cls._lock.release()
         return result
 
     @classmethod
-    def is_not_reported(cls, filename, lineno):
-        # type: (str, int) -> bool
+    def is_not_reported(cls, filename: Text, lineno: int) -> bool:
         vulnerability_id = (filename, lineno)
         if vulnerability_id in cls._reported_vulnerabilities:
             return False
@@ -92,14 +85,13 @@ class OverheadControl(object):
 
     _lock = threading.Lock()
     _request_quota = MAX_REQUESTS
-    _vulnerabilities = set()  # type: Set[Type[Operation]]
+    _vulnerabilities: Set[Type[Operation]] = set()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span):
-        # type: (Span) -> bool
+    def acquire_request(self, span: Span) -> bool:
         """Decide whether if IAST analysis will be done for this request.
         - Block a request's quota at start of the request to limit simultaneous requests analyzed.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
@@ -121,13 +113,11 @@ class OverheadControl(object):
             self._request_quota += 1
         self.vulnerabilities_reset_quota()
 
-    def register(self, klass):
-        # type: (Type[Operation]) -> Type[Operation]
+    def register(self, klass: Type[Operation]) -> Type[Operation]:
         """Register vulnerabilities/taint_sinks. This set of elements will restart for each request."""
         self._vulnerabilities.add(klass)
         return klass
 
     def vulnerabilities_reset_quota(self):
-        # type: () -> None
         for k in self._vulnerabilities:
             k.reset()

@@ -9,46 +9,50 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
-def nanoseconds(x):
-    # Helper to iterate over x seconds in nanosecond steps
-    return range(0, int(1e9 * x), int(1e9))
+def nanoseconds(x, time_window):
+    # Helper to iterate over x time windows in nanosecond steps
+    return range(0, int(time_window * x), int(time_window))
 
 
-def test_rate_limiter_init():
-    limiter = RateLimiter(rate_limit=100)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_init(time_window):
+    limiter = RateLimiter(rate_limit=100, time_window=time_window)
     assert limiter.rate_limit == 100
     assert limiter.tokens == 100
     assert limiter.max_tokens == 100
     assert limiter.last_update_ns <= compat.monotonic_ns()
 
 
-def test_rate_limiter_rate_limit_0():
-    limiter = RateLimiter(rate_limit=0)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_rate_limit_0(time_window):
+    limiter = RateLimiter(rate_limit=0, time_window=time_window)
     assert limiter.rate_limit == 0
     assert limiter.tokens == 0
     assert limiter.max_tokens == 0
 
     now_ns = compat.monotonic_ns()
-    for i in nanoseconds(10000):
+    for i in nanoseconds(10000, time_window):
         # Make sure the time is different for every check
         assert limiter.is_allowed(now_ns + i) is False
 
 
-def test_rate_limiter_rate_limit_negative():
-    limiter = RateLimiter(rate_limit=-1)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_rate_limit_negative(time_window):
+    limiter = RateLimiter(rate_limit=-1, time_window=time_window)
     assert limiter.rate_limit == -1
     assert limiter.tokens == -1
     assert limiter.max_tokens == -1
 
     now_ns = compat.monotonic_ns()
-    for i in nanoseconds(10000):
+    for i in nanoseconds(10000, time_window):
         # Make sure the time is different for every check
         assert limiter.is_allowed(now_ns + i) is True
 
 
 @pytest.mark.parametrize("rate_limit", [1, 10, 50, 100, 500, 1000])
-def test_rate_limiter_is_allowed(rate_limit):
-    limiter = RateLimiter(rate_limit=rate_limit)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_is_allowed(rate_limit, time_window):
+    limiter = RateLimiter(rate_limit=rate_limit, time_window=time_window)
 
     def check_limit(time_ns):
         # Up to the allowed limit is allowed
@@ -63,13 +67,14 @@ def test_rate_limiter_is_allowed(rate_limit):
     now = compat.monotonic_ns()
 
     # Check the limit for 5 time frames
-    for i in nanoseconds(5):
+    for i in nanoseconds(5, time_window):
         # Keep the same timeframe
         check_limit(now + i)
 
 
-def test_rate_limiter_is_allowed_large_gap():
-    limiter = RateLimiter(rate_limit=100)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_is_allowed_large_gap(time_window):
+    limiter = RateLimiter(rate_limit=100, time_window=time_window)
 
     # Start time
     now_ns = compat.monotonic_ns()
@@ -79,25 +84,27 @@ def test_rate_limiter_is_allowed_large_gap():
 
     # Large gap before next call to `is_allowed()`
     for _ in range(100):
-        assert limiter.is_allowed(now_ns + (1e9 * 100)) is True
+        assert limiter.is_allowed(now_ns + (time_window * 100)) is True
 
 
-def test_rate_limiter_is_allowed_small_gaps():
-    limiter = RateLimiter(rate_limit=100)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_is_allowed_small_gaps(time_window):
+    limiter = RateLimiter(rate_limit=100, time_window=time_window)
 
     # Start time
     now_ns = compat.monotonic_ns()
     gap = 1e9 / 100
     # Keep incrementing by a gap to keep us at our rate limit
-    for i in nanoseconds(10000):
+    for i in nanoseconds(10000, time_window):
         # Keep the same timeframe
         time_ns = now_ns + (gap * i)
 
         assert limiter.is_allowed(time_ns) is True
 
 
-def test_rate_liimter_effective_rate_rates():
-    limiter = RateLimiter(rate_limit=100)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_liimter_effective_rate_rates(time_window):
+    limiter = RateLimiter(rate_limit=100, time_window=time_window)
 
     # Static rate limit window
     starting_window_ns = compat.monotonic_ns()
@@ -113,7 +120,7 @@ def test_rate_liimter_effective_rate_rates():
         assert limiter.current_window_ns == starting_window_ns
 
     prev_rate = 0.5
-    window_ns = starting_window_ns + 1e9
+    window_ns = starting_window_ns + time_window
 
     for _ in range(100):
         assert limiter.is_allowed(window_ns) is True
@@ -127,8 +134,9 @@ def test_rate_liimter_effective_rate_rates():
         assert limiter.current_window_ns == window_ns
 
 
-def test_rate_limiter_effective_rate_starting_rate():
-    limiter = RateLimiter(rate_limit=1)
+@pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])
+def test_rate_limiter_effective_rate_starting_rate(time_window):
+    limiter = RateLimiter(rate_limit=1, time_window=time_window)
 
     now_ns = compat.monotonic_ns()
 
@@ -148,7 +156,7 @@ def test_rate_limiter_effective_rate_starting_rate():
     assert limiter.prev_window_rate is None
 
     # Gap of 0.9999 seconds, same window
-    time_ns = now_ns + (0.9999 * 1e9)
+    time_ns = now_ns + (0.9999 * time_window)
     assert limiter.is_allowed(time_ns) is False
     # DEV: We have rate_limit=1 set
     assert limiter.effective_rate == 0.5
@@ -156,31 +164,33 @@ def test_rate_limiter_effective_rate_starting_rate():
     assert limiter.prev_window_rate is None
 
     # Gap of 1.0 seconds, new window
-    time_ns = now_ns + 1e9
+    time_ns = now_ns + time_window
     assert limiter.is_allowed(time_ns) is True
     assert limiter.effective_rate == 0.75
-    assert limiter.current_window_ns == (now_ns + 1e9)
+    assert limiter.current_window_ns == (now_ns + time_window)
     assert limiter.prev_window_rate == 0.5
 
     # Gap of 1.9999 seconds, same window
-    time_ns = now_ns + (1.9999 * 1e9)
+    time_ns = now_ns + (1.9999 * time_window)
     assert limiter.is_allowed(time_ns) is False
     assert limiter.effective_rate == 0.5
-    assert limiter.current_window_ns == (now_ns + 1e9)  # Same as old window
+    assert limiter.current_window_ns == (now_ns + time_window)  # Same as old window
     assert limiter.prev_window_rate == 0.5
 
     # Large gap of 100 seconds, new window
-    time_ns = now_ns + (100.0 * 1e9)
+    time_ns = now_ns + (100.0 * time_window)
     assert limiter.is_allowed(time_ns) is True
     assert limiter.effective_rate == 0.75
-    assert limiter.current_window_ns == (now_ns + (100.0 * 1e9))
+    assert limiter.current_window_ns == (now_ns + (100.0 * time_window))
     assert limiter.prev_window_rate == 0.5
 
 
 def test_rate_limiter_3():
     limiter = RateLimiter(rate_limit=2)
+
+    now_ns = compat.monotonic_ns()
     for i in range(3):
-        decision = limiter.is_allowed(compat.monotonic_ns())
+        decision = limiter.is_allowed(now_ns)
         # the first two should be allowed, the third should not
         if i < 2:
             assert decision is True

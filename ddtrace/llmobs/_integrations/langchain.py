@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -30,6 +31,9 @@ MODEL = "langchain.request.model"
 PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
+
+BEDROCK_PROVIDER_NAME = "amazon_bedrock"
+OPENAI_PROVIDER_NAME = "openai"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -55,13 +59,23 @@ class LangChainIntegration(BaseLLMIntegration):
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
+        is_workflow = False
+
+        if model_provider:
+            llmobs_integration = "custom"
+            if model_provider.startswith(BEDROCK_PROVIDER_NAME):
+                llmobs_integration = "bedrock"
+            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+                llmobs_integration = "openai"
+
+            is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
+
         if operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_llm(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error)
+            self._llmobs_set_meta_tags_from_chat_model(span, inputs, response, error, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, inputs, response, error)
-
         span.set_tag_str(METRICS, json.dumps({}))
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
@@ -86,20 +100,24 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(METADATA, json.dumps(metadata))
 
     def _llmobs_set_meta_tags_from_llm(
-        self, span: Span, prompts: List[Any], completions: Any, err: bool = False
+        self, span: Span, prompts: List[Any], completions: Any, err: bool = False, is_workflow: bool = False
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
 
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
+        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
+
         if isinstance(prompts, str):
             prompts = [prompts]
-        span.set_tag_str(INPUT_MESSAGES, json.dumps([{"content": str(prompt)} for prompt in prompts]))
+
+        span.set_tag_str(input_tag_key, json.dumps([{"content": str(prompt)} for prompt in prompts]))
 
         message_content = [{"content": ""}]
         if not err:
             message_content = [{"content": completion[0].text} for completion in completions.generations]
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(message_content))
+        span.set_tag_str(output_tag_key, json.dumps(message_content))
 
     def _llmobs_set_meta_tags_from_chat_model(
         self,
@@ -107,10 +125,14 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_messages: List[List[Any]],
         chat_completions: Any,
         err: bool = False,
+        is_workflow: bool = False,
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
+        span.set_tag_str(SPAN_KIND, "workflow" if is_workflow else "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag(MODEL) or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag(PROVIDER) or "")
+
+        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
+        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
 
         input_messages = []
         for message_set in chat_messages:
@@ -122,7 +144,7 @@ class LangChainIntegration(BaseLLMIntegration):
                         "role": getattr(message, "role", ROLE_MAPPING.get(message.type, "")),
                     }
                 )
-        span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
+        span.set_tag_str(input_tag_key, json.dumps(input_messages))
 
         output_messages = [{"content": ""}]
         if not err:
@@ -137,7 +159,7 @@ class LangChainIntegration(BaseLLMIntegration):
                             "role": role,
                         }
                     )
-        span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
+        span.set_tag_str(output_tag_key, json.dumps(output_messages))
 
     def _llmobs_set_meta_tags_from_chain(
         self,
@@ -149,23 +171,25 @@ class LangChainIntegration(BaseLLMIntegration):
         span.set_tag_str(SPAN_KIND, "workflow")
 
         if inputs is not None:
-            if isinstance(inputs, str):
-                span.set_tag_str(INPUT_VALUE, inputs)
-            else:
-                try:
-                    span.set_tag_str(INPUT_VALUE, json.dumps(inputs))
-                except TypeError:
-                    log.warning("Failed to serialize chain input data to JSON: %s", inputs)
+            try:
+                formatted_inputs = self.format_io(inputs)
+                if isinstance(formatted_inputs, str):
+                    span.set_tag_str(INPUT_VALUE, formatted_inputs)
+                else:
+                    span.set_tag_str(INPUT_VALUE, json.dumps(self.format_io(inputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain input data to JSON")
         if error:
             span.set_tag_str(OUTPUT_VALUE, "")
         elif outputs is not None:
-            if isinstance(outputs, str):
-                span.set_tag_str(OUTPUT_VALUE, str(outputs))
-            else:
-                try:
-                    span.set_tag_str(OUTPUT_VALUE, json.dumps(outputs))
-                except TypeError:
-                    log.warning("Failed to serialize chain output data to JSON: %s", outputs)
+            try:
+                formatted_outputs = self.format_io(outputs)
+                if isinstance(formatted_outputs, str):
+                    span.set_tag_str(OUTPUT_VALUE, formatted_outputs)
+                else:
+                    span.set_tag_str(OUTPUT_VALUE, json.dumps(self.format_io(outputs)))
+            except TypeError:
+                log.warning("Failed to serialize chain output data to JSON")
 
     def _set_base_span_tags(  # type: ignore[override]
         self,
@@ -234,3 +258,33 @@ class LangChainIntegration(BaseLLMIntegration):
         total_cost = span.get_metric(TOTAL_COST)
         if total_cost:
             self.metric(span, "incr", "tokens.total_cost", total_cost)
+
+    def format_io(
+        self,
+        messages,
+    ):
+        """
+        Formats input and output messages for serialization to JSON.
+        Specifically, makes sure that any schema messages are converted to strings appropriately.
+        """
+        if isinstance(messages, dict):
+            formatted = {}
+            for key, value in messages.items():
+                formatted[key] = self.format_io(value)
+            return formatted
+        if isinstance(messages, list):
+            return [self.format_io(message) for message in messages]
+        return self.get_content_from_message(messages)
+
+    def get_content_from_message(self, message) -> str:
+        """
+        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+        """
+        if isinstance(message, str):
+            return message
+        try:
+            content = getattr(message, "__dict__", {}).get("content", str(message))
+            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
+            return (role, content) if role else content
+        except AttributeError:
+            return str(message)

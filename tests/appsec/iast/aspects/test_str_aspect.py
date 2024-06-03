@@ -527,13 +527,13 @@ class TestOperatorsReplacement(BaseReplacement):
         ljusted = mod.do_ljust(string_input, 4)  # pylint: disable=no-member
         assert as_formatted_evidence(ljusted) == ":+-foo-+: "
 
-    def test_aspect_ljust_error_and_no_log_metric(self, telemetry_writer):
+    def test_aspect_ljust_error_with_tainted_gives_one_log_metric(self, telemetry_writer):
         string_input = create_taint_range_with_format(":+-foo-+:")
         with pytest.raises(TypeError):
             mod.do_ljust(string_input, "aaaaa")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 0
+        assert len(list_metrics_logs) == 1
 
     def test_zfill(self):
         # Not tainted
@@ -572,4 +572,4 @@ class TestOperatorsReplacement(BaseReplacement):
         result = mod.do_format_fill(string_input)  # pylint: disable=no-member
         # TODO format with params doesn't work correctly the assert should be
         #  assert as_formatted_evidence(result) == ":+-foo       -+:"
-        assert as_formatted_evidence(result) == "foo       "
+        assert as_formatted_evidence(result) == ":+-foo-+:"

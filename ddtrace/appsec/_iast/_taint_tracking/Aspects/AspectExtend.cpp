@@ -1,5 +1,7 @@
 #include "AspectExtend.h"
 
+#include "Helpers.h"
+
 /**
  * @brief Taint candidate_text when bytearray extends is called.
  *
@@ -9,7 +11,7 @@
  * @return PyObject*: return None (Remember, Pyobject None isn't the same as nullptr)
  */
 PyObject*
-api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
     if (nargs != 2 or !args) {
         throw py::value_error(MSG_ERROR_N_PARAMS);
@@ -17,12 +19,14 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 
     PyObject* candidate_text = args[0];
     if (!PyByteArray_Check(candidate_text)) {
+        py::set_error(PyExc_TypeError, "The candidate text must be a bytearray.");
         return nullptr;
     }
     auto len_candidate_text = PyByteArray_Size(candidate_text);
     PyObject* to_add = args[1];
 
     if (!PyByteArray_Check(to_add) and !PyBytes_Check(to_add)) {
+        py::set_error(PyExc_TypeError, "The text to add must be a bytearray or bytes.");
         return nullptr;
     }
 
@@ -30,6 +34,10 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        if (has_pyerr()) {
+            Py_DecRef(method_name);
+            return nullptr;
+        }
         Py_DecRef(method_name);
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
@@ -39,6 +47,10 @@ api_extend_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         // Ensure no returns are done before this method call
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
+        if (has_pyerr()) {
+            Py_DecRef(method_name);
+            return nullptr;
+        }
         Py_DecRef(method_name);
 
         if (to_result == nullptr) {

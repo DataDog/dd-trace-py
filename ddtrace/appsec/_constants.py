@@ -42,6 +42,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV = "DD_APPSEC_ENABLED"
+    STANDALONE_ENV = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
     ENABLED = "_dd.appsec.enabled"
     JSON = "_dd.appsec.json"
     STRUCT = "appsec"
@@ -53,6 +54,9 @@ class APPSEC(metaclass=Constant_Class):
     WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
     WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
     WAF_VERSION = "_dd.appsec.waf.version"
+    RASP_DURATION = "_dd.appsec.rasp.duration"
+    RASP_DURATION_EXT = "_dd.appsec.rasp.duration_ext"
+    RASP_RULE_EVAL = "_dd.appsec.rasp.rule.eval"
     ORIGIN_VALUE = "appsec"
     CUSTOM_EVENT_PREFIX = "appsec.events"
     USER_LOGIN_EVENT_PREFIX = "_dd.appsec.events.users.login"
@@ -68,6 +72,7 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD = "DD_USER_MODEL_NAME_FIELD"
+    PROPAGATION_HEADER = "_dd.p.appsec"
 
 
 class IAST(metaclass=Constant_Class):
@@ -131,6 +136,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     PROCESSOR_SETTINGS = "waf.context.processor"
     LFI_ADDRESS = "server.io.fs.file"
     SSRF_ADDRESS = "server.io.net.url"
+    SQLI_ADDRESS = "server.db.statement"
+    SQLI_SYSTEM_ADDRESS = "server.db.system"
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -257,3 +264,5 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     class ADDRESS(metaclass=Constant_Class):
         LFI = "LFI_ADDRESS"
         SSRF = "SSRF_ADDRESS"
+        SQLI = "SQLI_ADDRESS"
+        SQLI_TYPE = "SQLI_SYSTEM_ADDRESS"

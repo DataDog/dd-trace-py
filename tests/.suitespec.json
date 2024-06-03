@@ -38,6 +38,8 @@
             "ddtrace/internal/_rand.pyi",
             "ddtrace/internal/_rand.pyx",
             "ddtrace/internal/_stdint.h",
+            "ddtrace/internal/_threads.*",
+            "ddtrace/internal/_unpatched.py",
             "ddtrace/internal/agent.py",
             "ddtrace/internal/assembly.py",
             "ddtrace/internal/atexit.py",
@@ -69,7 +71,8 @@
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
-            "ddtrace/settings/config.py"
+            "ddtrace/settings/config.py",
+            "src/core/*"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -101,7 +104,7 @@
             "ddtrace/internal/_utils.*",
             "ddtrace/internal/constants.py",
             "ddtrace/internal/encoding.py",
-            "ddtrace/internal/flare.py",
+            "ddtrace/internal/flare/*",
             "ddtrace/internal/pack.h",
             "ddtrace/internal/pack_template.h",
             "ddtrace/internal/peer_service/*",
@@ -174,6 +177,9 @@
         ],
         "coverage": [
             "ddtrace/contrib/coverage/*"
+        ],
+        "dd_coverage": [
+            "ddtrace/internal/coverage/*"
         ],
         "llmobs": [
             "ddtrace/llmobs/*"
@@ -261,6 +267,12 @@
         ],
         "urllib3": [
             "ddtrace/contrib/urllib3/*"
+        ],
+        "webbrowser": [
+            "ddtrace/contrib/webbrowser/*"
+        ],
+        "urllib": [
+            "ddtrace/contrib/urllib/*"
         ],
         "rq": [
             "ddtrace/contrib/rq/*"
@@ -462,6 +474,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
+            "@llmobs",
             "@serverless",
             "@remoteconfig",
             "tests/tracer/*",
@@ -611,6 +624,7 @@
             "@ci_visibility",
             "@ci",
             "@coverage",
+            "@dd_coverage",
             "@git",
             "@pytest",
             "@codeowners",
@@ -1286,6 +1300,22 @@
             "@urllib3",
             "tests/contrib/urllib3/*",
             "tests/snapshots/tests.contrib.urllib3.*"
+        ],
+        "webbrowser": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@webbrowser",
+            "tests/appsec/iast/taint_sinks/test_ssrf.py"
+        ],
+        "urllib": [
+            "@bootstrap",
+            "@core",
+            "@contrib",
+            "@tracing",
+            "@urllib",
+            "tests/appsec/iast/taint_sinks/test_ssrf.py"
         ],
         "vertica": [
             "@bootstrap",

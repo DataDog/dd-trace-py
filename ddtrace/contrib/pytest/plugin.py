@@ -11,15 +11,41 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+import os
+from pathlib import Path
 from typing import Dict  # noqa:F401
 
 import pytest
+
+from ddtrace.contrib.pytest.utils import _pytest_version_supports_itr
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
+
+
+def _is_enabled_early(early_config):
+    """Checks if the ddtrace plugin is enabled before the config is fully populated.
+
+    This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
+
+    Note: since coverage is used for ITR purposes, we only check if the plugin is enabled if the pytest version supports
+    ITR
+    """
+    if not _pytest_version_supports_itr():
+        return False
+
+    if (
+        "--no-ddtrace" in early_config.invocation_params.args
+        or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
+    ):
+        return False
+
+    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
 
 
 def is_enabled(config):
@@ -67,6 +93,36 @@ def pytest_addoption(parser):
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    if _is_enabled_early(early_config):
+        # Enables experimental use of ModuleCodeCollector for coverage collection.
+        from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
+        from ddtrace.internal.logger import get_logger
+        from ddtrace.internal.utils.formats import asbool
+
+        log = get_logger(__name__)
+
+        COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
+
+        if USE_DD_COVERAGE:
+            from ddtrace.ext.git import extract_workspace_path
+            from ddtrace.internal.coverage.code import ModuleCodeCollector
+
+            workspace_path = Path(extract_workspace_path())
+
+            log.debug("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+
+            if not ModuleCodeCollector.is_installed():
+                ModuleCodeCollector.install(include_paths=[workspace_path])
+            if COVER_SESSION:
+                ModuleCodeCollector.start_coverage()
+        else:
+            if COVER_SESSION:
+                log.warning(
+                    "_DD_COVER_SESSION must be used with _DD_USE_INTERNAL_COVERAGE but not DD_CIVISIBILITY_ITR_ENABLED"
+                )
 
 
 def pytest_configure(config):

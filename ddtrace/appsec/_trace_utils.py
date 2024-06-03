@@ -27,6 +27,9 @@ def _asm_manual_keep(span: Span) -> None:
     # set decision maker to ASM = -5
     span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
 
+    # set Security propagation tag
+    span.set_tag_str(APPSEC.PROPAGATION_HEADER, "1")
+
 
 def _track_user_login_common(
     tracer: Tracer,
@@ -130,6 +133,9 @@ def track_user_login_failure_event(
     exists: Optional[bool] = None,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> None:
     """
     Add a new login failure tracking event.
@@ -149,13 +155,17 @@ def track_user_login_failure_event(
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
         return
-
     if user_id:
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
-
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
+    if login:
+        span.set_tag_str("%s.failure.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
+    if email:
+        span.set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
+    if name:
+        span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
 
 
 def track_user_signup_event(

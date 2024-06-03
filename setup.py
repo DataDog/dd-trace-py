@@ -9,6 +9,8 @@ import sysconfig
 import tarfile
 
 import cmake
+from setuptools_rust import Binding
+from setuptools_rust import RustExtension
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -52,7 +54,7 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.17.0"
+LIBDDWAF_VERSION = "1.18.0"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -423,6 +425,18 @@ if not IS_PYSTON:
             ],
             extra_compile_args=debug_compile_args,
         ),
+        Extension(
+            "ddtrace.internal._threads",
+            sources=["ddtrace/internal/_threads.cpp"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+        ),
+        Extension(
+            "ddtrace.internal.coverage._native",
+            sources=[
+                "ddtrace/internal/coverage/_native.c",
+            ],
+            extra_compile_args=debug_compile_args,
+        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
@@ -468,7 +482,7 @@ else:
 
 setup(
     name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
@@ -484,7 +498,7 @@ setup(
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -549,4 +563,13 @@ setup(
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.core._core",
+            path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )

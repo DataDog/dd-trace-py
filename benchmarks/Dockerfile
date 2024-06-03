@@ -20,6 +20,7 @@ COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
 ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:/root/.cargo/bin/:$PATH"
 RUN pyenv global "$PYTHON_VERSION"
+RUN pip install -U pip
 
 ARG SCENARIO=base
 
@@ -59,6 +60,7 @@ COPY ./bm/ /app/bm/
 COPY ./${SCENARIO}/ /app/
 
 ENV SCENARIO=${SCENARIO}
+ENV PROFILE_BENCHMARKS=0
 
 ENTRYPOINT ["/app/entrypoint"]
 CMD ["/app/benchmark"]

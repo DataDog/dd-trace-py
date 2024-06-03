@@ -706,6 +706,16 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert isinstance(writer._encoder, encoder_cls)
 
 
+def test_writer_recreate_keeps_headers():
+    writer = AgentWriter("http://dne:1234", headers={"Datadog-Client-Computed-Stats": "yes"})
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+    writer = writer.recreate()
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, priority_sampling, raises_error, expected",
     [
