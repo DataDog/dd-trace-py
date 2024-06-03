@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from typing import Any
+from typing import Optional
 
 import anthropic
 
@@ -15,7 +16,6 @@ from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.pin import Pin
 
 from .utils import _get_attr
-from .utils import record_usage
 
 
 log = get_logger(__name__)
@@ -35,7 +35,7 @@ config._add(
 )
 
 
-def _extract_api_key(instance: Any) -> str:
+def _extract_api_key(instance: Any) -> Optional[str]:
     """
     Extract and format LLM-provider API key from instance.
     """
@@ -65,39 +65,38 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_completions = None
     try:
         for message_idx, message in enumerate(chat_messages):
-            if isinstance(message, dict):
-                if isinstance(message.get("content", None), str):
-                    if integration.is_pc_sampled_span(span) and message.get("content", "") != "":
-                        span.set_tag_str(
-                            "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                            integration.trunc(message.get("content", "")),
-                        )
+            if isinstance(message.get("content", None), str):
+                if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.type" % (message_idx),
-                        "text",
+                        "anthropic.request.messages.%d.content.0.text" % (message_idx),
+                        integration.trunc(message.get("content", "")),
                     )
-                elif isinstance(message.get("content", None), list):
-                    for block_idx, block in enumerate(message.get("content", [])):
-                        if integration.is_pc_sampled_span(span):
-                            if block.get("type", None) == "text" and block.get("text", "") != "":
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                    integration.trunc(str(block.get("text", ""))),
-                                )
-                            elif block.get("type", None) == "image":
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                    "([IMAGE DETECTED])",
-                                )
-
-                        span.set_tag_str(
-                            "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                            block.get("type", "text"),
-                        )
                 span.set_tag_str(
-                    "anthropic.request.messages.%d.role" % (message_idx),
-                    message.get("role", ""),
+                    "anthropic.request.messages.%d.content.0.type" % (message_idx),
+                    "text",
                 )
+            elif isinstance(message.get("content", None), list):
+                for block_idx, block in enumerate(message.get("content", [])):
+                    if integration.is_pc_sampled_span(span):
+                        if block.get("type", None) == "text":
+                            span.set_tag_str(
+                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                integration.trunc(str(block.get("text", ""))),
+                            )
+                        elif block.get("type", None) == "image":
+                            span.set_tag_str(
+                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                "([IMAGE DETECTED])",
+                            )
+
+                    span.set_tag_str(
+                        "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
+                        block.get("type", "text"),
+                    )
+            span.set_tag_str(
+                "anthropic.request.messages.%d.role" % (message_idx),
+                message.get("role", ""),
+            )
         params_to_tag = {k: v for k, v in kwargs.items() if k != "messages"}
         span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
 
@@ -131,7 +130,7 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
     span.set_tag_str("anthropic.response.completions.role", chat_completions.role)
 
     usage = _get_attr(chat_completions, "usage", {})
-    record_usage(span, usage)
+    integration.record_usage(span, usage)
 
 
 def patch():
