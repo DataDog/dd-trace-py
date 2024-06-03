@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 
@@ -58,8 +59,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             return
 
         parameters = {
-            "temperature": float(span.get_tag("anthropic.request.parameters.temperature") or 1.0),
-            "max_tokens": int(span.get_tag("anthropic.request.parameters.max_tokens") or 0),
+            "temperature": float(kwargs.get("temperature", 1.0)),
+            "max_tokens": float(kwargs.get("max_tokens", 0)),
         }
         messages = get_argument_value(args, kwargs, 0, "messages")
         input_messages = self._extract_input_message(messages)
@@ -68,6 +69,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag("anthropic.request.model") or "")
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
         span.set_tag_str(METADATA, json.dumps(parameters))
+        span.set_tag_str(MODEL_PROVIDER, "anthropic")
         if err or resp is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:

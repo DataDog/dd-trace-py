@@ -19,12 +19,12 @@ def _get_attr(o: Any, attr: str, default: Any):
 def record_usage(span: Span, usage: Dict[str, Any]) -> None:
     if not usage:
         return
-    for token_type in ("input", "output"):
-        num_tokens = _get_attr(usage, "%s_tokens" % token_type, None)
-        if num_tokens is None:
-            continue
-        span.set_metric("anthropic.response.usage.%s_tokens" % token_type, num_tokens)
 
-    if "input" in usage and "output" in usage:
-        total_tokens = usage["output"] + usage["input"]
-        span.set_metric("anthropic.response.usage.total_tokens", total_tokens)
+    input_tokens = _get_attr(usage, "input_tokens", None)
+    output_tokens = _get_attr(usage, "output_tokens", None)
+
+    span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
+    span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
+
+    if input_tokens is not None and output_tokens is not None:
+        span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
