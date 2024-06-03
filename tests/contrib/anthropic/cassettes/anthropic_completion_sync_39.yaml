@@ -1,0 +1,95 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": "What does
+      Nietzsche mean by ''God is dead''?"}], "model": "claude-3-opus-20240229"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '144'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4RVzY4bNwx+FUKXtsBkkfWmReJbD+2mQNAekiBo62JBjzgeYjXkVKTsToK8Sd6m
+        L1ZI9m686aI9GdBQ1PfDj/4QOIZ1mGx38/Ty27e/rn4cvnvxdvltpJfXr6bl1ffvY+iCLzPVKjLD
+        HYUuZE31AM3YHMVDFyaNlMI69AlLpCdXT3Qu9mT1dPXs6Wr1InShV3ESD+vfP9w1dPqrXm0/6/Bu
+        JIGfmfy99SPBgJMWSwtE6hNmirAJ1xqBDSJh3ARggZENtqq3sAlvRoJrXOB1zyQ9bQJ8ffn8+eqb
+        DkaCAxqIOiR2ypjSAlZ2OzJn2YGP6IAQec9CsKV6NmKEyBQv4CcxJ4z3bSa8rQUI88hJTeeRe0yA
+        EqEvyUvGBLo1ynt0VgHcanHwkRqR+oIO4Bkj18+YIFPiHWsx2FJiGlqrWt+rGP1ZKhtrlypbG3nw
+        Sv0dmVMWMO2ZfLnYyEZeUibATGA6EdzSArOyuIErFImUq1vxBOle6q8MzNFpIvF1bXN5AW8e4v2M
+        EYuPmtmX9ZlXmHeF4lHIivwHSbwbnaS27MCqJc4D94Bxj9K3p6y7Z5rZ2jNGfUmYYSwTCtvUbKCs
+        kY51gxaJTVb7PxWbHqsjkaTW6nFrmooTTFpd2mMqZGt4xz5+adDJCha41tidUe0T8nTO9c6Hg+YU
+        G+Ck5sBusEVjg0Hz4y93kAhjm0AFBCM5qiA8cqrsqzyRbEbOjc7VkY4QxdY1U23U9Dh3o2Hfn2Pc
+        hEjoY21+rTU6cyYjcYqAAjrPmr0I+9LaHtX3pcLqM6HXJw8n0A3URCgsO+sqRYqgAiw1P7F8GQUc
+        Bs7TMQo6QOKBIKOPlCs8OfMtau+ZhRrVZ0eqd4NRSfz9aUt5IrF+XD8Y3l6lp9nv6jbhrHITQDNs
+        wusyU55QNgEyndhbK+dINbFDTTRlU4HDqEDTNmPNXQXcnWRoFziDHuTewkq2orSaqj21lokn9sfH
+        tPlftWUBPM3MgX2sgbzW2Lj/sm87qntAcs7aJ/ws5KO2sgHCRI7zqLl5WcvmrC04/94dR5eokbhf
+        Zwug/feCOuUktnt1NA64NKafd8xxr9KJYZuIKmE9Pg0P0ER5R/EifPyjC+Y632RCUwnrQBJvvGQJ
+        pw93azCspaTUhdL+h9YfAstc/Mb1lsTCerXqghY/P7q6uvz48R8AAAD//wMAxlhmZuYGAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88e11b85181a0cc4-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 03 Jun 2024 16:37:42 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '4'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-03T16:37:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '10000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-03T16:37:57Z'
+      request-id:
+      - req_01End84WeJzYrMjenfX3msVw
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 884af431d7fdfbe4b21bde7aeefd24d6
+    status:
+      code: 200
+      message: OK
+version: 1

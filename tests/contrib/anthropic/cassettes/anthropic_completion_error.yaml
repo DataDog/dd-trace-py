@@ -1,0 +1,67 @@
+interactions:
+- request:
+    body: '{"max_tokens": 1024, "messages": ["Invalid content"], "model": "claude-3-opus-20240229"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '88'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.26.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"invalid_request_error","message":"messages.0:
+        Input does not match the expected shape."}}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88c85bd75e437274-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '122'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 31 May 2024 16:32:14 GMT
+      Server:
+      - cloudflare
+      request-id:
+      - req_01N7iW6qh7wHr9je4z3FDn2n
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - cf561ed8cbadcfc1748718321572db36
+      x-should-retry:
+      - 'false'
+    status:
+      code: 400
+      message: Bad Request
+version: 1
