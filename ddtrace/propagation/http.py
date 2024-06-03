@@ -18,6 +18,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal  # noqa:F401
 
+
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
@@ -312,9 +313,6 @@ class _DatadogMultiHeader:
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
-
-            # if asm_config._appsec_standalone_enabled and APPSEC.PROPAGATION_HEADER in meta.keys():
-            #     sampling_priority = USER_KEEP  # type: ignore[assignment]
 
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
