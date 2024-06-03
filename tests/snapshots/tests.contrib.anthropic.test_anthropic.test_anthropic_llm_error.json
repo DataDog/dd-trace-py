@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "665e221e00000000",
-      "anthropic.request.api_key": "...key>",
+      "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.model": "claude-3-opus-20240229",
       "anthropic.request.parameters": "{\"model\": \"claude-3-opus-20240229\", \"max_tokens\": 15}",
       "error.message": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}",

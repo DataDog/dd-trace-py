@@ -13,11 +13,11 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
     """
     llm = anthropic.AsyncAnthropic()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        cassette_name = "anthropic_completion_async_global_tags.yaml"
+        cassette_name = "anthropic_completion_async.yaml"
         with request_vcr.use_cassette(cassette_name):
             await llm.messages.create(
                 model="claude-3-opus-20240229",
-                max_tokens=1024,
+                max_tokens=15,
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
@@ -27,7 +27,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
-    assert span.get_tag("anthropic.request.api_key") == "...key>"
+    assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
 @pytest.mark.asyncio
@@ -138,5 +138,5 @@ async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_conte
                 ],
                 stream=True,
             )
-            async for chunk in stream:
-                print(chunk.type)
+            async for _ in stream:
+                pass

@@ -12,9 +12,8 @@ All traces submitted from the Anthropic integration are tagged by:
 (beta) Prompt and Completion Sampling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following data is collected in span tags with a default sampling rate of ``1.0``:
-
-- Prompt inputs and completions for the ``Messages.create`` endpoint.
+Prompt texts and completion content for the ``Messages.create`` endpoint are collected in span tags with a default sampling rate of ``1.0``.
+These tags will have truncation applied if the text exceeds the configured character limit.
 
 
 Enabling

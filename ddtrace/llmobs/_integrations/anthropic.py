@@ -31,7 +31,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_tag_str(MODEL, model)
         if api_key is not None:
             if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, f"...{str(api_key[-4:])}")
+                span.set_tag_str(API_KEY, f"sk-...{str(api_key[-4:])}")
             else:
                 span.set_tag_str(API_KEY, api_key)
 

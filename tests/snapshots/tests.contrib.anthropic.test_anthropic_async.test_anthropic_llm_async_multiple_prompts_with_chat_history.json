@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "665e2be900000000",
-      "anthropic.request.api_key": "...key>",
+      "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "Hello, Start all responses with your name Claude.",
       "anthropic.request.messages.0.content.0.type": "text",
       "anthropic.request.messages.0.content.1.text": "End all responses with [COPY, CLAUDE OVER AND OUT!]",

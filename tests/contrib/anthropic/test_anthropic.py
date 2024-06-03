@@ -12,11 +12,11 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
     """
     llm = anthropic.Anthropic()
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        cassette_name = "anthropic_completion_sync_global_tags.yaml"
+        cassette_name = "anthropic_completion_sync.yaml"
         with request_vcr.use_cassette(cassette_name):
             llm.messages.create(
                 model="claude-3-opus-20240229",
-                max_tokens=1024,
+                max_tokens=15,
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
@@ -26,7 +26,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
-    assert span.get_tag("anthropic.request.api_key") == "...key>"
+    assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
 # @pytest.mark.snapshot(ignores=["metrics.anthropic.tokens.total_cost", "resource"])
@@ -129,5 +129,5 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
             ],
             stream=True,
         )
-        for chunk in stream:
-            print(chunk.type)
+        for _ in stream:
+            pass
