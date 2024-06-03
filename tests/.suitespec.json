@@ -71,7 +71,8 @@
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
-            "ddtrace/settings/config.py"
+            "ddtrace/settings/config.py",
+            "src/core/*"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
