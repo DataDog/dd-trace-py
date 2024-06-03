@@ -474,6 +474,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
+            "@llmobs",
             "@serverless",
             "@remoteconfig",
             "tests/tracer/*",
