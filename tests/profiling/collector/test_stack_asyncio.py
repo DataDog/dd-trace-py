@@ -3,6 +3,10 @@ import collections
 import sys
 import time
 
+import pytest
+
+from ddtrace.contrib.asyncio import patch
+from ddtrace.contrib.asyncio import unpatch
 from ddtrace.profiling import _asyncio
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack_event
@@ -26,7 +30,16 @@ def patch_stack_collector(stack_collector):
     stack_collector.collect = _collect.__get__(stack_collector)
 
 
-def test_asyncio(tmp_path, monkeypatch) -> None:
+@pytest.fixture
+def patch_asyncio():
+    try:
+        patch()
+        yield
+    finally:
+        unpatch()
+
+
+def test_asyncio(patch_asyncio, tmp_path, monkeypatch) -> None:
     sleep_time = 0.2
     max_wait_for_collector_seconds = 60  # 1 minute timeout
 
