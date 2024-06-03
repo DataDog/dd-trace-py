@@ -6,17 +6,17 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "llm",
+    "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6615aa1200000000",
-      "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+      "_dd.p.tid": "66566a3300000000",
+      "langchain.request.inputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
       "langchain.request.type": "chain",
       "langchain.response.outputs.final_output": "\\nI've convinced my mind, no physical world's there, no sky, no earth, no minds, no bodies there. Does this mean I don't exist, ...",
-      "langchain.response.outputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+      "langchain.response.outputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
       "language": "python",
-      "runtime-id": "5bdc2648fed64ec2a49138caab5a0bf0"
+      "runtime-id": "103801afb5f54bf4b14c4af40585cea5"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 304,
       "langchain.tokens.total_cost": 0.01004,
       "langchain.tokens.total_tokens": 502,
-      "process_id": 45546
+      "process_id": 69928
     },
-    "duration": 2437000,
-    "start": 1712695826646228000
+    "duration": 39665000,
+    "start": 1716939315688098000
   },
      {
        "name": "langchain.request",
@@ -39,10 +39,10 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+         "langchain.request.inputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
          "langchain.request.prompt": "Paraphrase this text:\\n\\n        {input_text}\\n\\n        Paraphrase: ",
          "langchain.request.type": "chain",
          "langchain.response.outputs.paraphrased_output": "\\nI have convinced myself that there is no physical world - no sky, earth, minds, or bodies. Does this mean that I don't exist e..."
@@ -54,8 +54,8 @@
          "langchain.tokens.total_cost": 0.00578,
          "langchain.tokens.total_tokens": 289
        },
-       "duration": 1268000,
-       "start": 1712695826646374000
+       "duration": 37649000,
+       "start": 1716939315688241000
      },
         {
           "name": "langchain.request",
@@ -64,7 +64,7 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "llm",
+          "type": "",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
@@ -77,7 +77,7 @@
             "langchain.request.openai.parameters.request_timeout": "None",
             "langchain.request.openai.parameters.temperature": "0.7",
             "langchain.request.openai.parameters.top_p": "1",
-            "langchain.request.prompts.0": "Paraphrase this text:\\n\\n        \\n            I have convinced myself that there is absolutely nothing in the world, no sky, no...",
+            "langchain.request.prompts.0": "Paraphrase this text:\\n\\n        \\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no m...",
             "langchain.request.provider": "openai",
             "langchain.request.type": "llm",
             "langchain.response.completions.0.finish_reason": "stop",
@@ -91,8 +91,8 @@
             "langchain.tokens.total_cost": 0.00578,
             "langchain.tokens.total_tokens": 289
           },
-          "duration": 1048000,
-          "start": 1712695826646530000
+          "duration": 37325000,
+          "start": 1716939315688408000
         },
      {
        "name": "langchain.request",
@@ -101,10 +101,10 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "llm",
+       "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.inputs.input_text": "\\n            I have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\n           ...",
+         "langchain.request.inputs.input_text": "\\nI have convinced myself that there is absolutely nothing in the world, no sky, no earth, no minds, no\\nbodies. Does it now fol...",
          "langchain.request.inputs.paraphrased_output": "\\nI have convinced myself that there is no physical world - no sky, earth, minds, or bodies. Does this mean that I don't exist e...",
          "langchain.request.prompt": "Make this text rhyme:\\n\\n        {paraphrased_output}\\n\\n        Rhyme: ",
          "langchain.request.type": "chain",
@@ -117,8 +117,8 @@
          "langchain.tokens.total_cost": 0.00426,
          "langchain.tokens.total_tokens": 213
        },
-       "duration": 952000,
-       "start": 1712695826647681000
+       "duration": 1727000,
+       "start": 1716939315725990000
      },
         {
           "name": "langchain.request",
@@ -127,7 +127,7 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 3,
-          "type": "llm",
+          "type": "",
           "error": 0,
           "meta": {
             "langchain.request.api_key": "...key>",
@@ -154,6 +154,6 @@
             "langchain.tokens.total_cost": 0.00426,
             "langchain.tokens.total_tokens": 213
           },
-          "duration": 734000,
-          "start": 1712695826647863000
+          "duration": 1248000,
+          "start": 1716939315726416000
         }]]

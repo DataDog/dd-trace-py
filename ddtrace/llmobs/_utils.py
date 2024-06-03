@@ -85,5 +85,4 @@ def _inject_llmobs_parent_id(span_context):
         llmobs_parent_id = str(span.span_id)
     else:
         llmobs_parent_id = _get_llmobs_parent_id(span)
-    if llmobs_parent_id:
-        span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id
+    span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id or "undefined"
