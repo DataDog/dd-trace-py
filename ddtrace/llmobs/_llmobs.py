@@ -133,9 +133,12 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
-        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config.env = env or config.env
         config.service = service or config.service
+        if os.getenv("DD_LLMOBS_APP_NAME"):
+            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
+            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
         if not config._dd_api_key:
@@ -698,7 +701,7 @@ class LLMObs(Service):
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
-            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+            "ml_app": config._llmobs_ml_app or "unknown",
         }
 
         if tags:
