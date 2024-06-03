@@ -1,18 +1,15 @@
-import importlib
 import json
 import os
 import shutil
 import subprocess
 import sys
-from itertools import product
 
-import astunparse
 import pytest
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
-from tests.appsec.iast.aspects.conftest import _iast_patched_module_and_patched_source
 from tests.utils import override_env
+
 
 PYTHON_VERSION = sys.version_info[:2]
 
@@ -31,18 +28,18 @@ class PackageForTesting:
     test_e2e = True
 
     def __init__(
-            self,
-            name,
-            version,
-            expected_param,
-            expected_result1,
-            expected_result2,
-            extras=[],
-            test_import=True,
-            skip_python_version=[],
-            test_e2e=True,
-            import_name=None,
-            import_module_to_validate=None,
+        self,
+        name,
+        version,
+        expected_param,
+        expected_result1,
+        expected_result2,
+        extras=[],
+        test_import=True,
+        skip_python_version=[],
+        test_e2e=True,
+        import_name=None,
+        import_module_to_validate=None,
     ):
         self.name = name
         self.package_version = version
@@ -342,18 +339,25 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 @pytest.fixture(scope="module")
 def venv():
-    venv_dir = os.path.join(os.getcwd(), 'test_venv')
+    venv_dir = os.path.join(os.getcwd(), "test_venv")
 
     # Create virtual environment
-    subprocess.check_call([sys.executable, '-m', 'venv', venv_dir])
-    python_executable = os.path.join(venv_dir, 'bin', 'python')
-    pip_executable = os.path.join(venv_dir, 'bin', 'pip')
-    this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), '../../../')
+    subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+    python_executable = os.path.join(venv_dir, "bin", "python")
+    pip_executable = os.path.join(venv_dir, "bin", "pip")
+    this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
     # Install dependencies.
     deps_to_install = [
-        "flask", "attrs", "six", "cattrs", "pytest", "astunparse", "charset_normalizer", this_dd_trace_py_path
+        "flask",
+        "attrs",
+        "six",
+        "cattrs",
+        "pytest",
+        "astunparse",
+        "charset_normalizer",
+        this_dd_trace_py_path,
     ]
-    subprocess.check_call([pip_executable, "install",  *deps_to_install])
+    subprocess.check_call([pip_executable, "install", *deps_to_install])
 
     yield python_executable
 
@@ -393,8 +397,7 @@ def test_flask_packages_not_patched(package, venv):
 
     package.install(venv)
     with flask_server(
-            python_cmd=venv, iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false",
-            token=None
+        python_cmd=venv, iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None
     ) as context:
         _, client, pid = context
 
@@ -415,8 +418,9 @@ def test_flask_packages_patched(package, venv):
         return
 
     package.install(venv)
-    with flask_server(python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false",
-                      token=None) as context:
+    with flask_server(
+        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None
+    ) as context:
         _, client, pid = context
         response = client.get(package.url)
         _assert_results(response, package)

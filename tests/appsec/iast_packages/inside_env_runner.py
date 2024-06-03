@@ -2,6 +2,7 @@ import importlib
 import sys
 
 import astunparse
+
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
@@ -31,9 +32,9 @@ def try_patched(module_name):
         assert patched_source, "Patched source is None after patching"
         new_code = astunparse.unparse(patched_source)
         assert (
-                   "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
-                   "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
-               ) in new_code, "Patched imports not found"
+            "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
+            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
+        ) in new_code, "Patched imports not found"
 
         assert "ddtrace_aspects." in new_code, "Patched aspects not found"
     except Exception as e:
@@ -42,7 +43,7 @@ def try_patched(module_name):
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     mode = sys.argv[1]
     import_module = sys.argv[2]
 
