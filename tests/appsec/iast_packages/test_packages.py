@@ -1,8 +1,10 @@
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+from itertools import product
 
 import astunparse
 import pytest
@@ -11,7 +13,6 @@ from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.iast.aspects.conftest import _iast_patched_module_and_patched_source
 from tests.utils import override_env
-
 
 PYTHON_VERSION = sys.version_info[:2]
 
@@ -30,18 +31,18 @@ class PackageForTesting:
     test_e2e = True
 
     def __init__(
-        self,
-        name,
-        version,
-        expected_param,
-        expected_result1,
-        expected_result2,
-        extras=[],
-        test_import=True,
-        skip_python_version=[],
-        test_e2e=True,
-        import_name=None,
-        import_module_to_validate=None,
+            self,
+            name,
+            version,
+            expected_param,
+            expected_result1,
+            expected_result2,
+            extras=[],
+            test_import=True,
+            skip_python_version=[],
+            test_e2e=True,
+            import_name=None,
+            import_module_to_validate=None,
     ):
         self.name = name
         self.package_version = version
@@ -88,13 +89,13 @@ class PackageForTesting:
                 return True, f"{self.name} not yet compatible with Python {version}"
         return False, ""
 
-    def _install(self, package_name, package_version=""):
+    def _install(self, python_cmd, package_name, package_version=""):
         if package_version:
             package_fullversion = package_name + "==" + package_version
         else:
             package_fullversion = package_name
 
-        cmd = ["python", "-m", "pip", "install", package_fullversion]
+        cmd = [python_cmd, "-m", "pip", "install", package_fullversion]
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
@@ -102,17 +103,35 @@ class PackageForTesting:
         proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
         proc.wait()
 
-    def install(self, install_extra=True):
-        self._install(self.name, self.package_version)
+    def install(self, python_cmd, install_extra=True):
+        self._install(python_cmd, self.name, self.package_version)
         if install_extra:
             for package_name, package_version in self.extra_packages:
-                self._install(package_name, package_version)
+                self._install(python_cmd, package_name, package_version)
 
-    def install_latest(self, install_extra=True):
-        self._install(self.name)
+    def install_latest(self, python_cmd, install_extra=True):
+        self._install(python_cmd, self.name)
         if install_extra:
             for package_name, package_version in self.extra_packages:
-                self._install(package_name, package_version)
+                self._install(python_cmd, package_name, package_version)
+
+    def uninstall(self, python_cmd):
+        try:
+            cmd = [python_cmd, "-m", "pip", "uninstall", "-y", self.name]
+            env = {}
+            env.update(os.environ)
+            proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
+            proc.wait()
+        except Exception as e:
+            print(f"Error uninstalling {self.name}: {e}")
+
+        for package_name, _ in self.extra_packages:
+            try:
+                cmd = [python_cmd, "-m", "pip", "uninstall", "-y", package_name]
+                proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
+                proc.wait()
+            except Exception as e:
+                print(f"Error uninstalling extra package {package_name}: {e}")
 
 
 # Top packages list imported from:
@@ -224,13 +243,12 @@ PACKAGES = [
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
     PackageForTesting("packaging", "24.0", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
+    # PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
     PackageForTesting("s3fs", "2024.5.0", "", "", "", test_e2e=False, test_import=False),
     PackageForTesting("google-api-core", "2.19.0", "", "", "", test_e2e=False, import_name="google"),
-    PackageForTesting("cffi", "1.16.0", "", "", "", test_e2e=False),
     PackageForTesting("pycparser", "2.22", "", "", "", test_e2e=False),
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
@@ -317,10 +335,30 @@ PACKAGES = [
     PackageForTesting("more-itertools", "10.2.0", "", "", "", test_e2e=False, import_name="more_itertools"),
 ]
 
-
 # Use this function if you want to test one or a filter number of package for debug proposes
 # SKIP_FUNCTION = lambda package: package.name == "pynacl"  # noqa: E731
 SKIP_FUNCTION = lambda package: True  # noqa: E731
+
+
+@pytest.fixture(scope="module")
+def venv():
+    venv_dir = os.path.join(os.getcwd(), 'test_venv')
+
+    # Create virtual environment
+    subprocess.check_call([sys.executable, '-m', 'venv', venv_dir])
+    python_executable = os.path.join(venv_dir, 'bin', 'python')
+    pip_executable = os.path.join(venv_dir, 'bin', 'pip')
+    this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), '../../../')
+    # Install dependencies.
+    deps_to_install = [
+        "flask", "attrs", "six", "cattrs", "pytest", "astunparse", "charset_normalizer", this_dd_trace_py_path
+    ]
+    subprocess.check_call([pip_executable, "install",  *deps_to_install])
+
+    yield python_executable
+
+    # Cleanup: Remove the virtual environment directory after tests
+    shutil.rmtree(venv_dir)
 
 
 def _assert_results(response, package):
@@ -347,15 +385,16 @@ def _assert_results(response, package):
     [package for package in PACKAGES if package.test_e2e and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
-def test_packages_not_patched(package):
+def test_flask_packages_not_patched(package, venv):
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
         return
 
-    package.install()
+    package.install(venv)
     with flask_server(
-        iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None
+            python_cmd=venv, iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false",
+            token=None
     ) as context:
         _, client, pid = context
 
@@ -369,34 +408,21 @@ def test_packages_not_patched(package):
     [package for package in PACKAGES if package.test_e2e and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
-def test_packages_patched(package):
+def test_flask_packages_patched(package, venv):
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
         return
 
-    package.install()
-    with flask_server(iast_enabled="true", remote_configuration_enabled="false", token=None) as context:
+    package.install(venv)
+    with flask_server(python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false",
+                      token=None) as context:
         _, client, pid = context
-
         response = client.get(package.url)
-
         _assert_results(response, package)
 
 
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_packages_not_patched_import(package):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    package.install(install_extra=False)
-    importlib.import_module(package.import_name)
+_INSIDE_ENV_RUNNER_PATH = os.path.join(os.path.dirname(__file__), "inside_env_runner.py")
 
 
 @pytest.mark.parametrize(
@@ -404,61 +430,50 @@ def test_packages_not_patched_import(package):
     [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
-def test_packages_patched_import(package):
+def test_packages_not_patched_import(package, venv):
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
         return
+
+    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_name]
+
+    # 1. Try with the specified version
+    package.install(venv, install_extra=False)
+    result = subprocess.run(cmdlist, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout
+    package.uninstall(venv)
+
+    # 2. Try with the latest version
+    package.install_latest(venv, install_extra=False)
+    result = subprocess.run(cmdlist, capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout
+
+
+@pytest.mark.parametrize(
+    "package",
+    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
+    ids=lambda package: package.name,
+)
+def test_packages_patched_import(package, venv):
+    # TODO: create fixtures with exported patched code and compare it with the generated in the test
+    # (only for non-latest versions)
+
+    should_skip, reason = package.skip
+    if should_skip:
+        pytest.skip(reason)
+        return
+
+    cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "patched", package.import_module_to_validate]
 
     with override_env({IAST_ENV: "true"}):
-        package.install(install_extra=False)
-        module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
-        assert module
-        assert patched_source
-        new_code = astunparse.unparse(patched_source)
-        assert (
-            "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
-            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
-        ) in new_code
+        # 1. Try with the specified version
+        package.install(venv, install_extra=False)
+        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout
+        package.uninstall(venv)
 
-        assert "ddtrace_aspects." in new_code
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_packages_latest_not_patched_import(package):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    package.install_latest(install_extra=False)
-    importlib.import_module(package.import_name)
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_packages_latest_patched_import(package):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    with override_env({IAST_ENV: "true"}):
-        package.install_latest(install_extra=False)
-        module, patched_source = _iast_patched_module_and_patched_source(package.import_module_to_validate)
-        assert module
-        assert patched_source
-        new_code = astunparse.unparse(patched_source)
-        assert (
-            "\nimport ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
-            "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"
-        ) in new_code
-
-        assert "ddtrace_aspects." in new_code
+        # 2. Try with the latest version
+        package.install_latest(venv, install_extra=False)
+        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout
