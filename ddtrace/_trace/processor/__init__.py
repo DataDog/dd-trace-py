@@ -163,7 +163,7 @@ class TraceSamplingProcessor(TraceProcessor):
             if self.apm_opt_out:
                 chunk_root.set_metric(MK_APM_ENABLED, 0)
                 if APPSEC.PROPAGATION_HEADER not in chunk_root.get_tags():
-                    if root_ctx and root_ctx._propagation_header_type != APPSEC.PROPAGATION_HEADER:
+                    if root_ctx and APPSEC.PROPAGATION_HEADER not in root_ctx._meta:
                         root_ctx._previous_sampling_priority = root_ctx.sampling_priority
                         chunk_root.set_tag(MANUAL_DROP_KEY)
 
