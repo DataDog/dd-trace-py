@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "Messages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "665e1e0700000000",
+      "anthropic.request.api_key": "...key>",
+      "anthropic.request.messages.0.content.0.text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+      "anthropic.request.messages.0.content.0.type": "text",
+      "anthropic.request.messages.0.role": "user",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"model\": \"claude-3-opus-20240229\", \"max_tokens\": 1024, \"stream\": true}",
+      "language": "python",
+      "runtime-id": "93b0a0a29f0140f29375dc8bf89847b9"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 42080
+    },
+    "duration": 44181000,
+    "start": 1717444103186786000
+  }]]

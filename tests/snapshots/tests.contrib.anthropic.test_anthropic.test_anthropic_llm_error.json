@@ -2,7 +2,7 @@
   {
     "name": "anthropic.request",
     "service": "",
-    "resource": "anthropic.resources.messages.Messages.create",
+    "resource": "Messages.create",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

@@ -27,7 +27,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
             )
 
     span = mock_tracer.pop_traces()[0][0]
-    assert span.resource == "anthropic.resources.messages.Messages.create"
+    assert span.resource == "Messages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -113,3 +113,28 @@ def test_anthropic_llm_error(anthropic, request_vcr):
     with pytest.raises(invalid_error):
         with request_vcr.use_cassette("anthropic_completion_error.yaml"):
             llm.messages.create(model="claude-3-opus-20240229", max_tokens=1024, messages=["Invalid content"])
+
+
+@pytest.mark.snapshot()
+def test_anthropic_llm_sync_stream(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_sync_stream.yaml"):
+        stream = llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                        }
+                    ],
+                },
+            ],
+            stream=True,
+        )
+        for chunk in stream:
+            print(chunk.type)
+

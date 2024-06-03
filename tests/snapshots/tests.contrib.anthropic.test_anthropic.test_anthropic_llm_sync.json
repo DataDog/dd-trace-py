@@ -2,7 +2,7 @@
     {
       "name": "anthropic.request",
       "service": "",
-      "resource": "anthropic.resources.messages.Messages.create",
+      "resource": "Messages.create",
       "trace_id": 0,
       "span_id": 1,
       "parent_id": 0,
@@ -31,6 +31,7 @@
         "_sampling_priority_v1": 1,
         "anthropic.response.usage.input_tokens": 27,
         "anthropic.response.usage.output_tokens": 303,
+        "anthropic.response.usage.total_tokens": 330,
         "process_id": 37192
       },
       "duration": 2370000,

@@ -54,7 +54,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
     span = integration.trace(
         pin,
-        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, operation_name),
+        "%s.%s" % (instance.__class__.__name__, operation_name),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
@@ -65,6 +65,8 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_completions = None
     try:
         for message_idx, message in enumerate(chat_messages):
+            if not isinstance(message, dict):
+                continue
             if isinstance(message.get("content", None), str):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
@@ -102,7 +104,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
         chat_completions = func(*args, **kwargs)
 
-        handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
+        if not isinstance(chat_completions, anthropic.Stream) and not isinstance(
+            chat_completions, anthropic.lib.streaming._messages.MessageStreamManager
+        ):
+            handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         span.finish()
