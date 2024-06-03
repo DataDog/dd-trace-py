@@ -25,6 +25,8 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -241,10 +243,21 @@ class _DatadogMultiHeader:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
 
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
+
         sampling_priority = span_context.sampling_priority
+
+        if (
+            asm_config._appsec_standalone_enabled
+            and span_context._propagation_header_type != APPSEC.PROPAGATION_HEADER
+            and span_context._previous_sampling_priority
+            and sampling_priority is not None
+            and sampling_priority < span_context._previous_sampling_priority
+        ):
+            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context._previous_sampling_priority)
         # Propagate priority only if defined
-        if sampling_priority is not None:
+        elif sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
+
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = ensure_text(span_context.dd_origin)
@@ -303,6 +316,7 @@ class _DatadogMultiHeader:
             default="0",
         )
         sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
+        propagation_header_type = None
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -313,6 +327,9 @@ class _DatadogMultiHeader:
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
+
+            if asm_config._appsec_standalone_enabled and APPSEC.PROPAGATION_HEADER in meta.keys():
+                propagation_header_type = APPSEC.PROPAGATION_HEADER
 
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
@@ -353,6 +370,7 @@ class _DatadogMultiHeader:
                 # span tags and trace tags which are currently implemented using
                 # the same type internally (_MetaDictType).
                 meta=cast(_MetaDictType, meta),
+                propagation_header_type=propagation_header_type,
             )
         except (TypeError, ValueError):
             log.debug(

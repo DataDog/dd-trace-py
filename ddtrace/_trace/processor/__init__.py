@@ -14,7 +14,9 @@ from ddtrace import config
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
+from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
@@ -160,6 +162,10 @@ class TraceSamplingProcessor(TraceProcessor):
 
             if self.apm_opt_out:
                 chunk_root.set_metric(MK_APM_ENABLED, 0)
+                if APPSEC.PROPAGATION_HEADER not in chunk_root.get_tags():
+                    if root_ctx and root_ctx._propagation_header_type != APPSEC.PROPAGATION_HEADER:
+                        root_ctx._previous_sampling_priority = root_ctx.sampling_priority
+                        chunk_root.set_tag(MANUAL_DROP_KEY)
 
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
