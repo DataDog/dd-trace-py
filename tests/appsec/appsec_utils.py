@@ -88,7 +88,9 @@ def appsec_application_server(
     if appsec_enabled is not None:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     if appsec_standalone_enabled is not None:
-        env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled # TODO: leverage APM disablement once available with standalone ASM enablement being equivalent to `appsec_enabled and apm_tracing_enabled`
+        # TODO: leverage APM disablement once available with standalone ASM enablement
+        # being equivalent to `appsec_enabled and apm_tracing_enabled`
+        env["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = appsec_standalone_enabled
     if iast_enabled is not None and iast_enabled != "false":
         env["DD_IAST_ENABLED"] = iast_enabled
         env["DD_IAST_REQUEST_SAMPLING"] = "100"
