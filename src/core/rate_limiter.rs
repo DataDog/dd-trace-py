@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use std::sync::Mutex;
 use std::time::{SystemTime};
-use log::{debug};
+// use log::{debug};
 
 // Token bucket rate limiter
 struct RateLimiter {
@@ -50,7 +50,7 @@ impl RateLimiter {
                 let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
                 if elapsed < 0.0 {
                     // Note - this should never happen, but if it does, we should reset the elapsed time to avoid negative tokens
-                    debug!("RateLimiter does not support decreasing time intervals. Prev time: {self.last_update_ns} Current time: {timestamp_ns}. Resetting elapsed time to 0.");
+                    // debug!("RateLimiter does not support decreasing time intervals. Prev time: {self.last_update_ns} Current time: {timestamp_ns}. Resetting elapsed time to 0.");
                     elapsed = 0.0
                 }
                 self.tokens += elapsed * self.max_tokens;
@@ -123,7 +123,7 @@ impl RateLimiterPy {
         }
     }
 
-    pub fn _is_allowed(&mut self) -> bool {
+    pub fn _is_allowed(&mut self, py: Python<'_>) -> bool {
         py.allow_threads(|| self.rate_limiter._is_allowed())
     }
 
