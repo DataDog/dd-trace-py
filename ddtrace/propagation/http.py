@@ -246,6 +246,12 @@ class _DatadogMultiHeader:
 
         sampling_priority = span_context.sampling_priority
 
+        # If ASM Standalone is enabled, and the upstream distributed span
+        # is not an AppSec span (it doesn't have the AppSec propagation header),
+        # we want to propagate the sampling priority to the downstream services,
+        # but we will drop the local span if it doesn't have any AppSec event.
+        # In the AppSec event case, it will add manual keep, so sampling priority
+        # will be higher or equal to the received one.
         if (
             asm_config._appsec_standalone_enabled
             and APPSEC.PROPAGATION_HEADER not in span_context._meta
