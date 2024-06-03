@@ -27,6 +27,7 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
@@ -779,8 +780,6 @@ class Tracer(object):
             if span._local_root is None:
                 span._local_root = span
             for k, v in _get_metas_to_propagate(context):
-                from ddtrace.appsec._constants import APPSEC
-
                 if k != SAMPLING_DECISION_TRACE_TAG_KEY and k != APPSEC.PROPAGATION_HEADER:
                     span._meta[k] = v
         else:
