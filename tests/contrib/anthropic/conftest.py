@@ -7,6 +7,7 @@ from ddtrace import Pin
 from ddtrace.contrib.anthropic.patch import patch
 from ddtrace.contrib.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config

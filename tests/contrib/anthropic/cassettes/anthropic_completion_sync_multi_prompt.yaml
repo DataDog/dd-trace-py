@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": [{"type":
-      "text", "text": "Hello, I am looking for information about some books!"}, {"type":
-      "text", "text": "Can you explain what Descartes meant by ''I think, therefore
-      I am''?"}]}], "model": "claude-3-opus-20240229"}'
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
+      "text": "Hello, I am looking for information about some books!"}, {"type": "text",
+      "text": "Can you explain what Descartes meant by ''I think, therefore I am''?"}]}],
+      "model": "claude-3-opus-20240229"}'
     headers:
       accept:
       - application/json
@@ -14,13 +14,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '279'
+      - '277'
       content-type:
       - application/json
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.26.1
+      - Anthropic/Python 0.28.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -30,7 +30,7 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 0.26.1
+      - 0.28.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
@@ -40,27 +40,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA3xV224bRwz9FWJeagNrwZfGSfRWNBe7bV6KJIVRFcZol6tlNUtuhhwpW8Mf1O/o
-        jwUzK1l2kPRFC81yeA4PD7l3jho3d72ubk/Pfvn4xzs5f/uBbq4uPtRvf7188frmZu0qZ+OAOQpV
-        /Qpd5aKEfOBVSc2zucr10mBwc1cHnxo8uTiRIenJ+en5j6fn5y9d5WphQzY3//Nun9Dwc75aHnP3
-        vkMYuugVYeGuwTridQXWYcRWIsI1+H7h4EgirYh9CCMQw2/eiMErLNzPsiKTCjCuBDT1C3cMpOBh
-        6CiIytBR7QOoecMe2WA55vTwJiLX3SEKI/yO/N+/8Aq19tFQ4ejs2cvLk7PLZ6fHM7g28MOAPmom
-        0JHCVuIaFu4VaS0pKoJwyfwOrZMmkz67vHh+DJ6bidEaR8AwsZC25HiAH2cLXvABe+sVFHFNvAIP
-        rSRuvJGwD2AxWQdpEIZtR3UHHUItKTSwTBQa8KCjGvYZo8ZonhjWLNuAzQpncIWA/RBkxBzaF7I5
-        dLrkjWpoJC2tgk8JNWNmDrmwjQ/UkI052odQClhiIGy1FCkDMQlrwSiUwTpvB34lLzD6GEbADcYx
-        93tVAXEdUrPHiRjILynsoDKMIitqMQbgZ1JDrjG/nA4MY1ZmKzE0VeGCG2TovXVTSXvZtMh8JduM
-        Xj3qdUQf6B/8mjGL7VhnoNbX9hCQO1TsSryaweuMR5MBcpS0071S3i5ajUJ4dOdNlD7/1WoCLCI8
-        UMiW2YlgMt3aYWanYTlZPeo9PjRb2hn8pBAke0e/5lrAOt/krEXKGbzPYAEb6KifwHKtvSSFVmKf
-        QrFe9f0JnS1c1rXkOUyaYtxkk+m3HdxKPDSg+p+6NMXS69zX79v+yThNM18cXUYX1fwykHZF3m94
-        SDG0E9O9TrDE/Hs0OVKhzovGs1Yg8RBU2E4zvsTa95jHz3zMjYdBiK3Umcm1KWbVoMeGrEih+5XB
-        3nY1Fh/aWB0mdufnPeGne+IHoAZ96S9xGxKykQ97Iza4wSDDfuHkbR350c6poPdxt2K0o9bAZOtj
-        MzWsToWfpuXfWBttshM9T/rlb8FeugctiobEkLjBmD8RZaJ3Fc3c/V+VU5PhNqJXYTd3yM2tpchu
-        90LxU8o1ujmnECqXypdnfueIh2S3JmtkdfOLF5WTZE+OLp7f338BAAD//wMAFHVJ9tgGAAA=
+        H4sIAAAAAAAAA0xPTUvDQBD9K8ucPGwgSW2pe+vNil7Ek1bCmEyTpZvddWdWWkL+u6RY8PTgffHe
+        BLYDAyP3TVmt33e715e2/am2j5v+CzfHlOITaJBLpMVFzNgTaEjBLQQyWxb0AhrG0JEDA63D3FGx
+        KkLMXNRlfV/W9QNoaIMX8gLmY7oVCp2X6BUMvA2k4pCQSR1gr2Sw/qSVDJToGBKpvcLxAOouJNtb
+        j85dlPXqGcV6hQzzpwaWEJtEyMEve/HcSDiRZ/iTmL4z+ZbA+Oychnz9YyawPma5mc1qqyFk+U9V
+        63n+BQAA//8DAG0IyPstAQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88c85b706a4f5e76-EWR
+      - 88e24cf95a3941d9-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -68,7 +57,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 31 May 2024 16:32:13 GMT
+      - Mon, 03 Jun 2024 20:05:56 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -76,21 +65,23 @@ interactions:
       anthropic-ratelimit-requests-limit:
       - '5'
       anthropic-ratelimit-requests-remaining:
-      - '4'
+      - '0'
       anthropic-ratelimit-requests-reset:
-      - '2024-05-31T16:32:57Z'
+      - '2024-06-03T20:05:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
-      - '10000'
+      - '9000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-05-31T16:32:57Z'
+      - '2024-06-03T20:05:57Z'
       request-id:
-      - req_01T5fqMvSyUMwwDMphBKC7Ba
+      - req_01X3Zqqeshn8FCupaMdEgqRS
+      retry-after:
+      - '1'
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 62a976e4f5e79017b5e9a1a54801766b
+      - 0794e94ca00c706013360048aa1bc46a
     status:
       code: 200
       message: OK

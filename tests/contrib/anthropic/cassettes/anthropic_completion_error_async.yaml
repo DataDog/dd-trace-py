@@ -17,11 +17,11 @@ interactions:
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.28.0
+      - AsyncAnthropic/Python 0.28.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
-      - 'false'
+      - async:asyncio
       x-stainless-lang:
       - python
       x-stainless-os:
@@ -42,7 +42,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88e24ced7c9f4265-EWR
+      - 88e26f1ce85b4379-EWR
       Connection:
       - keep-alive
       Content-Length:
@@ -50,15 +50,15 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 03 Jun 2024 20:05:52 GMT
+      - Mon, 03 Jun 2024 20:29:13 GMT
       Server:
       - cloudflare
       request-id:
-      - req_01LsGyzwBtnCxAUjeyT4tmSs
+      - req_014VdE8JFtyZZgtyAmYPD4pd
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - bbb9c1f0aa9c1d6f521121102e32ca2d
+      - 99147895ac9c66c15e1de6063c141048
       x-should-retry:
       - 'false'
     status:

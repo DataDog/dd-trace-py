@@ -1,11 +1,41 @@
 from typing import Any
-from typing import Dict
+from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+def handle_non_streamed_response(integration, chat_completions, args, kwargs, span):
+    for idx, chat_completion in enumerate(chat_completions.content):
+        if integration.is_pc_sampled_span(span) and getattr(chat_completion, "text", "") != "":
+            span.set_tag_str(
+                "anthropic.response.completions.content.%d.text" % (idx),
+                integration.trunc(str(getattr(chat_completion, "text", ""))),
+            )
+        span.set_tag_str(
+            "anthropic.response.completions.content.%d.type" % (idx),
+            chat_completion.type,
+        )
+
+    # set message level tags
+    if getattr(chat_completions, "stop_reason", None) is not None:
+        span.set_tag_str("anthropic.response.completions.finish_reason", chat_completions.stop_reason)
+    span.set_tag_str("anthropic.response.completions.role", chat_completions.role)
+
+    usage = _get_attr(chat_completions, "usage", {})
+    integration.record_usage(span, usage)
+
+
+def _extract_api_key(instance: Any) -> Optional[str]:
+    """
+    Extract and format LLM-provider API key from instance.
+    """
+    client = getattr(instance, "_client", "")
+    if client:
+        return getattr(client, "api_key", None)
+    return None
 
 
 def _get_attr(o: Any, attr: str, default: Any):
@@ -14,17 +44,3 @@ def _get_attr(o: Any, attr: str, default: Any):
         return o.get(attr, default)
     else:
         return getattr(o, attr, default)
-
-
-def record_usage(span: Span, usage: Dict[str, Any]) -> None:
-    if not usage:
-        return
-
-    input_tokens = _get_attr(usage, "input_tokens", None)
-    output_tokens = _get_attr(usage, "output_tokens", None)
-
-    span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
-    span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-
-    if input_tokens is not None and output_tokens is not None:
-        span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
