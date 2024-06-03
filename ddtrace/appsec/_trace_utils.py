@@ -29,7 +29,6 @@ def _asm_manual_keep(span: Span) -> None:
 
     # set Security propagation tag
     span.set_tag_str(APPSEC.PROPAGATION_HEADER, "1")
-    span.context._meta[APPSEC.PROPAGATION_HEADER] = "1"
 
 
 def _track_user_login_common(
