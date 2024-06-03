@@ -5,6 +5,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace.contrib.anthropic.patch import patch
 from ddtrace.contrib.anthropic.patch import unpatch
+from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -46,3 +47,8 @@ def anthropic(ddtrace_config_anthropic):
 
                 yield anthropic
                 unpatch()
+
+
+@pytest.fixture(scope="session")
+def request_vcr():
+    yield get_request_vcr()

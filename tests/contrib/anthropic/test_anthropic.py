@@ -1,12 +1,6 @@
 import pytest
 
-from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import override_global_config
-
-
-@pytest.fixture(scope="session")
-def request_vcr():
-    yield get_request_vcr()
 
 
 def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):

@@ -1,19 +1,10 @@
 import json
-import os
 import sys
 
-import anthropic
-
-from ddtrace import config
-from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import AnthropicIntegration
-from ddtrace.pin import Pin
 
-from .async_message import traced_async_chat_model_generate
 from .utils import _extract_api_key
 from .utils import handle_non_streamed_response
 
@@ -21,22 +12,8 @@ from .utils import handle_non_streamed_response
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
-    return getattr(anthropic, "__version__", "")
-
-
-config._add(
-    "anthropic",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),
-    },
-)
-
-
 @with_traced_module
-def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
+async def traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
 
@@ -92,10 +69,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         params_to_tag = {k: v for k, v in kwargs.items() if k != "messages"}
         span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
 
-        chat_completions = func(*args, **kwargs)
+        chat_completions = await func(*args, **kwargs)
 
-        if isinstance(chat_completions, anthropic.Stream) or isinstance(
-            chat_completions, anthropic.lib.streaming._messages.MessageStreamManager
+        if isinstance(chat_completions, anthropic.AsyncStream) or isinstance(
+            chat_completions, anthropic.lib.streaming._messages.AsyncMessageStreamManager
         ):
             pass
         else:
@@ -107,29 +84,3 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     finally:
         span.finish()
     return chat_completions
-
-
-def patch():
-    if getattr(anthropic, "_datadog_patch", False):
-        return
-
-    anthropic._datadog_patch = True
-
-    Pin().onto(anthropic)
-    integration = AnthropicIntegration(integration_config=config.anthropic)
-    anthropic._datadog_integration = integration
-
-    wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate(anthropic))
-    wrap("anthropic", "resources.messages.AsyncMessages.create", traced_async_chat_model_generate(anthropic))
-
-
-def unpatch():
-    if not getattr(anthropic, "_datadog_patch", False):
-        return
-
-    anthropic._datadog_patch = False
-
-    unwrap(anthropic.resources.messages.Messages, "create")
-    unwrap(anthropic.resources.messages.AsyncMessages, "create")
-
-    delattr(anthropic, "_datadog_integration")
