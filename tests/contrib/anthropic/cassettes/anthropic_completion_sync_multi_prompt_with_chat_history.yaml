@@ -1,12 +1,12 @@
 interactions:
 - request:
-    body: '{"max_tokens": 1024, "messages": [{"role": "user", "content": [{"type":
-      "text", "text": "Hello, Start all responses with your name Claude."}, {"type":
-      "text", "text": "End all responses with [COPY, CLAUDE OVER AND OUT!]"}]}, {"role":
-      "assistant", "content": "Claude: Sure! [COPY, CLAUDE OVER AND OUT!]"}, {"role":
-      "user", "content": [{"type": "text", "text": "Add the time and date to the beginning
-      of your response after your name."}, {"type": "text", "text": "Explain string
-      theory succinctly to a complete noob."}]}], "model": "claude-3-opus-20240229"}'
+    body: '{"max_tokens": 30, "messages": [{"role": "user", "content": [{"type": "text",
+      "text": "Hello, Start all responses with your name Claude."}, {"type": "text",
+      "text": "End all responses with [COPY, CLAUDE OVER AND OUT!]"}]}, {"role": "assistant",
+      "content": "Claude: Sure! [COPY, CLAUDE OVER AND OUT!]"}, {"role": "user", "content":
+      [{"type": "text", "text": "Add the time and date to the beginning of your response
+      after your name."}, {"type": "text", "text": "Explain string theory succinctly
+      to a complete noob."}]}], "model": "claude-3-opus-20240229"}'
     headers:
       accept:
       - application/json
@@ -17,7 +17,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '555'
+      - '553'
       content-type:
       - application/json
       host:
@@ -43,22 +43,17 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA1xT204kNxD9lYqfDZqZBWnTbwg2iXIj2oVECVqhwq6etsZdbqrKM9tC/PvKzSWI
-        J9/q1Dk+x35wKbrOjbq9Xa1//m84X5+m307D4Z9ffr2+nr/IRY/OO5snalWkilty3knJbQNVkxqy
-        Oe/GEim7zoWMNdLRh6MyVT3arDYnq83mR+ddKGzE5rqbh5eGRt8adBk6d74gPfwkKeLs4WySlGHz
-        0cNmtfkAaLBed6sTOPujgy8mibdgAxWZISng05wsBczQC450KLKDxDANs6agYAMaTFKmovS8soGg
-        rxxxJDbMcFdTjq3xXS5hp1D6paRy2pMoAQqBJZ497NOdoLVSXaQstcQk2xkEbSBpDAxTSWxHOe0I
-        JhRLIZMew9VASq/IpetQ6nYwsPLcmpr0mPqehNjggLN6QI5AGIYX+sIQigjpVDhqA+MbzAuhB61h
-        AFRABsoUTAp7uK8oOw9FYBqKFT5+5ypmLaB1uyW1//2SJxcwxtT4MYNOaAkzxDQSayqscEdz4bh4
-        Z4MQwYEgNDdIAqU9eTgMqUkSglAlU4Q6tYT3JDPoiDmDBnzx6lVRGpdLVk793PSz1RFGCgNyS7jZ
-        s20hYAahjJb2yWbfQt+nJVdcsIkiRNIgaVo8LD00xvevoS8SaAmW0arQMdycX/71r4fz38+uLz7B
-        5d+fPsPZnxdweX31w1f3+NU7tTLdCqEWdp0jjrdWhd3zgdJ9JQ7kOq45e1eX79Q9uMRTtVsrO2J1
-        3ccT70q1t1vr09PHx+8AAAD//wMAORpVdq0DAAA=
+        H4sIAAAAAAAAA0yQUUvDUAyF/0rIk0ILXTunvW9jPvkk+iAiMkKbtZe1uV2Ty1bG/rt0OvAp4eQ7
+        B07O6Gt02GuzzRbP5erjZVq/va6nSh93x+P+c7M6YII2DTxTrEoNY4Jj6GaBVL0aiWGCfai5Q4dV
+        R7HmtEjDEDXNs3yZ5XmJCVZBjMXQfZ1vgcan2XodDjdXJ9zlWV6kWZFmJSxWbvFw7+DdRi8NWMth
+        nMAr0O/O5ivqYDdSz8cw7sELDO2kvlKwlgzIjPvBFCxAFL+b4BBJLPbQc9WSzCBJDQ0Lj9Th5TtB
+        tTBsRyYNMpem09bCnkXx76R8iCwVo5PYdQnG61PcGb0M0W6we1omGKL9l4rscvkBAAD//wMAf6mf
+        SHIBAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88e120459bfe422e-EWR
+      - 88e24c723f1e8c71-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -66,7 +61,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 03 Jun 2024 16:40:47 GMT
+      - Mon, 03 Jun 2024 20:05:35 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -76,19 +71,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-03T16:40:57Z'
+      - '2024-06-03T20:05:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-03T16:40:57Z'
+      - '2024-06-03T20:05:57Z'
       request-id:
-      - req_0169ecrQS9L2NLLJ5kxTHNhR
+      - req_01DgqqUcVyhvARruFHNFA9pG
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 3ca44323b7c7d8d7e47380ba95e440a0
+      - d47e1ebd73e92fe1f28d8b0b5b336751
     status:
       code: 200
       message: OK

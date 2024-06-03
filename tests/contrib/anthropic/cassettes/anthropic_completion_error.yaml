@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: '{"max_tokens": 1024, "messages": ["Invalid content"], "model": "claude-3-opus-20240229"}'
+    body: '{"max_tokens": 15, "messages": ["Invalid content"], "model": "claude-3-opus-20240229"}'
     headers:
       accept:
       - application/json
@@ -11,13 +11,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '88'
+      - '86'
       content-type:
       - application/json
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.26.1
+      - Anthropic/Python 0.28.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -27,7 +27,7 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 0.26.1
+      - 0.28.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
@@ -42,7 +42,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88c85bd75e437274-EWR
+      - 88e24ced7c9f4265-EWR
       Connection:
       - keep-alive
       Content-Length:
@@ -50,15 +50,15 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 31 May 2024 16:32:14 GMT
+      - Mon, 03 Jun 2024 20:05:52 GMT
       Server:
       - cloudflare
       request-id:
-      - req_01N7iW6qh7wHr9je4z3FDn2n
+      - req_01LsGyzwBtnCxAUjeyT4tmSs
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - cf561ed8cbadcfc1748718321572db36
+      - bbb9c1f0aa9c1d6f521121102e32ca2d
       x-should-retry:
       - 'false'
     status:
