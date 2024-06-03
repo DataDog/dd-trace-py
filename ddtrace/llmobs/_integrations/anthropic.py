@@ -76,7 +76,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        span.set_tag_str(METRICS, json.dumps(_get_llmobs_metrics_tags(span)))
+        span.set_tag_str(METRICS, json.dumps(AnthropicIntegration._get_llmobs_metrics_tags(span)))
 
     def _extract_input_message(self, messages):
         """Extract input messages from the stored prompt.
@@ -127,7 +127,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 if isinstance(text, str):
                     output_messages.append({"content": self.trunc(text), "role": role})
         return output_messages
-    
+
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
@@ -140,10 +140,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
-
-def _get_llmobs_metrics_tags(span):
-    return {
-        "input_tokens": span.get_metric("anthropic.response.usage.input_tokens"),
-        "output_tokens": span.get_metric("anthropic.response.usage.output_tokens"),
-        "total_tokens": span.get_metric("anthropic.response.usage.total_tokens"),
-    }
+    @classmethod
+    def _get_llmobs_metrics_tags(cls, span):
+        return {
+            "input_tokens": span.get_metric("anthropic.response.usage.input_tokens"),
+            "output_tokens": span.get_metric("anthropic.response.usage.output_tokens"),
+            "total_tokens": span.get_metric("anthropic.response.usage.total_tokens"),
+        }

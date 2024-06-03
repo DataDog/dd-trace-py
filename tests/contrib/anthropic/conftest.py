@@ -44,6 +44,7 @@ def mock_tracer(ddtrace_global_config, anthropic):
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
     yield mock_tracer
+    LLMObs.disable()
 
 
 @pytest.fixture

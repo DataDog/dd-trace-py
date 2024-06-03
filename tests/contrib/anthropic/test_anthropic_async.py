@@ -119,7 +119,7 @@ async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_contex
 
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(ignores=["meta.error.stack"]):
+    with snapshot_context():
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_async_stream.yaml"):
             stream = await llm.messages.create(
@@ -140,3 +140,22 @@ async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_conte
             )
             async for _ in stream:
                 pass
+
+
+@pytest.mark.asyncio
+async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapshot_context):
+    with snapshot_context():
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_async_stream_helper.yaml"):
+            async with llm.messages.stream(
+                max_tokens=15,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                    }
+                ],
+                model="claude-3-opus-20240229",
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass

@@ -131,3 +131,21 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
         )
         for _ in stream:
             pass
+
+
+@pytest.mark.snapshot()
+def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_sync_stream_helper.yaml"):
+        with llm.messages.stream(
+            max_tokens=15,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                }
+            ],
+            model="claude-3-opus-20240229",
+        ) as stream:
+            for _ in stream.text_stream:
+                pass
