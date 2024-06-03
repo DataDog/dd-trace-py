@@ -119,6 +119,11 @@ benchmark-http-propagation-inject:
   variables:
     SCENARIO: "http_propagation_inject"
 
+benchmark-rate-limiter:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "rate_limiter"
+
 benchmark-serverless:
   stage: benchmarks
   image: $SLS_CI_IMAGE
