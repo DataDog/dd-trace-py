@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 
+import mock
 import pytest
 
 from ddtrace import tracer as ddtracer
@@ -2670,69 +2671,24 @@ print(json.dumps(headers))
     assert result == expected_headers
 
 
-def test_llmobs_enabled_injects_parent_id(run_python_code_in_subprocess):
-    code = """
-from ddtrace import tracer
-from ddtrace.ext import SpanTypes
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.propagation.http import HTTPPropagator
-
-with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
-    with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {}
-        HTTPPropagator.inject(child_span.context, headers)
-
-assert "{}={}".format(PROPAGATED_PARENT_ID_KEY, root_span.span_id) in headers["x-datadog-tags"]
-        """
-
-    env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "1"
-    env["DD_TRACE_ENABLED"] = "0"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
-    assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+def test_llmobs_enabled_injects_llmobs_parent_id():
+    with override_global_config(dict(_llmobs_enabled=True)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_called_once_with(context)
 
 
-def test_llmobs_disabled_does_not_inject_parent_id(run_python_code_in_subprocess):
-    code = """
-from ddtrace import tracer
-from ddtrace.ext import SpanTypes
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.propagation.http import HTTPPropagator
-
-with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
-    with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {}
-        HTTPPropagator.inject(child_span.context, headers)
-
-assert "{}".format(PROPAGATED_PARENT_ID_KEY) not in headers["x-datadog-tags"]
-        """
-
-    env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "0"
-    env["DD_TRACE_ENABLED"] = "0"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
-    assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+def test_llmobs_disabled_does_not_inject_parent_id():
+    with override_global_config(dict(_llmobs_enabled=False)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_not_called()
 
 
-def test_llmobs_enabled_does_not_inject_parent_id_if_no_llm_span(run_python_code_in_subprocess):
-    code = """
-from ddtrace import tracer
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.propagation.http import HTTPPropagator
-
-with tracer.trace("Non-LLMObs span") as root_span:
-    with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {}
-        HTTPPropagator.inject(child_span.context, headers)
-
-assert f"{PROPAGATED_PARENT_ID_KEY}=undefined" in headers["x-datadog-tags"]
-        """
-
-    env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "1"
-    env["DD_TRACE_ENABLED"] = "0"
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
-    assert status == 0, (stdout, stderr)
-    assert stderr == b"", (stdout, stderr)
+def test_llmobs_parent_id_not_injected_by_default():
+    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+        context = Context(trace_id=1, span_id=2)
+        HTTPPropagator.inject(context, {})
+        mock_llmobs_inject.assert_not_called()
