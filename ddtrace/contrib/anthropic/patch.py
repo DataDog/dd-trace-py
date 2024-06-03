@@ -109,6 +109,9 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         span.finish()
         raise
     finally:
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
+
         span.finish()
     return chat_completions
 
