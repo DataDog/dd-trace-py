@@ -150,7 +150,7 @@ class LLMObs(Service):
             )
         if not config._llmobs_ml_app:
             raise ValueError(
-                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
 
@@ -288,7 +288,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -314,7 +314,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -332,7 +332,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -350,7 +350,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -368,7 +368,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -394,7 +394,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -425,7 +425,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
