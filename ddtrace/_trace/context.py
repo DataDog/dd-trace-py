@@ -56,7 +56,6 @@ class Context(object):
         "_span_links",
         "_baggage",
         "_is_remote",
-        "_propagation_header_type",
         "_previous_sampling_priority",
     ]
 
@@ -72,7 +71,6 @@ class Context(object):
         span_links=None,  # type: Optional[list[SpanLink]]
         baggage=None,  # type: Optional[dict[str, Any]]
         is_remote=True,  # type: bool
-        propagation_header_type=None,  # type: Optional[str]
         previous_sampling_priority=None,  # type: Optional[float]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
@@ -85,7 +83,6 @@ class Context(object):
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[ORIGIN_KEY] = dd_origin
-
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
         if span_links is not None:
@@ -93,7 +90,6 @@ class Context(object):
         else:
             self._span_links = []
 
-        self._propagation_header_type = propagation_header_type
         self._previous_sampling_priority = previous_sampling_priority
 
         if lock is not None:
