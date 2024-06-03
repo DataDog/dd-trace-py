@@ -1,7 +1,10 @@
+[dependencies]
+log = "0.4"
+
 use pyo3::prelude::*;
 use std::sync::Mutex;
 use std::time::{SystemTime};
-// use log::{debug};
+use log::{debug};
 
 // Token bucket rate limiter
 struct RateLimiter {
