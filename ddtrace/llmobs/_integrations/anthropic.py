@@ -6,10 +6,12 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.contrib.anthropic.utils import _get_attr
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -22,8 +24,6 @@ log = get_logger(__name__)
 
 API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
-TOTAL_COST = "anthropic.tokens.total_cost"
-TYPE = "anthropic.request.type"
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -57,11 +57,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        usage = _get_attr(resp, "usage")
-        self.record_usage(
-            span,
-            {"prompt": _get_attr(usage, "input_tokens", 0), "completion": getattr(usage, "output_tokens", 0)},
-        )
+        span.set_tag_str(METRICS, json.dumps(_get_llmobs_metrics_tags(span)))
 
     def _set_base_span_tags(
         self,
@@ -99,17 +95,17 @@ class AnthropicIntegration(BaseLLMIntegration):
                 log.warning("Anthropic input message must have content and role.")
 
             if isinstance(content, str):
-                input_messages.append({"content": self.trunc(content), "role": role})
+                input_messages.append({"content": content, "role": role})
 
             elif isinstance(content, list):
-                for entry in content:
-                    if entry.get("type") == "text":
-                        input_messages.append({"content": self.trunc(entry.get("text", "")), "role": role})
-                    elif entry.get("type") == "image":
+                for block in content:
+                    if block.get("type") == "text":
+                        input_messages.append({"content": block.get("text", ""), "role": role})
+                    elif block.get("type") == "image":
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
                     else:
-                        input_messages.append({"content": str(entry), "role": role})
+                        input_messages.append({"content": str(block), "role": role})
 
         return input_messages
 
@@ -130,18 +126,22 @@ class AnthropicIntegration(BaseLLMIntegration):
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage or not self.metrics_enabled:
+        if not usage:
             return
-        for token_type in ("prompt", "completion"):
-            num_tokens = usage.get(token_type, None)
+        for token_type in ("input", "output"):
+            num_tokens = _get_attr(usage, "%s_tokens" % token_type, None)
             if num_tokens is None:
                 continue
             span.set_metric("anthropic.response.usage.%s_tokens" % token_type, num_tokens)
 
+        if "input" in usage and "output" in usage:
+            total_tokens = usage["output"] + usage["input"]
+            span.set_metric("anthropic.response.usage.total_tokens", total_tokens)
 
-def _get_attr(o, attr, default):
-    # Since our response may be a dict or object, convenience method
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    else:
-        return getattr(o, attr, default)
+
+def _get_llmobs_metrics_tags(span):
+    return {
+        "input_tokens": span.get_metric("anthropic.response.usage.input_tokens"),
+        "output_tokens": span.get_metric("anthropic.response.usage.output_tokens"),
+        "total_tokens": span.get_metric("anthropic.response.usage.total_tokens"),
+    }

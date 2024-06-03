@@ -27,7 +27,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
             )
 
     span = mock_tracer.pop_traces()[0][0]
-    assert span.resource == "anthropic.resources.messages.Messages"
+    assert span.resource == "anthropic.resources.messages.Messages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
