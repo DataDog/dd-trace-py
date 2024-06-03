@@ -779,7 +779,9 @@ class Tracer(object):
             if span._local_root is None:
                 span._local_root = span
             for k, v in _get_metas_to_propagate(context):
-                if k != SAMPLING_DECISION_TRACE_TAG_KEY:
+                from ddtrace.appsec._constants import APPSEC
+
+                if k != SAMPLING_DECISION_TRACE_TAG_KEY and k != APPSEC.PROPAGATION_HEADER:
                     span._meta[k] = v
         else:
             # this is the root span of a new trace
