@@ -22,7 +22,6 @@ def _format_version_specifiers(spec: Set[str]) -> Set[str]:
 
 
 def tree_pkgs_from_riot() -> Dict[str, Set[str]]:
-
     return _tree_pkgs_from_riot(riotfile.venv)
 
 
