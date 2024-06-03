@@ -137,4 +137,3 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
         )
         for chunk in stream:
             print(chunk.type)
-
