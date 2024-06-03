@@ -1018,7 +1018,12 @@ def snapshot_context(
         except Exception as e:
             pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
-            r = conn.getresponse()
+            r = None
+            while r is None:
+                try:
+                    r = conn.getresponse()
+                except http.client.RemoteDisconnected:
+                    pass
             if r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(to_unicode(r.read()), pytrace=False)
