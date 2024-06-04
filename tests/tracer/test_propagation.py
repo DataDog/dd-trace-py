@@ -32,6 +32,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.propagation.http import _TraceContext
 from tests.contrib.fastapi.test_fastapi import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.test_fastapi import test_spans as fastapi_test_spans  # noqa:F401
@@ -2845,3 +2846,74 @@ def test_llmobs_parent_id_not_injected_by_default():
         context = Context(trace_id=1, span_id=2)
         HTTPPropagator.inject(context, {})
         mock_llmobs_inject.assert_not_called()
+
+
+def test_appsec_standalone_unit_inject__non_asm_propagates_previous_sampling_priority_higher():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    ctx._previous_sampling_priority = 3
+
+    with override_global_config({"_appsec_standalone_enabled": True}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert headers[HTTP_HEADER_SAMPLING_PRIORITY] == "3"
+
+
+def test_appsec_standalone_unit_inject__non_asm_missing_sampling_priority():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, dd_origin="synthetics", meta=meta)
+    ctx._previous_sampling_priority = 3
+
+    with override_global_config({"_appsec_standalone_enabled": True}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert HTTP_HEADER_SAMPLING_PRIORITY not in headers
+
+
+def test_appsec_standalone_unit_inject__non_asm_missing_previous_sampling_priority():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=2, dd_origin="synthetics", meta=meta)
+
+    with override_global_config({"_appsec_standalone_enabled": True}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert headers[HTTP_HEADER_SAMPLING_PRIORITY] == "2"
+
+
+def test_appsec_standalone_unit_inject__asm_propagates_current_sampling_priority():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.appsec": "1", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    ctx._previous_sampling_priority = 3
+
+    with override_global_config({"_appsec_standalone_enabled": True}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert headers[HTTP_HEADER_SAMPLING_PRIORITY] == "2"
+
+
+def test_appsec_standalone_unit_inject__non_asm_propagates_previous_sampling_priority_lower():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    ctx._previous_sampling_priority = 1
+
+    with override_global_config({"_appsec_standalone_enabled": True}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert headers[HTTP_HEADER_SAMPLING_PRIORITY] == "2"
+
+
+def test_appsec_standalone_unit_inject__asm_standalone_disabled():
+    headers = {}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    ctx._previous_sampling_priority = 3
+
+    with override_global_config({"_appsec_standalone_enabled": False}):
+        _DatadogMultiHeader._inject(ctx, headers)
+
+    assert headers[HTTP_HEADER_SAMPLING_PRIORITY] == "2"
