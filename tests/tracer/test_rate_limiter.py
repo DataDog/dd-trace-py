@@ -34,7 +34,7 @@ def test_rate_limiter_rate_limit_0(time_window):
     for i in nanoseconds(10000, time_window):
         # Make sure the time is different for every check
         with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=now_ns + i):
-            assert limiter.is_allowed() is False
+            assert limiter.is_allowed(now_ns + i) is False
 
 
 @pytest.mark.parametrize("time_window", [1e3, 1e6, 1e9])

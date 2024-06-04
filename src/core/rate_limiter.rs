@@ -1,10 +1,6 @@
-[dependencies]
-log = "0.4"
-
 use pyo3::prelude::*;
 use std::sync::Mutex;
 use std::time::{SystemTime};
-use log::{debug};
 
 // Token bucket rate limiter
 struct RateLimiter {
@@ -36,10 +32,8 @@ impl RateLimiter {
         }
     }
 
-    pub fn _is_allowed(&mut self) -> bool {
+    pub fn _is_allowed(&mut self, timestamp_ns: f64) -> bool {
         let mut _lock = self._lock.lock().unwrap();
-        let duration_since_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-        let timestamp_ns = duration_since_epoch.as_nanos() as f64; // u128
 
         let allowed = (|| -> bool {
             // Rate limit of 0 is always disallowed. Negative rate limits are always allowed.
@@ -50,10 +44,9 @@ impl RateLimiter {
             }
 
             if self.tokens < self.max_tokens {
-                let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
+                let mut elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
                 if elapsed < 0.0 {
-                    // Note - this should never happen, but if it does, we should reset the elapsed time to avoid negative tokens
-                    // debug!("RateLimiter does not support decreasing time intervals. Prev time: {self.last_update_ns} Current time: {timestamp_ns}. Resetting elapsed time to 0.");
+                    // Note - this should never happen, but if it does, we should reset the elapsed time to avoid negative tokens.
                     elapsed = 0.0
                 }
                 self.tokens += elapsed * self.max_tokens;
@@ -126,8 +119,8 @@ impl RateLimiterPy {
         }
     }
 
-    pub fn _is_allowed(&mut self, py: Python<'_>) -> bool {
-        py.allow_threads(|| self.rate_limiter._is_allowed())
+    pub fn _is_allowed(&mut self, py: Python<'_>, timestamp_ns: f64) -> bool {
+        py.allow_threads(|| self.rate_limiter._is_allowed(timestamp_ns))
     }
 
     #[getter]

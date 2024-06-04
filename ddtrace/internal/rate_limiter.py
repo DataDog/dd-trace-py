@@ -32,7 +32,8 @@ class RateLimiter(_RateLimiter):
                 "Ratelimiter will use the current time.",
                 category=DDTraceDeprecationWarning,
             )
-        return self._is_allowed()
+        # rate limits are tested and mocked in pytest so we need to compute
+        return self._is_allowed(compat.monotonic_ns())  # type: ignore[attr-defined]
 
 
 class RateLimitExceeded(Exception):
