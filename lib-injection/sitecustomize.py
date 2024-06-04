@@ -251,7 +251,6 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
-            # We should wrap this import at the very least in a try except block
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             try:
                 import ddtrace.bootstrap.sitecustomize
