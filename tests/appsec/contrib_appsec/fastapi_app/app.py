@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 from typing import Optional
 
 from fastapi import FastAPI
@@ -117,6 +118,11 @@ def get_app():
     @app.post("/rasp/{endpoint:str}/")
     @app.options("/rasp/{endpoint:str}/")
     async def rasp(endpoint: str, request: Request):
+        DB = sqlite3.connect(":memory:")
+        DB.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
+        DB.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
+        DB.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
+        DB.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
         query_params = request.query_params
         if endpoint == "lfi":
             res = ["lfi endpoint"]
@@ -154,6 +160,19 @@ def get_app():
 
                         r = requests.get(urlname, timeout=0.15)
                         res.append(f"Url: {r.text}")
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            return HTMLResponse("<\\br>\n".join(res))
+        elif endpoint == "sql_injection":
+            res = ["sql_injection endpoint"]
+            for param in query_params:
+                if param.startswith("user_id"):
+                    user_id = query_params[param]
+                try:
+                    if param.startswith("user_id"):
+                        cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
+                        res.append(f"Url: {list(cursor)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
