@@ -118,10 +118,8 @@ jobs:
           sleep 1  # wait for traces to be sent
       - name: Check mocked telemetry
         run: |
-           pwd
-           ls
-           find . -name "*.json"
-           [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py
+           cd lib-injection
+           docker compose run app_local pwd && ls && find . -name "*.json" && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py
       - name: Print traces
         run: curl http://localhost:8126/test/traces
       - name: Check test agent received a trace
