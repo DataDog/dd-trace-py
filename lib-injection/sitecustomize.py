@@ -221,7 +221,7 @@ def _inject():
                 )
             else:
                 _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported runtimes.",
+                    "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
                     level="debug",
                 )
         if telemetry_data:
