@@ -36,9 +36,9 @@ class PackageForTesting:
         expected_param,
         expected_result1,
         expected_result2,
-        extras=[],
+        extras=None,
         test_import=True,
-        skip_python_version=[],
+        skip_python_version=None,
         test_e2e=True,
         import_name=None,
         import_module_to_validate=None,
@@ -46,7 +46,7 @@ class PackageForTesting:
         self.name = name
         self.package_version = version
         self.test_import = test_import
-        self.test_import_python_versions_to_skip = skip_python_version
+        self.test_import_python_versions_to_skip = skip_python_version if skip_python_version else []
         self.test_e2e = test_e2e
 
         if expected_param:
@@ -58,8 +58,7 @@ class PackageForTesting:
         if expected_result2:
             self.expected_result2 = expected_result2
 
-        if extras:
-            self.extra_packages = extras
+        self.extra_packages = extras if extras else []
 
         if import_name:
             self.import_name = import_name
@@ -88,7 +87,8 @@ class PackageForTesting:
                 return True, f"{self.name} not yet compatible with Python {version}"
         return False, ""
 
-    def _install(self, python_cmd, package_name, package_version=""):
+    @staticmethod
+    def _install(python_cmd, package_name, package_version=""):
         if package_version:
             package_fullversion = package_name + "==" + package_version
         else:
@@ -172,7 +172,7 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting("cffi", "1.16.0", "", "", "", import_module_to_validate="cffi.model"),
+    PackageForTesting("cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model"),
     PackageForTesting(
         "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
     ),
@@ -475,7 +475,9 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 @pytest.fixture(scope="module")
 def template_venv():
-    print("Creating main virtualenv template...")
+    """
+    Create and configure a virtualenv template to be used for cloning in each test case
+    """
     venv_dir = os.path.join(os.getcwd(), "template_venv")
     cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
     os.makedirs(cloned_venvs_dir, exist_ok=True)
@@ -508,7 +510,6 @@ def venv(template_venv):
     """
     Clone the main template configured venv to each test case runs the package in a clean isolated environment
     """
-    print("Creating cloned virtualenv from template...")
     cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
     cloned_venv_dir = os.path.join(cloned_venvs_dir, str(uuid.uuid4()))
     clonevirtualenv.clone_virtualenv(template_venv, cloned_venv_dir)

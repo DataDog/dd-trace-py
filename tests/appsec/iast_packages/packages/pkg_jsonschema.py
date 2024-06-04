@@ -1,6 +1,6 @@
 """
-jmespath==1.0.1
-https://pypi.org/project/jmespath/
+jsonschema==4.22.0
+https://pypi.org/project/jsonschema/
 """
 from flask import Blueprint
 from flask import request
@@ -8,27 +8,30 @@ from flask import request
 from .utils import ResultResponse
 
 
-pkg_jmespath = Blueprint("package_jmespath", __name__)
+pkg_jsonschema = Blueprint("package_jsonschema", __name__)
 
 
-@pkg_jmespath.route("/jmespath")
-def pkg_jmespath_view():
-    import jmespath
+@pkg_jsonschema.route("/jsonschema")
+def pkg_jsonschema_view():
+    import jsonschema
+    from jsonschema import validate
 
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        data = {
-            "locations": [
-                {"name": "Seattle", "state": "WA"},
-                {"name": "New York", "state": "NY"},
-                {"name": "San Francisco", "state": "CA"},
-            ]
+        schema = {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+            "required": ["name", "age"],
         }
-        expression = jmespath.compile("locations[?state == 'WA'].name | [0]")
-        result = expression.search(data)
 
-        response.result1 = result
+        data = {"name": response.package_param, "age": 65}
+
+        validate(instance=data, schema=schema)
+
+        response.result1 = {"schema": schema, "data": data, "validation": "successful"}
+    except jsonschema.exceptions.ValidationError as e:
+        response.result1 = f"Validation error: {e.message}"
     except Exception as e:
         response.result1 = str(e)
 
