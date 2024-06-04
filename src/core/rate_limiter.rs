@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use std::sync::Mutex;
-use std::time::{SystemTime};
+use std::time::SystemTime;
 
 // Token bucket rate limiter
 struct RateLimiter {
