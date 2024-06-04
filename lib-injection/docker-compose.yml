@@ -29,7 +29,6 @@ services:
     image: ${APP_IMAGE:-python:3.10}
     environment:
       - PYTHONPATH=/datadog-lib
-      - PYTHONVERBOSE=1
       - DD_TRACE_AGENT_URL=http://testagent:8126
       - DD_TELEMETRY_FORWARDER_PATH=
     volumes:
@@ -45,7 +44,6 @@ services:
       - "0.0.0.0:18080:18080"
     environment:
       - PYTHONPATH=/datadog-lib
-      - PYTHONVERBOSE=1
       - DD_TRACE_AGENT_URL=http://testagent:8126
       - DD_TRACE_DEBUG=1
       - DD_TELEMETRY_FORWARDER_PATH=

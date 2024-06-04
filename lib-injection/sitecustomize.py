@@ -200,7 +200,7 @@ def _inject():
 
             else:
                 _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported integrations.",
+                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
                     level="debug",
                 )
         if not runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
