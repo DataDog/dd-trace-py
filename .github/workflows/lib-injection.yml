@@ -119,6 +119,10 @@ jobs:
       - name: Check mocked telemetry
         run: |
            cd lib-injection
+           pwd
+           ls
+           find . -name="*.py"
+           find . -name="*.json"
            [ ! -f $APP_CONTEXT/validate_telemetry.py ] || cat mock-telemetry.json | python $APP_CONTEXT/validate_telemetry.py
       - name: Print traces
         run: curl http://localhost:8126/test/traces
