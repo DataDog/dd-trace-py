@@ -118,6 +118,7 @@ jobs:
           sleep 1  # wait for traces to be sent
       - name: Check mocked telemetry
         run: |
+           cd lib-injection
            docker compose run app_local [! -f $APP_CONTEXT/validate_telemetry.py ] || cat mock-telemetry.json | python $APP_CONTEXT/validate_telemetry.py
       - name: Print traces
         run: curl http://localhost:8126/test/traces
