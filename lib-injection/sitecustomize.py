@@ -285,7 +285,6 @@ def _inject():
                 )
                 send_telemetry(event)
             except Exception as e:
-                # maybe switch errortype since error will have too high over cardinality
                 event = gen_telemetry_payload(
                     [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
                 )
