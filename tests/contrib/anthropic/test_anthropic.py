@@ -1,9 +1,14 @@
+import anthropic as anthropic_module
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from tests.utils import override_global_config
 
 from .utils import process_tool_call
 from .utils import tools
+
+
+ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
 
 def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
@@ -32,10 +37,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
     assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm",
-    ignores=["resource"]
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
 def test_anthropic_llm_sync(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -57,8 +59,7 @@ def test_anthropic_llm_sync(anthropic, request_vcr):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts",
-    ignores=["resource"]
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts", ignores=["resource"]
 )
 def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -80,7 +81,7 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
 
 @pytest.mark.snapshot(
     token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_with_chat_history",
-    ignores=["resource"]
+    ignores=["resource"],
 )
 def test_anthropic_llm_sync_multiple_prompts_with_chat_history(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -112,8 +113,7 @@ def test_anthropic_llm_sync_multiple_prompts_with_chat_history(anthropic, reques
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "resource"],
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error"
+    ignores=["meta.error.stack", "resource"], token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error"
 )
 def test_anthropic_llm_error(anthropic, request_vcr):
     llm = anthropic.Anthropic()
@@ -123,10 +123,7 @@ def test_anthropic_llm_error(anthropic, request_vcr):
             llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=["Invalid content"])
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream",
-    ignores=["resource"]
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"])
 def test_anthropic_llm_sync_stream(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -150,13 +147,11 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
             pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools",
-    ignores=["resource"]
-)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"])
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
 def test_anthropic_llm_sync_tools(anthropic, request_vcr):
     llm = anthropic.Anthropic()
-    with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+    with request_vcr.use_cassette("anthropic_completion_tools_part_1.yaml"):
         message = llm.messages.create(
             model="claude-3-opus-20240229",
             max_tokens=200,
@@ -164,6 +159,7 @@ def test_anthropic_llm_sync_tools(anthropic, request_vcr):
             tools=tools,
         )
 
+    with request_vcr.use_cassette("anthropic_completion_tools_part_2.yaml"):
         if message.stop_reason == "tool_use":
             tool_use = next(block for block in message.content if block.type == "tool_use")
             tool_name = tool_use.name
@@ -198,7 +194,6 @@ def test_anthropic_llm_sync_tools(anthropic, request_vcr):
             None,
         )
         assert final_response is not None
-        assert getattr(final_response, "content") is not None
 
 
 # Async tests
@@ -234,8 +229,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_basic(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_basic",
-        ignores=["resource"]
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_basic", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -260,7 +254,7 @@ async def test_anthropic_llm_async_basic(anthropic, request_vcr, snapshot_contex
 async def test_anthropic_llm_async_multiple_prompts_no_history(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_no_history",
-        ignores=["resource"]
+        ignores=["resource"],
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_multi_prompt.yaml"):
@@ -286,7 +280,7 @@ async def test_anthropic_llm_async_multiple_prompts_no_history(anthropic, reques
 async def test_anthropic_llm_async_multiple_prompts_with_chat_history(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_with_chat_history",
-        ignores=["resource"]
+        ignores=["resource"],
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_multi_prompt_with_chat_history.yaml"):
@@ -320,7 +314,7 @@ async def test_anthropic_llm_async_multiple_prompts_with_chat_history(anthropic,
 async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         ignores=["meta.error.stack", "resource"],
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error"
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_error",
     ):
         llm = anthropic.AsyncAnthropic()
         invalid_error = anthropic.BadRequestError
@@ -332,8 +326,7 @@ async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_contex
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream",
-        ignores=["resource"]
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"]
     ):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
@@ -357,52 +350,52 @@ async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_conte
                 pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools",
-    ignores=["resource"]
-)
-async def test_anthropic_llm_async_tools(anthropic, request_vcr):
-    llm = anthropic.Anthropic()
-    with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
-        message = await llm.messages.create(
-            model="claude-3-opus-20240229",
-            max_tokens=200,
-            messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
-            tools=tools,
-        )
-
-        if message.stop_reason == "tool_use":
-            tool_use = next(block for block in message.content if block.type == "tool_use")
-            tool_name = tool_use.name
-            tool_input = tool_use.input
-
-            tool_result = process_tool_call(tool_name, tool_input)
-
-            response = await llm.messages.create(
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_part_1.yaml"):
+            message = await llm.messages.create(
                 model="claude-3-opus-20240229",
-                max_tokens=500,
-                messages=[
-                    {"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"},
-                    {"role": "assistant", "content": message.content},
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use.id,
-                                "content": tool_result,
-                            }
-                        ],
-                    },
-                ],
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
                 tools=tools,
             )
-        else:
-            response = message
 
-        final_response = next(
-            (block.text for block in response.content if hasattr(block, "text")),
-            None,
-        )
-        assert final_response is not None
-        assert getattr(final_response, "content") is not None
+        with request_vcr.use_cassette("anthropic_completion_tools_part_2.yaml"):
+            if message.stop_reason == "tool_use":
+                tool_use = next(block for block in message.content if block.type == "tool_use")
+                tool_name = tool_use.name
+                tool_input = tool_use.input
+
+                tool_result = process_tool_call(tool_name, tool_input)
+
+                response = await llm.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=500,
+                    messages=[
+                        {"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"},
+                        {"role": "assistant", "content": message.content},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_use.id,
+                                    "content": tool_result,
+                                }
+                            ],
+                        },
+                    ],
+                    tools=tools,
+                )
+            else:
+                response = message
+
+            final_response = next(
+                (block.text for block in response.content if hasattr(block, "text")),
+                None,
+            )
+            assert final_response is not None
