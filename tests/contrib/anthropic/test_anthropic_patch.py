@@ -13,9 +13,12 @@ class TestAnthropicPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, anthropic):
         self.assert_wrapped(anthropic.resources.messages.Messages.create)
+        self.assert_wrapped(anthropic.resources.messages.AsyncMessages.create)
 
     def assert_not_module_patched(self, anthropic):
         self.assert_not_wrapped(anthropic.resources.messages.Messages.create)
+        self.assert_not_wrapped(anthropic.resources.messages.AsyncMessages.create)
 
     def assert_not_module_double_patched(self, anthropic):
         self.assert_not_double_wrapped(anthropic.resources.messages.Messages.create)
+        self.assert_not_double_wrapped(anthropic.resources.messages.AsyncMessages.create)
