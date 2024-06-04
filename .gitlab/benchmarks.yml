@@ -36,7 +36,7 @@ variables:
 
 benchmarks-pr-comment:
   stage: benchmarks-pr-comment
-  when: on_success
+  when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
   script:
