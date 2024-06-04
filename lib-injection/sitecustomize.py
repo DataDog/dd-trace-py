@@ -101,7 +101,7 @@ def send_telemetry(event):
     if not FORWARDER_EXECUTABLE:
         return
     p = subprocess.Popen(
-        [forwarder_executable, str(os.getpid())],
+        [FORWARDER_EXECUTABLE, str(os.getpid())],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
