@@ -216,7 +216,7 @@ PACKAGES = [
         "",
         "",
         "",
-        extras=[("google-auth-oauthlib", "1.2.0"), ("google-auth-httplib2", "0.2.0")],
+        extras=[("google-auth-oauthlib", "1.2.0"), ("google-auth-httplib2", "0.2.0"), ("cryptography", "42.0.7")],
         import_name="googleapiclient",
         import_module_to_validate="googleapiclient.discovery",
     ),
