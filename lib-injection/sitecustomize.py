@@ -2,6 +2,7 @@
 This module when included on the PYTHONPATH will update the PYTHONPATH to point to a directory
 containing the ddtrace package compatible with the current Python version and platform.
 """
+
 from __future__ import print_function  # noqa: E402
 
 from collections import namedtuple
@@ -36,6 +37,7 @@ force_inject = os.environ.get("DD_INJECT_FORCE", "").lower() in (
     "1",
     "t",
 )
+FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
 
 
 def build_installed_pkgs():
@@ -70,7 +72,9 @@ def build_min_pkgs():
 pkgs_allow_list = build_min_pkgs()
 
 
-def create_count_metric(metric, tags=[]):
+def create_count_metric(metric, tags=None):
+    if tags is None:
+        tags = []
     return {
         "name": metric,
         "tags": tags,
@@ -94,9 +98,7 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
-    print(event_json)
-    forwarder_executable = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
-    if not forwarder_executable:
+    if not FORWARDER_EXECUTABLE:
         return
     p = subprocess.Popen(
         [forwarder_executable, str(os.getpid())],
@@ -203,22 +205,16 @@ def _inject():
                     level="debug",
                 )
         if not runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
-            _log("Found incompatible runtime: %s %s." % (python_runtime, python_version), level="debug")
+            _log(
+                "Found incompatible runtime: %s %s. Supported runtimes: %s"
+                % (python_runtime, python_version, runtimes_allow_list),
+                level="debug",
+            )
             runtime_incomp = True
             if not force_inject:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
-                telemetry_data.append(
-                    create_count_metric(
-                        "library_entrypoint.abort.runtime",
-                        [
-                            "min_supported_version:"
-                            + str(runtimes_allow_list.get(python_runtime, {}).get("min", "unknown")),
-                            "max_supported_version:"
-                            + str(runtimes_allow_list.get(python_runtime, {}).get("max", "unknown")),
-                        ],
-                    )
-                )
+                telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
