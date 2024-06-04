@@ -36,27 +36,27 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.9
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA2SSUU8bMQzHv4rlxyllvbaD9oQm9WFCY7wMIZC2m6pw59555JIjdgqs6nef0sJg
-        4imK43/8+9veIjdYYi/talws2uuB4sWSzzYX1ycPyxTOL79fokF9GihnkYhtCQ3G4HLAirCo9YoG
-        +9CQwxJrZ1NDo+koDElGk/FkNp5MFmiwDl7JK5Y/ty8fKj1m6f4o8VQ79nfs28+Vv+oIauvq5KyG
-        CBqCAxaI5GhjvcI6RLBeHiiyb0E7FrhPJMrBgxVghYHiOsRe4NYK12Aja9eTcg1hoGhzphxV/pLu
-        E0dqYLDR9qQUpaz8COhxiCTCwZeQYZJQhIYj1eqeYIhhww01oB1Bb7Wj3irX1r3RQYWFWcxnpph+
-        gg+wMNPZ1BTFcYVHcNOxo0yZm2LZC9Sh760Y+Aq19RDJSvD21j0B+zVF0C4IgY0Ev5Nopmmyz4Zb
-        VhDK8BqigPUHpjcYLJA9bqwjr6Ahcy3ms2eq6Wx6YKr80rm9Nr5vyb7yi2kDEp45hxhqogYeWLs8
-        L3eYxrvZHVX+9OO/8eLOvK5ACG6VJC/VfhPzPa3GxRf9cVb8seffHotl2/F8vVgqX6FBb/usey2Q
-        lX5IiuUWX21j+d4l7na/DIqGYXVo8P/19w9C94l8TVj65JzBtN/4cnuosdJwR16wPJ6NDYakb2PF
-        8clu9xcAAP//AwDqxmMHUQMAAA==
+        H4sIAAAAAAAAA1ySYW8TMQyG/4rlL5PQrfTaMtbTxAcEAiaEGNoEg6Equ3ObaDkni51uU9X/jnLd
+        6LRPp4vtN+/zxht0HTbYy2oxri++Lz/VP25POZ//5F83dqqXn0WxQn2IVLpIxKwIK0zBlwMj4kQN
+        l54+dOSxwdab3NHh9DDELIeT8WQ2nkzmWGEbWIkVmz+bJ0Gl+0G+fBo8Uev4xvHq3RWfW4IslA4E
+        Et1mEgUnoAGWjjtQS5BIslcIS+izVxf9g+MV6F0Ab9KKgHN/TUlGUKRa49vsjYYEGoKH1jBESsuQ
+        elDrBExyantS10KIlIy6wKMr3hl5OV0cuUQChuGA7mMiERf4AKJJpielVMGdda0FsSH7Dq4JDPRG
+        LfVGXWs87KfACBgQTY5XO7OFG2IKa9fRjrVQPfKUDJ6AoXOJWvUP4PgxkyGqwfgXsGZNYLwfSo4L
+        7MAFTDQoh0K2K79EvHNqh4KJMYWYnFF6ZnoE3wIEtbRrL/nRo+zoik9e/39J3Fb71w7BL7KU/RmW
+        rvznxbiep9/ry1M5+36x/nrWf/h4lN5ez99jhWz6Mrf3ViY5ZsVmg3sz2GA9P57V0zfwCubT2bSu
+        j3C7/VuhaIiLREaGpmf3DwUpaXFL2HD2vsI8LHez2d2x0HBDLNgczcYVhqzPz+rZ8Xb7DwAA//8D
+        AERgt0k8AwAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88ea0c10fe0043dd-EWR
+      - 88eab1927eeb41ec-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -64,7 +64,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 18:39:50 GMT
+      - Tue, 04 Jun 2024 20:32:49 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -72,23 +72,21 @@ interactions:
       anthropic-ratelimit-requests-limit:
       - '5'
       anthropic-ratelimit-requests-remaining:
-      - '0'
+      - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-04T18:39:57Z'
+      - '2024-06-04T20:32:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '9000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-04T18:39:57Z'
+      - '2024-06-04T20:32:57Z'
       request-id:
-      - req_01LsEERKwRF6i8rW9hbFVT8a
-      retry-after:
-      - '7'
+      - req_01MjmmPeMPkDTKEYwLmjEpCn
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - d588cf3614f34cc29f44bf38cfa3371f
+      - e4e7af2dbd6317f66083906d363b6d81
     status:
       code: 200
       message: OK
