@@ -2,17 +2,16 @@ interactions:
 - request:
     body: '{"max_tokens": 500, "messages": [{"role": "user", "content": "What is the
       result of 1,984,135 * 9,343,116?"}, {"role": "assistant", "content": [{"text":
-      "<thinking>\nTo answer this question, the calculator tool is the most relevant
-      since it can perform arithmetic operations like multiplication. The calculator
-      tool requires a single parameter:\n- expression: The mathematical expression
-      to evaluate\n\nThe user has provided all the necessary information in their
-      question to populate this parameter. The expression to calculate is \"1984135
-      * 9343116\".\n\nNo other tools are needed, as the calculator can directly answer
-      the question. All required parameters are available, so I can proceed with making
-      the tool call.\n</thinking>", "type": "text"}, {"id": "toolu_01RTBFBTcGRQA9u9oDBY96HH",
+      "<thinking>\nThe calculator tool is relevant for answering this question as
+      it performs basic arithmetic operations.\nRequired parameters:\n- expression:
+      The user directly provided the mathematical expression \"1,984,135 * 9,343,116\".
+      While it contains commas, I can reasonably infer those are just used as digit
+      separators and the expression is equivalent to \"1984135 * 9343116\".\nAll the
+      required parameters are provided, so I can proceed with calling the calculator
+      tool.\n</thinking>", "type": "text"}, {"id": "toolu_01EtZG1zaJKx1Aghi8f9AtiT",
       "input": {"expression": "1984135 * 9343116"}, "name": "calculator", "type":
       "tool_use"}]}, {"role": "user", "content": [{"type": "tool_result", "tool_use_id":
-      "toolu_01RTBFBTcGRQA9u9oDBY96HH", "content": "18538003464660"}]}], "model":
+      "toolu_01EtZG1zaJKx1Aghi8f9AtiT", "content": "18538003464660"}]}], "model":
       "claude-3-opus-20240229", "tools": [{"name": "calculator", "description": "A
       simple calculator that performs basic arithmetic operations.", "input_schema":
       {"type": "object", "properties": {"expression": {"type": "string", "description":
@@ -28,7 +27,187 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '1362'
+      - '1273'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"rate_limit_error","message":"Number
+        of requests has exceeded your per-minute rate limit (https://docs.anthropic.com/en/api/rate-limits);
+        see the response headers for current usage. Please try again later or contact
+        sales at https://www.anthropic.com/contact-sales to discuss your options for
+        a rate limit increase."}}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88ea0c44d95b43dd-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '350'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:39:50 GMT
+      Server:
+      - cloudflare
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '0'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-04T18:39:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '8000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-04T18:39:57Z'
+      request-id:
+      - req_01VRXnTtDN7bkGVjXbQNgzcL
+      retry-after:
+      - '7'
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - fc211fe021a43e2704a032ddb1b704cb
+      x-should-retry:
+      - 'true'
+    status:
+      code: 429
+      message: Too Many Requests
+- request:
+    body: '{"max_tokens": 500, "messages": [{"role": "user", "content": "What is the
+      result of 1,984,135 * 9,343,116?"}, {"role": "assistant", "content": [{"text":
+      "<thinking>\nThe calculator tool is relevant for answering this question as
+      it performs basic arithmetic operations.\nRequired parameters:\n- expression:
+      The user directly provided the mathematical expression \"1,984,135 * 9,343,116\".
+      While it contains commas, I can reasonably infer those are just used as digit
+      separators and the expression is equivalent to \"1984135 * 9343116\".\nAll the
+      required parameters are provided, so I can proceed with calling the calculator
+      tool.\n</thinking>", "type": "text"}, {"id": "toolu_01EtZG1zaJKx1Aghi8f9AtiT",
+      "input": {"expression": "1984135 * 9343116"}, "name": "calculator", "type":
+      "tool_use"}]}, {"role": "user", "content": [{"type": "tool_result", "tool_use_id":
+      "toolu_01EtZG1zaJKx1Aghi8f9AtiT", "content": "18538003464660"}]}], "model":
+      "claude-3-opus-20240229", "tools": [{"name": "calculator", "description": "A
+      simple calculator that performs basic arithmetic operations.", "input_schema":
+      {"type": "object", "properties": {"expression": {"type": "string", "description":
+      "The mathematical expression to evaluate (e.g., ''2 + 3 * 4'')."}}, "required":
+      ["expression"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '1273'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88ea0c717f55434f-EWR
+      Cache-Control:
+      - no-store, no-cache
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '75'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:39:59 GMT
+      Server:
+      - cloudflare
+      request-id:
+      - req_01PTvVW3st1XAwA3EymUCdq9
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 351112042c856da4d17d2d6062cfd0a0
+      x-should-retry:
+      - 'true'
+    status:
+      code: 529
+      message: ''
+- request:
+    body: '{"max_tokens": 500, "messages": [{"role": "user", "content": "What is the
+      result of 1,984,135 * 9,343,116?"}, {"role": "assistant", "content": [{"text":
+      "<thinking>\nThe calculator tool is relevant for answering this question as
+      it performs basic arithmetic operations.\nRequired parameters:\n- expression:
+      The user directly provided the mathematical expression \"1,984,135 * 9,343,116\".
+      While it contains commas, I can reasonably infer those are just used as digit
+      separators and the expression is equivalent to \"1984135 * 9343116\".\nAll the
+      required parameters are provided, so I can proceed with calling the calculator
+      tool.\n</thinking>", "type": "text"}, {"id": "toolu_01EtZG1zaJKx1Aghi8f9AtiT",
+      "input": {"expression": "1984135 * 9343116"}, "name": "calculator", "type":
+      "tool_use"}]}, {"role": "user", "content": [{"type": "tool_result", "tool_use_id":
+      "toolu_01EtZG1zaJKx1Aghi8f9AtiT", "content": "18538003464660"}]}], "model":
+      "claude-3-opus-20240229", "tools": [{"name": "calculator", "description": "A
+      simple calculator that performs basic arithmetic operations.", "input_schema":
+      {"type": "object", "properties": {"expression": {"type": "string", "description":
+      "The mathematical expression to evaluate (e.g., ''2 + 3 * 4'')."}}, "required":
+      ["expression"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '1273'
       content-type:
       - application/json
       host:
@@ -54,16 +233,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0yP3UrDQBCFX2U5lzKVJJuEZK+L3hVEEUQkxGSaRNPdNDMLSum7S4uCVwe+8wPn
-        hKmHw0GGJkkfx+G49f3uLit2L8/30/T+8LEVEPR74UuKRdqBQVjDfAGtyCTaegXhEHqe4dDNbex5
-        YzdhibLJkixPsqwGoQte2Svc6+lvUPnrUr2Kw9PIK+/DymR0ZLOyxFlN2JuU6iqn1BbmxtRkc0tp
-        WppJTFpRYStKEkt5mVNZJrc4vxFEw9Ks3ErwcGDfNxpXj19D+BjZdwzn4zwT4vWUO2HyS9RGwyd7
-        gauynBCi/me2PJ9/AAAA//8DAPgqkqEzAQAA
+        H4sIAAAAAAAAA0yPzUrDQBSFX2U4S5lIkklDMsuK6MqNgqBISJObNpjOpHPvgDX03SVFwdWB7/zA
+        WTD2sDjyvkmz+9MDP70+7nbP27chnOfxuw7DHTTkPNOaIuZ2T9AIflpByzyytE6gcfQ9TbDopjb2
+        lJjEz5GTPM2LNM9raHTeCTmBfV/+BoW+1upVLF4OFGjwgbSSA6lAHCdRflCZrqtCZ2ajblStTWF0
+        lpVqZJVVG1OlqSnKoizTW1w+NFj83ARq2TtYkOsbicHh12A6RXIdwbo4TRrxesguGN0cpRH/SY5h
+        q9xo+Cj/mckvlx8AAAD//wMAjjOTzS8BAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88e9ec564ef64222-EWR
+      - 88ea0c83ec85434f-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -71,7 +250,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 18:18:05 GMT
+      - Tue, 04 Jun 2024 18:40:03 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -81,19 +260,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-04T18:18:57Z'
+      - '2024-06-04T18:40:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '9000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-04T18:18:57Z'
+      - '2024-06-04T18:40:57Z'
       request-id:
-      - req_01Kyz3hB1MjdDHfFRfMoReTc
+      - req_01MEo5gJ4zAJt1kjVqm39kG6
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 155c7bc323534f58baa0f8149ca58e5a
+      - e8e88ccc3bd9fd43fefaef20d023d491
     status:
       code: 200
       message: OK
