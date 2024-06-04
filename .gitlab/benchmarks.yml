@@ -9,13 +9,14 @@ variables:
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
   timeout: 1h
+  needs: []
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - export CMAKE_BUILD_PARALLEL_LEVEL=12
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
-    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
+    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
     - ./steps/analyze-results.sh
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
@@ -35,7 +36,7 @@ variables:
 
 benchmarks-pr-comment:
   stage: benchmarks-pr-comment
-  when: on_success
+  when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
   script:
