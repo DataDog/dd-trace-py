@@ -6,7 +6,6 @@ import os
 
 import pytest
 
-from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
 
