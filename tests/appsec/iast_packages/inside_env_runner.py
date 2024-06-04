@@ -5,13 +5,30 @@ from traceback import format_exc
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
-if hasattr(ast, 'unparse'):
-    unparse = ast.unparse
-else:
-    from astunparse import unparse
+# if hasattr(ast, 'unparse'):
+#     unparse = ast.unparse
+# else:
+#     from astunparse import unparse
+
+from astunparse import unparse, dump
 
 
 def _iast_patched_module_and_patched_source(module_name):
+    import importlib
+    spec = importlib.util.find_spec(module_name)
+    module_file_path = spec.origin
+
+    # Read the source code from the file
+    with open(module_file_path, 'r') as file:
+        source_code = file.read()
+
+    # Parse the source code into an AST
+    parsed_ast = ast.parse(source_code)
+
+    # Optionally, you can print or process the AST
+    with open("/home/juanjux/borrame/dump_ast", "w") as f:
+        print(dump(parsed_ast), file=f)
+    # JJJ end
     module = importlib.import_module(module_name)
     module_path, patched_module = astpatch_module(module)
 
@@ -35,6 +52,8 @@ def try_patched(module_name):
         module, patched_module = _iast_patched_module_and_patched_source(module_name)
         assert module, "Module is None after patching"
         assert patched_module, "Patched source is None after patching"
+        with open("/home/juanjux/borrame/dump_patched", "w") as f:
+            print(dump(patched_module), file=f)
         new_code = unparse(patched_module)
         assert (
             "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
