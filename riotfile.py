@@ -145,7 +145,6 @@ venv = Venv(
                 "psycopg2-binary": "~=2.9.9",
                 "googleapis-common-protos": latest,
                 "grpcio": latest,
-                "virtualenv-clone": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -181,6 +180,7 @@ venv = Venv(
                 "requests": latest,
                 "astunparse": latest,
                 "flask": "~=3.0",
+                "virtualenv-clone": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
