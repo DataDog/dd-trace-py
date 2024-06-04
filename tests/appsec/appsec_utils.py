@@ -41,7 +41,7 @@ def gunicorn_server(appsec_enabled="true", remote_configuration_enabled="true", 
 
 @contextmanager
 def flask_server(
-    python_cmd,
+    python_cmd="python",
     appsec_enabled="true",
     remote_configuration_enabled="true",
     iast_enabled="false",
