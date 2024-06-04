@@ -109,7 +109,7 @@ async def test_anthropic_llm_async_multiple_prompts_with_chat_history(anthropic,
 
 @pytest.mark.asyncio
 async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_context):
-    with snapshot_context():
+    with snapshot_context(ignores=["meta.error.stack"]):
         llm = anthropic.AsyncAnthropic()
         invalid_error = anthropic.BadRequestError
         with pytest.raises(invalid_error):
@@ -119,7 +119,7 @@ async def test_anthropic_llm_error_async(anthropic, request_vcr, snapshot_contex
 
 @pytest.mark.asyncio
 async def test_anthropic_llm_async_stream(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(ignores=["meta.error.stack"]):
+    with snapshot_context():
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion_async_stream.yaml"):
             stream = await llm.messages.create(
