@@ -475,7 +475,7 @@ class StackCollector(collector.PeriodicCollector):
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
-    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2.enabled)
+    _stack_collector_v2_enabled = attr.ib(type=bool, default=config.stack.v2_enabled)
 
     @max_time_usage_pct.validator
     def _check_max_time_usage(self, attribute, value):

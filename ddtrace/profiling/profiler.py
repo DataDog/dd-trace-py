@@ -130,7 +130,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -176,13 +175,11 @@ class _ProfilerInstance(service.Service):
         # Did the user request the libdd collector?  Better log it.
         if self._export_libdd_enabled:
             LOG.debug("The libdd collector is enabled")
-        if self._export_libdd_required:
-            LOG.debug("The libdd collector is required")
 
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
         if self._stack_collector_enabled:
-            if config.stack.v2.enabled:
+            if config.stack.v2_enabled:
                 configured_features.append("stack_v2")
             else:
                 configured_features.append("stack")
@@ -194,14 +191,10 @@ class _ProfilerInstance(service.Service):
             configured_features.append("heap")
         if self._pytorch_collector_enabled:
             configured_features.append("pytorch")
-            self._export_libdd_required = True
-
         if self._export_libdd_enabled:
             configured_features.append("exp_dd")
         else:
             configured_features.append("exp_py")
-        if self._export_libdd_required:
-            configured_features.append("req_dd")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
@@ -212,7 +205,6 @@ class _ProfilerInstance(service.Service):
 
         # If libdd is enabled, then
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
-        # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
             try:
                 ddup.init(
@@ -225,20 +217,16 @@ class _ProfilerInstance(service.Service):
                 )
                 return []
             except Exception as e:
+                # If we're here, then the libdatadog upload failed to initialize.  This means we need to disable any
+                # of the features that rely on it.
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
 
-                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
-                # collector.
-                if self._export_libdd_required:
-                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
-                    config.enabled = False
-                    config.export.libdd_required = False
-                    config.lock.enabled = False
-                    config.memory.enabled = False
-                    config.stack.enabled = False
-                    return []
+                # Now disable any other features
+                config.stack.v2_enabled = False
+                config.pytorch.enabled = False
+                self._pytorch_collector_enabled = False
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
@@ -321,10 +309,7 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
-        if self._pytorch_collector_enabled and not self._export_libdd_enabled:
-            LOG.error("""PyTorch profiling requires native exporter but it is not enabled, disabling feature.""")
-
-        if self._pytorch_collector_enabled and self._export_libdd_enabled:
+        if self._pytorch_collector_enabled:
 
             def start_collector(collector_class: Type) -> None:
                 with self._service_lock:

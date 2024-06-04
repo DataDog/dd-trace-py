@@ -62,10 +62,8 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
-# We don't check for the availability of the ddup module when determining whether libdd is _required_,
-# since it's up to the application code to determine what happens in that failure case.
 def _is_libdd_required(config):
-    return config.stack.v2.enabled or config._libdd_required
+    return config.stack.v2_enabled or config.pytorch.enabled or config.export._libdd_enabled
 
 
 class ProfilingConfig(En):
@@ -179,125 +177,127 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    class Stack(En):
-        __item__ = __prefix__ = "stack"
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the stack profiler",
-        )
+class ProfilingConfigStack(En):
+    __item__ = __prefix__ = "stack"
 
-        class V2(En):
-            __item__ = __prefix__ = "v2"
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the stack profiler",
+    )
 
-            _enabled = En.v(
-                bool,
-                "enabled",
-                default=False,
-                help_type="Boolean",
-                help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
-            )
+    _v2_enabled = En.v(
+        bool,
+        "v2_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
+    )
 
-            enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._enabled)
+    v2_enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled)
 
-    class Lock(En):
-        __item__ = __prefix__ = "lock"
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the lock profiler",
-        )
+class ProfilingConfigLock(En):
+    __item__ = __prefix__ = "lock"
 
-    class Memory(En):
-        __item__ = __prefix__ = "memory"
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the lock profiler",
+    )
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the memory profiler",
-        )
 
-        events_buffer = En.v(
-            int,
-            "events_buffer",
-            default=16,
-            help_type="Integer",
-            help="",
-        )
+class ProfilingConfigMemory(En):
+    __item__ = __prefix__ = "memory"
 
-    class Heap(En):
-        __item__ = __prefix__ = "heap"
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the memory profiler",
+    )
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the heap memory profiler",
-        )
+    events_buffer = En.v(
+        int,
+        "events_buffer",
+        default=16,
+        help_type="Integer",
+        help="",
+    )
 
-        _sample_size = En.v(
-            t.Optional[int],
-            "sample_size",
-            default=None,
-            help_type="Integer",
-            help="",
-        )
-        sample_size = En.d(int, _derive_default_heap_sample_size)
 
-    class Pytorch(En):
-        __item__ = __prefix__ = "pytorch"
+class ProfilingConfigHeap(En):
+    __item__ = __prefix__ = "heap"
 
-        enabled = En.v(
-            bool,
-            "enabled",
-            default=True,
-            help_type="Boolean",
-            help="Whether to enable the PyTorch profiler",
-        )
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the heap memory profiler",
+    )
 
-    class Export(En):
-        __item__ = __prefix__ = "export"
+    _sample_size = En.v(
+        t.Optional[int],
+        "sample_size",
+        default=None,
+        help_type="Integer",
+        help="",
+    )
+    sample_size = En.d(int, _derive_default_heap_sample_size)
 
-        _libdd_required = En.v(
-            bool,
-            "libdd_required",
-            default=False,
-            help_type="Boolean",
-            help="Requires the native exporter to be enabled",
-        )
 
-        libdd_required = En.d(
-            bool,
-            _is_libdd_required,
-        )
+class ProfilingConfigPytorch(En):
+    __item__ = __prefix__ = "pytorch"
 
-        _libdd_enabled = En.v(
-            bool,
-            "libdd_enabled",
-            default=False,
-            help_type="Boolean",
-            help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
-        )
+    enabled = En.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the PyTorch profiler",
+    )
 
-        libdd_enabled = En.d(
-            bool, lambda c: (_is_libdd_required(c) or c._libdd_enabled) and _check_for_ddup_available()
-        )
 
-    Export.include(Stack, namespace="stack")
+class ProfilingConfigExport(En):
+    __item__ = __prefix__ = "export"
 
+    _libdd_enabled = En.v(
+        bool,
+        "libdd_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
+    )
+
+
+# Include all the sub-configs
+ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
+ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
+ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
+ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
+ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
+config.export.libdd_enabled = _is_libdd_required(config) and _check_for_ddup_available()
 
+# Certain features depend on libdd being enabled.  If it isn't for some reason, those features cannot be enabled.
+if config.stack.v2_enabled and not config.export.libdd_enabled:
+    logger.warning("The v2 stack profiler was requested, but cannot be enabled (failed to load libdd)")
+    config.stack.v2_enabled = False
 
-if config.export.libdd_required and not config.export.libdd_enabled:
-    logger.warning("The native exporter is required, but not enabled. Disabling profiling.")
+if config.pytorch.enabled and not config.export.libdd_enabled:
+    logger.warning("The PyTorch profiler was requested, but cannot be enabled (failed to load libdd)")
     config.enabled = False
+
+# Certain features have native components that must be available
+if config.stack.v2_enabled and not _check_for_stack_v2_available():
+    logger.warning("The v2 stack profiler was requested, but cannot be enabled (failed to load stack_v2)")
+    config.stack.v2_enabled = False
