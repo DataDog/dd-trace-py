@@ -1,4 +1,5 @@
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 from ddtrace._trace.span import Span
@@ -12,6 +13,7 @@ def init(
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
     max_nframes: Optional[int],
     url: Optional[str],
+    types: Union[str, List[str], None] = None,
 ) -> None: ...
 def upload() -> None: ...
 

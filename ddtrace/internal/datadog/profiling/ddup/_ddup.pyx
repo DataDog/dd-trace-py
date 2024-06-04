@@ -3,6 +3,7 @@
 
 import platform
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -16,6 +17,19 @@ from ddtrace._trace.span import Span
 
 StringType = Union[str, bytes, None]
 
+cdef extern from "types.hpp":
+    cdef enum SampleType:
+        Invalid = 0
+        CPU = 1 << 0
+        Wall = 1 << 1
+        ExceptionType = 1 << 2
+        LockAcquire = 1 << 3
+        LockRelease = 1 << 4
+        Allocation = 1 << 5
+        Heap = 1 << 6
+        GPUTime = 1 << 7
+        GPUMemory = 1 << 8
+        GPUFlops = 1 << 9
 
 cdef extern from "stdint.h":
     ctypedef unsigned long long uint64_t
@@ -128,14 +142,36 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
+# Module lookups
+cdef dict enum_values = {
+    "invalid": Invalid,
+    "stack": CPU + Wall + ExceptionType,
+    "memory": Allocation + Heap,
+    "lock": LockAcquire + LockRelease,
+    "pytorch": GPUTime + GPUMemory + GPUFlops,
+}
+
+
 # Public API
+def get_types(types: Union[str, List[str], None]) -> int:
+    if types is None:
+        return Invalid
+    if isinstance(types, str):
+        return enum_values[types]
+    if isinstance(types, list):
+        return sum(enum_values[t] for t in types)
+    raise ValueError("Invalid types value")
+
+
 def init(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None) -> None:
+        url: StringType = None,
+        types: Union[str, List[str], None] = None,
+) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -161,6 +197,17 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+
+    # Now configure the sample types
+    type_mask = CPU | Wall | ExceptionType | LockAcquire | LockRelease | Allocation | Heap
+    if types:
+        try:
+            type_mask = get_types(types)
+        except Exception:
+            pass
+    ddup_config_sample_type(type_mask)
+
+    # Initialize the uploader
     ddup_init()
 
 

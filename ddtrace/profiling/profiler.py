@@ -207,6 +207,17 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
         if self._export_libdd_enabled:
             try:
+                enabled_types = [""] + [
+                    collector
+                    for collector, enabled in [
+                        ("stack", self._stack_collector_enabled),
+                        ("lock", self._lock_collector_enabled),
+                        ("memory", self._memory_collector_enabled),
+                        ("pytorch", self._pytorch_collector_enabled),
+                    ]
+                    if enabled
+                ]
+
                 ddup.init(
                     env=self.env,
                     service=self.service,
@@ -214,6 +225,7 @@ class _ProfilerInstance(service.Service):
                     tags=self.tags,  # type: ignore
                     max_nframes=config.max_frames,
                     url=endpoint,
+                    types=enabled_types,
                 )
                 return []
             except Exception as e:
