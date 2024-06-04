@@ -38,6 +38,7 @@ force_inject = os.environ.get("DD_INJECT_FORCE", "").lower() in (
     "t",
 )
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
+TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED")
 
 
 def build_installed_pkgs():
@@ -98,7 +99,7 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
-    if not FORWARDER_EXECUTABLE:
+    if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
         return
     p = subprocess.Popen(
         [FORWARDER_EXECUTABLE, str(os.getpid())],
