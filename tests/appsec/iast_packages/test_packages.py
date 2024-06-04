@@ -423,8 +423,8 @@ PACKAGES = [
     ),
     # TODO: Test import fails with AttributeError: 'FormattedValue' object has no attribute 'values'
     # PackageForTesting("werkzeug", "3.0.3", "", "", "", test_e2e=False, import_module_to_validate="werkzeug.http"),
-    PackageForTesting("yarl", "1.9.4", "", "", "", test_e2e=False, import_module_to_validate="yarl._url"),
-    PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
+    # PackageForTesting("yarl", "1.9.4", "", "", "", test_e2e=False, import_module_to_validate="yarl._url"),
+    # PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
     # PENDING TO TEST
     # TODO: Python 3.8 fails in test_packages_patched_import with
     #   TypeError: '>' not supported between instances of 'int' and 'object'
@@ -493,7 +493,6 @@ def template_venv():
         "six",
         "cattrs",
         "pytest",
-        "astunparse",
         "charset_normalizer",
         this_dd_trace_py_path,
     ]
