@@ -38,6 +38,7 @@ from ddtrace.ext import user
 from ddtrace.internal import telemetry
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
@@ -1985,3 +1986,20 @@ def test_import_ddtrace_tracer_not_module():
     from ddtrace import tracer
 
     assert isinstance(tracer, Tracer)
+
+
+def test_asm_standalone_configuration():
+    tracer = ddtrace.Tracer()
+    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    assert tracer._asm_enabled is True
+    assert tracer._appsec_standalone_enabled is True
+    assert tracer._apm_opt_out is True
+    assert tracer.enabled is False
+
+    assert isinstance(tracer._sampler.limiter, RateLimiter)
+    assert tracer._sampler.limiter.rate_limit == 1
+    assert tracer._sampler.limiter.time_window == 60e9
+
+    assert tracer._compute_stats is False
+    # reset tracer values
+    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
