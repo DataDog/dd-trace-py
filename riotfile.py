@@ -2517,16 +2517,6 @@ venv = Venv(
                     }
                 ),
                 Venv(
-                    name="anthropic",
-                    command="pytest {cmdargs} tests/contrib/anthropic",
-                    pys=select_pys(min_version="3.7", max_version="3.11"),
-                    pkgs={
-                        "pytest-asyncio": latest,
-                        "vcrpy": latest,
-                        "anthropic": latest,
-                    },
-                ),
-                Venv(
                     pkgs={
                         "langchain": latest,
                         "langchain-community": latest,
@@ -2542,6 +2532,16 @@ venv = Venv(
                     }
                 ),
             ],
+        ),
+        Venv(
+            name="anthropic",
+            command="pytest {cmdargs} tests/contrib/anthropic",
+            pys=select_pys(min_version="3.7", max_version="3.11"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "anthropic": latest,
+            },
         ),
         Venv(
             name="logbook",
