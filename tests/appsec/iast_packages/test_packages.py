@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+import clonevirtualenv
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
@@ -206,7 +207,7 @@ PACKAGES = [
         "",
         "",
         import_name="google",
-        import_module_to_validate="google.auth.transport.grpc",
+        import_module_to_validate="google.auth.iam",
     ),
     PackageForTesting(
         "google-api-python-client",
@@ -472,8 +473,9 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 
 @pytest.fixture(scope="module")
-def venv():
-    venv_dir = os.path.join(os.getcwd(), "test_venv")
+def template_venv():
+    print("Creating main virtualenv template...")
+    venv_dir = os.path.join(os.getcwd(), "template_venv")
 
     # Create virtual environment
     subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
@@ -493,10 +495,25 @@ def venv():
     ]
     subprocess.check_call([pip_executable, "install", *deps_to_install])
 
-    yield python_executable
+    yield venv_dir
 
     # Cleanup: Remove the virtual environment directory after tests
     shutil.rmtree(venv_dir)
+
+
+@pytest.fixture()
+def venv(template_venv):
+    """
+    Clone the main template configured venv to each test case runs the package in a clean isolated environment
+    """
+    print("Creating cloned virtualenv from template...")
+    cloned_venv_dir = os.path.join(os.getcwd(), "cloned_venv")
+    clonevirtualenv.clone_virtualenv(template_venv, cloned_venv_dir)
+    python_executable = os.path.join(cloned_venv_dir, "bin", "python")
+
+    yield python_executable
+
+    shutil.rmtree(cloned_venv_dir)
 
 
 def _assert_results(response, package):
