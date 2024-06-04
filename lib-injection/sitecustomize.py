@@ -28,15 +28,19 @@ def parse_version(version: str) -> Tuple:
     return Version(parsed_version, constraint)
 
 
-runtimes_allow_list = {
+RUNTIMES_ALLOW_LIST = {
     "cpython": {"min": parse_version("3.7"), "max": parse_version("3.12")},
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
-IS_TEST = os.environ.get("DD_INJECT_TEST", "").lower() in ("true", "1", "t")
 TELEMETRY_MOCK_FILE = "mock-telemetry.json"
+DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
+INSTALLED_PACKAGES = None
+PYTHON_VERSION = None
+PYTHON_RUNTIME = None
+PKGS_ALLOW_LIST = None
 
 
 def build_installed_pkgs():
@@ -51,12 +55,6 @@ def build_installed_pkgs():
     return installed_packages
 
 
-installed_packages = build_installed_pkgs()
-
-python_runtime = platform.python_implementation().lower()
-python_version = ".".join(str(i) for i in sys.version_info[:2])
-
-
 def build_min_pkgs():
     min_pkgs = dict()
     with open("../datadog-lib/min_compatible_versions.csv", "r") as csvfile:
@@ -66,9 +64,6 @@ def build_min_pkgs():
                 continue
             min_pkgs[row[0]] = parse_version(row[1])
     return min_pkgs
-
-
-pkgs_allow_list = build_min_pkgs()
 
 
 def create_count_metric(metric, tags=None):
@@ -84,11 +79,11 @@ def gen_telemetry_payload(telemetry_events):
     return {
         "metadata": {
             "language_name": "python",
-            "language_version": python_version,
-            "runtime_name": python_runtime,
-            "runtime_version": python_version,
+            "language_version": PYTHON_VERSION,
+            "runtime_name": PYTHON_RUNTIME,
+            "runtime_version": PYTHON_VERSION,
             "tracer_name": "python",
-            "tracer_version": installed_packages.get("ddtrace", "unknown"),
+            "tracer_version": INSTALLED_PACKAGES.get("ddtrace", "unknown"),
             "pid": os.getpid(),
         },
         "points": telemetry_events,
@@ -97,7 +92,7 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
-    if IS_TEST:
+    if DEBUG_MODE:
         with open(TELEMETRY_MOCK_FILE, "w") as f:
             f.write(event_json)
         return
@@ -112,10 +107,6 @@ def send_telemetry(event):
     )
     p.stdin.write(event_json)
     p.stdin.close()
-
-
-debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
-# Python versions that are supported by the current ddtrace release
 
 
 def _get_clib():
@@ -137,14 +128,14 @@ def _log(msg, *args, **kwargs):
     being configured.
     """
     level = kwargs.get("level", "info")
-    if debug_mode:
+    if DEBUG_MODE:
         asctime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         msg = "[%s] [%s] datadog.autoinstrumentation(pid: %d): " % (asctime, level.upper(), os.getpid()) + msg % args
         print(msg, file=sys.stderr)
 
 
-def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
-    supported_versions = runtimes_allow_list.get(python_runtime, {})
+def runtime_version_is_supported(python_runtime, python_version):
+    supported_versions = RUNTIMES_ALLOW_LIST.get(python_runtime, {})
     if not supported_versions:
         return False
     return (
@@ -152,15 +143,23 @@ def runtime_version_is_supported(runtimes_allow_list, python_runtime, python_ver
     )
 
 
-def package_is_compatible(pkgs_allow_list, package_name, package_version):
+def package_is_compatible(package_name, package_version):
     installed_version = parse_version(package_version)
-    supported_version_spec = pkgs_allow_list.get(package_name, Version((0,), ""))
+    supported_version_spec = PKGS_ALLOW_LIST.get(package_name, Version((0,), ""))
     if supported_version_spec.constraint in ("<", "<="):
         return True  # minimum "less than" means there is no minimum
     return installed_version.version >= supported_version_spec.version
 
 
 def _inject():
+    global INSTALLED_PACKAGES
+    global PYTHON_VERSION
+    global PYTHON_RUNTIME
+    global PKGS_ALLOW_LIST
+    INSTALLED_PACKAGES = build_installed_pkgs()
+    PYTHON_RUNTIME = platform.python_implementation().lower()
+    PYTHON_VERSION = ".".join(str(i) for i in sys.version_info[:2])
+    PKGS_ALLOW_LIST = build_min_pkgs()
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
@@ -169,8 +168,8 @@ def _inject():
     except ImportError:
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
-        platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
-        _log("detected platform %s" % platform, level="debug")
+        current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
+        _log("detected platform %s" % current_platform, level="debug")
 
         script_dir = os.path.dirname(__file__)
         pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
@@ -179,8 +178,8 @@ def _inject():
 
         # check installed packages against allow list
         incompatible_packages = {}
-        for package_name, package_version in installed_packages.items():
-            if not package_is_compatible(pkgs_allow_list, package_name, package_version):
+        for package_name, package_version in INSTALLED_PACKAGES.items():
+            if not package_is_compatible(package_name, package_version):
                 incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
@@ -196,7 +195,7 @@ def _inject():
                             [
                                 "integration_name:" + key,
                                 "integration_version:" + value,
-                                "min_supported_version:" + str(pkgs_allow_list[key]),
+                                "min_supported_version:" + str(PKGS_ALLOW_LIST[key]),
                             ],
                         )
                     )
@@ -206,10 +205,10 @@ def _inject():
                     "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
                     level="debug",
                 )
-        if not runtime_version_is_supported(runtimes_allow_list, python_runtime, python_version):
+        if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
                 "Found incompatible runtime: %s %s. Supported runtimes: %s"
-                % (python_runtime, python_version, runtimes_allow_list),
+                % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST),
                 level="debug",
             )
             runtime_incomp = True
@@ -235,7 +234,7 @@ def _inject():
             send_telemetry(telemetry_event)
             return
 
-        site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, platform))
+        site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (PYTHON_VERSION, current_platform))
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
@@ -253,7 +252,6 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
-            # We should wrap this import at the very least in a try except block
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             try:
                 import ddtrace.bootstrap.sitecustomize
@@ -287,7 +285,6 @@ def _inject():
                 )
                 send_telemetry(event)
             except Exception as e:
-                # maybe switch errortype since error will have too high over cardinality
                 event = gen_telemetry_payload(
                     [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
                 )
@@ -300,4 +297,7 @@ def _inject():
         )
 
 
-_inject()
+try:
+    _inject()
+except Exception:
+    pass  # absolutely never allow exceptions to propagate to the app
