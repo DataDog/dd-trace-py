@@ -1,12 +1,12 @@
 import json
-import uuid
 import os
 import shutil
 import subprocess
 import sys
+import uuid
 
-import pytest
 import clonevirtualenv
+import pytest
 
 from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
@@ -477,10 +477,11 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 def template_venv():
     print("Creating main virtualenv template...")
     venv_dir = os.path.join(os.getcwd(), "template_venv")
+    cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
+    os.makedirs(cloned_venvs_dir, exist_ok=True)
 
     # Create virtual environment
     subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
-    python_executable = os.path.join(venv_dir, "bin", "python")
     pip_executable = os.path.join(venv_dir, "bin", "pip")
     this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
     # Install dependencies.
@@ -508,7 +509,8 @@ def venv(template_venv):
     Clone the main template configured venv to each test case runs the package in a clean isolated environment
     """
     print("Creating cloned virtualenv from template...")
-    cloned_venv_dir = os.path.join(os.getcwd(), str(uuid.uuid4()))
+    cloned_venvs_dir = os.path.join(os.getcwd(), "cloned_venvs")
+    cloned_venv_dir = os.path.join(cloned_venvs_dir, str(uuid.uuid4()))
     clonevirtualenv.clone_virtualenv(template_venv, cloned_venv_dir)
     python_executable = os.path.join(cloned_venv_dir, "bin", "python")
 
