@@ -32,9 +32,9 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
 def tag_params_on_span(span, kwargs, integration):
     tagged_params = {}
     for k, v in kwargs.items():
-        if k == "system":
-            tagged_params[k] = integration.trunc(v)
-        elif k not in ["messages", "model", "tools"]:
+        if k == "system" and integration.is_pc_sampled_span(span):
+            span.set_tag_str("anthropic.request.system", integration.trunc(v))
+        elif k not in ("messages", "model", "tools"):
             tagged_params[k] = v
     span.set_tag_str("anthropic.request.parameters", json.dumps(tagged_params))
 
