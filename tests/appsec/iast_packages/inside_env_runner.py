@@ -5,6 +5,11 @@ from traceback import format_exc
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
+if hasattr(ast, 'unparse'):
+    unparse = ast.unparse
+else:
+    from astunparse import unparse
+
 
 def _iast_patched_module_and_patched_source(module_name):
     module = importlib.import_module(module_name)
@@ -30,7 +35,7 @@ def try_patched(module_name):
         module, patched_module = _iast_patched_module_and_patched_source(module_name)
         assert module, "Module is None after patching"
         assert patched_module, "Patched source is None after patching"
-        new_code = ast.unparse(patched_module)
+        new_code = unparse(patched_module)
         assert (
             "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
             "\nimport ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects\n"

@@ -421,13 +421,10 @@ PACKAGES = [
     PackageForTesting(
         "virtualenv", "20.26.2", "", "", "", test_e2e=False, import_module_to_validate="virtualenv.activation.activator"
     ),
-    # TODO: Test import fails with AttributeError: 'FormattedValue' object has no attribute 'values'
-    # PackageForTesting("werkzeug", "3.0.3", "", "", "", test_e2e=False, import_module_to_validate="werkzeug.http"),
-    # PackageForTesting("yarl", "1.9.4", "", "", "", test_e2e=False, import_module_to_validate="yarl._url"),
-    # PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False),
-    # PENDING TO TEST
-    # TODO: Python 3.8 fails in test_packages_patched_import with
-    #   TypeError: '>' not supported between instances of 'int' and 'object'
+    # These show an issue in astunparse ("FormattedValue has no attribute values") so we use ast.unparse which is only 3.9
+    PackageForTesting("werkzeug", "3.0.3", "", "", "", test_e2e=False, import_module_to_validate="werkzeug.http", skip_python_version=[(3, 6), (3, 7), (3, 8)]),
+    PackageForTesting("yarl", "1.9.4", "", "", "", test_e2e=False, import_module_to_validate="yarl._url", skip_python_version=[(3, 6), (3, 7), (3, 8)]),
+    PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False, skip_python_version=[(3, 6), (3, 7), (3, 8)]),
     PackageForTesting(
         "typing-extensions",
         "4.11.0",
@@ -436,7 +433,7 @@ PACKAGES = [
         "",
         import_name="typing_extensions",
         test_e2e=False,
-        skip_python_version=[(3, 8)],
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
