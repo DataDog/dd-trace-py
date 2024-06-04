@@ -19,7 +19,7 @@ interactions:
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.28.0
+      - Anthropic/Python 0.26.1
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -29,7 +29,7 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 0.28.0
+      - 0.26.1
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
@@ -40,12 +40,12 @@ interactions:
     body:
       string: 'event: message_start
 
-        data: {"type":"message_start","message":{"id":"msg_01Ea8X6hVwT5cbZ6VCiv38Au","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":27,"output_tokens":1}}      }
+        data: {"type":"message_start","message":{"id":"msg_01PgicqXb8hKdXEPHm3LLTGF","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":27,"output_tokens":1}}             }
 
 
         event: content_block_start
 
-        data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}         }
+        data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}          }
 
 
         event: ping
@@ -55,75 +55,76 @@ interactions:
 
         event: content_block_delta
 
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}          }
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}
+        }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        phrase"}               }
+        phrase"}             }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        \""}    }
+        \""}               }
 
 
         event: content_block_delta
 
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I"}       }
-
-
-        event: content_block_delta
-
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        think"}  }
-
-
-        event: content_block_delta
-
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}       }
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I"}          }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        therefore"}           }
+        think"}   }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":","}    }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        I"}          }
+        therefore"}          }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        am"}      }
-
-
-        event: content_block_delta
-
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\""}       }
+        I"} }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        ("}     }
+        am"}  }
 
 
         event: content_block_delta
 
-        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"originally"}}
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\""}               }
 
 
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        in"}              }
+        ("} }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"originally"}      }
+
+
+        event: content_block_delta
+
+        data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
+        in"}      }
 
 
         event: content_block_delta
@@ -135,22 +136,22 @@ interactions:
         event: content_block_delta
 
         data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"
-        as"}          }
+        as"} }
 
 
         event: content_block_stop
 
-        data: {"type":"content_block_stop","index":0}
+        data: {"type":"content_block_stop","index":0  }
 
 
         event: message_delta
 
-        data: {"type":"message_delta","delta":{"stop_reason":"max_tokens","stop_sequence":null},"usage":{"output_tokens":15}               }
+        data: {"type":"message_delta","delta":{"stop_reason":"max_tokens","stop_sequence":null},"usage":{"output_tokens":15}           }
 
 
         event: message_stop
 
-        data: {"type":"message_stop"   }
+        data: {"type":"message_stop"     }
 
 
         '
@@ -158,7 +159,7 @@ interactions:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88e24ce0ff9e8c51-EWR
+      - 88ea0b905a064382-EWR
       Cache-Control:
       - no-cache
       Connection:
@@ -166,7 +167,7 @@ interactions:
       Content-Type:
       - text/event-stream; charset=utf-8
       Date:
-      - Mon, 03 Jun 2024 20:05:52 GMT
+      - Tue, 04 Jun 2024 18:39:23 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -174,17 +175,17 @@ interactions:
       anthropic-ratelimit-requests-limit:
       - '5'
       anthropic-ratelimit-requests-remaining:
-      - '2'
+      - '1'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-03T20:05:57Z'
+      - '2024-06-04T18:39:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-03T20:05:57Z'
+      - '2024-06-04T18:39:57Z'
       request-id:
-      - req_01DBURoYEwEGrcb7WMjs6xMx
+      - req_01JM4P2W8ahNQBkqK6giWoMM
       via:
       - 1.1 google
     status:

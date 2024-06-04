@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "665f496b00000000",
+      "_dd.p.tid": "665f5f5400000000",
       "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "Hello, Start all responses with your name Claude.",
       "anthropic.request.messages.0.content.0.type": "text",
@@ -26,13 +26,13 @@
       "anthropic.request.messages.2.content.1.type": "text",
       "anthropic.request.messages.2.role": "user",
       "anthropic.request.model": "claude-3-opus-20240229",
-      "anthropic.request.parameters": "{\"model\": \"claude-3-opus-20240229\", \"max_tokens\": 30}",
-      "anthropic.response.completions.content.0.text": "Claude (2023-03-09 16:15): String theory is a theoretical framework in physics that attempts to unify quantum mechanics and gene...",
+      "anthropic.request.parameters": "{\"max_tokens\": 30}",
+      "anthropic.response.completions.content.0.text": "Claude: 4/20/2023 8:45pm \\n\\nString theory is a theoretical framework in physics that attempts to unify quantum",
       "anthropic.response.completions.content.0.type": "text",
       "anthropic.response.completions.finish_reason": "max_tokens",
       "anthropic.response.completions.role": "assistant",
       "language": "python",
-      "runtime-id": "75b37cae2dc24d8190d27bcb14d4d263"
+      "runtime-id": "23da57548a3443fa96c5bf9137d02aa9"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -42,8 +42,8 @@
       "anthropic.response.usage.input_tokens": 84,
       "anthropic.response.usage.output_tokens": 30,
       "anthropic.response.usage.total_tokens": 114,
-      "process_id": 62674
+      "process_id": 66314
     },
-    "duration": 3568000,
-    "start": 1717520747916500000
+    "duration": 2317093000,
+    "start": 1717526356415223000
   }]]

@@ -10,33 +10,38 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "665f5aa900000000",
+      "_dd.p.tid": "665f5f7300000000",
       "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "What is the result of 1,984,135 * 9,343,116?",
       "anthropic.request.messages.0.content.0.type": "text",
       "anthropic.request.messages.0.role": "user",
+      "anthropic.request.messages.1.content.0.text": "<thinking>\\nThe calculator tool is relevant for answering this question as it performs basic arithmetic operations.\\nRequired pa...",
+      "anthropic.request.messages.1.content.0.type": "text",
+      "anthropic.request.messages.1.content.1.type": "tool_use",
+      "anthropic.request.messages.1.role": "assistant",
+      "anthropic.request.messages.2.content.0.type": "tool_result",
+      "anthropic.request.messages.2.role": "user",
       "anthropic.request.model": "claude-3-opus-20240229",
-      "anthropic.request.parameters": "{\"max_tokens\": 200}",
-      "anthropic.response.completions.content.0.text": "<thinking>\\nTo answer this question, the calculator tool is the most relevant since it can perform arithmetic operations like mu...",
+      "anthropic.request.parameters": "{\"max_tokens\": 500}",
+      "anthropic.response.completions.content.0.text": "Therefore, the result of 1,984,135 * 9,343,116 is 18538003464660.",
       "anthropic.response.completions.content.0.type": "text",
-      "anthropic.response.completions.content.1.type": "tool_use",
-      "anthropic.response.completions.finish_reason": "tool_use",
+      "anthropic.response.completions.finish_reason": "end_turn",
       "anthropic.response.completions.role": "assistant",
       "language": "python",
-      "runtime-id": "505db4a9bdda41429de2cc066a67aa7c"
+      "runtime-id": "8afc035ea77a402b890d0a0bcdd0a51d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "anthropic.response.usage.input_tokens": 640,
-      "anthropic.response.usage.output_tokens": 168,
-      "anthropic.response.usage.total_tokens": 808,
-      "process_id": 1444
+      "anthropic.response.usage.input_tokens": 823,
+      "anthropic.response.usage.output_tokens": 32,
+      "anthropic.response.usage.total_tokens": 855,
+      "process_id": 67716
     },
-    "duration": 24166000,
-    "start": 1717525161190237000
+    "duration": 13042486000,
+    "start": 1717526387830901000
   }],
 [
   {
@@ -50,36 +55,31 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "665f5aa900000000",
+      "_dd.p.tid": "665f5f6b00000000",
       "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "What is the result of 1,984,135 * 9,343,116?",
       "anthropic.request.messages.0.content.0.type": "text",
       "anthropic.request.messages.0.role": "user",
-      "anthropic.request.messages.1.content.0.text": "<thinking>\\nTo answer this question, the calculator tool is the most relevant since it can perform arithmetic operations like mu...",
-      "anthropic.request.messages.1.content.0.type": "text",
-      "anthropic.request.messages.1.content.1.type": "tool_use",
-      "anthropic.request.messages.1.role": "assistant",
-      "anthropic.request.messages.2.content.0.type": "tool_result",
-      "anthropic.request.messages.2.role": "user",
       "anthropic.request.model": "claude-3-opus-20240229",
-      "anthropic.request.parameters": "{\"max_tokens\": 500}",
-      "anthropic.response.completions.content.0.text": "Therefore, the result of 1,984,135 * 9,343,116 is 18,538,003,464,660.",
+      "anthropic.request.parameters": "{\"max_tokens\": 200}",
+      "anthropic.response.completions.content.0.text": "<thinking>\\nThe calculator tool is relevant for answering this question as it performs basic arithmetic operations.\\nRequired pa...",
       "anthropic.response.completions.content.0.type": "text",
-      "anthropic.response.completions.finish_reason": "end_turn",
+      "anthropic.response.completions.content.1.type": "tool_use",
+      "anthropic.response.completions.finish_reason": "tool_use",
       "anthropic.response.completions.role": "assistant",
       "language": "python",
-      "runtime-id": "505db4a9bdda41429de2cc066a67aa7c"
+      "runtime-id": "8afc035ea77a402b890d0a0bcdd0a51d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "anthropic.response.usage.input_tokens": 824,
-      "anthropic.response.usage.output_tokens": 36,
-      "anthropic.response.usage.total_tokens": 860,
-      "process_id": 1444
+      "anthropic.response.usage.input_tokens": 640,
+      "anthropic.response.usage.output_tokens": 167,
+      "anthropic.response.usage.total_tokens": 807,
+      "process_id": 67716
     },
-    "duration": 5855000,
-    "start": 1717525161218346000
+    "duration": 8320787000,
+    "start": 1717526379505675000
   }]]

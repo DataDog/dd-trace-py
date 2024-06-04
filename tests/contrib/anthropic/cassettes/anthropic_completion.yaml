@@ -1,9 +1,7 @@
 interactions:
 - request:
-    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
-      "text": "Hello, I am looking for information about some books!"}, {"type": "text",
-      "text": "Can you explain what Descartes meant by ''I think, therefore I am''?"}]}],
-      "model": "claude-3-opus-20240229"}'
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": "What does
+      Nietzsche mean by ''God is dead''?"}], "model": "claude-3-opus-20240229"}'
     headers:
       accept:
       - application/json
@@ -14,7 +12,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '277'
+      - '142'
       content-type:
       - application/json
       host:
@@ -40,16 +38,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0xPTUvDQBD9K8ucPGwgTawfe1ahYD2IIGIlLMmYrNnMpjuzklry3yXFgqcH74v3
-        juAaMDBwW+Wrcv+9nh6u315/rviuf74PX9unbQsa5DDi4kJm2yJoiMEvhGV2LJYENAyhQQ8Gam9T
-        g1mZhTFxVuTFZV4Ut6ChDiRIAub9eC4UnJboCQy8dKjGLlpGtYONks5Rr5V0GPEzRFQbZYcdqIsQ
-        XevIen9QjtSjFUfKMswfGljCWEW0HGjZa6dKQo/E8Ccx7hNSjWAoea8hnf6YIzgak5zNprzREJL8
-        p1bref4FAAD//wMAZQP45C0BAAA=
+        H4sIAAAAAAAAA0xPyWrDMBT8FTFnGRw1wVS3npJDySXQhaYYYb3EIrLk+knFqfG/F4cGehqYjZkJ
+        zkKj43Ndrrbj01vF34fqEMzleUeb6n03vEAiXXtaXMRszgSJIfqFMMyOkwkJEl205KHReJMtFQ9F
+        7DMXqlTrUqlHSDQxJAoJ+mO6FyYal+gNNF5bCmLvKP1w05I4mS5m9ldhqfFmICuO2EYrHAtLxh4h
+        XBCtY8yfEpxiXw9kOIZlqBnrFC8UGH8S01em0BB0yN5L5NsRPcGFPqe7WSslEXP6T6028/wLAAD/
+        /wMAVY+ZxCYBAAA=
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88ea0b71e8507c82-EWR
+      - 88ea0b65093d42c0-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -57,7 +55,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 18:39:19 GMT
+      - Tue, 04 Jun 2024 18:39:16 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -65,7 +63,7 @@ interactions:
       anthropic-ratelimit-requests-limit:
       - '5'
       anthropic-ratelimit-requests-remaining:
-      - '3'
+      - '4'
       anthropic-ratelimit-requests-reset:
       - '2024-06-04T18:39:57Z'
       anthropic-ratelimit-tokens-limit:
@@ -75,11 +73,11 @@ interactions:
       anthropic-ratelimit-tokens-reset:
       - '2024-06-04T18:39:57Z'
       request-id:
-      - req_01JNYCpsfn56US1343mqs9v9
+      - req_01A5sdFuYR9e3QLNLdpFz2g5
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 5395efa3d90bb0ad95ecd99eb0f0d363
+      - 35c62374de27fdf8dc2fe68a12494c9e
     status:
       code: 200
       message: OK
