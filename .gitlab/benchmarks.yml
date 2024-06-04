@@ -9,6 +9,7 @@ variables:
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
   timeout: 1h
+  needs: []
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - export CMAKE_BUILD_PARALLEL_LEVEL=12
