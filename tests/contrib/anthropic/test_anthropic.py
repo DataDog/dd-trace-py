@@ -149,3 +149,9 @@ def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
         ) as stream:
             for _ in stream.text_stream:
                 pass
+
+        message = stream.get_final_message()
+        assert message is not None
+
+        message = stream.get_final_text()
+        assert message is not None

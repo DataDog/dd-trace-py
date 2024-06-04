@@ -14,8 +14,6 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
-from .utils import get_request_vcr
-
 
 @pytest.fixture
 def ddtrace_config_anthropic():

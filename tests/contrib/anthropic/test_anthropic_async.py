@@ -159,3 +159,9 @@ async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapsho
             ) as stream:
                 async for _ in stream.text_stream:
                     pass
+
+            message = await stream.get_final_message()
+            assert message is not None
+
+            message = await stream.get_final_text()
+            assert message is not None
