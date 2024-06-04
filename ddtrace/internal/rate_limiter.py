@@ -8,16 +8,12 @@ from typing import Optional  # noqa:F401
 
 import attr
 
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .core import RateLimiter as _RateLimiter
-
-
-log = get_logger(__name__)
 
 
 class RateLimiter(_RateLimiter):
