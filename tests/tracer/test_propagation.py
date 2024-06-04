@@ -341,7 +341,7 @@ def test_extract_asm_standalone_missing_appsec_tag_sampling_span_dropped_samplin
     assert next_headers["x-datadog-trace-id"] == "1234"
     assert next_headers["x-datadog-tags"].startswith("_dd.p.test=value,")
 
-    # Ensure span is dropped
+    # Ensure span is dropped (no appsec event upstream or in this span)
     assert span._metrics["_sampling_priority_v1"] == -1
 
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
@@ -387,18 +387,19 @@ def test_extract_asm_standalone_missing_appsec_tag_appsec_event(tracer):  # noqa
     assert next_headers["x-datadog-tags"].startswith("_dd.p.test=value,")
     assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
 
-    # Ensure span is dropped
+    # Ensure span is not dropped as there was an appsec event
     assert span._metrics["_sampling_priority_v1"] == 2
 
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
-def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tracer):  # noqa: F811
+@pytest.mark.parametrize("upstream_priority", ["1", "2"])
+def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tracer, upstream_priority):  # noqa: F811
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "1",
+        "x-datadog-sampling-priority": upstream_priority,
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": "_dd.p.appsec=1,any=tag",
         "ot-baggage-key1": "value1",
@@ -411,7 +412,7 @@ def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tra
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span.context.sampling_priority == int(upstream_priority)
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
@@ -421,7 +422,7 @@ def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tra
         with tracer.trace("child_span") as child_span:
             assert child_span.trace_id == 1234
             assert child_span.parent_id != 5678
-            assert child_span.context.sampling_priority == 1
+            assert child_span.context.sampling_priority == int(upstream_priority)
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
@@ -432,9 +433,12 @@ def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tra
         next_headers = {}
         HTTPPropagator.inject(span.context, next_headers)
         assert next_headers["x-datadog-origin"] == "synthetics"
-        assert next_headers["x-datadog-sampling-priority"] == "1"
+        assert next_headers["x-datadog-sampling-priority"] == upstream_priority
         assert next_headers["x-datadog-trace-id"] == "1234"
         assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
+
+    # Ensure span keeps received priority (appsec event upstream)
+    assert span._metrics["_sampling_priority_v1"] == int(upstream_priority)
 
     tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
