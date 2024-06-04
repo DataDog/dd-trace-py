@@ -1,4 +1,5 @@
 import json
+import uuid
 import os
 import shutil
 import subprocess
@@ -507,7 +508,7 @@ def venv(template_venv):
     Clone the main template configured venv to each test case runs the package in a clean isolated environment
     """
     print("Creating cloned virtualenv from template...")
-    cloned_venv_dir = os.path.join(os.getcwd(), "cloned_venv")
+    cloned_venv_dir = os.path.join(os.getcwd(), str(uuid.uuid4()))
     clonevirtualenv.clone_virtualenv(template_venv, cloned_venv_dir)
     python_executable = os.path.join(cloned_venv_dir, "bin", "python")
 
