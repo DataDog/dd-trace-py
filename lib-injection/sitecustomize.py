@@ -32,13 +32,11 @@ runtimes_allow_list = {
     "cpython": {"min": parse_version("3.7"), "max": parse_version("3.12")},
 }
 
-force_inject = os.environ.get("DD_INJECT_FORCE", "").lower() in (
-    "true",
-    "1",
-    "t",
-)
-FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
-TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED")
+FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
+FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
+TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
+IS_TEST = os.environ.get("DD_INJECT_TEST", "").lower() in ("true", "1", "t")
+TELEMETRY_MOCK_FILE = "mock-telemetry.json"
 
 
 def build_installed_pkgs():
@@ -99,6 +97,10 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
+    if IS_TEST:
+        with open(TELEMETRY_MOCK_FILE, "w") as f:
+            f.write(event_json)
+        return
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
         return
     p = subprocess.Popen(
@@ -184,7 +186,7 @@ def _inject():
         if incompatible_packages:
             _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
             integration_incomp = True
-            if not force_inject:
+            if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
                 for key, value in incompatible_packages.items():
@@ -211,7 +213,7 @@ def _inject():
                 level="debug",
             )
             runtime_incomp = True
-            if not force_inject:
+            if not FORCE_INJECT:
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
 
                 telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))

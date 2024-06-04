@@ -91,6 +91,7 @@ jobs:
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
+          export DD_INJECT_TEST=1
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
           # to write to the filesystem.
@@ -115,16 +116,15 @@ jobs:
         run: |
           curl http://localhost:18080
           sleep 1  # wait for traces to be sent
+      - name: Check mocked telemetry
+        run: |
+           docker compose run app [! -f $APP_CONTEXT/validate_telemetry.py ] || cat mock-telemetry.json | python $APP_CONTEXT/validate_telemetry.py
       - name: Print traces
         run: curl http://localhost:8126/test/traces
       - name: Check test agent received a trace
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
           [[ $N == "1" ]]
-      - name: Output app logs (LOOK HERE IF THE JOB FAILS)
-        if: success() || failure()
-        run: |
-          docker compose logs
 
   test_unit_no_instrumentation:
     runs-on: ubuntu-latest
