@@ -421,9 +421,28 @@ PACKAGES = [
     PackageForTesting(
         "virtualenv", "20.26.2", "", "", "", test_e2e=False, import_module_to_validate="virtualenv.activation.activator"
     ),
-    # These show an issue in astunparse ("FormattedValue has no attribute values") so we use ast.unparse which is only 3.9
-    PackageForTesting("werkzeug", "3.0.3", "", "", "", test_e2e=False, import_module_to_validate="werkzeug.http", skip_python_version=[(3, 6), (3, 7), (3, 8)]),
-    PackageForTesting("yarl", "1.9.4", "", "", "", test_e2e=False, import_module_to_validate="yarl._url", skip_python_version=[(3, 6), (3, 7), (3, 8)]),
+    # These show an issue in astunparse ("FormattedValue has no attribute values")
+    # so we use ast.unparse which is only 3.9
+    PackageForTesting(
+        "werkzeug",
+        "3.0.3",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_module_to_validate="werkzeug.http",
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
+    PackageForTesting(
+        "yarl",
+        "1.9.4",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_module_to_validate="yarl._url",
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
     PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False, skip_python_version=[(3, 6), (3, 7), (3, 8)]),
     PackageForTesting(
         "typing-extensions",
@@ -463,7 +482,6 @@ PACKAGES = [
     PackageForTesting("pynacl", "1.5.0", "", "", "", test_e2e=False, import_name="nacl.utils"),
     PackageForTesting("annotated-types", "0.7.0", "", "", "", test_e2e=False, import_name="annotated_types"),
 ]
-
 
 # Use this function if you want to test one or a filter number of package for debug proposes
 # SKIP_FUNCTION = lambda package: package.name == "pynacl"  # noqa: E731
