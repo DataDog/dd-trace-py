@@ -1,0 +1,100 @@
+interactions:
+- request:
+    body: '{"max_tokens": 500, "messages": [{"role": "user", "content": "What is the
+      result of 1,984,135 * 9,343,116?"}, {"role": "assistant", "content": [{"text":
+      "<thinking>\nTo answer this question, the calculator tool is the most relevant
+      since it can perform arithmetic operations like multiplication. The calculator
+      tool requires a single parameter:\n- expression: The mathematical expression
+      to evaluate\n\nThe user has provided all the necessary information in their
+      question to populate this parameter. The expression to calculate is \"1984135
+      * 9343116\".\n\nNo other tools are needed, as the calculator can directly answer
+      the question. All required parameters are available, so I can proceed with making
+      the tool call.\n</thinking>", "type": "text"}, {"id": "toolu_01RTBFBTcGRQA9u9oDBY96HH",
+      "input": {"expression": "1984135 * 9343116"}, "name": "calculator", "type":
+      "tool_use"}]}, {"role": "user", "content": [{"type": "tool_result", "tool_use_id":
+      "toolu_01RTBFBTcGRQA9u9oDBY96HH", "content": "18538003464660"}]}], "model":
+      "claude-3-opus-20240229", "tools": [{"name": "calculator", "description": "A
+      simple calculator that performs basic arithmetic operations.", "input_schema":
+      {"type": "object", "properties": {"expression": {"type": "string", "description":
+      "The mathematical expression to evaluate (e.g., ''2 + 3 * 4'')."}}, "required":
+      ["expression"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '1362'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0yP3UrDQBCFX2U5lzKVJJuEZK+L3hVEEUQkxGSaRNPdNDMLSum7S4uCVwe+8wPn
+        hKmHw0GGJkkfx+G49f3uLit2L8/30/T+8LEVEPR74UuKRdqBQVjDfAGtyCTaegXhEHqe4dDNbex5
+        YzdhibLJkixPsqwGoQte2Svc6+lvUPnrUr2Kw9PIK+/DymR0ZLOyxFlN2JuU6iqn1BbmxtRkc0tp
+        WppJTFpRYStKEkt5mVNZJrc4vxFEw9Ks3ErwcGDfNxpXj19D+BjZdwzn4zwT4vWUO2HyS9RGwyd7
+        gauynBCi/me2PJ9/AAAA//8DAPgqkqEzAQAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 88e9ec564ef64222-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:18:05 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '5'
+      anthropic-ratelimit-requests-remaining:
+      - '4'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-04T18:18:57Z'
+      anthropic-ratelimit-tokens-limit:
+      - '10000'
+      anthropic-ratelimit-tokens-remaining:
+      - '9000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-04T18:18:57Z'
+      request-id:
+      - req_01Kyz3hB1MjdDHfFRfMoReTc
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 155c7bc323534f58baa0f8149ca58e5a
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -15,6 +15,7 @@ from ddtrace.pin import Pin
 
 from ._streaming import handle_streamed_response
 from .utils import _extract_api_key
+from .utils import _get_attr
 from .utils import handle_non_streamed_response
 
 
@@ -71,12 +72,12 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
-                        if block.get("type", None) == "text":
+                        if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(block.get("text", ""))),
+                                integration.trunc(str(_get_attr(block, "text", ""))),
                             )
-                        elif block.get("type", None) == "image":
+                        elif _get_attr(block, "type", None) == "image":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 "([IMAGE DETECTED])",
@@ -84,13 +85,13 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        block.get("type", "text"),
+                        _get_attr(block, "type", "text"),
                     )
             span.set_tag_str(
                 "anthropic.request.messages.%d.role" % (message_idx),
                 message.get("role", ""),
             )
-        params_to_tag = {k: v for k, v in kwargs.items() if k != "messages"}
+        params_to_tag = {k: v for k, v in kwargs.items() if k not in ["messages", "model", "tools"]}
         span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
 
         chat_completions = func(*args, **kwargs)
@@ -154,12 +155,12 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
             elif isinstance(message.get("content", None), list):
                 for block_idx, block in enumerate(message.get("content", [])):
                     if integration.is_pc_sampled_span(span):
-                        if block.get("type", None) == "text":
+                        if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(block.get("text", ""))),
+                                integration.trunc(str(_get_attr(block, "text", ""))),
                             )
-                        elif block.get("type", None) == "image":
+                        elif _get_attr(block, "type", None) == "image":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 "([IMAGE DETECTED])",
@@ -167,13 +168,13 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        block.get("type", "text"),
+                        _get_attr(block, "type", "text"),
                     )
             span.set_tag_str(
                 "anthropic.request.messages.%d.role" % (message_idx),
                 message.get("role", ""),
             )
-        params_to_tag = {k: v for k, v in kwargs.items() if k != "messages"}
+        params_to_tag = {k: v for k, v in kwargs.items() if k not in ["messages", "model", "tools"]}
         span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
 
         chat_completions = await func(*args, **kwargs)
