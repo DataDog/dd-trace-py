@@ -40,11 +40,13 @@ from ddtrace.llmobs._trace_processor import LLMObsTraceProcessor
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _inject_llmobs_parent_id
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -131,9 +133,12 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
-        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config.env = env or config.env
         config.service = service or config.service
+        if os.getenv("DD_LLMOBS_APP_NAME"):
+            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
+            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
+        config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
         if not config._dd_api_key:
@@ -148,7 +153,7 @@ class LLMObs(Service):
             )
         if not config._llmobs_ml_app:
             raise ValueError(
-                "DD_LLMOBS_APP_NAME is required for sending LLMObs data. "
+                "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                 "Ensure this configuration is set before running your application."
             )
 
@@ -286,7 +291,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -312,7 +317,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "tool" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -330,7 +335,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "task" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -348,7 +353,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -366,7 +371,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -392,7 +397,7 @@ class LLMObs(Service):
                                    If not provided, a default value of "custom" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -423,7 +428,7 @@ class LLMObs(Service):
         :param str name: The name of the traced operation. If not provided, a default value of "workflow" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
-                           value DD_LLMOBS_APP_NAME will be set.
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
 
         :returns: The Span object representing the traced operation.
         """
@@ -696,7 +701,7 @@ class LLMObs(Service):
         # initialize tags with default values that will be overridden by user-provided tags
         evaluation_tags = {
             "ddtrace.version": ddtrace.__version__,
-            "ml_app": config._llmobs_ml_app if config._llmobs_ml_app else "unknown",
+            "ml_app": config._llmobs_ml_app or "unknown",
         }
 
         if tags:
@@ -716,6 +721,48 @@ class LLMObs(Service):
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
         )
+
+    @classmethod
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
+        """Injects the span's distributed context into the given request headers."""
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.inject_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be injected."
+            )
+            return request_headers
+        if not isinstance(request_headers, dict):
+            log.warning("request_headers must be a dictionary of string key-value pairs.")
+            return request_headers
+        if span is None:
+            span = cls._instance.tracer.current_span()
+        if span is None:
+            log.warning("No span provided and no currently active span found.")
+            return request_headers
+        _inject_llmobs_parent_id(span.context)
+        HTTPPropagator.inject(span.context, request_headers)
+        return request_headers
+
+    @classmethod
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
+        """
+        Activates distributed tracing headers for the current request.
+
+        :param request_headers: A dictionary containing the headers for the current request.
+        """
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.activate_distributed_headers() called when LLMObs is not enabled. "
+                "Distributed context will not be activated."
+            )
+            return
+        context = HTTPPropagator.extract(request_headers)
+        if context.trace_id is None or context.span_id is None:
+            log.warning("Failed to extract trace ID or span ID from request headers.")
+            return
+        if PROPAGATED_PARENT_ID_KEY not in context._meta:
+            log.warning("Failed to extract LLMObs parent ID from request headers.")
+        cls._instance.tracer.context_provider.activate(context)
 
 
 # initialize the default llmobs instance
