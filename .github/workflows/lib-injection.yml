@@ -118,10 +118,8 @@ jobs:
           sleep 1  # wait for traces to be sent
       - name: Check mocked telemetry
         run: |
-           cd $APP_CONTEXT
            pwd
            ls
-           find . -name "*.py"
            find . -name "*.json"
            [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py
       - name: Print traces
