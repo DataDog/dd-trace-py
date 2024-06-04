@@ -138,6 +138,19 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return json.dumps({"lines": executable_lines, "covered": covered_lines})
 
     @classmethod
+    def get_context_data_json(cls) -> str:
+        covered_lines = cls.get_context_covered_lines()
+
+        return json.dumps({"lines": {}, "covered": {path: list(lines) for path, lines in covered_lines.items()}})
+
+    @classmethod
+    def get_context_covered_lines(cls):
+        if cls._instance is None or not ctx_coverage_enabled.get():
+            return {}
+
+        return ctx_covered.get()
+
+    @classmethod
     def write_json_report_to_file(cls, filename: str, workspace_path: Path, ignore_nocover: bool = False):
         if cls._instance is None:
             return
@@ -185,6 +198,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return False
         return cls._instance._coverage_enabled
+
+    @classmethod
+    def coverage_enabled_in_context(cls):
+        return cls._instance is not None and ctx_coverage_enabled.get()
 
     @classmethod
     def report_seen_lines(cls):
