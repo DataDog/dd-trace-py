@@ -5,25 +5,14 @@ from traceback import format_exc
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
-if hasattr(ast, 'unparse'):
+
+if hasattr(ast, "unparse"):
     unparse = ast.unparse
 else:
     from astunparse import unparse
 
 
 def _iast_patched_module_and_patched_source(module_name):
-    import importlib
-    spec = importlib.util.find_spec(module_name)
-    module_file_path = spec.origin
-
-    # Read the source code from the file
-    with open(module_file_path, 'r') as file:
-        source_code = file.read()
-
-    # Parse the source code into an AST
-    parsed_ast = ast.parse(source_code)
-
-    # Optionally, you can print or process the AST
     module = importlib.import_module(module_name)
     module_path, patched_module = astpatch_module(module)
 
@@ -36,7 +25,7 @@ def try_unpatched(module_name):
     try:
         importlib.import_module(module_name)
         # TODO: check that the module is NOT patched
-    except Exception as e:
+    except Exception:
         print(f"Unpatched import test failure: {module_name}:{format_exc()}")
         return 1
     return 0
