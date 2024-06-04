@@ -1,10 +1,7 @@
 import os
+import re
 
 import vcr
-
-
-def iswrapped(obj):
-    return hasattr(obj, "__dd_wrapped__")
 
 
 # VCR is used to capture and store network requests made to Anthropic.
@@ -28,3 +25,41 @@ def get_request_vcr():
         # Ignore requests to the agent
         ignore_localhost=True,
     )
+
+
+# Anthropic Tools
+
+
+def calculate(expression):
+    # Remove any non-digit or non-operator characters from the expression
+    expression = re.sub(r'[^0-9+\-*/().]', '', expression)
+    
+    try:
+        # Evaluate the expression using the built-in eval() function
+        result = eval(expression)
+        return str(result)
+    except (SyntaxError, ZeroDivisionError, NameError, TypeError, OverflowError):
+        return "Error: Invalid expression"
+    
+
+tools = [
+    {
+        "name": "calculator",
+        "description": "A simple calculator that performs basic arithmetic operations.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "expression": {
+                    "type": "string",
+                    "description": "The mathematical expression to evaluate (e.g., '2 + 3 * 4')."
+                }
+            },
+            "required": ["expression"]
+        }
+    }
+]
+
+
+def process_tool_call(tool_name, tool_input):
+    if tool_name == "calculator":
+        return calculate(tool_input["expression"])

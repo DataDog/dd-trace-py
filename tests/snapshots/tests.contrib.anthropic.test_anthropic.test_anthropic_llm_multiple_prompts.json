@@ -2,7 +2,7 @@
   {
     "name": "anthropic.request",
     "service": "",
-    "resource": "AsyncMessages.create",
+    "resource": "Messages.create",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "665e2bf800000000",
+      "_dd.p.tid": "665f496b00000000",
       "anthropic.request.api_key": "sk-...key>",
       "anthropic.request.messages.0.content.0.text": "Hello, I am looking for information about some books!",
       "anthropic.request.messages.0.content.0.type": "text",
@@ -24,7 +24,7 @@
       "anthropic.response.completions.finish_reason": "max_tokens",
       "anthropic.response.completions.role": "assistant",
       "language": "python",
-      "runtime-id": "b9f16b2ca36b405485b2d3fb6a735bd0"
+      "runtime-id": "75b37cae2dc24d8190d27bcb14d4d263"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -34,8 +34,8 @@
       "anthropic.response.usage.input_tokens": 38,
       "anthropic.response.usage.output_tokens": 15,
       "anthropic.response.usage.total_tokens": 53,
-      "process_id": 28997
+      "process_id": 62674
     },
-    "duration": 547612000,
-    "start": 1717447672414622000
+    "duration": 2793000,
+    "start": 1717520747889584000
   }]]
