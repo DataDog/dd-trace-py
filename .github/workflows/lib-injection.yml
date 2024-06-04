@@ -119,7 +119,7 @@ jobs:
       - name: Check mocked telemetry
         run: |
            cd lib-injection
-           docker compose run app_local cd .. && pwd && ls && find . -name "*.json" && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py
+           docker compose run app_local bash -c "cd .. && pwd && ls && find . -name \"*.json\" && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py"
       - name: Print traces
         run: curl http://localhost:8126/test/traces
       - name: Check test agent received a trace
