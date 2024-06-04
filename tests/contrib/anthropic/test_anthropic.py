@@ -67,6 +67,7 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
         llm.messages.create(
             model="claude-3-opus-20240229",
             max_tokens=15,
+            system="Respond only in all caps.",
             messages=[
                 {
                     "role": "user",
@@ -251,9 +252,9 @@ async def test_anthropic_llm_async_basic(anthropic, request_vcr, snapshot_contex
 
 
 @pytest.mark.asyncio
-async def test_anthropic_llm_async_multiple_prompts_no_history(anthropic, request_vcr, snapshot_context):
+async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts_no_history",
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_multiple_prompts",
         ignores=["resource"],
     ):
         llm = anthropic.AsyncAnthropic()
@@ -261,6 +262,7 @@ async def test_anthropic_llm_async_multiple_prompts_no_history(anthropic, reques
             await llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=15,
+                system="Respond only in all caps.",
                 messages=[
                     {
                         "role": "user",
