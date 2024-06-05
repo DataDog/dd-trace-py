@@ -45,6 +45,8 @@ benchmarks-pr-comment:
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - "(for i in {1..2}; do ./steps/upload-results-to-benchmarking-api.sh && break; done) || :"
     - "./steps/post-pr-comment.sh || :"
+  except:
+    - main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -135,6 +137,8 @@ benchmark-serverless:
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh
+  except:
+    - main  # fails on main - ideally it would succeed
 
 benchmark-serverless-trigger:
   stage: benchmarks

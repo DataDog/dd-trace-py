@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Optional
 
@@ -26,6 +27,16 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
 
     usage = _get_attr(chat_completions, "usage", {})
     integration.record_usage(span, usage)
+
+
+def tag_params_on_span(span, kwargs, integration):
+    tagged_params = {}
+    for k, v in kwargs.items():
+        if k == "system" and integration.is_pc_sampled_span(span):
+            span.set_tag_str("anthropic.request.system", integration.trunc(v))
+        elif k not in ("messages", "model", "tools"):
+            tagged_params[k] = v
+    span.set_tag_str("anthropic.request.parameters", json.dumps(tagged_params))
 
 
 def _extract_api_key(instance: Any) -> Optional[str]:

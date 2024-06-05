@@ -1,5 +1,4 @@
 import os
-import re
 
 import vcr
 
@@ -30,18 +29,6 @@ def get_request_vcr():
 # Anthropic Tools
 
 
-def calculate(expression):
-    # Remove any non-digit or non-operator characters from the expression
-    expression = re.sub(r"[^0-9+\-*/().]", "", expression)
-
-    try:
-        # Evaluate the expression using the built-in eval() function
-        result = eval(expression)
-        return str(result)
-    except (SyntaxError, ZeroDivisionError, NameError, TypeError, OverflowError):
-        return "Error: Invalid expression"
-
-
 tools = [
     {
         "name": "calculator",
@@ -58,8 +45,3 @@ tools = [
         },
     }
 ]
-
-
-def process_tool_call(tool_name, tool_input):
-    if tool_name == "calculator":
-        return calculate(tool_input["expression"])

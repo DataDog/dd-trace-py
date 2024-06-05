@@ -4,7 +4,7 @@ interactions:
       "text": "Reply: ''Hello World!'' when I say: ''Hello''"}, {"type": "text", "text":
       "Hello"}]}, {"role": "assistant", "content": "Hello World!"}, {"role": "user",
       "content": [{"type": "text", "text": "Hello"}]}], "model": "claude-3-opus-20240229",
-      "temperature": 0.8}'
+      "system": "Respond in all caps everytime.", "temperature": 0.8}'
     headers:
       accept:
       - application/json
@@ -15,7 +15,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '340'
+      - '384'
       content-type:
       - application/json
       host:
@@ -35,21 +35,21 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.9
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0yOzWrDMBCEX6WdswyuHArRrRBI6TGXHkIxxtoEE3nX1a5CgvG7F4cWehr45oeZ
-        MUQEjHpu65f97uO+yftyulxPh21zGMvV797gYPeJ1hSpdmeCQ5a0gk51UOvY4DBKpISAPnUlUtVU
-        MhWtfO03tfdbOPTCRmwIx/lv0Oi2Vh8S8E4pydOn5BSfsXw5qMnUZupUGAHEsbWSGb+G0nch7gmB
-        S0oO5fEtzBh4KtaaXIgVoWkcpNh/9LosPwAAAP//AwDPtjn1+AAAAA==
+        H4sIAAAAAAAAA0yOzUrEQBCEX0XrPIHsuLBmjouCh8CyXkREwphpYnTSk6R7QAl5d8mi4Kngqx9q
+        QR/gMEjXlDtbvR868h/n0B2m8/GtGp7b4wQD/R5pS5GI7wgGc4ob8CK9qGeFwZACRTi00edAxU2R
+        xiyFLe2+tLaCQZtYiRXuZfkbVPraqhdxeLiv69PV0+mxvrvG+mogmsZmJi+J4UAcGs0z49cQmjJx
+        S3CcYzTIl29uQc9j1kbTJ7HA7XcGKet/dLuuPwAAAP//AwA1yXoc+AAAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88e1b7e91ae042d0-EWR
+      - 88f09dc5dffe421d-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -57,7 +57,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 03 Jun 2024 18:24:10 GMT
+      - Wed, 05 Jun 2024 13:47:46 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -67,19 +67,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-03T18:24:57Z'
+      - '2024-06-05T13:47:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-03T18:24:57Z'
+      - '2024-06-05T13:47:57Z'
       request-id:
-      - req_01Ey5yndaLUmUmn1A6YDSJrr
+      - req_01BJ7GJG1YzsYSY3xUVoaNaX
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - fd17395b60d4b6d19c95418c5797b164
+      - 2810149c979072b48cbc451ef622b3a8
     status:
       code: 200
       message: OK

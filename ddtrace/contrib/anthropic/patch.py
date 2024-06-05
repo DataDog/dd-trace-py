@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -17,6 +16,7 @@ from ._streaming import handle_streamed_response
 from .utils import _extract_api_key
 from .utils import _get_attr
 from .utils import handle_non_streamed_response
+from .utils import tag_params_on_span
 
 
 log = get_logger(__name__)
@@ -91,8 +91,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                 "anthropic.request.messages.%d.role" % (message_idx),
                 message.get("role", ""),
             )
-        params_to_tag = {k: v for k, v in kwargs.items() if k not in ["messages", "model", "tools"]}
-        span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
+        tag_params_on_span(span, kwargs, integration)
 
         chat_completions = func(*args, **kwargs)
 
@@ -174,8 +173,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                 "anthropic.request.messages.%d.role" % (message_idx),
                 message.get("role", ""),
             )
-        params_to_tag = {k: v for k, v in kwargs.items() if k not in ["messages", "model", "tools"]}
-        span.set_tag_str("anthropic.request.parameters", json.dumps(params_to_tag))
+        tag_params_on_span(span, kwargs, integration)
 
         chat_completions = await func(*args, **kwargs)
 

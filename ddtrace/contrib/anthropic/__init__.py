@@ -22,7 +22,7 @@ Enabling
 The Anthropic integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Note that these commands also enable the ``httx`` integration which traces HTTP requests from the Anthropic library.
+Note that these commands also enable the ``httpx`` integration which traces HTTP requests from the Anthropic library.
 
 Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Anthropic integration::
 

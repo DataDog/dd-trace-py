@@ -3,7 +3,7 @@ interactions:
     body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
       "text": "Hello, I am looking for information about some books!"}, {"type": "text",
       "text": "Can you explain what Descartes meant by ''I think, therefore I am''?"}]}],
-      "model": "claude-3-opus-20240229"}'
+      "model": "claude-3-opus-20240229", "system": "Respond only in all caps."}'
     headers:
       accept:
       - application/json
@@ -14,7 +14,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '277'
+      - '316'
       content-type:
       - application/json
       host:
@@ -40,16 +40,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0xPTUvDQBD9K8ucPGwgTawfe1ahYD2IIGIlLMmYrNnMpjuzklry3yXFgqcH74v3
-        juAaMDBwW+Wrcv+9nh6u315/rviuf74PX9unbQsa5DDi4kJm2yJoiMEvhGV2LJYENAyhQQ8Gam9T
-        g1mZhTFxVuTFZV4Ut6ChDiRIAub9eC4UnJboCQy8dKjGLlpGtYONks5Rr5V0GPEzRFQbZYcdqIsQ
-        XevIen9QjtSjFUfKMswfGljCWEW0HGjZa6dKQo/E8Ccx7hNSjWAoea8hnf6YIzgak5zNprzREJL8
-        p1bref4FAAD//wMAZQP45C0BAAA=
+        H4sIAAAAAAAAA0yOQUvDQBSE/0qYi5cNpLFR3FvUSEuphqb1UJWwJM8a3OzG7ltpCfnvktKCp4GZ
+        b4bp0dSQaN2ujCbJ/etxc7NVy23++ftVL27znNsEAnzsaKTIObUjCOytHg3lXONYGYZAa2vSkKi0
+        8jWF16HtvAvjKJ5GcXwHgcoaJsOQb/1lkOkwVk8i8ZgVD+lqnRVXwVO6fNkUQT5bpUUWvGMerGfz
+        54XA8CHg2HblnpSzZjylDiXbbzIO58jRjydTEaTxWgv402nZozGd5wssp4mA9fzfmiTD8AcAAP//
+        AwCozOzqEgEAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88ea0b71e8507c82-EWR
+      - 88ea9acec90172b7-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -57,7 +57,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 18:39:19 GMT
+      - Tue, 04 Jun 2024 20:17:11 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -65,21 +65,21 @@ interactions:
       anthropic-ratelimit-requests-limit:
       - '5'
       anthropic-ratelimit-requests-remaining:
-      - '3'
+      - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-04T18:39:57Z'
+      - '2024-06-04T20:17:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-04T18:39:57Z'
+      - '2024-06-04T20:17:57Z'
       request-id:
-      - req_01JNYCpsfn56US1343mqs9v9
+      - req_01PDCp5gcfpzQ4P5NAdtXfrU
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 5395efa3d90bb0ad95ecd99eb0f0d363
+      - 609af05f60c212e11bbb86f767f6f1b0
     status:
       code: 200
       message: OK

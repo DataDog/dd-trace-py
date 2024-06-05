@@ -16,6 +16,7 @@ class TestLLMObsAnthropic:
         with request_vcr.use_cassette("anthropic_hello_world.yaml"):
             llm.messages.create(
                 model="claude-3-opus-20240229",
+                system="Respond in all caps everytime.",
                 max_tokens=15,
                 messages=[
                     {
@@ -31,7 +32,7 @@ class TestLLMObsAnthropic:
                             },
                         ],
                     },
-                    {"role": "assistant", "content": "Hello World!"},
+                    {"role": "assistant", "content": "HELLO WORLD!"},
                     {
                         "role": "user",
                         "content": [
@@ -52,14 +53,15 @@ class TestLLMObsAnthropic:
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
                 input_messages=[
+                    {"content": "Respond in all caps everytime.", "role": "system"},
                     {"content": "Reply: 'Hello World!' when I say: 'Hello'", "role": "user"},
                     {"content": "Hello", "role": "user"},
-                    {"content": "Hello World!", "role": "assistant"},
+                    {"content": "HELLO WORLD!", "role": "assistant"},
                     {"content": "Hello", "role": "user"},
                 ],
-                output_messages=[{"content": "Hello World!", "role": "assistant"}],
+                output_messages=[{"content": "HELLO WORLD!", "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15},
-                token_metrics={"input_tokens": 33, "output_tokens": 6, "total_tokens": 39},
+                token_metrics={"input_tokens": 41, "output_tokens": 8, "total_tokens": 49},
                 tags={"ml_app": "<ml-app-name>"},
             )
         )
