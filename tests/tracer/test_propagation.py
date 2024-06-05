@@ -307,139 +307,149 @@ def test_extract(tracer):  # noqa: F811
 
 def test_extract_asm_standalone_missing_appsec_tag_sampling_span_dropped_sampling_propagates(tracer):  # noqa: F811
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "2",
-        "x-datadog-origin": "synthetics",
-        "x-datadog-tags": "_dd.p.test=value,any=tag",
-        "ot-baggage-key1": "value1",
-    }
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
 
-    context = HTTPPropagator.extract(headers)
-
-    tracer.context_provider.activate(context)
-
-    with tracer.trace("local_root_span") as span:
-        assert span.trace_id == 1234
-        assert span.parent_id == 5678
-        assert span.context.sampling_priority == 2
-        assert span.context.dd_origin == "synthetics"
-        assert span.context._meta == {
-            "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
-            "_dd.p.test": "value",
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "2",
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.test=value,any=tag",
+            "ot-baggage-key1": "value1",
         }
 
-    next_headers = {}
-    HTTPPropagator.inject(span.context, next_headers)
+        context = HTTPPropagator.extract(headers)
 
-    # Ensure propagation of headers takes place as expected
-    assert next_headers["x-datadog-origin"] == "synthetics"
-    assert next_headers["x-datadog-sampling-priority"] == "2"
-    assert next_headers["x-datadog-trace-id"] == "1234"
-    assert next_headers["x-datadog-tags"].startswith("_dd.p.test=value,")
+        tracer.context_provider.activate(context)
 
-    # Ensure span is dropped (no appsec event upstream or in this span)
-    assert span._metrics["_sampling_priority_v1"] == -1
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id != 1234
+            assert span.parent_id != 5678
+            assert span.context.sampling_priority != 2
+            assert span.context.dd_origin != "synthetics"
+            assert "_dd.p.test" not in span.context._meta
 
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers takes place as expected
+        assert "x-datadog-origin" not in next_headers
+        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
+        assert "x-datadog-trace-id" != "1234"
+        assert "x-datadog-parent-id" != "5678"
+        assert next_headers["x-datadog-sampling-priority"] == "-1"
+
+        # Ensure span is dropped (no appsec event upstream or in this span)
+        assert span._metrics["_sampling_priority_v1"] == -1
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_extract_asm_standalone_missing_appsec_tag_appsec_event(tracer):  # noqa: F811
     from ddtrace.appsec._trace_utils import _asm_manual_keep
 
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "0",
-        "x-datadog-origin": "synthetics",
-        "x-datadog-tags": "_dd.p.test=value,any=tag",
-        "ot-baggage-key1": "value1",
-    }
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
 
-    context = HTTPPropagator.extract(headers)
-
-    tracer.context_provider.activate(context)
-
-    with tracer.trace("local_root_span") as span:
-        _asm_manual_keep(span)
-        assert span.trace_id == 1234
-        assert span.parent_id == 5678
-        assert span.context.sampling_priority == 2
-        assert span.context.dd_origin == "synthetics"
-        assert span.context._meta == {
-            "_dd.origin": "synthetics",
-            "_dd.p.dm": "-4",
-            "_dd.p.test": "value",
-            "_dd.p.appsec": "1",
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "0",
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.test=value,any=tag",
+            "ot-baggage-key1": "value1",
         }
 
-    next_headers = {}
-    HTTPPropagator.inject(span.context, next_headers)
+        context = HTTPPropagator.extract(headers)
 
-    # Ensure propagation of headers takes place as expected
-    assert next_headers["x-datadog-origin"] == "synthetics"
-    assert next_headers["x-datadog-sampling-priority"] == "2"
-    assert next_headers["x-datadog-trace-id"] == "1234"
-    assert next_headers["x-datadog-tags"].startswith("_dd.p.test=value,")
-    assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
+        tracer.context_provider.activate(context)
 
-    # Ensure span is not dropped as there was an appsec event
-    assert span._metrics["_sampling_priority_v1"] == 2
+        with tracer.trace("local_root_span") as span:
+            _asm_manual_keep(span)
+            assert span.trace_id != 1234
+            assert span.parent_id != 5678
+            assert span.context.sampling_priority == 2
+            assert span.context.dd_origin != "synthetics"
+            assert "_dd.p.appsec" in span.context._meta
+            assert span.context._meta["_dd.p.appsec"] == "1"
+            assert "_dd.p.test" not in span.context._meta
 
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        next_headers = {}
+        HTTPPropagator.inject(span.context, next_headers)
+
+        # Ensure propagation of headers takes place as expected
+        assert next_headers["x-datadog-sampling-priority"] == "2"
+        assert next_headers["x-datadog-trace-id"] != "1234"
+        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
+        assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
+
+        # Ensure span is not dropped as there was an appsec event
+        assert span._metrics["_sampling_priority_v1"] == 2
+
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
 def test_extract_asm_standalone_present_appsec_tag_sampling_priority_honored(tracer, upstream_priority):  # noqa: F811
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": upstream_priority,
-        "x-datadog-origin": "synthetics",
-        "x-datadog-tags": "_dd.p.appsec=1,any=tag",
-        "ot-baggage-key1": "value1",
-    }
+    try:
+        with tracer.trace("local_root_span0"):
+            # First span should be kept, as we keep 1 per min
+            pass
 
-    context = HTTPPropagator.extract(headers)
-
-    tracer.context_provider.activate(context)
-
-    with tracer.trace("local_root_span") as span:
-        assert span.trace_id == 1234
-        assert span.parent_id == 5678
-        assert span.context.sampling_priority == int(upstream_priority)
-        assert span.context.dd_origin == "synthetics"
-        assert span.context._meta == {
-            "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
-            "_dd.p.appsec": "1",
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": upstream_priority,
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "_dd.p.appsec=1,any=tag",
+            "ot-baggage-key1": "value1",
         }
-        with tracer.trace("child_span") as child_span:
-            assert child_span.trace_id == 1234
-            assert child_span.parent_id != 5678
-            assert child_span.context.sampling_priority == int(upstream_priority)
-            assert child_span.context.dd_origin == "synthetics"
-            assert child_span.context._meta == {
+
+        context = HTTPPropagator.extract(headers)
+
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == int(upstream_priority)
+            assert span.context.dd_origin == "synthetics"
+            assert span.context._meta == {
                 "_dd.origin": "synthetics",
                 "_dd.p.dm": "-3",
                 "_dd.p.appsec": "1",
             }
+            with tracer.trace("child_span") as child_span:
+                assert child_span.trace_id == 1234
+                assert child_span.parent_id != 5678
+                assert child_span.context.sampling_priority == int(upstream_priority)
+                assert child_span.context.dd_origin == "synthetics"
+                assert child_span.context._meta == {
+                    "_dd.origin": "synthetics",
+                    "_dd.p.dm": "-3",
+                    "_dd.p.appsec": "1",
+                }
 
-        next_headers = {}
-        HTTPPropagator.inject(span.context, next_headers)
-        assert next_headers["x-datadog-origin"] == "synthetics"
-        assert next_headers["x-datadog-sampling-priority"] == upstream_priority
-        assert next_headers["x-datadog-trace-id"] == "1234"
-        assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
+            next_headers = {}
+            HTTPPropagator.inject(span.context, next_headers)
+            assert next_headers["x-datadog-origin"] == "synthetics"
+            assert next_headers["x-datadog-sampling-priority"] == upstream_priority
+            assert next_headers["x-datadog-trace-id"] == "1234"
+            assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
 
-    # Ensure span keeps received priority (appsec event upstream)
-    assert span._metrics["_sampling_priority_v1"] == int(upstream_priority)
+        # Ensure span keeps received priority (appsec event upstream)
+        assert span._metrics["_sampling_priority_v1"] == int(upstream_priority)
 
-    tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+    finally:
+        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
