@@ -695,9 +695,9 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
                 log.debug("user_exists: could not get the login field from the credentials")
                 return False
 
-        # Get the auth user model
-        user_model = get_user_model()
         try:
+            # Get the auth user model in use
+            user_model = get_user_model()
             return user_model.objects.filter(**{login_field: login_field_value}).exists()
         except Exception:
             log.debug("user_exists: error while trying to query if the user exists", exc_info=True)
