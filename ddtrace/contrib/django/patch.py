@@ -664,21 +664,28 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
     def __init__(self, user, credentials=None):
-        self.credentials = credentials if credentials else {}
         super(_DjangoUserInfoRetriever, self).__init__(user)
 
-    def user_exists(self):
-        if self.user:
-            return True
+        self.credentials = credentials if credentials else {}
+        if self.credentials and not user:
+            self._try_load_user()
 
-        if not self.credentials:
-            return None
+    def _try_load_user(self):
+        self.user_model = None
 
         try:
             from django.contrib.auth import get_user_model
         except ImportError:
             log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
-            return None
+            return
+
+        try:
+            self.user_model = get_user_model()
+            if not self.user_model:
+                return
+        except Exception:
+            log.debug("user_exist: Could not get the user model", exc_info=True)
+            return
 
         login_field = asm_config._user_model_login_field
         login_field_value = self.credentials.get(login_field, None) if login_field else None
@@ -692,16 +699,17 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
                     break
             else:
                 # Could not get what the login field, so we can't check if the user exists
-                log.debug("user_exists: could not get the login field from the credentials")
-                return None
+                log.debug("try_load_user_model: could not get the login field from the credentials")
+                return
 
         try:
-            # Get the auth user model in use
-            user_model = get_user_model()
-            return user_model.objects.filter(**{login_field: login_field_value}).exists()
-        except Exception:
-            log.debug("user_exists: error while trying to query if the user exists", exc_info=True)
-            return None
+            user = self.user_model.objects.get(**{login_field: login_field_value})
+            self.user = user
+        except self.user_model.DoesNotExist:
+            log.debug("try_load_user_model: could not load user model", exc_info=True)
+
+    def user_exists(self):
+        return self.user is not None
 
     def get_username(self):
         if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
