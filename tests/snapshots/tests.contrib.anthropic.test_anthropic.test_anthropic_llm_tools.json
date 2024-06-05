@@ -1,0 +1,40 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "Messages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "665f79e600000000",
+      "anthropic.request.api_key": "sk-...key>",
+      "anthropic.request.messages.0.content.0.text": "What is the result of 1,984,135 * 9,343,116?",
+      "anthropic.request.messages.0.content.0.type": "text",
+      "anthropic.request.messages.0.role": "user",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"max_tokens\": 200}",
+      "anthropic.response.completions.content.0.text": "<thinking>\\nThe user's request is to find the result of multiplying two large numbers. The calculator tool can perform this arit...",
+      "anthropic.response.completions.content.0.type": "text",
+      "anthropic.response.completions.content.1.type": "tool_use",
+      "anthropic.response.completions.finish_reason": "tool_use",
+      "anthropic.response.completions.role": "assistant",
+      "language": "python",
+      "runtime-id": "855839c3c69e4bcb98ba53ea06367dff"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "anthropic.response.usage.input_tokens": 640,
+      "anthropic.response.usage.output_tokens": 148,
+      "anthropic.response.usage.total_tokens": 788,
+      "process_id": 46833
+    },
+    "duration": 8000810000,
+    "start": 1717533158537004000
+  }]]

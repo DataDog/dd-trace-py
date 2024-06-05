@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 
+import mock
 import pytest
 
 from ddtrace import tracer as ddtracer
@@ -2688,3 +2689,26 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
+
+
+def test_llmobs_enabled_injects_llmobs_parent_id():
+    with override_global_config(dict(_llmobs_enabled=True)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_called_once_with(context)
+
+
+def test_llmobs_disabled_does_not_inject_parent_id():
+    with override_global_config(dict(_llmobs_enabled=False)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_not_called()
+
+
+def test_llmobs_parent_id_not_injected_by_default():
+    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+        context = Context(trace_id=1, span_id=2)
+        HTTPPropagator.inject(context, {})
+        mock_llmobs_inject.assert_not_called()

@@ -87,6 +87,8 @@ class Snapshot(LogSignal):
     return_capture = attr.ib(type=Optional[dict], default=None)
     line_capture = attr.ib(type=Optional[dict], default=None)
 
+    _stack = attr.ib(type=Optional[list], default=None)
+
     _message = attr.ib(type=Optional[str], default=None)
     duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
 
@@ -159,7 +161,7 @@ class Snapshot(LogSignal):
             return
 
         _locals = list(_safety.get_locals(self.frame))
-        _, exc, _ = exc_info
+        _, exc, tb = exc_info
         if exc is None:
             _locals.append(("@return", retval))
         else:
@@ -173,6 +175,19 @@ class Snapshot(LogSignal):
         self.state = SignalState.DONE
         if probe.evaluate_at != ProbeEvaluateTimingForMethod.ENTER:
             self._eval_message(dict(_args))
+
+        stack = utils.capture_stack(self.frame)
+
+        # Fix the line number of the top frame. This might have been mangled by
+        # the instrumented exception handling of function probes.
+        while tb is not None:
+            frame = tb.tb_frame
+            if frame == self.frame:
+                stack[0]["lineNumber"] = tb.tb_lineno
+                break
+            tb = tb.tb_next
+
+        self._stack = stack
 
     def line(self):
         if not isinstance(self.probe, LogLineProbe):
@@ -198,6 +213,9 @@ class Snapshot(LogSignal):
             )
 
         self._eval_message(frame.f_locals)
+
+        self._stack = utils.capture_stack(frame)
+
         self.state = SignalState.DONE
 
     @property
@@ -209,7 +227,6 @@ class Snapshot(LogSignal):
 
     @property
     def data(self):
-        frame = self.frame
         probe = self.probe
 
         captures = None
@@ -223,7 +240,7 @@ class Snapshot(LogSignal):
                 }
 
         return {
-            "stack": utils.capture_stack(frame),
+            "stack": self._stack,
             "captures": captures,
             "duration": self.duration,
         }
