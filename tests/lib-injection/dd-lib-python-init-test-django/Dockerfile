@@ -3,6 +3,7 @@ FROM python:3.11
 ENV PYTHONUNBUFFERED 1
 # intentionally redundant in this test
 ENV DD_INJECT_FORCE 1
+ENV DD_TRACE_DEBUG 1
 ENV DJANGO_SETTINGS_MODULE django_app
 WORKDIR /src
 ADD . /src
