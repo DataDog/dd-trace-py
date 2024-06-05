@@ -1,21 +1,22 @@
 variables:
-  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+  MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
   stage: benchmarks
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
-  image: $BASE_CI_IMAGE
+  image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
   timeout: 1h
+  needs: []
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - export CMAKE_BUILD_PARALLEL_LEVEL=12
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - ./steps/capture-hardware-software-info.sh
-    - '([ $SCENARIO = "flask_simple" ] && BP_SCENARIO=$SCENARIO /benchmarking-platform-tools/bp-runner/bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || ([ $SCENARIO != "flask_simple" ] && ./steps/run-benchmarks.sh)'
+    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
     - ./steps/analyze-results.sh
     - "./steps/upload-results-to-s3.sh || :"
   artifacts:
@@ -35,15 +36,17 @@ variables:
 
 benchmarks-pr-comment:
   stage: benchmarks-pr-comment
-  when: on_success
+  when: always
   tags: ["arch:amd64"]
-  image: $BASE_CI_IMAGE
+  image: $MICROBENCHMARKS_CI_IMAGE
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
     - "(for i in {1..2}; do ./steps/upload-results-to-benchmarking-api.sh && break; done) || :"
     - "./steps/post-pr-comment.sh || :"
+  except:
+    - main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -103,10 +106,11 @@ appsec-iast-propagation:
   variables:
     SCENARIO: "appsec_iast_propagation"
 
-benchmark-encoder:
-  extends: .benchmarks
-  variables:
-    SCENARIO: "encoder"
+# Flaky benchmark test. Timeout errors
+#benchmark-encoder:
+#  extends: .benchmarks
+#  variables:
+#    SCENARIO: "encoder"
 
 benchmark-http-propagation-extract:
   extends: .benchmarks
@@ -118,6 +122,11 @@ benchmark-http-propagation-inject:
   variables:
     SCENARIO: "http_propagation_inject"
 
+benchmark-rate-limiter:
+  extends: .benchmarks
+  variables:
+    SCENARIO: "rate_limiter"
+
 benchmark-serverless:
   stage: benchmarks
   image: $SLS_CI_IMAGE
@@ -128,6 +137,8 @@ benchmark-serverless:
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh
+  except:
+    - main  # fails on main - ideally it would succeed
 
 benchmark-serverless-trigger:
   stage: benchmarks

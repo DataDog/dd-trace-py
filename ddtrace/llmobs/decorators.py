@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 
 
 log = get_logger(__name__)
@@ -21,12 +22,13 @@ def _model_decorator(operation_kind):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                if not LLMObs.enabled or LLMObs._instance is None:
-                    log.warning("LLMObs.%s() cannot be used while LLMObs is disabled.", operation_kind)
+                if not LLMObs.enabled:
+                    log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                     return func(*args, **kwargs)
                 traced_model_name = model_name
                 if traced_model_name is None:
-                    raise TypeError("model_name is required for LLMObs.{}()".format(operation_kind))
+                    log.warning("model_name missing for LLMObs.%s() - default to 'unknown'", operation_kind)
+                    traced_model_name = "unknown"
                 span_name = name
                 if span_name is None:
                     span_name = func.__name__
@@ -57,8 +59,8 @@ def _llmobs_decorator(operation_kind):
         def inner(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                if not LLMObs.enabled or LLMObs._instance is None:
-                    log.warning("LLMObs.%s() cannot be used while LLMObs is disabled.", operation_kind)
+                if not LLMObs.enabled:
+                    log.warning(SPAN_START_WHILE_DISABLED_WARNING)
                     return func(*args, **kwargs)
                 span_name = name
                 if span_name is None:

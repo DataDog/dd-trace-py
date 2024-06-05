@@ -26,16 +26,21 @@ dependencies = [
     "pygments==2.16.1",
     "riot==0.19.0",
     "ruff==0.1.3",
+    "clang-format==18.1.5",
 ]
 
 [envs.lint.scripts]
 black_check = [
     "black --check {args:.}",
 ]
+cformat_check = [
+    "bash scripts/cformat.sh"
+]
 style = [
     "black_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
+    "cformat_check",
 ]
 fmt = [
     "black {args:.}",
@@ -43,7 +48,7 @@ fmt = [
     "style",
 ]
 spelling = [
-    "codespell --skip='ddwaf.h' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell --skip='ddwaf.h,*cassettes*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -79,7 +84,6 @@ dependencies = [  # copied from library dependencies
     "opentracing>=2.0.0",
     "bytecode",
     "six>=1.12.0",
-    "sqlparse>=0.2.2",
 ]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
@@ -189,7 +193,8 @@ dependencies = [
 [envs.appsec_threats_django.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
 ]
 
 # python 3.12 should replace 3.11 in this list, but installation is failing on 3.12
@@ -233,7 +238,8 @@ dependencies = [
 [envs.appsec_threats_flask.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
 ]
 
 # python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12
@@ -274,7 +280,8 @@ dependencies = [
 [envs.appsec_threats_fastapi.scripts]
 test = [
     "pip freeze",
-    "PYTHONPATH=. python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
 # python 3.12 should replace some 3.11 in this list, but installation is failing on 3.12

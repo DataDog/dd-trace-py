@@ -1,5 +1,6 @@
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
+import mock
 
 from tests.contrib.grpc.common import GrpcBaseTestCase
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -72,3 +73,19 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
                     res = stub1.SayHelloLast(requests_iterator)
                     assert hasattr(res, "message")
                     _check_test_range(res.message)
+
+    def test_taint_iast_patching_import_error(self):
+        with mock.patch.dict("sys.modules", {"google._upb._message": None}), override_env({"DD_IAST_ENABLED": "True"}):
+            from collections import UserDict
+
+            from ddtrace.appsec._handlers import _custom_protobuf_getattribute
+            from ddtrace.appsec._handlers import _patch_protobuf_class
+
+            class MyUserDict(UserDict):
+                pass
+
+            _patch_protobuf_class(MyUserDict)
+            original_dict = {"apple": 1, "banana": 2}
+            mutable_mapping = MyUserDict(original_dict)
+
+            _custom_protobuf_getattribute(mutable_mapping, "data")

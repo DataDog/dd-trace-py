@@ -27,12 +27,14 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _get_span_name
 
 
 log = get_logger(__name__)
@@ -45,7 +47,7 @@ class LLMObsTraceProcessor(TraceProcessor):
 
     def __init__(self, llmobs_span_writer):
         self._span_writer = llmobs_span_writer
-        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_NO_APM", False))
+        self._no_apm_traces = asbool(os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", False))
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -99,13 +101,14 @@ class LLMObsTraceProcessor(TraceProcessor):
         span.set_tag_str(ML_APP, ml_app)
         session_id = _get_session_id(span)
         span.set_tag_str(SESSION_ID, session_id)
-
+        parent_id = str(_get_llmobs_parent_id(span) or "undefined")
+        span._meta.pop(PARENT_ID_KEY, None)
         return {
             "trace_id": "{:x}".format(span.trace_id),
             "span_id": str(span.span_id),
-            "parent_id": str(_get_llmobs_parent_id(span) or "undefined"),
+            "parent_id": parent_id,
             "session_id": session_id,
-            "name": span.name,
+            "name": _get_span_name(span),
             "tags": self._llmobs_tags(span, ml_app=ml_app, session_id=session_id),
             "start_ns": span.start_ns,
             "duration": span.duration_ns,

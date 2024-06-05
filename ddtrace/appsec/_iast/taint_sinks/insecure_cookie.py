@@ -1,25 +1,19 @@
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
 from ..constants import VULN_NO_SAMESITE_COOKIE
 from ..taint_sinks._base import VulnerabilityBase
 
 
-if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
-    from typing import Optional  # noqa:F401
-
-
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     scrub_evidence = False
     skip_location = True
 
@@ -27,23 +21,24 @@ class InsecureCookie(VulnerabilityBase):
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     skip_location = True
 
 
-def asm_check_cookies(cookies):  # type: (Optional[Dict[str, str]]) -> None
+def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
 
     for cookie_key, cookie_value in cookies.items():
         lvalue = cookie_value.lower().replace(" ", "")
+        # If lvalue starts with ";" means that the cookie is empty, like ';httponly;path=/;samesite=strict'
+        if lvalue == "" or lvalue.startswith(";"):
+            continue
 
         if ";secure" not in lvalue:
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type)

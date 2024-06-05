@@ -211,7 +211,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -276,7 +275,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -440,13 +439,14 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://localhost:8126",
             },
-            command="pytest {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
                 "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
@@ -1698,7 +1698,7 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
                 "pytest-randomly": latest,
@@ -1736,6 +1736,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+            # grpc.aio support is broken and disabled by default
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -2305,13 +2307,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.3.9"],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[datalib]": ["==1.3.9"],
+                        "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2482,7 +2484,6 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
@@ -2497,21 +2498,50 @@ venv = Venv(
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
+                        "cohere": "==4.57",
                     }
                 ),
                 Venv(
                     pkgs={
-                        "langchain": "==0.1.9",
-                        "langchain-community": "==0.0.24",
-                        "langchain-core": "==0.1.27",
-                        "langchain-openai": "==0.0.8",
-                        "langchain-pinecone": "==0.0.3",
-                        "langsmith": "==0.1.9",
-                        "openai": "==1.12.0",
+                        "langchain": "==0.1.20",
+                        "langchain-community": "==0.0.38",
+                        "langchain-core": "==0.1.52",
+                        "langchain-openai": "==0.1.6",
+                        "langchain-pinecone": "==0.1.0",
+                        "langsmith": "==0.1.58",
+                        "openai": "==1.30.3",
                         "pinecone-client": latest,
+                        "botocore": latest,
+                        "langchain-aws": latest,
+                        "cohere": latest,
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-community": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langsmith": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "langchain-aws": latest,
+                        "cohere": latest,
                     }
                 ),
             ],
+        ),
+        Venv(
+            name="anthropic",
+            command="pytest {cmdargs} tests/contrib/anthropic",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "anthropic": [latest, "~=0.28"],
+            },
         ),
         Venv(
             name="logbook",

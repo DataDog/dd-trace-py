@@ -4,6 +4,7 @@ import logging
 import os
 import pickle
 
+import mock
 import pytest
 
 from ddtrace import tracer as ddtracer
@@ -680,7 +681,7 @@ TRACECONTEXT_HEADERS_VALID_BASIC = {
 }
 
 TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION = {
-    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACEPARENT: "00-80f198ee56343ba864fe8b2a57d3eff7-00f067aa0ba902b7-00",
     _HTTP_HEADER_TRACESTATE: "dd=o:rum",
 }
 
@@ -1751,17 +1752,21 @@ EXTRACT_FIXTURES = [
         DATADOG_TRACECONTEXT_MATCHING_TRACE_ID_HEADERS,
         {
             "trace_id": _get_64_lowest_order_bits_as_int(TRACE_ID),
-            "span_id": 5678,
+            "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE], "_dd.p.dm": "-3"},
+            "meta": {
+                "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
+                "_dd.p.dm": "-3",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
+            },
         },
     ),
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
         [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        ALL_HEADERS,
+        {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
@@ -1772,8 +1777,8 @@ EXTRACT_FIXTURES = [
                 SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
-                    tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                    flags=1,
+                    tracestate="dd=o:rum",
+                    flags=0,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 )
             ],
@@ -1790,6 +1795,21 @@ EXTRACT_FIXTURES = [
         [],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         CONTEXT_EMPTY,
+    ),
+    (
+        "datadog_tracecontext_conflicting_span_ids",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            HTTP_HEADER_TRACE_ID: "9291375655657946024",
+            HTTP_HEADER_PARENT_ID: "15",
+            _HTTP_HEADER_TRACEPARENT: "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+        },
+        {
+            "trace_id": 9291375655657946024,
+            "span_id": 10,
+            "sampling_priority": 2,
+            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+        },
     ),
 ]
 
@@ -1824,7 +1844,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "dd_origin": "rum",
             "meta": {
                 "tracestate": "dd=o:rum",
-                "traceparent": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACEPARENT],
+                "traceparent": TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION[_HTTP_HEADER_TRACEPARENT],
                 LAST_DD_PARENT_ID_KEY: "0000000000000000",
             },
         },
@@ -2110,7 +2130,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ALL_HEADERS_CHAOTIC_1,
         Context(
             trace_id=7277407061855694839,
-            span_id=5678,
+            span_id=67667974448284343,
             # it's weird that both _dd.p.dm and tracestate.t.dm are set here. as far as i know, this is the expected
             # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
             # in the styles configuration
@@ -2118,6 +2138,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
                 "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
@@ -2668,3 +2689,26 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
+
+
+def test_llmobs_enabled_injects_llmobs_parent_id():
+    with override_global_config(dict(_llmobs_enabled=True)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_called_once_with(context)
+
+
+def test_llmobs_disabled_does_not_inject_parent_id():
+    with override_global_config(dict(_llmobs_enabled=False)):
+        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+            context = Context(trace_id=1, span_id=2)
+            HTTPPropagator.inject(context, {})
+            mock_llmobs_inject.assert_not_called()
+
+
+def test_llmobs_parent_id_not_injected_by_default():
+    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
+        context = Context(trace_id=1, span_id=2)
+        HTTPPropagator.inject(context, {})
+        mock_llmobs_inject.assert_not_called()

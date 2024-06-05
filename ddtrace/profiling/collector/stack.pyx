@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+from itertools import chain
 import logging
 import sys
 import typing
@@ -8,10 +9,11 @@ import typing
 import attr
 import six
 
-from ddtrace import _threading as ddtrace_threading
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
+from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
@@ -290,9 +292,12 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
+    # Also collect the native threads, that are not registered with the built-in
+    # threading module, to keep backward compatibility with the previous
+    # pure-Python implementation of periodic threads.
     thread_id_ignore_list = {
         thread_id
-        for thread_id, thread in ddtrace_threading._active.items()
+        for thread_id, thread in chain(periodic_threads.items(), ddtrace_threading._active.items())
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 

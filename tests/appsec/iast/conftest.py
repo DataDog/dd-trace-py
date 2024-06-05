@@ -3,6 +3,8 @@ import logging
 
 import pytest
 
+from ddtrace.appsec._common_module_patches import patch_common_modules
+from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
@@ -13,7 +15,6 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_pat
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
-from ddtrace.appsec._iast.taint_sinks.path_traversal import patch as path_traversal_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
@@ -27,6 +28,18 @@ from tests.utils import override_global_config
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import create_context
     from ddtrace.appsec._iast._taint_tracking import reset_context
+
+
+@pytest.fixture
+def no_request_sampling(tracer):
+    with override_env(
+        {
+            "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
+        }
+    ):
+        oce.reconfigure()
+        yield
 
 
 def iast_span(tracer, env, request_sampling="100", deduplication=False):
@@ -58,7 +71,6 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             span.span_type = "web"
             weak_hash_patch()
             weak_cipher_patch()
-            path_traversal_patch()
             sqli_sqlite_patch()
             json_patch()
             psycopg_patch()
@@ -67,7 +79,9 @@ def iast_span(tracer, env, request_sampling="100", deduplication=False):
             header_injection_patch()
             langchain_patch()
             iast_span_processor.on_span_start(span)
+            patch_common_modules()
             yield span
+            unpatch_common_modules()
             iast_span_processor.on_span_finish(span)
             weak_hash_unpatch()
             weak_cipher_unpatch()

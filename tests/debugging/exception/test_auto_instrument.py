@@ -4,6 +4,7 @@ import pytest
 
 import ddtrace
 import ddtrace.debugging._exception.auto_instrument as auto_instrument
+from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from tests.debugging.mocking import exception_debugging
 from tests.utils import TracerTestCase
@@ -24,8 +25,10 @@ class ExceptionDebuggingTestCase(TracerTestCase):
         super(ExceptionDebuggingTestCase, self).setUp()
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
+        _third_party_packages().remove("ddtrace")
 
     def tearDown(self):
+        _third_party_packages().add("ddtrace")
         ddtrace.tracer = self.backup_tracer
         super(ExceptionDebuggingTestCase, self).tearDown()
 
@@ -106,7 +109,8 @@ class ExceptionDebuggingTestCase(TracerTestCase):
 
         with exception_debugging() as d:
             rate_limiter = RateLimiter(
-                limit_rate=1,  # one trace per second
+                limit_rate=0.1,  # one trace per second
+                tau=10,
                 raise_on_exceed=False,
             )
             with with_rate_limiter(rate_limiter):
@@ -152,7 +156,7 @@ class ExceptionDebuggingTestCase(TracerTestCase):
             exc_ids = set(span.get_tag("_dd.debug.error.exception_id") for span in self.spans)
             assert len(exc_ids) == number_of_exc_ids
 
-            # invoke again (should be in less then 1 sec)
+            # invoke again (should be in less than 1 sec)
             with with_rate_limiter(rate_limiter):
                 with pytest.raises(KeyError):
                     c()

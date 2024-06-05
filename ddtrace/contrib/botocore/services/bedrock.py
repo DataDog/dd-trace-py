@@ -167,28 +167,34 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
     provider = ctx["model_provider"]
     try:
         if provider == _AI21:
-            text = body.get("completions")[0].get("data").get("text")
-            finish_reason = body.get("completions")[0].get("finishReason")
+            completions = body.get("completions", [])
+            if completions:
+                data = completions[0].get("data", {})
+                text = data.get("text")
+                finish_reason = completions[0].get("finishReason")
         elif provider == _AMAZON and "embed" in model_name:
             text = [body.get("embedding", [])]
         elif provider == _AMAZON:
-            text = body.get("results")[0].get("outputText")
-            finish_reason = body.get("results")[0].get("completionReason")
+            results = body.get("results", [])
+            if results:
+                text = results[0].get("outputText")
+                finish_reason = results[0].get("completionReason")
         elif provider == _ANTHROPIC:
             text = body.get("completion", "") or body.get("content", "")
             finish_reason = body.get("stop_reason")
         elif provider == _COHERE and "embed" in model_name:
             text = body.get("embeddings", [[]])
         elif provider == _COHERE:
-            text = [generation["text"] for generation in body.get("generations")]
-            finish_reason = [generation["finish_reason"] for generation in body.get("generations")]
+            generations = body.get("generations", [])
+            text = [generation["text"] for generation in generations]
+            finish_reason = [generation["finish_reason"] for generation in generations]
         elif provider == _META:
             text = body.get("generation")
             finish_reason = body.get("stop_reason")
         elif provider == _STABILITY:
             # TODO: request/response formats are different for image-based models. Defer for now
             pass
-    except (IndexError, AttributeError):
+    except (IndexError, AttributeError, TypeError):
         log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
 
     if not isinstance(text, list):
@@ -311,16 +317,18 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_provider, model_name = params.get("modelId").split(".")
+    integration = function_vars.get("integration")
+    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name("{}.{}".format(pin.service, function_vars.get("endpoint_name"))),
         resource=function_vars.get("operation"),
-        span_type=SpanTypes.LLM if "embed" not in model_name else None,
+        span_type=SpanTypes.LLM if submit_to_llmobs else None,
         call_key="instrumented_bedrock_call",
         call_trace=True,
-        bedrock_integration=function_vars.get("integration"),
+        bedrock_integration=integration,
         params=params,
         model_provider=model_provider,
         model_name=model_name,

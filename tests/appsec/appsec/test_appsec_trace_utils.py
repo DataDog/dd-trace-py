@@ -156,6 +156,9 @@ class EventsSDKTestCase(TracerTestCase):
                 "1234",
                 True,
                 metadata={"foo": "bar"},
+                login="johntest",
+                name="John Test",
+                email="john@test.net",
             )
             root_span = self.tracer.current_root_span()
 
@@ -171,6 +174,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "login")) == "johntest"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "username")) == "John Test"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "email")) == "john@test.net"
+
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)

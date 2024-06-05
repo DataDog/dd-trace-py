@@ -34,6 +34,7 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
+from ._otel_remapper import otel_remapping as _otel_remapping
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -273,11 +274,6 @@ def _parse_global_tags(s):
 def _default_config():
     # type: () -> Dict[str, _ConfigItem]
     return {
-        "_trace_enabled": _ConfigItem(
-            name="trace_enabled",
-            default=True,
-            envs=[("DD_TRACE_ENABLED", asbool)],
-        ),
         "_trace_sample_rate": _ConfigItem(
             name="trace_sample_rate",
             default=1.0,
@@ -380,10 +376,12 @@ class Config(object):
             return False
 
     def __init__(self):
+        # Must map Otel configurations to Datadog configurations before creating the config object.
+        _otel_remapping()
         # Must come before _integration_configs due to __setattr__
         self._config = _default_config()
 
-        # use a dict as underlying storing mechanism for integration configs
+        # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
         self._debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
@@ -562,7 +560,7 @@ class Config(object):
 
         self._llmobs_enabled = asbool(os.getenv("DD_LLMOBS_ENABLED", False))
         self._llmobs_sample_rate = float(os.getenv("DD_LLMOBS_SAMPLE_RATE", 1.0))
-        self._llmobs_ml_app = os.getenv("DD_LLMOBS_APP_NAME")
+        self._llmobs_ml_app = os.getenv("DD_LLMOBS_ML_APP")
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -748,8 +746,15 @@ class Config(object):
             log.warning("unexpected number of RC payloads %r", data)
             return
 
+        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
+        config = None
+        for config_item in data["config"]:
+            if isinstance(config_item, Dict):
+                if "lib_config" in config_item:
+                    config = config_item
+                    break
+
         # If no data is submitted then the RC config has been deleted. Revert the settings.
-        config = data["config"][0]
         base_rc_config = {n: None for n in self._config}
 
         if config and "lib_config" in config:
@@ -782,7 +787,6 @@ class Config(object):
                 if tags:
                     tags = self._format_tags(lib_config["tracing_header_tags"])
                 base_rc_config["trace_http_header_tags"] = tags
-
         self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
         # called unconditionally to handle the case where header tags have been unset
         self._handle_remoteconfig_header_tags(base_rc_config)
@@ -808,12 +812,17 @@ class Config(object):
     def enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
+        from ddtrace.internal.flare.flare import Flare
+        from ddtrace.internal.flare.handler import _handle_tracer_flare
+        from ddtrace.internal.flare.handler import _tracerFlarePubSub
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
+        flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
+        tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
         remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
-        remoteconfig_poller.register("AGENT_CONFIG", remoteconfig_pubsub)
-        remoteconfig_poller.register("AGENT_TASK", remoteconfig_pubsub)
+        remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
+        remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
     def _remove_invalid_rules(self, rc_rules: List) -> List:
         """Remove invalid sampling rules from the given list"""

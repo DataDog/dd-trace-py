@@ -40,6 +40,7 @@ ddtrace/ext/ci_visibility           @DataDog/ci-app-libraries
 ddtrace/ext/test.py                 @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility      @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py      @DataDog/apm-core-python @datadog/ci-app-libraries
+ddtrace/internal/coverage           @DataDog/apm-core-python @datadog/ci-app-libraries @Datadog/debugger-python
 tests/internal/test_codeowners.py   @datadog/ci-app-libraries
 tests/ci_visibility                 @DataDog/ci-app-libraries
 tests/tracer/test_ci.py             @DataDog/ci-app-libraries
@@ -63,6 +64,8 @@ ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
+ddtrace/contrib/webbrowser          @DataDog/asm-python
+ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
@@ -73,9 +76,11 @@ tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
 tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
+scripts/iast/*                      @DataDog/asm-python
 
 # Profiling
 ddtrace/profiling                   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/datadog/profiling  @DataDog/profiling-python @DataDog/apm-core-python
 tests/profiling                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
@@ -102,6 +107,7 @@ tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-pyt
 setup.py                            @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 pyproject.toml                      @DataDog/python-guild
+hatch.toml                          @DataDog/python-guild
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
@@ -109,4 +115,5 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/ISSUE_TEMPLATE.md           @DataDog/python-guild  @DataDog/apm-core-python
 .github/CODEOWNERS                  @DataDog/python-guild  @DataDog/apm-core-python
 .github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python

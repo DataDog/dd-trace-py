@@ -38,6 +38,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
@@ -124,9 +125,13 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             key, value = k
         else:
             key, value = k, headers[k]
+        if isinstance(key, bytes):
+            key = key.decode()
+        if isinstance(value, bytes):
+            value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, key), value)
+            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def _get_rate_limiter() -> RateLimiter:
@@ -345,6 +350,8 @@ class AppSecSpanProcessor(SpanProcessor):
             bool(blocked),
             waf_results.timeout,
             rule_type,
+            waf_results.runtime,
+            waf_results.total_runtime,
         )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
@@ -357,21 +364,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
                 log.debug("Error in ASM In-App WAF: %s", errors)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            from ddtrace.appsec._ddwaf import version
-
-            span.set_tag_str(APPSEC.WAF_VERSION, version())
-
-            def update_metric(name, value):
-                old_value = span.get_metric(name)
-                if old_value is None:
-                    old_value = 0.0
-                span.set_metric(name, value + old_value)
-
             span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-            if waf_results.runtime:
-                update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
-                update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (JSONDecodeError, ValueError):
             log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
         except Exception:
@@ -426,7 +420,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
                 if headers_req:
-                    _set_headers(span, headers_req, kind="request", only_asm_enabled=True)
+                    _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
                 if not has_triggers(span) and _asm_request_context.in_context():

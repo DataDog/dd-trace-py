@@ -93,6 +93,7 @@ from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_host_info
+from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
@@ -370,10 +371,7 @@ class TelemetryWriter(PeriodicService):
 
     def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
         item = config._config[cfg_name]
-        if cfg_name == "_trace_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_profiling_enabled":
+        if cfg_name == "_profiling_enabled":
             name = "profiling_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
@@ -398,7 +396,7 @@ class TelemetryWriter(PeriodicService):
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
         elif cfg_name == "_tracing_enabled":
-            name = "tracing_enabled"
+            name = "trace_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_sca_enabled":
             name = "DD_APPSEC_SCA_ENABLED"
@@ -432,7 +430,6 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_sca_enabled"),
@@ -502,6 +499,7 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
             ]
+            + get_python_config_vars()
         )
 
         if config._config["_sca_enabled"].value() is None:

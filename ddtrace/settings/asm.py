@@ -47,6 +47,7 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     _asm_can_be_enabled = (APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled) or _asm_enabled
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
@@ -92,7 +93,7 @@ class ASMConfig(Env):
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA. For now it's always False
-    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
+    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
     _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = Env.var(
