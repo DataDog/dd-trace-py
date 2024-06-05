@@ -15,6 +15,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+
 log = get_logger(__name__)
 
 
@@ -31,14 +32,14 @@ def _asm_manual_keep(span: Span) -> None:
 
 
 def _track_user_login_common(
-        tracer: Tracer,
-        success: bool,
-        metadata: Optional[dict] = None,
-        login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
-        login: Optional[str] = None,
-        name: Optional[str] = None,
-        email: Optional[str] = None,
-        span: Optional[Span] = None,
+    tracer: Tracer,
+    success: bool,
+    metadata: Optional[dict] = None,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    span: Optional[Span] = None,
 ) -> Optional[Span]:
     if span is None:
         span = tracer.current_root_span()
@@ -87,18 +88,18 @@ def _track_user_login_common(
 
 
 def track_user_login_success_event(
-        tracer: Tracer,
-        user_id: str,
-        metadata: Optional[dict] = None,
-        login: Optional[str] = None,
-        name: Optional[str] = None,
-        email: Optional[str] = None,
-        scope: Optional[str] = None,
-        role: Optional[str] = None,
-        session_id: Optional[str] = None,
-        propagate: bool = False,
-        login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
-        span: Optional[Span] = None,
+    tracer: Tracer,
+    user_id: str,
+    metadata: Optional[dict] = None,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    scope: Optional[str] = None,
+    role: Optional[str] = None,
+    session_id: Optional[str] = None,
+    propagate: bool = False,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    span: Optional[Span] = None,
 ) -> None:
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
@@ -117,9 +118,9 @@ def track_user_login_success_event(
         return
 
     if (
-            user_id
-            and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-            and not asm_config._user_model_login_field
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -127,14 +128,14 @@ def track_user_login_success_event(
 
 
 def track_user_login_failure_event(
-        tracer: Tracer,
-        user_id: Optional[str],
-        exists: Optional[bool] = None,
-        metadata: Optional[dict] = None,
-        login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
-        login: Optional[str] = None,
-        name: Optional[str] = None,
-        email: Optional[str] = None,
+    tracer: Tracer,
+    user_id: Optional[str],
+    exists: Optional[bool] = None,
+    metadata: Optional[dict] = None,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
 ) -> None:
     """
     Add a new login failure tracking event.
@@ -145,9 +146,9 @@ def track_user_login_failure_event(
     """
 
     if (
-            user_id
-            and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-            and not asm_config._user_model_login_field
+        user_id
+        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
+        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -168,7 +169,7 @@ def track_user_login_failure_event(
 
 
 def track_user_signup_event(
-        tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
+    tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
 ) -> None:
     span = tracer.current_root_span()
     if span:
@@ -297,11 +298,11 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
 
 
 def _on_django_login(
-        pin,
-        request,
-        user,
-        mode,
-        info_retriever,
+    pin,
+    request,
+    user,
+    mode,
+    info_retriever,
 ):
     if not asm_config._asm_enabled:
         return
@@ -344,8 +345,9 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode,
-                                           exists=info_retriever.user_exists())
+            track_user_login_failure_event(
+                pin.tracer, user_id=user_id, login_events_mode=mode, exists=info_retriever.user_exists()
+            )
 
     return False, None
 
