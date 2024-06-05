@@ -7,7 +7,6 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -61,8 +60,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             "temperature": float(kwargs.get("temperature", 1.0)),
             "max_tokens": float(kwargs.get("max_tokens", 0)),
         }
-        messages = get_argument_value([], kwargs, 0, "messages")
-        system_prompt = get_argument_value([], kwargs, 0, "system", optional=True)
+        messages = kwargs.get("messages")
+        system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
@@ -76,7 +75,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        span.set_tag_str(METRICS, json.dumps(_get_llmobs_metrics_tags(span)))
+        usage = AnthropicIntegration._get_llmobs_metrics_tags(span)
+        if usage != {}:
+            span.set_tag_str(METRICS, json.dumps(usage))
 
     def _extract_input_message(self, messages, system_prompt=None):
         """Extract input messages from the stored prompt.
@@ -133,22 +134,30 @@ class AnthropicIntegration(BaseLLMIntegration):
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
-        input_tokens = _get_attr(usage, "input_tokens", None)
-        output_tokens = _get_attr(usage, "output_tokens", None)
+        input_tokens = _get_attr(usage, "input_tokens", 0)
+        output_tokens = _get_attr(usage, "output_tokens", 0)
 
-        span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
-        span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-
-        if input_tokens is not None and output_tokens is not None:
+        if input_tokens != 0:
+            span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
+        if output_tokens != 0:
+            span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
+        if input_tokens != 0 and output_tokens != 0:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
+    @classmethod
+    def _get_llmobs_metrics_tags(cls, span):
+        usage = {}
+        prompt_tokens = span.get_metric("anthropic.response.usage.input_tokens")
+        completion_tokens = span.get_metric("anthropic.response.usage.output_tokens")
+        total_tokens = span.get_metric("anthropic.response.usage.total_tokens")
 
-def _get_llmobs_metrics_tags(span):
-    return {
-        "input_tokens": span.get_metric("anthropic.response.usage.input_tokens"),
-        "output_tokens": span.get_metric("anthropic.response.usage.output_tokens"),
-        "total_tokens": span.get_metric("anthropic.response.usage.total_tokens"),
-    }
+        if prompt_tokens is not None:
+            usage["prompt_tokens"] = prompt_tokens
+        if completion_tokens is not None:
+            usage["completion_tokens"] = completion_tokens
+        if total_tokens is not None:
+            usage["total_tokens"] = total_tokens
+        return usage
 
 
 def _get_attr(o: Any, attr: str, default: Any):

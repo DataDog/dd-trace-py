@@ -101,8 +101,6 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
             handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
@@ -178,8 +176,6 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
             handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
         raise
     finally:
         if integration.is_pc_sampled_llmobs(span):
