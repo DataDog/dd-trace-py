@@ -62,8 +62,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             "temperature": float(kwargs.get("temperature", 1.0)),
             "max_tokens": float(kwargs.get("max_tokens", 0)),
         }
-        messages = get_argument_value(args, kwargs, 0, "messages")
-        input_messages = self._extract_input_message(messages)
+        messages = get_argument_value([], kwargs, 0, "messages")
+        system_prompt = get_argument_value([], kwargs, 0, "system")
+        input_messages = self._extract_input_message(messages, system_prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
         span.set_tag_str(MODEL_NAME, span.get_tag("anthropic.request.model") or "")
@@ -78,7 +79,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         span.set_tag_str(METRICS, json.dumps(_get_llmobs_metrics_tags(span)))
 
-    def _extract_input_message(self, messages):
+    def _extract_input_message(self, messages, system_prompt=None):
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -86,6 +87,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             log.warning("Anthropic input must be a list of messages.")
 
         input_messages = []
+        if system_prompt is not None:
+            input_messages.append({"content": system_prompt, "role": "system"})
         for message in messages:
             if not isinstance(message, dict):
                 log.warning("Anthropic message input must be a list of message param dicts.")
