@@ -92,9 +92,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         path, line = arg
 
         if self._coverage_enabled:
-            if line not in self.covered[path]:
+            lines = self.covered[path]
+            if line not in lines:
                 # This line has already been covered
-                self.covered[path].add(line)
+                lines.add(line)
 
         if ctx_coverage_enabled.get():
             ctx_lines = ctx_covered.get()[path]
