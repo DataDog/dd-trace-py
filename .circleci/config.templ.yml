@@ -405,15 +405,6 @@ jobs:
           name: "Spelling"
           command: hatch run lint:spelling
 
-  ccheck:
-    executor: cimg_base
-    steps:
-      - checkout
-      - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format cppcheck
-      - run: scripts/cformat.sh
-      - run: scripts/cppcheck.sh
-
   coverage_report:
     executor: python310
     steps:
@@ -1297,6 +1288,14 @@ jobs:
     steps:
       - run_test:
           pattern: "langchain"
+          snapshot: true
+
+  anthropic:
+    <<: *machine_executor
+    parallelism: 3
+    steps:
+      - run_test:
+          pattern: "anthropic"
           snapshot: true
 
   logbook:
