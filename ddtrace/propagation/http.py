@@ -243,13 +243,10 @@ class _DatadogMultiHeader:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
 
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
-
         sampling_priority = span_context.sampling_priority
-
         # Propagate priority only if defined
         if sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
-
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = ensure_text(span_context.dd_origin)

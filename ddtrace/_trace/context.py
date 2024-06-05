@@ -47,17 +47,7 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = [
-        "trace_id",
-        "span_id",
-        "_lock",
-        "_meta",
-        "_metrics",
-        "_span_links",
-        "_baggage",
-        "_is_remote",
-        "_previous_sampling_priority",
-    ]
+    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote"]
 
     def __init__(
         self,
@@ -71,7 +61,6 @@ class Context(object):
         span_links=None,  # type: Optional[list[SpanLink]]
         baggage=None,  # type: Optional[dict[str, Any]]
         is_remote=True,  # type: bool
-        previous_sampling_priority=None,  # type: Optional[float]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -89,8 +78,6 @@ class Context(object):
             self._span_links = span_links
         else:
             self._span_links = []
-
-        self._previous_sampling_priority = previous_sampling_priority
 
         if lock is not None:
             self._lock = lock
