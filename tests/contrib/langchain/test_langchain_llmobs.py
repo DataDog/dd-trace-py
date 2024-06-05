@@ -502,6 +502,17 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         )
         _assert_expected_llmobs_llm_span(trace[1], mock_llmobs_span_writer, mock_io=True)
 
+    def test_llmobs_anthropic_chat_model(self, langchain_anthropic, mock_llmobs_span_writer, mock_tracer):
+        chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
+        span = self._invoke_chat(
+            chat_model=chat,
+            prompt="When do you use 'whom' instead of 'who'?",
+            mock_tracer=mock_tracer,
+            cassette_name="anthropic_chat_completion_sync_call.yaml",
+        )
+        assert mock_llmobs_span_writer.enqueue.call_count == 1
+        _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
+
 
 @pytest.mark.skipif(not SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="These tests are for langchain >= 0.1.0")
 class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
