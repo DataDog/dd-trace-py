@@ -6,7 +6,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.contrib.anthropic.utils import _get_attr
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -63,7 +62,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             "max_tokens": float(kwargs.get("max_tokens", 0)),
         }
         messages = get_argument_value([], kwargs, 0, "messages")
-        system_prompt = get_argument_value([], kwargs, 0, "system")
+        system_prompt = get_argument_value([], kwargs, 0, "system", optional=True)
         input_messages = self._extract_input_message(messages, system_prompt)
 
         span.set_tag_str(SPAN_KIND, "llm")
@@ -150,3 +149,11 @@ def _get_llmobs_metrics_tags(span):
         "output_tokens": span.get_metric("anthropic.response.usage.output_tokens"),
         "total_tokens": span.get_metric("anthropic.response.usage.total_tokens"),
     }
+
+
+def _get_attr(o: Any, attr: str, default: Any):
+    # Since our response may be a dict or object, convenience method
+    if isinstance(o, dict):
+        return o.get(attr, default)
+    else:
+        return getattr(o, attr, default)
