@@ -703,8 +703,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
                 return
 
         try:
-            user = self.user_model.objects.get(**{login_field: login_field_value})
-            self.user = user
+            self.user = self.user_model.objects.get(**{login_field: login_field_value})
         except self.user_model.DoesNotExist:
             log.debug("try_load_user_model: could not load user model", exc_info=True)
 
