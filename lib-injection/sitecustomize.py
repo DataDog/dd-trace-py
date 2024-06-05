@@ -35,7 +35,6 @@ RUNTIMES_ALLOW_LIST = {
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
-TELEMETRY_MOCK_FILE = "mock-telemetry.json"
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
@@ -92,10 +91,6 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
-    if DEBUG_MODE:
-        with open(TELEMETRY_MOCK_FILE, "w") as f:
-            f.write(event_json)
-        return
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
         return
     p = subprocess.Popen(

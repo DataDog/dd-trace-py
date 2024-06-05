@@ -4,9 +4,11 @@ ENV PYTHONUNBUFFERED 1
 # intentionally redundant in this test
 ENV DD_INJECT_FORCE 1
 ENV DD_TRACE_DEBUG 1
+ENV DD_TELEMETRY_FORWARDER_PATH src/telemetry-forwarder.sh
 ENV DJANGO_SETTINGS_MODULE django_app
 WORKDIR /src
 ADD . /src
+ADD ../telemetry-forwarder.sh /src/telemetry-forwarder.sh
 EXPOSE 18080
 RUN pip install django==4.1.3
 

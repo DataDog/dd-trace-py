@@ -90,6 +90,7 @@ jobs:
           cd lib-injection
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export FORWARDER_OUT="mock-telemetry.json"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
@@ -118,7 +119,7 @@ jobs:
       - name: Check mocked telemetry
         run: |
            cd lib-injection
-           docker exec lib-injection-app_local-1 sh -c "cd ../src && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py"
+           docker exec lib-injection-app_local-1 sh -c "cd .. && find . -name mock-telemetry.json && echo \"forwarder path $DD_TELEMETRY_FORWARDER_PATH\" && find . -name telemetry-forwarder.sh && [ ! -f src/validate_telemetry.py ] || cat $FORWARDER_OUT | python src/validate_telemetry.py"
       - name: Print traces
         run: curl http://localhost:8126/test/traces
       - name: Check test agent received a trace
@@ -143,6 +144,7 @@ jobs:
           cd lib-injection
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export FORWARDER_OUT="mock-telemetry.json"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
