@@ -675,8 +675,6 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         self._call_anthropic_llm(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
-        assert 1 == 0
-
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_langchain_with_anthropic_disabled(self):
         from langchain_anthropic import ChatAnthropic
