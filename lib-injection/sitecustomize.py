@@ -91,7 +91,9 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
+    _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
+        _log("not sending telemetry: TELEMETRY_ENABLED=%s" % TELEMETRY_ENABLED, level="debug")
         return
     p = subprocess.Popen(
         [FORWARDER_EXECUTABLE, str(os.getpid())],
@@ -100,9 +102,9 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    _log("writing telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     p.stdin.write(event_json)
     p.stdin.close()
+    _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
 
 
 def _get_clib():
