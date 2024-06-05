@@ -134,14 +134,14 @@ class AnthropicIntegration(BaseLLMIntegration):
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
-        input_tokens = _get_attr(usage, "input_tokens", 0)
-        output_tokens = _get_attr(usage, "output_tokens", 0)
+        input_tokens = _get_attr(usage, "input_tokens", None)
+        output_tokens = _get_attr(usage, "output_tokens", None)
 
-        if input_tokens != 0:
+        if input_tokens is not None:
             span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
-        if output_tokens != 0:
+        if output_tokens is not None:
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-        if input_tokens != 0 and output_tokens != 0:
+        if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
     @staticmethod
