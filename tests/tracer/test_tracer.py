@@ -1052,7 +1052,7 @@ def test_tracer_runtime_tags_fork():
     q = multiprocessing.Queue()
     p = multiprocessing.Process(target=_test_tracer_runtime_tags_fork_task, args=(tracer, q))
     p.start()
-    p.join()
+    p.join(60)
 
     children_tag = q.get()
     assert children_tag != span.get_tag("runtime-id")
@@ -1121,7 +1121,7 @@ def test_threaded_import():
 
     t = threading.Thread(target=thread_target)
     t.start()
-    t.join()
+    t.join(60)
 
 
 def test_runtime_id_parent_only():
@@ -1766,7 +1766,7 @@ def test_closing_other_context_spans_single_span(tracer, test_spans):
     assert tracer.current_span() is span
     t1 = threading.Thread(target=_target, args=(span,))
     t1.start()
-    t1.join()
+    t1.join(60)
     assert tracer.current_span() is None
 
     spans = test_spans.pop()
@@ -1789,7 +1789,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert tracer.current_span() is span
     t1 = threading.Thread(target=_target, args=(span,))
     t1.start()
-    t1.join()
+    t1.join(60)
     assert tracer.current_span() is root
     root.finish()
 

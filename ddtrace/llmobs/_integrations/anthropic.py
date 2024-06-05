@@ -127,7 +127,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 if isinstance(text, str):
                     output_messages.append({"content": self.trunc(text), "role": role})
         return output_messages
-    
+
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return

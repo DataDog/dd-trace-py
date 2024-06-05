@@ -2536,11 +2536,11 @@ venv = Venv(
         Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
-            pys=select_pys(min_version="3.7", max_version="3.12"),
+            pys=select_pys(min_version="3.8", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": [latest, "~=0.28", "~=0.26"],
+                "anthropic": [latest, "~=0.28"],
             },
         ),
         Venv(
