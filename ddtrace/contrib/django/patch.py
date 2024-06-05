@@ -663,6 +663,46 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
+    def __init__(self, user, credentials=None):
+        self.credentials = credentials if credentials else {}
+        super(_DjangoUserInfoRetriever, self).__init__(user)
+
+    def user_exists(self):
+        if self.user:
+            return True
+
+        if not self.credentials:
+            return False
+
+        try:
+            from django.contrib.auth import get_user_model
+        except ImportError:
+            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
+            return False
+
+        login_field = asm_config._user_model_login_field
+        login_field_value = self.credentials.get(login_field, None) if login_field else None
+
+        if not login_field or not login_field_value:
+            # Try to get the username from the credentials
+            for possible_login_field in self.possible_login_fields:
+                if possible_login_field in self.credentials:
+                    login_field = possible_login_field
+                    login_field_value = self.credentials[login_field]
+                    break
+            else:
+                # Could not get what the login field, so we can't check if the user exists
+                log.debug("user_exists: could not get the login field from the credentials")
+                return False
+
+        # Get the auth user model
+        user_model = get_user_model()
+        try:
+            return user_model.objects.filter(**{login_field: login_field_value}).exists()
+        except Exception:
+            log.debug("user_exists: error while trying to query if the user exists", exc_info=True)
+            return False
+
     def get_username(self):
         if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
             user_type = type(self.user)
@@ -732,7 +772,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
                 mode,
                 kwargs,
                 pin,
-                _DjangoUserInfoRetriever(result_user),
+                _DjangoUserInfoRetriever(result_user, credentials=kwargs),
             ),
         ).user
         if result and result.value[0]:

@@ -239,8 +239,7 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
-        ## TODO: Disabled until we have a proper way to detect whether the user exists
-        # assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "extended"
 
 
@@ -259,8 +258,7 @@ def test_django_login_failure_user_does_exist(client, test_spans, tracer):
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "fred"
-        ## TODO: Disabled until we have a proper way to detect whether the user exists
-        # assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
+        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == "extended"
 
 
