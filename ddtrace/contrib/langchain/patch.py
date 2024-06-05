@@ -6,9 +6,12 @@ from typing import Optional
 from typing import Union
 
 import langchain
-import langchain_community
 import langchain_core
 
+try:
+    import langchain_community
+except ImportError:
+    langchain_community = None
 
 try:
     import langchain_openai
@@ -25,7 +28,10 @@ from ddtrace.appsec._iast import _is_iast_enabled
 try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
 except ImportError:
-    from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
+    try:
+        from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
+    except ImportError:
+        get_openai_token_cost_for_model = None
 from pydantic import SecretStr
 
 from ddtrace import Span
@@ -128,17 +134,20 @@ def _tag_openai_token_usage(
         span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
     total_cost = span.get_metric(TOTAL_COST) or 0
     if not propagate:
-        try:
-            completion_cost = get_openai_token_cost_for_model(
-                span.get_tag(MODEL),
-                span.get_metric(COMPLETION_TOKENS),
-                is_completion=True,
-            )
-            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
-            total_cost = completion_cost + prompt_cost
-        except ValueError:
-            # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
-            log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
+        if get_openai_token_cost_for_model is not None:
+            try:
+                completion_cost = get_openai_token_cost_for_model(
+                    span.get_tag(MODEL),
+                    span.get_metric(COMPLETION_TOKENS),
+                    is_completion=True,
+                )
+                prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
+                total_cost = completion_cost + prompt_cost
+            except ValueError:
+                # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
+                log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
+        else:
+            log.debug("Cannot calculate model cost as langchain_community is not installed.")
     span.set_metric(TOTAL_COST, propagated_cost + total_cost)
     if span._parent is not None:
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)

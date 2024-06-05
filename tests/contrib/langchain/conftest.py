@@ -4,7 +4,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.langchain.patch import patch
+from ddtrace import patch
 from ddtrace.contrib.langchain.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.utils import DummyTracer
@@ -96,7 +96,7 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
                     AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
                 )
             ):
-                patch()
+                patch(langchain=True)
                 import langchain
 
                 mock_logs.reset_mock()

@@ -5,7 +5,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
 from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
@@ -819,10 +818,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_commu
     """
     import langchain.prompts.chat  # noqa: F401
 
-    # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
             template = "You are a helpful assistant that translates english to pirate."
@@ -1095,9 +1091,7 @@ def test_llm_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             llm = langchain.llms.OpenAI(model="text-davinci-003")
             llm("Can you please not return an error?")
@@ -1109,7 +1103,7 @@ def test_llm_logs_when_response_not_completed(
     mock_logs.enqueue.assert_called_with(
         {
             "timestamp": mock.ANY,
-            "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
+            "message": "sampled langchain.llms.openai.OpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
             "service": "",
@@ -1131,9 +1125,7 @@ def test_chat_model_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
             chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
@@ -1168,8 +1160,7 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
-        side_effect=Exception("Mocked Error"),
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -1202,7 +1193,7 @@ def test_embedding_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func",
         side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
