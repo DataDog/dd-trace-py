@@ -246,22 +246,8 @@ class _DatadogMultiHeader:
 
         sampling_priority = span_context.sampling_priority
 
-        # If ASM Standalone is enabled, and the upstream distributed span
-        # is not an AppSec span (it doesn't have the AppSec propagation header),
-        # we want to propagate the sampling priority to the downstream services,
-        # but we will drop the local span if it doesn't have any AppSec event.
-        # In the AppSec event case, it will add manual keep, so sampling priority
-        # will be higher or equal to the received one.
-        if (
-            asm_config._appsec_standalone_enabled
-            and APPSEC.PROPAGATION_HEADER not in span_context._meta
-            and span_context._previous_sampling_priority
-            and sampling_priority is not None
-            and sampling_priority < span_context._previous_sampling_priority
-        ):
-            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context._previous_sampling_priority)
         # Propagate priority only if defined
-        elif sampling_priority is not None:
+        if sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
 
         # Propagate origin only if defined
@@ -332,6 +318,9 @@ class _DatadogMultiHeader:
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
+
+        if asm_config._appsec_standalone_enabled and (not meta or APPSEC.PROPAGATION_HEADER not in meta):
+            return None
 
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
