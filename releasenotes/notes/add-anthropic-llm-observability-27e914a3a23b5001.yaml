@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Anthropic: Add LLM Observability support for Anthropic messaging.
