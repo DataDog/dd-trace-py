@@ -672,13 +672,13 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             return True
 
         if not self.credentials:
-            return False
+            return None
 
         try:
             from django.contrib.auth import get_user_model
         except ImportError:
             log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
-            return False
+            return None
 
         login_field = asm_config._user_model_login_field
         login_field_value = self.credentials.get(login_field, None) if login_field else None
@@ -693,7 +693,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             else:
                 # Could not get what the login field, so we can't check if the user exists
                 log.debug("user_exists: could not get the login field from the credentials")
-                return False
+                return None
 
         try:
             # Get the auth user model in use
@@ -701,7 +701,7 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             return user_model.objects.filter(**{login_field: login_field_value}).exists()
         except Exception:
             log.debug("user_exists: error while trying to query if the user exists", exc_info=True)
-            return False
+            return None
 
     def get_username(self):
         if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
