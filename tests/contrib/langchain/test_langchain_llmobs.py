@@ -508,7 +508,7 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
             chat_model=chat,
             prompt="When do you use 'whom' instead of 'who'?",
             mock_tracer=mock_tracer,
-            cassette_name="anthropic_chat_completion_sync_call.yaml",
+            cassette_name="anthropic_chat_completion_sync.yaml",
         )
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer, input_role="user")
@@ -595,10 +595,12 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
             llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     @staticmethod
-    def _call_anthropic_llm(Anthropic):
-        llm = Anthropic(model="claude-3-opus-20240229")
-        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("anthropic_completion_sync.yaml"):
-            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    def _call_anthropic_chat(Anthropic):
+        llm = Anthropic(model="claude-3-opus-20240229", max_tokens=15)
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette(
+            "anthropic_chat_completion_sync.yaml"
+        ):
+            llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):
@@ -672,7 +674,7 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         patch(langchain=True, anthropic=True)
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
-        self._call_anthropic_llm(ChatAnthropic)
+        self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
@@ -683,5 +685,5 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
 
-        self._call_anthropic_llm(ChatAnthropic)
+        self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["llm"])

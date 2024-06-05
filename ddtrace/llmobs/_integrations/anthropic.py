@@ -122,13 +122,13 @@ class AnthropicIntegration(BaseLLMIntegration):
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
-            return [{"content": self.trunc(content), "role": role}]
+            return [{"content": content, "role": role}]
 
         elif isinstance(content, list):
             for completion in content:
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
-                    output_messages.append({"content": self.trunc(text), "role": role})
+                    output_messages.append({"content": text, "role": role})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
