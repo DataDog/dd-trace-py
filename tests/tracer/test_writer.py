@@ -187,6 +187,41 @@ class AgentWriterTests(BaseTestCase):
                 any_order=True,
             )
 
+    def test_report_metrics_disabled(self):
+        statsd = mock.Mock()
+        with override_global_config(dict(health_metrics_enabled=True)):
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=False, report_metrics=False)
+
+            # Queue 3 health metrics where each metric has the same name but different tags
+            writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1, ["k1:v1"])
+            writer.write([Span(name="name", trace_id=2, span_id=2, parent_id=None)])
+            writer._metrics_dist(
+                "test_trace.queued",
+                1,
+                [
+                    "k2:v2",
+                    "k22:v22",
+                ],
+            )
+            writer.write([Span(name="name", trace_id=3, span_id=3, parent_id=None)])
+            writer._metrics_dist("test_trace.queued", 1)
+
+            # Ensure that the metrics are not reported
+            call_args = statsd.distribution.call_args
+            if call_args is not None:
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k1:v1"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=["k2:v2", "k22:v22"])
+                    not in call_args
+                )
+                assert (
+                    mock.call("datadog.%s.test_trace.queued" % writer.STATSD_NAMESPACE, 1, tags=None) not in call_args
+                )
+
     def test_write_sync(self):
         statsd = mock.Mock()
         with override_global_config(dict(health_metrics_enabled=True)):
@@ -704,6 +739,16 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+def test_writer_recreate_keeps_headers():
+    writer = AgentWriter("http://dne:1234", headers={"Datadog-Client-Computed-Stats": "yes"})
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+    writer = writer.recreate()
+    assert "Datadog-Client-Computed-Stats" in writer._headers
+    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
 
 
 @pytest.mark.parametrize(
