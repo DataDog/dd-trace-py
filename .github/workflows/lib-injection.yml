@@ -168,8 +168,10 @@ jobs:
         run: |
           curl http://localhost:18080
           sleep 1  # wait for traces to be sent
-      - name: Print traces
-        run: curl http://localhost:8126/test/traces
+      - name: Check mocked telemetry
+        run: |
+           cd lib-injection
+           docker exec lib-injection-app_local-1 sh -c "cd ../src && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py"
       - name: Check test agent received no trace
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')
