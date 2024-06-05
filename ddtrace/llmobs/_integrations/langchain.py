@@ -68,7 +68,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "bedrock"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
-            elif model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
+            elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
