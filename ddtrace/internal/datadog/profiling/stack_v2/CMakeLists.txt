@@ -26,7 +26,7 @@ if (NOT Python3_INCLUDE_DIRS)
 endif()
 
 # Add echion
-set(ECHION_COMMIT "d69048b63e7d49091659964915eb52ff0ced9fc8" CACHE STRING "Commit hash of echion to use")
+set(ECHION_COMMIT "38df39c45d192efc2e6f1be94a9d7136099564d0" CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
     GIT_REPOSITORY "https://github.com/sanchda/echion.git"
