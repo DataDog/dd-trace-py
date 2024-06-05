@@ -531,6 +531,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
         DD_API_KEY="<not-a-real-key>",
     )
 
+    anthropic_env_config = dict(
+        ANTHROPIC_API_KEY="testing",
+        DD_API_KEY="<not-a-real-key>",
+    )
+
     def setUp(self):
         patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
         LLMObsSpanWriterMock = patcher.start()
@@ -587,6 +592,12 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def _call_openai_llm(OpenAI):
         llm = OpenAI()
         with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
+            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @staticmethod
+    def _call_anthropic_llm(Anthropic):
+        llm = Anthropic(model="claude-3-opus-20240229")
+        with get_request_vcr(subdirectory_name="langchain_community").use_cassette("anthropic_completion_sync.yaml"):
             llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
@@ -652,4 +663,27 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
         self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess(env_overrides=anthropic_env_config)
+    def test_llmobs_langchain_with_anthropic_enabled(self):
+        from langchain_anthropic import ChatAnthropic
+
+        patch(langchain=True, anthropic=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+        self._call_anthropic_llm(ChatAnthropic)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+        assert 1 == 0
+
+    @run_in_subprocess(env_overrides=anthropic_env_config)
+    def test_llmobs_langchain_with_anthropic_disabled(self):
+        from langchain_anthropic import ChatAnthropic
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
+
+        self._call_anthropic_llm(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["llm"])

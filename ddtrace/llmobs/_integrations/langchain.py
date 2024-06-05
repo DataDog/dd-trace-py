@@ -95,9 +95,9 @@ class LangChainIntegration(BaseLLMIntegration):
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
 
-        if temperature is not None:
+        if temperature is not None and temperature != "None":
             metadata["temperature"] = float(temperature)
-        if max_tokens is not None:
+        if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if metadata:
             span.set_tag_str(METADATA, json.dumps(metadata))
