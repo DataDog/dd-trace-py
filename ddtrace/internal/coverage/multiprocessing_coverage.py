@@ -30,6 +30,10 @@ base_process_kill = BaseProcess.kill
 DD_PATCH_ATTR = "_datadog_patch"
 
 
+def _is_patched():
+    return hasattr(multiprocessing, DD_PATCH_ATTR)
+
+
 class CoverageCollectingMultiprocess(BaseProcess):
     def _absorb_child_coverage(self):
         if ModuleCodeCollector._instance is None:
@@ -162,7 +166,3 @@ def _patch_multiprocessing():
         spawn.get_preparation_data = get_preparation_data_with_stowaway
 
     setattr(multiprocessing, DD_PATCH_ATTR, True)
-
-
-def _is_patched():
-    return hasattr(multiprocessing, DD_PATCH_ATTR)
