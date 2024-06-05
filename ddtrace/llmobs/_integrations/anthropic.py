@@ -75,7 +75,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        usage = AnthropicIntegration._get_llmobs_metrics_tags(span)
+        usage = self._get_llmobs_metrics_tags(span)
         if usage != {}:
             span.set_tag_str(METRICS, json.dumps(usage))
 
@@ -144,8 +144,8 @@ class AnthropicIntegration(BaseLLMIntegration):
         if input_tokens != 0 and output_tokens != 0:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
-    @classmethod
-    def _get_llmobs_metrics_tags(cls, span):
+    @staticmethod
+    def _get_llmobs_metrics_tags(span):
         usage = {}
         prompt_tokens = span.get_metric("anthropic.response.usage.input_tokens")
         completion_tokens = span.get_metric("anthropic.response.usage.output_tokens")

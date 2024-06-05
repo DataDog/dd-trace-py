@@ -55,7 +55,7 @@ class TestLLMObsAnthropic:
         """
         llm = anthropic.Anthropic(api_key="invalid_api_key")
         with request_vcr.use_cassette("anthropic_completion_invalid_api_key.yaml"):
-            try:
+            with pytest.raises(anthropic.AuthenticationError):
                 llm.messages.create(
                     model="claude-3-opus-20240229",
                     max_tokens=15,
@@ -71,25 +71,24 @@ class TestLLMObsAnthropic:
                         }
                     ],
                 )
-            except Exception:
-                pass
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                model_name="claude-3-opus-20240229",
-                model_provider="anthropic",
-                input_messages=[
-                    {"content": "Respond only in all caps.", "role": "system"},
-                    {"content": "Hello, I am looking for information about some books!", "role": "user"},
-                    {"content": "What is the best selling book?", "role": "user"},
-                ],
-                output_messages=[{"content": ""}],
-                error="anthropic.AuthenticationError",
-                error_message=span.get_tag("error.message"),
-                error_stack=span.get_tag("error.stack"),
-                metadata={"temperature": 0.8, "max_tokens": 15.0},
-                tags={"ml_app": "<ml-app-name>"},
-            )
-        )
+
+                span = mock_tracer.pop_traces()[0][0]
+                assert mock_llmobs_writer.enqueue.call_count == 1
+                mock_llmobs_writer.enqueue.assert_called_with(
+                    _expected_llmobs_llm_span_event(
+                        span,
+                        model_name="claude-3-opus-20240229",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {"content": "Respond only in all caps.", "role": "system"},
+                            {"content": "Hello, I am looking for information about some books!", "role": "user"},
+                            {"content": "What is the best selling book?", "role": "user"},
+                        ],
+                        output_messages=[{"content": ""}],
+                        error="anthropic.AuthenticationError",
+                        error_message=span.get_tag("error.message"),
+                        error_stack=span.get_tag("error.stack"),
+                        metadata={"temperature": 0.8, "max_tokens": 15.0},
+                        tags={"ml_app": "<ml-app-name>"},
+                    )
+                )
