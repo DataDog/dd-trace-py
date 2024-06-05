@@ -326,7 +326,6 @@ def _on_django_login(
         else:
             # Login failed and the user is unknown (may exist or not)
             user_id = info_retriever.get_userid()
-            # JJJ update this
             track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
 
 
