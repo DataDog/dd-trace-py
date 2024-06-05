@@ -40,7 +40,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     stashed_wall_time_us = wall_time_us;
 }
 
-void StackRenderer::render_task_begin(std::string_view name)
+void
+StackRenderer::render_task_begin(std::string_view name)
 {
     static bool failed = false;
     if (failed) {
@@ -56,7 +57,10 @@ void StackRenderer::render_task_begin(std::string_view name)
         }
 
         // Re-hydrate the thread context
-        ddup_push_threadinfo(sample, static_cast<int64_t>(stashed_thread_id), static_cast<int64_t>(stashed_native_id), stashed_thread_name);
+        ddup_push_threadinfo(sample,
+                             static_cast<int64_t>(stashed_thread_id),
+                             static_cast<int64_t>(stashed_native_id),
+                             stashed_thread_name);
         ddup_push_walltime(sample, 1000 * stashed_wall_time_us, 1);
         ddup_push_cputime(sample, 1000 * stashed_cpu_time_us, 1); // initialized to 0, so possibly a no-op
     }
