@@ -119,7 +119,7 @@ jobs:
       - name: Check mocked telemetry
         run: |
            cd lib-injection
-           docker exec lib-injection-app_local-1 sh -c "cd .. && find . -name mock-telemetry.json && echo \"forwarder path $DD_TELEMETRY_FORWARDER_PATH\" && find . -name telemetry-forwarder.sh && [ ! -f src/validate_telemetry.py ] || cat $FORWARDER_OUT | python src/validate_telemetry.py"
+           docker exec lib-injection-app_local-1 sh -c "cd .. && find . -name mock-telemetry.json && [ ! -f src/validate_telemetry.py ] || cat $FORWARDER_OUT | python src/validate_telemetry.py"
       - name: Print traces
         run: curl http://localhost:8126/test/traces
       - name: Check test agent received a trace

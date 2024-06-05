@@ -100,6 +100,7 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
+    _log("writing telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     p.stdin.write(event_json)
     p.stdin.close()
 
