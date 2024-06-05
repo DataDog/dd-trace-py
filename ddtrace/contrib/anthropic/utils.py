@@ -10,15 +10,16 @@ log = get_logger(__name__)
 
 def handle_non_streamed_response(integration, chat_completions, args, kwargs, span):
     for idx, chat_completion in enumerate(chat_completions.content):
-        if integration.is_pc_sampled_span(span) and getattr(chat_completion, "text", "") != "":
-            span.set_tag_str(
-                "anthropic.response.completions.content.%d.text" % (idx),
-                integration.trunc(str(getattr(chat_completion, "text", ""))),
-            )
-        span.set_tag_str(
-            "anthropic.response.completions.content.%d.type" % (idx),
-            chat_completion.type,
-        )
+        if integration.is_pc_sampled_span(span):
+            if getattr(chat_completion, "text", "") != "":
+                span.set_tag_str(
+                    "anthropic.response.completions.content.%d.text" % (idx),
+                    integration.trunc(str(getattr(chat_completion, "text", ""))),
+                )
+            elif chat_completion.type == "tool_use":
+                tag_tool_usage_on_span(span, chat_completion, idx)
+
+        span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), chat_completion.type)
 
     # set message level tags
     if getattr(chat_completions, "stop_reason", None) is not None:
@@ -27,6 +28,15 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
 
     usage = _get_attr(chat_completions, "usage", {})
     integration.record_usage(span, usage)
+
+
+def tag_tool_usage_on_span(span, chat_completion, idx):
+    tool_name = _get_attr(chat_completion, "name", None)
+    tool_inputs = _get_attr(chat_completion, "input", None)
+    if tool_name:
+        span.set_tag_str("anthropic.response.completions.content.%d.name" % (idx), tool_name)
+    if tool_inputs:
+        span.set_tag_str("anthropic.response.completions.content.%d.name" % (idx), json.dumps(tool_inputs))
 
 
 def tag_params_on_span(span, kwargs, integration):
