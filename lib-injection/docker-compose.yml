@@ -33,7 +33,6 @@ services:
       - DD_TRACE_DEBUG=1
       - DD_INJECTION_ENABLED=1
       - DD_TELEMETRY_FORWARDER_PATH=../datadog-lib/telemetry-forwarder.sh
-      - FORWARDER_OUT=mock-telemetry.json
     volumes:
       - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib
 
@@ -51,6 +50,5 @@ services:
       - DD_TRACE_DEBUG=1
       - DD_INJECTION_ENABLED=1
       - DD_TELEMETRY_FORWARDER_PATH=../datadog-lib/telemetry-forwarder.sh
-      - FORWARDER_OUT=mock-telemetry.json
     volumes:
       - ${TEMP_DIR:-/tmp/ddtrace_test}:/datadog-lib
