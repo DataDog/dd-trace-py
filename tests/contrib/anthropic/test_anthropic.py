@@ -151,7 +151,6 @@ def test_anthropic_llm_sync_stream(anthropic, request_vcr):
     token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
 )
 def test_anthropic_llm_sync_stream_helper(anthropic, request_vcr):
-    
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
         with llm.messages.stream(
