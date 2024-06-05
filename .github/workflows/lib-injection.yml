@@ -91,6 +91,7 @@ jobs:
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
           export FORWARDER_OUT="mock-telemetry.json"
+          export DD_TELEMETRY_FORWARDER_PATH="../datadog-lib/telemetry-forwarder.sh"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
