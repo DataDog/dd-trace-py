@@ -90,8 +90,6 @@ jobs:
           cd lib-injection
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
-          export FORWARDER_OUT="mock-telemetry.json"
-          export DD_TELEMETRY_FORWARDER_PATH="../datadog-lib/telemetry-forwarder.sh"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
@@ -145,7 +143,6 @@ jobs:
           cd lib-injection
           export DDTRACE_PYTHON_VERSION="v2.6.3"
           export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
-          export FORWARDER_OUT="mock-telemetry.json"
           export TEMP_DIR="${SRC}/tmp/ddtrace"
           mkdir -p "${TEMP_DIR}"
           # Give the temp dir permissions, by default the docker user doesn't have permissions
@@ -174,7 +171,7 @@ jobs:
       - name: Check mocked telemetry
         run: |
            cd lib-injection
-           docker exec lib-injection-app_local-1 sh -c "cd ../src && [ ! -f validate_telemetry.py ] || cat mock-telemetry.json | python validate_telemetry.py"
+           docker exec lib-injection-app_local-1 sh -c "cd .. && [ ! -f src/validate_telemetry.py ] || cat src/mock-telemetry.out | python src/validate_telemetry.py"
       - name: Check test agent received no trace
         run: |
           N=$(curl http://localhost:8126/test/traces | jq -r -e 'length')

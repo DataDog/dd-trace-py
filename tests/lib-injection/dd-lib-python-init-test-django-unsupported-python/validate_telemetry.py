@@ -2,8 +2,9 @@ import json
 import sys
 
 
-parsed = json.loads(sys.stdin.read())
-
+in_text = sys.stdin.read()
+print(in_text)
+parsed = json.loads(in_text.split("\t")[-1])
 print(parsed)
 assert len(parsed["points"]) == 2
 assert {"name": "library_entrypoint.abort", "tags": ["reason:incompatible_runtime"]} in parsed["points"]
