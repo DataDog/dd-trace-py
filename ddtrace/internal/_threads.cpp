@@ -90,6 +90,7 @@ class Event
     {
         std::cout << "-------- Waiting for event " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
+        std::cout << "-------- Took a lock for event " << this << " from thread " << GET_TID << std::endl;
         _cond.wait(lock, [this]() { return _set; });
         std::cout << "-------- Done waiting for event " << this << " from thread " << GET_TID << std::endl;
     }
@@ -324,7 +325,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
     });
 
     // Detach the thread. We will make our own joinable mechanism.
-    std::cout << "-------- Detaching thread" << std::endl;
+    std::cout << "-------- Detaching thread " << self << " from thread " << GET_TID << std::endl;
     self->_thread->detach();
     std::cout << "-------- Done detaching thread" << std::endl;
 
@@ -332,9 +333,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
     {
         AllowThreads _;
 
-        std::cout << "-------- Waiting for thread to start" << std::endl;
+        std::cout << "-------- Waiting for thread " << self << " from thread " << GET_TID << std::endl;
         self->_started->wait();
-        std::cout << "-------- Done waiting for thread to start" << std::endl;
+        std::cout << "-------- Done waiting for thread " << self << " from thread " << GET_TID << std::endl;
     }
 
     std::cout << "-------- Returning" << std::endl;
