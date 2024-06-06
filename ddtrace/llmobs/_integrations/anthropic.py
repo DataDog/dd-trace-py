@@ -52,6 +52,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         err: Optional[Any] = None,
     ) -> None:
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
 
@@ -74,7 +75,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(resp)
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps(output_messages))
 
-        usage = AnthropicIntegration._get_llmobs_metrics_tags(span)
+        usage = self._get_llmobs_metrics_tags(span)
         if usage != {}:
             span.set_tag_str(METRICS, json.dumps(usage))
 
@@ -121,13 +122,13 @@ class AnthropicIntegration(BaseLLMIntegration):
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
-            return [{"content": self.trunc(content), "role": role}]
+            return [{"content": content, "role": role}]
 
         elif isinstance(content, list):
             for completion in content:
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
-                    output_messages.append({"content": self.trunc(text), "role": role})
+                    output_messages.append({"content": text, "role": role})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
@@ -136,15 +137,15 @@ class AnthropicIntegration(BaseLLMIntegration):
         input_tokens = _get_attr(usage, "input_tokens", 0)
         output_tokens = _get_attr(usage, "output_tokens", 0)
 
-        if input_tokens != 0:
+        if input_tokens is not None:
             span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
-        if output_tokens != 0:
+        if output_tokens is not None:
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-        if input_tokens != 0 and output_tokens != 0:
+        if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
-    @classmethod
-    def _get_llmobs_metrics_tags(cls, span):
+    @staticmethod
+    def _get_llmobs_metrics_tags(span):
         usage = {}
         prompt_tokens = span.get_metric("anthropic.response.usage.input_tokens")
         completion_tokens = span.get_metric("anthropic.response.usage.output_tokens")
