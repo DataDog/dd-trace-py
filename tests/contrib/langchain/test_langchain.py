@@ -5,16 +5,14 @@ import sys
 import mock
 import pytest
 
-from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.utils import override_global_config
 
 
-pytestmark = pytest.mark.skipif(
-    SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community"
-)
+pytestmark = pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="This module only tests langchain < 0.1")
 
 
 @pytest.fixture(scope="session")

@@ -69,10 +69,7 @@ def get_version():
 # After 0.1.0, implementation split into langchain, langchain_community, and langchain_core.
 # We need to check the version to determine which module to wrap, to avoid deprecation warnings
 # ref: https://github.com/DataDog/dd-trace-py/issues/8212
-LANGCHAIN_VERSION = parse_version(get_version())
-SHOULD_PATCH_LANGCHAIN_COMMUNITY = LANGCHAIN_VERSION >= (0, 1, 0)
-BASE_LANGCHAIN_MODULE = langchain_community if SHOULD_PATCH_LANGCHAIN_COMMUNITY else langchain
-BASE_LANGCHAIN_MODULE_NAME = getattr(BASE_LANGCHAIN_MODULE, "__name__", "langchain")
+PATCH_LANGCHAIN_V0 = parse_version(get_version()) < (0, 1, 0)
 
 
 config._add(
@@ -158,9 +155,11 @@ def _is_openai_llm_instance(instance):
     langchain_community does not automatically import submodules which may result in AttributeErrors.
     """
     try:
-        if langchain_openai:
+        if not PATCH_LANGCHAIN_V0 and langchain_openai:
             return isinstance(instance, langchain_openai.OpenAI)
-        return isinstance(instance, BASE_LANGCHAIN_MODULE.llms.OpenAI)
+        if not PATCH_LANGCHAIN_V0 and langchain_community:
+            return isinstance(instance, langchain_community.llms.OpenAI)
+        return isinstance(instance, langchain.llms.OpenAI)
     except (AttributeError, ModuleNotFoundError, ImportError):
         return False
 
@@ -170,9 +169,25 @@ def _is_openai_chat_instance(instance):
     langchain_community does not automatically import submodules which may result in AttributeErrors.
     """
     try:
-        if langchain_openai:
+        if not PATCH_LANGCHAIN_V0 and langchain_openai:
             return isinstance(instance, langchain_openai.ChatOpenAI)
-        return isinstance(instance, BASE_LANGCHAIN_MODULE.chat_models.ChatOpenAI)
+        if not PATCH_LANGCHAIN_V0 and langchain_community:
+            return isinstance(instance, langchain_community.chat_models.ChatOpenAI)
+        return isinstance(instance, langchain.chat_models.ChatOpenAI)
+    except (AttributeError, ModuleNotFoundError, ImportError):
+        return False
+
+
+def _is_pinecone_vectorstore_instance(instance):
+    """Safely check if a traced instance is a Pinecone VectorStore.
+    langchain_community does not automatically import submodules which may result in AttributeErrors.
+    """
+    try:
+        if not PATCH_LANGCHAIN_V0 and langchain_pinecone:
+            return isinstance(instance, langchain_pinecone.VectorStore)
+        if not PATCH_LANGCHAIN_V0 and langchain_community:
+            return isinstance(instance, langchain_community.vectorstores.VectorStore)
+        return isinstance(instance, langchain.vectorstores.VectorStore)
     except (AttributeError, ModuleNotFoundError, ImportError):
         return False
 
@@ -611,10 +626,10 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
     inputs = None
     final_outputs = {}
     try:
-        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-            inputs = get_argument_value(args, kwargs, 0, "input")
-        else:
+        if PATCH_LANGCHAIN_V0:
             inputs = get_argument_value(args, kwargs, 0, "inputs")
+        else:
+            inputs = get_argument_value(args, kwargs, 0, "input")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -670,10 +685,10 @@ async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
     inputs = None
     final_outputs = {}
     try:
-        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
-            inputs = get_argument_value(args, kwargs, 0, "input")
-        else:
+        if PATCH_LANGCHAIN_V0:
             inputs = get_argument_value(args, kwargs, 0, "inputs")
+        else:
+            inputs = get_argument_value(args, kwargs, 0, "input")
         if not isinstance(inputs, dict):
             inputs = {instance.input_keys[0]: inputs}
         if integration.is_pc_sampled_span(span):
@@ -839,9 +854,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             span.set_tag_str("langchain.request.k", str(k))
         for kwarg_key, v in kwargs.items():
             span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
-        if isinstance(instance, BASE_LANGCHAIN_MODULE.vectorstores.Pinecone) and hasattr(
-            instance._index, "configuration"
-        ):
+        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
             span.set_tag_str(
                 "langchain.request.pinecone.environment",
                 instance._index.configuration.server_variables.get("environment", ""),
@@ -889,6 +902,83 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     return documents
 
 
+def _patch_embeddings_and_vectorstores():
+    """
+    Text embedding models override two abstract base methods instead of super calls,
+    so we need to wrap each langchain-provided text embedding and vectorstore model.
+    """
+    base_langchain_module = langchain
+    if not PATCH_LANGCHAIN_V0 and langchain_community:
+        from langchain_community import embeddings  # noqa:F401
+        from langchain_community import vectorstores  # noqa:F401
+
+        base_langchain_module = langchain_community
+    if not PATCH_LANGCHAIN_V0 and langchain_community is None:
+        return
+    for text_embedding_model in text_embedding_models:
+        if hasattr(base_langchain_module.embeddings, text_embedding_model):
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "embeddings.%s.embed_query" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
+            if not isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "embeddings.%s.embed_documents" % text_embedding_model,
+                    traced_embedding(langchain),
+                )
+    for vectorstore in vectorstore_classes:
+        if hasattr(base_langchain_module.vectorstores, vectorstore):
+            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
+            if not isinstance(
+                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search" % vectorstore),
+                wrapt.ObjectProxy,
+            ):
+                wrap(
+                    base_langchain_module.__name__,
+                    "vectorstores.%s.similarity_search" % vectorstore,
+                    traced_similarity_search(langchain),
+                )
+
+
+def _unpatch_embeddings_and_vectorstores():
+    """
+    Text embedding models override two abstract base methods instead of super calls,
+    so we need to unwrap each langchain-provided text embedding and vectorstore model.
+    """
+    base_langchain_module = langchain if PATCH_LANGCHAIN_V0 else langchain_community
+    if not PATCH_LANGCHAIN_V0 and langchain_community is None:
+        return
+    for text_embedding_model in text_embedding_models:
+        if hasattr(base_langchain_module.embeddings, text_embedding_model):
+            if isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_query" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_query")
+            if isinstance(
+                deep_getattr(base_langchain_module.embeddings, "%s.embed_documents" % text_embedding_model),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(getattr(base_langchain_module.embeddings, text_embedding_model), "embed_documents")
+    for vectorstore in vectorstore_classes:
+        if hasattr(base_langchain_module.vectorstores, vectorstore):
+            if isinstance(
+                deep_getattr(base_langchain_module.vectorstores, "%s.similarity_search" % vectorstore),
+                wrapt.ObjectProxy,
+            ):
+                unwrap(getattr(base_langchain_module.vectorstores, vectorstore), "similarity_search")
+
+
 def patch():
     if getattr(langchain, "_datadog_patch", False):
         return
@@ -901,10 +991,23 @@ def patch():
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
-    if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+    if PATCH_LANGCHAIN_V0:
+        from langchain import embeddings  # noqa:F401
+        from langchain import vectorstores  # noqa:F401
         from langchain.chains.base import Chain  # noqa:F401
-        from langchain_community import embeddings  # noqa:F401
-        from langchain_community import vectorstores  # noqa:F401
+        from langchain.chat_models.base import BaseChatModel  # noqa:F401
+        from langchain.llms.base import BaseLLM  # noqa:F401
+
+        wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
+        wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+        wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
+        wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
+        wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
+        wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
+        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+    else:
+        from langchain.chains.base import Chain  # noqa:F401
 
         wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
         wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
@@ -930,57 +1033,9 @@ def patch():
             wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
         if langchain_pinecone:
             wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
-    else:
-        from langchain import embeddings  # noqa:F401
-        from langchain import vectorstores  # noqa:F401
-        from langchain.chains.base import Chain  # noqa:F401
-        from langchain.chat_models.base import BaseChatModel  # noqa:F401
-        from langchain.llms.base import BaseLLM  # noqa:F401
 
-        wrap("langchain", "llms.base.BaseLLM.generate", traced_llm_generate(langchain))
-        wrap("langchain", "llms.base.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-        wrap("langchain", "chat_models.base.BaseChatModel.generate", traced_chat_model_generate(langchain))
-        wrap("langchain", "chat_models.base.BaseChatModel.agenerate", traced_chat_model_agenerate(langchain))
-        wrap("langchain", "chains.base.Chain.__call__", traced_chain_call(langchain))
-        wrap("langchain", "chains.base.Chain.acall", traced_chain_acall(langchain))
-        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_query", traced_embedding(langchain))
-        wrap("langchain", "embeddings.OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
-    # Text embedding models override two abstract base methods instead of super calls, so we need to
-    #  wrap each langchain-provided text embedding model.
-    for text_embedding_model in text_embedding_models:
-        if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    BASE_LANGCHAIN_MODULE.__name__,
-                    "embeddings.%s.embed_query" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
-            if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    BASE_LANGCHAIN_MODULE.__name__,
-                    "embeddings.%s.embed_documents" % text_embedding_model,
-                    traced_embedding(langchain),
-                )
-    # We need to do the same with Vectorstores.
-    for vectorstore in vectorstore_classes:
-        if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
-            # Ensure not double patched, as some Embeddings interfaces are pointers to other Embeddings.
-            if not isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                wrap(
-                    BASE_LANGCHAIN_MODULE.__name__,
-                    "vectorstores.%s.similarity_search" % vectorstore,
-                    traced_similarity_search(langchain),
-                )
+    if PATCH_LANGCHAIN_V0 or langchain_community:
+        _patch_embeddings_and_vectorstores()
 
     if _is_iast_enabled():
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
@@ -1002,7 +1057,16 @@ def unpatch():
 
     langchain._datadog_patch = False
 
-    if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+    if PATCH_LANGCHAIN_V0:
+        unwrap(langchain.llms.base.BaseLLM, "generate")
+        unwrap(langchain.llms.base.BaseLLM, "agenerate")
+        unwrap(langchain.chat_models.base.BaseChatModel, "generate")
+        unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
+        unwrap(langchain.chains.base.Chain, "__call__")
+        unwrap(langchain.chains.base.Chain, "acall")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
+        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
+    else:
         unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
         unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
         unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
@@ -1018,34 +1082,8 @@ def unpatch():
         if langchain_pinecone:
             unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
 
-    else:
-        unwrap(langchain.llms.base.BaseLLM, "generate")
-        unwrap(langchain.llms.base.BaseLLM, "agenerate")
-        unwrap(langchain.chat_models.base.BaseChatModel, "generate")
-        unwrap(langchain.chat_models.base.BaseChatModel, "agenerate")
-        unwrap(langchain.chains.base.Chain, "__call__")
-        unwrap(langchain.chains.base.Chain, "acall")
-        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_query")
-        unwrap(langchain.embeddings.OpenAIEmbeddings, "embed_documents")
-    for text_embedding_model in text_embedding_models:
-        if hasattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model):
-            if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_query" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model), "embed_query")
-            if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.embeddings, "%s.embed_documents" % text_embedding_model),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(BASE_LANGCHAIN_MODULE.embeddings, text_embedding_model), "embed_documents")
-    for vectorstore in vectorstore_classes:
-        if hasattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore):
-            if isinstance(
-                deep_getattr(BASE_LANGCHAIN_MODULE.vectorstores, "%s.similarity_search" % vectorstore),
-                wrapt.ObjectProxy,
-            ):
-                unwrap(getattr(BASE_LANGCHAIN_MODULE.vectorstores, vectorstore), "similarity_search")
+    if PATCH_LANGCHAIN_V0 or langchain_community:
+        _unpatch_embeddings_and_vectorstores()
 
     delattr(langchain, "_datadog_integration")
 

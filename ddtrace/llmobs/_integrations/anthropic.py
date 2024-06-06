@@ -3,7 +3,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.contrib.anthropic.utils import _get_attr
+# from ddtrace.contrib.anthropic.utils import _get_attr
 from ddtrace.internal.logger import get_logger
 
 from .base import BaseLLMIntegration
@@ -38,8 +38,8 @@ class AnthropicIntegration(BaseLLMIntegration):
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
-        input_tokens = _get_attr(usage, "input_tokens", None)
-        output_tokens = _get_attr(usage, "output_tokens", None)
+        input_tokens = getattr(usage, "input_tokens", None)
+        output_tokens = getattr(usage, "output_tokens", None)
 
         span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
         span.set_metric("anthropic.response.usage.output_tokens", output_tokens)

@@ -3,7 +3,7 @@ from ddtrace.contrib.langchain import patch
 from ddtrace.contrib.langchain import unpatch
 from ddtrace.contrib.langchain.constants import text_embedding_models
 from ddtrace.contrib.langchain.constants import vectorstore_classes
-from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from tests.contrib.patch import PatchTestCase
 
 
@@ -15,7 +15,15 @@ class TestLangchainPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, langchain):
-        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+        if PATCH_LANGCHAIN_V0:
+            gated_langchain = langchain
+            self.assert_wrapped(langchain.llms.base.BaseLLM.generate)
+            self.assert_wrapped(langchain.llms.base.BaseLLM.agenerate)
+            self.assert_wrapped(langchain.chat_models.base.BaseChatModel.generate)
+            self.assert_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
+            self.assert_wrapped(langchain.chains.base.Chain.__call__)
+            self.assert_wrapped(langchain.chains.base.Chain.acall)
+        else:
             import langchain_community as gated_langchain
             import langchain_core
             import langchain_openai
@@ -33,14 +41,6 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
             self.assert_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
-        else:
-            gated_langchain = langchain
-            self.assert_wrapped(langchain.llms.base.BaseLLM.generate)
-            self.assert_wrapped(langchain.llms.base.BaseLLM.agenerate)
-            self.assert_wrapped(langchain.chat_models.base.BaseChatModel.generate)
-            self.assert_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
-            self.assert_wrapped(langchain.chains.base.Chain.__call__)
-            self.assert_wrapped(langchain.chains.base.Chain.acall)
 
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
@@ -53,7 +53,18 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_patched(self, langchain):
-        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+        if PATCH_LANGCHAIN_V0:
+            from langchain import embeddings  # noqa: F401
+            from langchain import vectorstores  # noqa: F401
+
+            gated_langchain = langchain
+            self.assert_not_wrapped(langchain.llms.base.BaseLLM.generate)
+            self.assert_not_wrapped(langchain.llms.base.BaseLLM.agenerate)
+            self.assert_not_wrapped(langchain.chat_models.base.BaseChatModel.generate)
+            self.assert_not_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
+            self.assert_not_wrapped(langchain.chains.base.Chain.__call__)
+            self.assert_not_wrapped(langchain.chains.base.Chain.acall)
+        else:
             from langchain import chains  # noqa: F401
             from langchain.chains import base  # noqa: F401
             import langchain_community as gated_langchain
@@ -75,17 +86,6 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
             self.assert_not_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
-        else:
-            from langchain import embeddings  # noqa: F401
-            from langchain import vectorstores  # noqa: F401
-
-            gated_langchain = langchain
-            self.assert_not_wrapped(langchain.llms.base.BaseLLM.generate)
-            self.assert_not_wrapped(langchain.llms.base.BaseLLM.agenerate)
-            self.assert_not_wrapped(langchain.chat_models.base.BaseChatModel.generate)
-            self.assert_not_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
-            self.assert_not_wrapped(langchain.chains.base.Chain.__call__)
-            self.assert_not_wrapped(langchain.chains.base.Chain.acall)
 
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
@@ -98,7 +98,15 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_not_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_double_patched(self, langchain):
-        if SHOULD_PATCH_LANGCHAIN_COMMUNITY:
+        if PATCH_LANGCHAIN_V0:
+            gated_langchain = langchain
+            self.assert_not_double_wrapped(langchain.llms.base.BaseLLM.generate)
+            self.assert_not_double_wrapped(langchain.llms.base.BaseLLM.agenerate)
+            self.assert_not_double_wrapped(langchain.chat_models.base.BaseChatModel.generate)
+            self.assert_not_double_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
+            self.assert_not_double_wrapped(langchain.chains.base.Chain.__call__)
+            self.assert_not_double_wrapped(langchain.chains.base.Chain.acall)
+        else:
             from langchain.chains import base  # noqa: F401
             import langchain_community as gated_langchain
             import langchain_core
@@ -117,14 +125,6 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
             self.assert_not_double_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_double_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
-        else:
-            gated_langchain = langchain
-            self.assert_not_double_wrapped(langchain.llms.base.BaseLLM.generate)
-            self.assert_not_double_wrapped(langchain.llms.base.BaseLLM.agenerate)
-            self.assert_not_double_wrapped(langchain.chat_models.base.BaseChatModel.generate)
-            self.assert_not_double_wrapped(langchain.chat_models.base.BaseChatModel.agenerate)
-            self.assert_not_double_wrapped(langchain.chains.base.Chain.__call__)
-            self.assert_not_double_wrapped(langchain.chains.base.Chain.acall)
 
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
