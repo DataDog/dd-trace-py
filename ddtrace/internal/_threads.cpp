@@ -114,7 +114,7 @@ class Event
 
   private:
     std::condition_variable _cond;
-    std::mutex _mutex;
+    std::mutex _mutex = {};
     bool _set = false;
 };
 
