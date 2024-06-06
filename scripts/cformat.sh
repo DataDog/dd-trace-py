@@ -23,6 +23,7 @@ then
     | grep -v '_taint_tracking/CMakeFiles' \
     | grep -v '_taint_tracking/_deps/' \
     | grep -v '.riot/' \
+    | grep -v '.ddtest_riot/' \
     | grep -v 'ddtrace/vendor/' \
     | grep -v '_taint_tracking/_vendor/' \
     | grep -v 'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/' \

@@ -77,6 +77,7 @@ exclude = '''
 (
   .venv*
   | \.riot
+  | \.ddtest_riot
   | ddtrace/profiling/
 )
 '''
@@ -89,6 +90,7 @@ exclude = '''
 (
   .venv*
   | \.riot/
+  | \.ddtest_riot/
   | ddtrace/appsec/_ddwaf.pyx$
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
@@ -124,6 +126,7 @@ exclude = [
   ".ddriot",
   ".ddtox",
   ".riot",
+  ".ddtest_riot",
   ".tox",
   ".venv",
 ]
@@ -196,6 +199,7 @@ SYSTEM_VERSION_COMPAT = "0"
 [tool.ruff]
 exclude = [
     ".riot",
+    ".ddtest_riot",
     ".ddriot",
     ".venv*",
     ".git",
