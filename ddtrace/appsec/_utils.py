@@ -2,7 +2,7 @@ import os
 from typing import Any
 import uuid
 
-from ddtrace.appsec._constants import API_SECURITY
+from ddtrace.appsec._constants import API_SECURITY, LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_unicode
@@ -77,6 +77,9 @@ def _appsec_apisec_features_is_active() -> bool:
 
 
 def _safe_userid(user_id):
+    if asm_config._automatic_login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED):
+        return user_id
+
     try:
         _ = int(user_id)
         return user_id
