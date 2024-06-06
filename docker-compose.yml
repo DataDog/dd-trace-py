@@ -158,7 +158,7 @@ services:
           - ddagent:/tmp/ddagent
           - ./:/root/project
           - ./.ddtox:/root/project/.tox
-          - ./.riot:/root/project/.riot
+          - ./.ddtest_riot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

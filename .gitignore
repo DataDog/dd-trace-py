@@ -129,6 +129,7 @@ ENV/
 # Riot
 .riot/venv*
 .riot/requirements/*.in
+.ddtest_riot/*
 
 # Auto-generated version file
 ddtrace/_version.py
