@@ -2,16 +2,8 @@ import os
 from platform import system
 import sys
 
-
-print("Loading _ddwaf", file=sys.stderr)  # NOQA
-import ddtrace.appsec._ddwaf  # NOQA
-
-print("Loaded _ddwaf", file=sys.stderr)  # NOQA
-print("Loading sitecustomize", file=sys.stderr)  # NOQA
-import ddtrace.bootstrap.sitecustomize as module  # NOQA
-
-
-print("Loaded sitecustomize", file=sys.stderr)  # NOQA
+import ddtrace.appsec._ddwaf
+import ddtrace.bootstrap.sitecustomize as module
 
 
 def mac_supported_iast_version():
@@ -29,10 +21,8 @@ if __name__ == "__main__":
         # ASM IAST import error test
         import_error = False
         try:
-            print("Importing _native.ops", file=sys.stderr)
             from ddtrace.appsec._iast._taint_tracking._native import ops
 
-            print("Imported _native.ops", file=sys.stderr)
         except ImportError:
             import_error = True
 
@@ -41,10 +31,7 @@ if __name__ == "__main__":
 
         os.environ["DD_IAST_ENABLED"] = "True"
 
-        print("Importing _native.opsi again", file=sys.stderr)
         from ddtrace.appsec._iast._taint_tracking._native import ops
-
-        print("Imported _native.opsi again", file=sys.stderr)
 
         assert ops
 
@@ -54,10 +41,6 @@ if __name__ == "__main__":
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
 
-    print("Getting version", file=sys.stderr)
     ddtrace.appsec._ddwaf.version()
-    print("Got version", file=sys.stderr)
-    print("Checking load status", file=sys.stderr)
     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
-    print("Checked load status", file=sys.stderr)
     assert module.loaded
