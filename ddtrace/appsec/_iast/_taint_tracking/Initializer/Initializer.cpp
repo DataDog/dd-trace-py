@@ -228,7 +228,6 @@ pyexport_initializer(py::module& m)
     m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
-    m.def(
-      "create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
+    m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
 }

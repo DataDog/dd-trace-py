@@ -2507,6 +2507,7 @@ venv = Venv(
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
                         "langchain-openai": "==0.1.6",
+                        "langchain-anthropic": "==0.1.11",
                         "langchain-pinecone": "==0.1.0",
                         "langsmith": "==0.1.58",
                         "openai": "==1.30.3",
@@ -2523,6 +2524,7 @@ venv = Venv(
                         "langchain-core": latest,
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
                         "langsmith": latest,
                         "openai": latest,
                         "pinecone-client": latest,
@@ -2532,6 +2534,16 @@ venv = Venv(
                     }
                 ),
             ],
+        ),
+        Venv(
+            name="anthropic",
+            command="pytest {cmdargs} tests/contrib/anthropic",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "anthropic": [latest, "~=0.28"],
+            },
         ),
         Venv(
             name="logbook",
