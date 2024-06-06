@@ -12,6 +12,8 @@
 #include <mutex>
 #include <thread>
 
+#define GET_TID std::this_thread::get_id()
+
 // ----------------------------------------------------------------------------
 /**
  * Ensure that the GIL is held.
@@ -77,36 +79,36 @@ class Event
   public:
     void set()
     {
-        std::cout << "Setting event " << this << std::endl;
+        std::cout << "-------- Setting event " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = true;
         _cond.notify_all();
-        std::cout << "Done setting event " << this << std::endl;
+        std::cout << "-------- Done setting event " << this << " from thread " << GET_TID << std::endl;
     }
 
     void wait()
     {
-        std::cout << "Waiting for event " << this << std::endl;
+        std::cout << "-------- Waiting for event " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
         _cond.wait(lock, [this]() { return _set; });
-        std::cout << "Done waiting for event " << this << std::endl;
+        std::cout << "-------- Done waiting for event " << this << " from thread " << GET_TID << std::endl;
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
-        std::cout << "Waiting for event with timeout " << this << std::endl;
+        std::cout << "-------- Waiting for event with timeout " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
         auto ret = _cond.wait_for(lock, timeout, [this]() { return _set; });
-        std::cout << "Done waiting for event with timeout " << this << std::endl;
+        std::cout << "-------- Done waiting for event with timeout " << this << " from thread " << GET_TID << std::endl;
         return ret;
     }
 
     void clear()
     {
-        std::cout << "Clearing event " << this << std::endl;
+        std::cout << "-------- Clearing event " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = false;
-        std::cout << "Done clearing event " << this << std::endl;
+        std::cout << "-------- Done clearing event " << this << " from thread " << GET_TID << std::endl;
     }
 
   private:
@@ -143,9 +145,15 @@ typedef struct periodic_thread
     std::unique_ptr<std::thread> _thread;
 
     // Constructor and destructor
-    periodic_thread() { std::cout << "Creating periodic thread: " << this << std::endl; }
+    periodic_thread()
+    {
+        std::cout << "-------- Creating periodic thread: " << this << " from thread " << GET_TID << std::endl;
+    }
 
-    ~periodic_thread() { std::cout << "Destroying periodic thread: " << this << std::endl; }
+    ~periodic_thread()
+    {
+        std::cout << "-------- Destroying periodic thread: " << this << " from thread " << GET_TID << std::endl;
+    }
 } PeriodicThread;
 
 // ----------------------------------------------------------------------------
@@ -238,7 +246,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 PeriodicThread_start(PeriodicThread* self, PyObject* args)
 {
-    std::cout << "Starting periodic thread " << self << std::endl;
+    std::cout << "-------- Starting periodic thread " << self << std::endl;
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
@@ -263,73 +271,73 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         }
 
         // Mark the thread as started from this point.
-        std::cout << "Marking thread as started" << std::endl;
+        std::cout << "-------- Marking thread as started" << std::endl;
         self->_started->set();
-        std::cout << "Done marking thread as started" << std::endl;
+        std::cout << "-------- Done marking thread as started" << std::endl;
 
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
 
-        std::cout << "Entering loop" << std::endl;
+        std::cout << "-------- Entering loop" << std::endl;
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
-                std::cout << "Waiting for request" << std::endl;
+                std::cout << "-------- Waiting for request" << std::endl;
                 if (self->_request->wait(interval)) {
-                    std::cout << "Request received" << std::endl;
+                    std::cout << "-------- Request received" << std::endl;
                     if (self->_stopping)
                         break;
-                    std::cout << "Awake signal" << std::endl;
+                    std::cout << "-------- Awake signal" << std::endl;
 
                     // Awake signal
                     self->_request->clear();
                     self->_served->set();
-                    std::cout << "Done awake signal" << std::endl;
+                    std::cout << "-------- Done awake signal" << std::endl;
                 }
             }
 
-            std::cout << "Checking if finalizing" << std::endl;
+            std::cout << "-------- Checking if finalizing" << std::endl;
             if (_Py_IsFinalizing())
                 break;
-            std::cout << "Done checking if finalizing" << std::endl;
+            std::cout << "-------- Done checking if finalizing" << std::endl;
 
-            std::cout << "Periodic call" << std::endl;
+            std::cout << "-------- Periodic call" << std::endl;
             if (PeriodicThread__periodic(self)) {
                 // Error
                 error = true;
                 break;
             }
-            std::cout << "Done periodic call" << std::endl;
+            std::cout << "-------- Done periodic call" << std::endl;
         }
-        std::cout << "Done with loop" << std::endl;
+        std::cout << "-------- Done with loop" << std::endl;
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
-        std::cout << "Running shutdown callback" << std::endl;
+        std::cout << "-------- Running shutdown callback" << std::endl;
         if (!self->_atexit && !error && self->_on_shutdown != Py_None && !_Py_IsFinalizing())
             PeriodicThread__on_shutdown(self);
 
         // Notify the join method that the thread has stopped
-        std::cout << "Notifying join method" << std::endl;
+        std::cout << "-------- Notifying join method" << std::endl;
         self->_stopped->set();
     });
 
     // Detach the thread. We will make our own joinable mechanism.
-    std::cout << "Detaching thread" << std::endl;
+    std::cout << "-------- Detaching thread" << std::endl;
     self->_thread->detach();
-    std::cout << "Done detaching thread" << std::endl;
+    std::cout << "-------- Done detaching thread" << std::endl;
 
     // Wait for the thread to start
     {
         AllowThreads _;
 
-        std::cout << "Waiting for thread to start" << std::endl;
+        std::cout << "-------- Waiting for thread to start" << std::endl;
         self->_started->wait();
-        std::cout << "Done waiting for thread to start" << std::endl;
+        std::cout << "-------- Done waiting for thread to start" << std::endl;
     }
 
-    std::cout << "Returning" << std::endl;
+    std::cout << "-------- Returning" << std::endl;
     Py_RETURN_NONE;
 }
 
