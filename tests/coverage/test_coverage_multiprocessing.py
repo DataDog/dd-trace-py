@@ -38,7 +38,7 @@ def test_coverage_multiprocessing_session():
         }
 
         if expected_lines != covered_lines:
-            print(f"Mismatched lines: {expected_lines=} vs  {covered_lines=}")
+            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
             assert False
 
 
@@ -80,10 +80,10 @@ def test_coverage_multiprocessing_context():
             f"{cwd}/tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
         }
 
-        assert expected_lines == context_covered, f"Mismatched lines: {expected_lines=} vs  {context_covered=}"
+        assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
         session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered=}"
+        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
@@ -124,7 +124,7 @@ def test_coverage_concurrent_futures_processpool_session():
         }
 
         if expected_lines != covered_lines:
-            print(f"Mismatched lines: {expected_lines=} vs  {covered_lines=}")
+            print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
             assert False
 
 
@@ -171,7 +171,7 @@ def test_coverage_concurrent_futures_processpool_context():
             # In spawn or forkserver modes, the module is reimported entirely
             expected_lines[f"{cwd}/tests/coverage/included_path/callee.py"] = {1, 9, 10, 11, 13, 14, 17}
 
-        assert expected_lines == context_covered, f"Mismatched lines: {expected_lines=} vs  {context_covered=}"
+        assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
         session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-        assert not session_covered, f"Session recorded lines when it should not have: {session_covered=}"
+        assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"

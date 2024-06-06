@@ -32,7 +32,7 @@ def test_coverage_threading_session():
     }
 
     if expected_lines != covered_lines:
-        print(f"Mismatched lines: {expected_lines=} vs  {covered_lines=}")
+        print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
         assert False
 
 
@@ -68,10 +68,10 @@ def test_coverage_threading_context():
         f"{cwd}/tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines=} vs  {context_covered=}"
+    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
     session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-    assert not session_covered, f"Session recorded lines when it should not have: {session_covered=}"
+    assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
 
 
 @pytest.mark.subprocess
@@ -105,7 +105,7 @@ def test_coverage_concurrent_futures_threadpool_session():
     }
 
     if expected_lines != covered_lines:
-        print(f"Mismatched lines: {expected_lines=} vs  {covered_lines=}")
+        print(f"Mismatched lines: {expected_lines} vs  {covered_lines}")
         assert False
 
 
@@ -141,7 +141,7 @@ def test_coverage_concurrent_futures_threadpool_context():
         f"{cwd}/tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
     }
 
-    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines=} vs  {context_covered=}"
+    assert expected_lines == context_covered, f"Mismatched lines: {expected_lines} vs  {context_covered}"
 
     session_covered = dict(ModuleCodeCollector._instance._get_covered_lines())
-    assert not session_covered, f"Session recorded lines when it should not have: {session_covered=}"
+    assert not session_covered, f"Session recorded lines when it should not have: {session_covered}"
