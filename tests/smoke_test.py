@@ -2,8 +2,12 @@ import os
 from platform import system
 import sys
 
+print("Loading _ddwaf")
 import ddtrace.appsec._ddwaf
+print("Loaded _ddwaf")
+print("Loading sitecustomize")
 import ddtrace.bootstrap.sitecustomize as module
+print("Loaded sitecustomize")
 
 
 def mac_supported_iast_version():
@@ -21,7 +25,9 @@ if __name__ == "__main__":
         # ASM IAST import error test
         import_error = False
         try:
+            print("Importing _native.ops")
             from ddtrace.appsec._iast._taint_tracking._native import ops
+            print("Imported _native.ops")
         except ImportError:
             import_error = True
 
@@ -30,7 +36,9 @@ if __name__ == "__main__":
 
         os.environ["DD_IAST_ENABLED"] = "True"
 
+        print("Importing _native.opsi again")
         from ddtrace.appsec._iast._taint_tracking._native import ops
+        print("Imported _native.opsi again")
 
         assert ops
 
@@ -40,6 +48,10 @@ if __name__ == "__main__":
             # 32-bit linux DDWAF not ready yet.
             sys.exit(0)
 
+    print("Getting version")
     ddtrace.appsec._ddwaf.version()
+    print("Got version")
+    print("Checking load status")
     assert ddtrace.appsec._ddwaf._DDWAF_LOADED
+    print("Checked load status")
     assert module.loaded
