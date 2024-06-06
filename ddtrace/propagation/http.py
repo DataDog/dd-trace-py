@@ -232,6 +232,11 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+        # are propagated. If the tag is not present, we should not propagate downstream.
+        if asm_config._appsec_standalone_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+            return
+
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
             # bits should be converted to a base 10 integer.
