@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -76,27 +77,36 @@ class Event
   public:
     void set()
     {
+        std::cout << "Setting event " << this << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = true;
         _cond.notify_all();
+        std::cout << "Done setting event " << this << std::endl;
     }
 
     void wait()
     {
+        std::cout << "Waiting for event " << this << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
         _cond.wait(lock, [this]() { return _set; });
+        std::cout << "Done waiting for event " << this << std::endl;
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
+        std::cout << "Waiting for event with timeout " << this << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_for(lock, timeout, [this]() { return _set; });
+        auto ret = _cond.wait_for(lock, timeout, [this]() { return _set; });
+        std::cout << "Done waiting for event with timeout " << this << std::endl;
+        return ret;
     }
 
     void clear()
     {
+        std::cout << "Clearing event " << this << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = false;
+        std::cout << "Done clearing event " << this << std::endl;
     }
 
   private:
@@ -131,6 +141,11 @@ typedef struct periodic_thread
     std::unique_ptr<std::mutex> _awake_mutex;
 
     std::unique_ptr<std::thread> _thread;
+
+    // Constructor and destructor
+    periodic_thread() { std::cout << "Creating periodic thread: " << this << std::endl; }
+
+    ~periodic_thread() { std::cout << "Destroying periodic thread: " << this << std::endl; }
 } PeriodicThread;
 
 // ----------------------------------------------------------------------------
@@ -219,32 +234,26 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
     Py_XDECREF(result);
 }
 
-#include <iostream>
 // ----------------------------------------------------------------------------
 static PyObject*
 PeriodicThread_start(PeriodicThread* self, PyObject* args)
 {
-    std::cout << "PeriodicThread_start" << std::endl;
+    std::cout << "Starting periodic thread " << self << std::endl;
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
     }
 
-    std::cout << "Check if stopping" << std::endl;
     if (self->_stopping)
         Py_RETURN_NONE;
 
     // Start the thread
-    std::cout << "Starting thread" << std::endl;
     self->_thread = std::make_unique<std::thread>([self]() {
-        std::cout << "Setting GILGuard" << std::endl;
         GILGuard _gil;
-        std::cout << "Done setting GILGuard" << std::endl;
 
         PyRef _((PyObject*)self);
 
         // Retrieve the thread ID
-        std::cout << "Retrieving thread ID" << std::endl;
         {
             Py_DECREF(self->ident);
             self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
@@ -252,7 +261,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             // Map the PeriodicThread object to its thread ID
             PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
         }
-        std::cout << "Done retrieving thread ID" << std::endl;
 
         // Mark the thread as started from this point.
         std::cout << "Marking thread as started" << std::endl;
