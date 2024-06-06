@@ -368,10 +368,10 @@ def test_extract_asm_standalone_missing_propagation_tags_no_appsec_event_trace_d
 
         # Ensure propagation of headers takes place as expected
         assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
-        assert next_headers["x-datadog-trace-id"] != "1234"
-        assert next_headers["x-datadog-parent-id"] != "5678"
-        assert next_headers["x-datadog-sampling-priority"] == "-1"
+        assert "x-datadog-tags" not in next_headers
+        assert "x-datadog-trace-id" not in next_headers
+        assert "x-datadog-parent-id" not in next_headers
+        assert "x-datadog-sampling-priority" not in next_headers
 
         # Ensure span is dropped (no appsec event upstream or in this span)
         assert span._metrics["_sampling_priority_v1"] == -1
@@ -447,10 +447,10 @@ def test_extract_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_r
 
         # Ensure propagation of headers takes place as expected
         assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
-        assert next_headers["x-datadog-trace-id"] != "1234"
-        assert next_headers["x-datadog-parent-id"] != "5678"
-        assert next_headers["x-datadog-sampling-priority"] == "-1"
+        assert "x-datadog-tags" not in next_headers
+        assert "x-datadog-trace-id" not in next_headers
+        assert "x-datadog-parent-id" not in next_headers
+        assert "x-datadog-sampling-priority" not in next_headers
 
         # Ensure span is dropped (no appsec event upstream or in this span)
         assert span._metrics["_sampling_priority_v1"] == -1
