@@ -631,7 +631,8 @@
             "@git",
             "@pytest",
             "@codeowners",
-            "tests/ci_visibility/*"
+            "tests/ci_visibility/*",
+            "tests/coverage/*"
         ],
         "llmobs": [
             "@bootstrap",
