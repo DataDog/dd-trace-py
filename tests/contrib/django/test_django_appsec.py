@@ -316,7 +316,7 @@ def test_django_login_sucess_safe_and_user_set_int_login(client, test_spans, tra
     from django.contrib.auth.models import User
 
     with override_global_config(
-            dict(_asm_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
+        dict(_asm_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
     ):
         test_user = User.objects.create(username="123")
         test_user.set_password("secret")
@@ -332,6 +332,7 @@ def test_django_login_sucess_safe_and_user_set_int_login(client, test_spans, tra
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
+
 
 @pytest.mark.django_db
 def test_django_login_failure_safe_and_user_set_nonint_login(client, test_spans, tracer):
@@ -358,12 +359,12 @@ def test_django_login_failure_safe_and_user_set_nonint_login(client, test_spans,
 
 
 @pytest.mark.django_db
-def test_django_login_failure_safe_and_user_set_nonint_login(client, test_spans, tracer):
+def test_django_login_failure_safe_and_user_set_int_login(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
     with override_global_config(
-            dict(_asm_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
+        dict(_asm_enabled=True, _user_model_login_field="username", _automatic_login_events_mode="safe")
     ):
         test_user = User.objects.create(username="123")
         test_user.set_password("secret")

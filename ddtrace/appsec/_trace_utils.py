@@ -117,10 +117,7 @@ def track_user_login_success_event(
     if not span:
         return
 
-    if (
-        user_id
-        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-    ):
+    if user_id and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)):
         user_id = _safe_userid(user_id)
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
@@ -144,10 +141,7 @@ def track_user_login_failure_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
-    if (
-        user_id
-        and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-    ):
+    if user_id and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED)):
         user_id = _safe_userid(user_id)
 
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
