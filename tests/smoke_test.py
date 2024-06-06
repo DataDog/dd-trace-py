@@ -2,11 +2,15 @@ import os
 from platform import system
 import sys
 
-print("Loading _ddwaf")
-import ddtrace.appsec._ddwaf
-print("Loaded _ddwaf")
-print("Loading sitecustomize")
-import ddtrace.bootstrap.sitecustomize as module
+
+print("Loading _ddwaf")  # NOQA
+import ddtrace.appsec._ddwaf  # NOQA
+
+print("Loaded _ddwaf")  # NOQA
+print("Loading sitecustomize")  # NOQA
+import ddtrace.bootstrap.sitecustomize as module  # NOQA
+
+
 print("Loaded sitecustomize")
 
 
@@ -27,6 +31,7 @@ if __name__ == "__main__":
         try:
             print("Importing _native.ops")
             from ddtrace.appsec._iast._taint_tracking._native import ops
+
             print("Imported _native.ops")
         except ImportError:
             import_error = True
@@ -38,6 +43,7 @@ if __name__ == "__main__":
 
         print("Importing _native.opsi again")
         from ddtrace.appsec._iast._taint_tracking._native import ops
+
         print("Imported _native.opsi again")
 
         assert ops
