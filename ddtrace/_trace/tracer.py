@@ -51,7 +51,7 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function_consumption_plan
+from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
@@ -1129,7 +1129,7 @@ class Tracer(object):
         elif in_aws_lambda() and has_aws_lambda_agent_extension():
             # If the Agent Lambda extension is available then an AgentWriter is used.
             return False
-        elif in_gcp_function() or in_azure_function_consumption_plan():
+        elif in_gcp_function() or in_azure_function():
             return False
         else:
             return in_aws_lambda()
@@ -1150,7 +1150,7 @@ class Tracer(object):
         return (
             (in_aws_lambda() and has_aws_lambda_agent_extension())
             or in_gcp_function()
-            or in_azure_function_consumption_plan()
+            or in_azure_function()
         )
 
     @staticmethod
