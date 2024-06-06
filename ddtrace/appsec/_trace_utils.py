@@ -120,7 +120,6 @@ def track_user_login_success_event(
     if (
         user_id
         and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
@@ -148,7 +147,6 @@ def track_user_login_failure_event(
     if (
         user_id
         and (login_events_mode not in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.EXTENDED))
-        and not asm_config._user_model_login_field
     ):
         user_id = _safe_userid(user_id)
 
