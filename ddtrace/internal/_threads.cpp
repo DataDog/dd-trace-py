@@ -262,36 +262,48 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
 
+        std::cout << "Entering loop" << std::endl;
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
+                std::cout << "Waiting for request" << std::endl;
                 if (self->_request->wait(interval)) {
+                    std::cout << "Request received" << std::endl;
                     if (self->_stopping)
                         break;
+                    std::cout << "Awake signal" << std::endl;
 
                     // Awake signal
                     self->_request->clear();
                     self->_served->set();
+                    std::cout << "Done awake signal" << std::endl;
                 }
             }
 
+            std::cout << "Checking if finalizing" << std::endl;
             if (_Py_IsFinalizing())
                 break;
+            std::cout << "Done checking if finalizing" << std::endl;
 
+            std::cout << "Periodic call" << std::endl;
             if (PeriodicThread__periodic(self)) {
                 // Error
                 error = true;
                 break;
             }
+            std::cout << "Done periodic call" << std::endl;
         }
+        std::cout << "Done with loop" << std::endl;
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
+        std::cout << "Running shutdown callback" << std::endl;
         if (!self->_atexit && !error && self->_on_shutdown != Py_None && !_Py_IsFinalizing())
             PeriodicThread__on_shutdown(self);
 
         // Notify the join method that the thread has stopped
+        std::cout << "Notifying join method" << std::endl;
         self->_stopped->set();
     });
 
