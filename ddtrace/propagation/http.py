@@ -316,6 +316,9 @@ class _DatadogMultiHeader:
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
 
+        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+        # are propagated. If the tag is not present, we should not create a context,
+        # forcing propagation to reset here (stop previous propagation, start new propagation).
         if asm_config._appsec_standalone_enabled and (not meta or APPSEC.PROPAGATION_HEADER not in meta):
             return None
 
