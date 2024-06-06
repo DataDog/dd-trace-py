@@ -89,6 +89,13 @@ class Event
     void wait()
     {
         std::cout << "-------- Waiting for event " << this << " from thread " << GET_TID << std::endl;
+        // Before taking the lock, print some information on the static of the lock
+        if (_mutex.try_lock()) {
+            std::cout << "-------- Lock is available for event " << this << " from thread " << GET_TID << std::endl;
+            _mutex.unlock();
+        } else {
+            std::cout << "-------- Lock is NOT available for event " << this << " from thread " << GET_TID << std::endl;
+        }
         std::unique_lock<std::mutex> lock(_mutex);
         std::cout << "-------- Took a lock for event " << this << " from thread " << GET_TID << std::endl;
         _cond.wait(lock, [this]() { return _set; });
