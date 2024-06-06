@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Anthropic: Add message streaming and async messaging streaming support.
