@@ -322,8 +322,10 @@ def _after_request_tags(pin, span: Span, request, response):
 
                 uid = getattr(user, "pk", None)
                 if uid:
-                    span.set_tag_str("django.user.id", str(_safe_userid(uid)))
-                    span.set_tag_str(_user.ID, str(_safe_userid(uid)))
+                    safe_uid = _safe_userid(uid)
+                    if safe_uid:
+                        span.set_tag_str("django.user.id", str(safe_uid))
+                        span.set_tag_str(_user.ID, str(safe_uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:
