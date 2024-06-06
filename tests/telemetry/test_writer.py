@@ -330,6 +330,9 @@ import ddtrace.auto
             {"name": "trace_header_tags", "origin": "default", "value": ""},
             {"name": "trace_tags", "origin": "env_var", "value": "team:apm,component:web"},
             {"name": "instrumentation_config_id", "origin": "env_var", "value": "abcedf123"},
+            {"name": "DD_INJECT_FORCE", "origin": "unknown", "value": False},
+            {"name": "DD_LIB_INJECTED", "origin": "unknown", "value": False},
+            {"name": "DD_LIB_INJECTION_ATTEMPTED", "origin": "unknown", "value": False},
         ],
         key=lambda x: x["name"],
     )
