@@ -219,25 +219,32 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
     Py_XDECREF(result);
 }
 
+#include <iostream>
 // ----------------------------------------------------------------------------
 static PyObject*
 PeriodicThread_start(PeriodicThread* self, PyObject* args)
 {
+    std::cout << "PeriodicThread_start" << std::endl;
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
     }
 
+    std::cout << "Check if stopping" << std::endl;
     if (self->_stopping)
         Py_RETURN_NONE;
 
     // Start the thread
+    std::cout << "Starting thread" << std::endl;
     self->_thread = std::make_unique<std::thread>([self]() {
+        std::cout << "Setting GILGuard" << std::endl;
         GILGuard _gil;
+        std::cout << "Done setting GILGuard" << std::endl;
 
         PyRef _((PyObject*)self);
 
         // Retrieve the thread ID
+        std::cout << "Retrieving thread ID" << std::endl;
         {
             Py_DECREF(self->ident);
             self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
@@ -245,9 +252,12 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             // Map the PeriodicThread object to its thread ID
             PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
         }
+        std::cout << "Done retrieving thread ID" << std::endl;
 
         // Mark the thread as started from this point.
+        std::cout << "Marking thread as started" << std::endl;
         self->_started->set();
+        std::cout << "Done marking thread as started" << std::endl;
 
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
@@ -286,15 +296,20 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
     });
 
     // Detach the thread. We will make our own joinable mechanism.
+    std::cout << "Detaching thread" << std::endl;
     self->_thread->detach();
+    std::cout << "Done detaching thread" << std::endl;
 
     // Wait for the thread to start
     {
         AllowThreads _;
 
+        std::cout << "Waiting for thread to start" << std::endl;
         self->_started->wait();
+        std::cout << "Done waiting for thread to start" << std::endl;
     }
 
+    std::cout << "Returning" << std::endl;
     Py_RETURN_NONE;
 }
 
