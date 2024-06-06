@@ -327,9 +327,9 @@ def test_extract_asm_standalone_missing_propagation_tags_no_appsec_event_trace_d
 
         # Ensure propagation of headers takes place as expected
         assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
-        assert "x-datadog-trace-id" != "1234"
-        assert "x-datadog-parent-id" != "5678"
+        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
+        assert next_headers["x-datadog-trace-id"] != "1234"
+        assert next_headers["x-datadog-parent-id"] != "5678"
         assert next_headers["x-datadog-sampling-priority"] == "-1"
 
         # Ensure span is dropped (no appsec event upstream or in this span)
@@ -360,10 +360,10 @@ def test_extract_asm_standalone_missing_propagation_tags_appsec_event_present_tr
 
         # Ensure propagation of headers takes place as expected
         assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
+        assert "_dd.p.test=value" not in next_headers["x-datadog-tags"]
         assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
-        assert "x-datadog-trace-id" != "1234"
-        assert "x-datadog-parent-id" != "5678"
+        assert next_headers["x-datadog-trace-id"] != "1234"
+        assert next_headers["x-datadog-parent-id"] != "5678"
         assert next_headers["x-datadog-sampling-priority"] == "2"
 
         # Ensure span is dropped (no appsec event upstream or in this span)
@@ -372,7 +372,7 @@ def test_extract_asm_standalone_missing_propagation_tags_appsec_event_present_tr
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
-def test_extract_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets_trace_dropped(
+def test_extract_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets_priority_trace_dropped(
     tracer,  # noqa: F811
 ):
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
@@ -395,20 +395,20 @@ def test_extract_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_r
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            assert span.trace_id != 1234
-            assert span.parent_id != 5678
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
             assert span.context.sampling_priority != 2
-            assert span.context.dd_origin != "synthetics"
-            assert "_dd.p.test" not in span.context._meta
+            assert span.context.dd_origin == "synthetics"
+            assert "_dd.p.test" in span.context._meta
 
         next_headers = {}
         HTTPPropagator.inject(span.context, next_headers)
 
         # Ensure propagation of headers takes place as expected
-        assert "x-datadog-origin" not in next_headers
-        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
-        assert "x-datadog-trace-id" != "1234"
-        assert "x-datadog-parent-id" != "5678"
+        assert "x-datadog-origin" in next_headers
+        assert "_dd.p.test=value" in next_headers["x-datadog-tags"]
+        assert next_headers["x-datadog-trace-id"] == "1234"
+        assert next_headers["x-datadog-parent-id"] != "5678"
         assert next_headers["x-datadog-sampling-priority"] == "-1"
 
         # Ensure span is dropped (no appsec event upstream or in this span)
@@ -441,21 +441,22 @@ def test_extract_asm_standalone_missing_appsec_tag_appsec_event_present_propagat
 
         with tracer.trace("local_root_span") as span:
             _asm_manual_keep(span)
-            assert span.trace_id != 1234
-            assert span.parent_id != 5678
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
             assert span.context.sampling_priority == 2
-            assert span.context.dd_origin != "synthetics"
+            assert span.context.dd_origin == "synthetics"
             assert "_dd.p.appsec" in span.context._meta
             assert span.context._meta["_dd.p.appsec"] == "1"
-            assert "_dd.p.test" not in span.context._meta
+            assert "_dd.p.test" in span.context._meta
 
         next_headers = {}
         HTTPPropagator.inject(span.context, next_headers)
 
         # Ensure propagation of headers resets as expected
         assert next_headers["x-datadog-sampling-priority"] == "2"
-        assert next_headers["x-datadog-trace-id"] != "1234"
-        assert "_dd.p.test=value,any=tag" not in next_headers["x-datadog-tags"]
+        assert next_headers["x-datadog-trace-id"] == "1234"
+        assert next_headers["x-datadog-parent-id"] != "5678"
+        assert "_dd.p.test=value" in next_headers["x-datadog-tags"]
         assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
 
         # Ensure span is not dropped as there was an appsec event
