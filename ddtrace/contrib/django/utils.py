@@ -12,7 +12,6 @@ import xmltodict
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.appsec._utils import _safe_userid
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
@@ -322,10 +321,8 @@ def _after_request_tags(pin, span: Span, request, response):
 
                 uid = getattr(user, "pk", None)
                 if uid:
-                    safe_uid = _safe_userid(uid)
-                    if safe_uid:
-                        span.set_tag_str("django.user.id", str(safe_uid))
-                        span.set_tag_str(_user.ID, str(safe_uid))
+                    span.set_tag_str("django.user.id", str(uid))
+                    span.set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:
