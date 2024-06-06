@@ -89,7 +89,7 @@ class Event
     void wait()
     {
         std::cout << "-------- Waiting for event " << this << " from thread " << GET_TID << std::endl;
-        // Before taking the lock, print some information on the static of the lock
+        // Before taking the lock, print some information on the state of the lock
         if (_mutex.try_lock()) {
             std::cout << "-------- Lock is available for event " << this << " from thread " << GET_TID << std::endl;
             _mutex.unlock();
@@ -118,6 +118,10 @@ class Event
         _set = false;
         std::cout << "-------- Done clearing event " << this << " from thread " << GET_TID << std::endl;
     }
+
+    // Destructor and constructor
+    Event() { std::cout << "-------- Creating event " << this << " from thread " << GET_TID << std::endl; }
+    ~Event() { std::cout << "-------- Destroying event " << this << " from thread " << GET_TID << std::endl; }
 
   private:
     std::condition_variable _cond;
