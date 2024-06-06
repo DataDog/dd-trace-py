@@ -67,12 +67,13 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
+            temperature=0.8,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "Hello, I am looking for information about some books!"},
-                        {"type": "text", "text": "Can you explain what Descartes meant by 'I think, therefore I am'?"},
+                        {"type": "text", "text": "What is the best selling book?"},
                     ],
                 }
             ],
@@ -227,6 +228,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
+                temperature=0.8,
                 messages=[
                     {
                         "role": "user",
@@ -234,7 +236,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                             {"type": "text", "text": "Hello, I am looking for information about some books!"},
                             {
                                 "type": "text",
-                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                                "text": "What is the best selling book?",
                             },
                         ],
                     }
