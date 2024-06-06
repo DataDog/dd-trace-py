@@ -2,8 +2,9 @@ import os
 from typing import Any
 import uuid
 
-from ddtrace.appsec._constants import API_SECURITY, LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
