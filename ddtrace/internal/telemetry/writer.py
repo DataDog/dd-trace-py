@@ -258,7 +258,7 @@ class TelemetryWriter(PeriodicService):
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
-        self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self._lock = forksafe.RLock()  # type: forksafe.ResetObject
         self._imported_dependencies: Dict[str, Distribution] = dict()
 
         self._is_agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
