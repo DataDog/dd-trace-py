@@ -40,7 +40,8 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+# DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+DEBUG_COMPILE = True
 
 # stack_v2 profiling extensions are optional, unless they are made explicitly required by this environment variable
 STACK_V2_REQUIRED = "DD_STACK_V2_REQUIRED" in os.environ

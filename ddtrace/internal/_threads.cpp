@@ -199,14 +199,13 @@ class Event
     Event()
     {
         std::cout << "-------- [CONST] " << this << " from thread " << GET_TID << std::endl;
-        _mutex = {}; // Re-initialize the mutex?
         std::cout << "-------- [CONST] mtx: " << &_mutex << " from thread " << GET_TID << std::endl;
     }
     ~Event() { std::cout << "-------- [DEST] " << this << " from thread " << GET_TID << std::endl; }
 
   private:
     std::condition_variable _cond;
-    std::mutex _mutex;
+    std::mutex _mutex = {};
     bool _set = false;
 };
 
