@@ -1024,7 +1024,7 @@ def snapshot_context(
                 try:
                     r = conn.getresponse()
                 except http.client.RemoteDisconnected:
-                    pass
+                    time.sleep(1)
             if r is None:
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
             elif r.status != 200:
