@@ -548,9 +548,9 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 # if apm opt out, neither agent or tracer should compute the stats
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (compute_stats_enabled or self._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
+                ),
                 report_metrics=not self._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -1147,11 +1147,7 @@ class Tracer(object):
         - Google Cloud Functions and Azure Consumption Plan Functions have a mini-agent spun up by the tracer.
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
-        return (
-            (in_aws_lambda() and has_aws_lambda_agent_extension())
-            or in_gcp_function()
-            or in_azure_function()
-        )
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):
