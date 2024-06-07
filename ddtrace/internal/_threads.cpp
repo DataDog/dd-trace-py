@@ -59,6 +59,15 @@ printStackTrace(CONTEXT* context)
 
         std::cout << "0x" << std::hex << address << std::dec << std::endl;
 
+        // Try to print the module
+        DWORD64 moduleBase = SymGetModuleBase64(process, address);
+        char moduleFileName[MAX_PATH];
+        if (moduleBase && GetModuleFileNameA((HMODULE)moduleBase, moduleFileName, MAX_PATH)) {
+            std::cout << "Module: " << moduleFileName << std::endl;
+        } else {
+            std::cout << "Module: Unknown" << std::endl;
+        }
+
         BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
         PSYMBOL_INFO symbol = reinterpret_cast<PSYMBOL_INFO>(symbolBuffer);
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
@@ -89,7 +98,9 @@ LONG WINAPI
 exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
 {
     if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        std::cout << "Access violation detected at address " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << " from thread " << GET_TID << std::endl;
+        std::cout << "Access violation occurred at address: " << exceptionInfo->ExceptionRecord->ExceptionAddress << std::endl;
+        std::cout << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << std::endl;
+        std::cout << "Faulting thread: " << GET_TID << std::endl;
         printStackTrace(exceptionPointers->ContextRecord);
         return EXCEPTION_EXECUTE_HANDLER;
     }
