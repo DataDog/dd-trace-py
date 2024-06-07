@@ -13,6 +13,7 @@
 #include <thread>
 
 #define GET_TID std::this_thread::get_id()
+#define PRNT_TID "[" << GET_TID << "] "
 
 // clang-format off
 #ifdef _WIN32
@@ -29,7 +30,7 @@ void initializeSymbolHandler() {
     SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
 
     if (!SymInitialize(process, NULL, TRUE)) {
-        std::cerr << "Failed to initialize symbol handler. Error: " << GetLastError() << std::endl;
+        std::cout << "Failed to initialize symbol handler. Error: " << GetLastError() << std::endl;
         return;
     }
 }
@@ -67,19 +68,19 @@ printStackTrace(CONTEXT* context)
         if (address == 0)
             break;
 
-        std::cout << "0x" << std::hex << address << std::dec << std::endl;
+        std::cout << GET_TID << "A:" << address << "\n";
 
         // Try to print the module
         DWORD64 moduleBase = SymGetModuleBase64(process, address);
         if (moduleBase) {
             char moduleFileName[MAX_PATH];
             if (GetModuleFileNameA((HMODULE)moduleBase, moduleFileName, MAX_PATH)) {
-                std::cout << "Module: " << moduleFileName << std::endl;
+                std::cout << PRNT_TID << "M: " << moduleFileName << "\n";
             } else {
-                std::cerr << "Failed to get module file name. Error: " << GetLastError() << std::endl;
+                std::cout << PRINT_TD << "M: Unknown module" << "\n";
             }
         } else {
-            std::cerr << "Failed to get module base address. Error: " << GetLastError() << std::endl;
+            std::cout << PRINT_TID << "M: failed (" << GetLastError() << ")\n";
         }
 
         BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
@@ -89,22 +90,19 @@ printStackTrace(CONTEXT* context)
 
         DWORD64 displacement = 0;
         if (SymFromAddr(process, address, &displacement, symbol)) {
-            std::cout << "Function: " << symbol->Name << " - Address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
+            std::cout << PRNT_TID << "S: " << symbol->Name << " - A: " << symbol->Address << "\n";
 
             // Get line number info
             IMAGEHLP_LINE64 line;
             DWORD displacementLine;
             if (SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
-                std::cout << "File: " << line.FileName << " - Line: " << line.LineNumber << std::endl;
+                std::cout << PRNT_TID << "F: " << line.FileName << " - L: " << line.LineNumber << "\n";
             } else {
-                std::cerr << "Failed to get line number. Error: " << GetLastError() << std::endl;
-                std::cout << "Unknown file" << std::endl;
+                std::cout << PRNT_TID << "F: Unknown file\n";
             }
         } else {
-            std::cerr << "Failed to get symbol from address. Error: " << GetLastError() << std::endl;
-            std::cout << "Unknown function at address: 0x" << std::hex << address << std::dec << std::endl;
+            std::cout << PRNT_TID << "S: Unknown symbol\n";
         }
-        std::cout << std::endl;
     }
 
     SymCleanup(process);
@@ -114,10 +112,11 @@ LONG WINAPI
 exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
 {
     if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        std::cout << "Access violation occurred at address: " << exceptionPointers->ExceptionRecord->ExceptionAddress << std::endl;
-        std::cout << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << std::endl;
-        std::cout << "Faulting thread: " << GET_TID << std::endl;
+        std::cout << PRNT_TID << "Access Violation " << exceptionPointers->ExceptionRecord->ExceptionAddress << "\n";
+        std::cout << PRNT_TID << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << "\n";
+        std::cout << PRNT_TID << "Faulting thread: " << GET_TID << "\n";
         printStackTrace(exceptionPointers->ContextRecord);
+        std::cout << "--------" << std::endl;
         return EXCEPTION_EXECUTE_HANDLER;
     }
 
