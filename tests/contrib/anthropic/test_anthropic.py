@@ -37,7 +37,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
 
 
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
-def test_anthropic_llm_sync(anthropic, request_vcr):
+def test_anthropic_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()
     with request_vcr.use_cassette("anthropic_completion.yaml"):
         llm.messages.create(
@@ -219,10 +219,8 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
 
 
 @pytest.mark.asyncio
-async def test_anthropic_llm_async_basic(anthropic, request_vcr, snapshot_context):
-    with snapshot_context(
-        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_basic", ignores=["resource"]
-    ):
+async def test_anthropic_llm_async_create(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"]):
         llm = anthropic.AsyncAnthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
             await llm.messages.create(

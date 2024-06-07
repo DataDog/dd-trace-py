@@ -1,11 +1,11 @@
 import sys
+from typing import Any
 from typing import Dict
 from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.vendor import wrapt
-
-from .utils import _get_attr
 
 
 log = get_logger(__name__)
@@ -25,9 +25,8 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
 class BaseTracedAnthropicStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
-        n = kwargs.get("n", 1) or 1
         self._dd_span = span
-        self._streamed_chunks = [[] for _ in range(n)]
+        self._streamed_chunks = []
         self._dd_integration = integration
         self._kwargs = kwargs
         self._args = args
@@ -60,7 +59,8 @@ class TracedAnthropicStream(BaseTracedAnthropicStream):
             self._dd_span.finish()
             raise
 
-    def _text_stream(self):
+    def __stream_text__(self):
+        # this is overridden because it is a helper function that collects all stream content chunks
         for chunk in self:
             if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
                 yield chunk.delta.text
@@ -97,7 +97,8 @@ class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
             self._dd_span.finish()
             raise
 
-    async def _text_stream(self):
+    async def __stream_text__(self):
+        # this is overridden because it is a helper function that collects all stream content chunks
         async for chunk in self:
             if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
                 yield chunk.delta.text
@@ -113,7 +114,8 @@ class TracedAnthropicStreamManager(BaseTracedAnthropicStream):
             self._args,
             self._kwargs,
         )
-        traced_stream.text_stream = traced_stream._text_stream()
+        # we need to set a text_stream attribute so we can trace the yielded chunks
+        traced_stream.text_stream = traced_stream.__stream_text__()
         return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -130,7 +132,8 @@ class TracedAnthropicAsyncStreamManager(BaseTracedAnthropicStream):
             self._args,
             self._kwargs,
         )
-        traced_stream.text_stream = traced_stream._text_stream()
+        # we need to set a text_stream attribute so we can trace the yielded chunks
+        traced_stream.text_stream = traced_stream.__stream_text__()
         return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -178,6 +181,7 @@ def _extract_from_chunk(chunk, message={}) -> Tuple[Dict[str, str], bool]:
         "content_block_start": _on_content_block_start_chunk,
         "content_block_delta": _on_content_block_delta_chunk,
         "message_delta": _on_message_delta_chunk,
+        "error": _on_error_chunk,
     }
     chunk_type = getattr(chunk, "type", "")
     transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
@@ -195,6 +199,7 @@ def _on_message_start_chunk(chunk, message):
     chunk_message = getattr(chunk, "message", "")
     if chunk_message:
         content_text = ""
+        content_type = ""
         contents = getattr(chunk.message, "content", [])
         for content in contents:
             if content.type == "text":
@@ -254,21 +259,23 @@ def _on_message_delta_chunk(chunk, message):
     chunk_usage = getattr(chunk, "usage", {})
     if chunk_usage:
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
-        message_usage["output_tokens"] += getattr(chunk_usage, "output_tokens", 0)
-        message_usage["input_tokens"] += getattr(chunk_usage, "input_tokens", 0)
+        message_usage["output_tokens"] = getattr(chunk_usage, "output_tokens", 0)
         message["usage"] = message_usage
 
     return message
 
 
-# To-Do: Handle error blocks appropriately
-# def _on_error_chunk(chunk, message):
-#     # this is the start to a message.content block (possibly 1 of several content blocks)
-#     if getattr(chunk, "type", "") != "error":
-#         return message
+def _on_error_chunk(chunk, message):
+    if getattr(chunk, "type", "") != "error":
+        return message
 
-#     message["content"].append({"type": "text", "text": ""})
-#     return message
+    if getattr(chunk, "error"):
+        message["error"] = {}
+        if getattr(chunk.error, "type"):
+            message["error"]["type"] = chunk.error.type
+        if getattr(chunk.error, "message"):
+            message["error"]["message"] = chunk.error.message
+    return message
 
 
 def _tag_streamed_chat_completion_response(integration, span, message):
@@ -276,8 +283,8 @@ def _tag_streamed_chat_completion_response(integration, span, message):
     if message is None:
         return
     for idx, block in enumerate(message["content"]):
-        span.set_tag_str("anthropic.response.completions.content.%d.type" % idx, str(integration.trunc(block["type"])))
-        span.set_tag_str("anthropic.response.completions.content.%d.text" % idx, str(integration.trunc(block["text"])))
+        span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
+        span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", str(block["text"]))
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))
@@ -286,7 +293,7 @@ def _tag_streamed_chat_completion_response(integration, span, message):
     integration.record_usage(span, usage)
 
 
-def _is_stream(resp):
+def _is_stream(resp: Any) -> bool:
     # type: (...) -> bool
     import anthropic
 
@@ -295,7 +302,7 @@ def _is_stream(resp):
     return False
 
 
-def _is_async_stream(resp):
+def _is_async_stream(resp: Any) -> bool:
     # type: (...) -> bool
     import anthropic
 
@@ -304,7 +311,7 @@ def _is_async_stream(resp):
     return False
 
 
-def _is_stream_manager(resp):
+def _is_stream_manager(resp: Any) -> bool:
     # type: (...) -> bool
     import anthropic
 
@@ -313,10 +320,14 @@ def _is_stream_manager(resp):
     return False
 
 
-def _is_async_stream_manager(resp):
+def _is_async_stream_manager(resp: Any) -> bool:
     # type: (...) -> bool
     import anthropic
 
     if hasattr(anthropic, "AsyncMessageStreamManager") and isinstance(resp, anthropic.AsyncMessageStreamManager):
         return True
     return False
+
+
+def is_streaming_operation(resp: Any) -> bool:
+    return _is_stream(resp) or _is_async_stream(resp) or _is_stream_manager(resp) or _is_async_stream_manager(resp)

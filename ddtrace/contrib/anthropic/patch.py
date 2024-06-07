@@ -10,11 +10,12 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
+from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.pin import Pin
 
 from ._streaming import handle_streamed_response
+from ._streaming import is_streaming_operation
 from .utils import _extract_api_key
-from .utils import _get_attr
 from .utils import handle_non_streamed_response
 from .utils import tag_params_on_span
 
@@ -42,11 +43,9 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     integration = anthropic._datadog_integration
     stream = False
 
-    operation_name = "stream" if "stream" in kwargs else func.__name__
-
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__class__.__name__, operation_name),
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
@@ -95,11 +94,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
         chat_completions = func(*args, **kwargs)
 
-        if (
-            isinstance(chat_completions, anthropic.Stream)
-            or isinstance(chat_completions, anthropic.lib.streaming._messages.MessageStreamManager)
-            or isinstance(chat_completions, anthropic.lib.streaming._messages.AsyncMessageStreamManager)
-        ):
+        if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
         else:
@@ -109,7 +104,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         raise
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
-        if not stream:
+        if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
                 integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
             span.finish()
@@ -122,11 +117,9 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     integration = anthropic._datadog_integration
     stream = False
 
-    operation_name = "stream" if "stream" in kwargs else func.__name__
-
     span = integration.trace(
         pin,
-        "%s.%s" % (instance.__class__.__name__, operation_name),
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
@@ -175,7 +168,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
 
         chat_completions = await func(*args, **kwargs)
 
-        if isinstance(chat_completions, anthropic.AsyncStream):
+        if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
         else:
@@ -185,7 +178,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
         raise
     finally:
         # we don't want to finish the span if it is a stream as it will get finished once the iterator is exhausted
-        if not stream:
+        if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
                 integration.llmobs_set_tags(span=span, resp=chat_completions, args=args, kwargs=kwargs)
             span.finish()
