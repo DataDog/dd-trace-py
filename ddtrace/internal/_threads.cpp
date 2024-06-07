@@ -174,6 +174,7 @@ class Event
     void wait()
     {
         std::cout << "-------- [WAIT] start " << this << " from thread " << GET_TID << std::endl;
+        std::cout << "-------- [WAIT] mtx: " << &_mutex << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
         std::cout << "-------- [WAIT] mtx " << this << " from thread " << GET_TID << std::endl;
         _cond.wait(lock, [this]() { return _set; });
@@ -195,7 +196,12 @@ class Event
         _set = false;
     }
 
-    Event() { std::cout << "-------- [CONST] " << this << " from thread " << GET_TID << std::endl; }
+    Event()
+    {
+        std::cout << "-------- [CONST] " << this << " from thread " << GET_TID << std::endl;
+        _mutex = {}; // Re-initialize the mutex?
+        std::cout << "-------- [CONST] mtx: " << &_mutex << " from thread " << GET_TID << std::endl;
+    }
     ~Event() { std::cout << "-------- [DEST] " << this << " from thread " << GET_TID << std::endl; }
 
   private:
