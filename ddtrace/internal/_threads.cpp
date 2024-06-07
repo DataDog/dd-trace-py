@@ -13,7 +13,7 @@
 #include <thread>
 
 #define GET_TID std::this_thread::get_id()
-#define PRNT_TID "[" << GET_TID << "] "
+#define PRINT_TID "[" << GET_TID << "] "
 
 // clang-format off
 #ifdef _WIN32
@@ -75,9 +75,9 @@ printStackTrace(CONTEXT* context)
         if (moduleBase) {
             char moduleFileName[MAX_PATH];
             if (GetModuleFileNameA((HMODULE)moduleBase, moduleFileName, MAX_PATH)) {
-                std::cout << PRNT_TID << "M: " << moduleFileName << "\n";
+                std::cout << PRINT_TID << "M: " << moduleFileName << "\n";
             } else {
-                std::cout << PRINT_TD << "M: Unknown module" << "\n";
+                std::cout << PRINT_TID << "M: Unknown module" << "\n";
             }
         } else {
             std::cout << PRINT_TID << "M: failed (" << GetLastError() << ")\n";
@@ -90,18 +90,18 @@ printStackTrace(CONTEXT* context)
 
         DWORD64 displacement = 0;
         if (SymFromAddr(process, address, &displacement, symbol)) {
-            std::cout << PRNT_TID << "S: " << symbol->Name << " - A: " << symbol->Address << "\n";
+            std::cout << PRINT_TID << "S: " << symbol->Name << " - A: " << symbol->Address << "\n";
 
             // Get line number info
             IMAGEHLP_LINE64 line;
             DWORD displacementLine;
             if (SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
-                std::cout << PRNT_TID << "F: " << line.FileName << " - L: " << line.LineNumber << "\n";
+                std::cout << PRINT_TID << "F: " << line.FileName << " - L: " << line.LineNumber << "\n";
             } else {
-                std::cout << PRNT_TID << "F: Unknown file\n";
+                std::cout << PRINT_TID << "F: Unknown file\n";
             }
         } else {
-            std::cout << PRNT_TID << "S: Unknown symbol\n";
+            std::cout << PRINT_TID << "S: Unknown symbol\n";
         }
     }
 
@@ -112,9 +112,9 @@ LONG WINAPI
 exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
 {
     if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        std::cout << PRNT_TID << "Access Violation " << exceptionPointers->ExceptionRecord->ExceptionAddress << "\n";
-        std::cout << PRNT_TID << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << "\n";
-        std::cout << PRNT_TID << "Faulting thread: " << GET_TID << "\n";
+        std::cout << PRINT_TID << "Access Violation " << exceptionPointers->ExceptionRecord->ExceptionAddress << "\n";
+        std::cout << PRINT_TID << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << "\n";
+        std::cout << PRINT_TID << "Faulting thread: " << GET_TID << "\n";
         printStackTrace(exceptionPointers->ContextRecord);
         std::cout << "--------" << std::endl;
         return EXCEPTION_EXECUTE_HANDLER;

@@ -430,7 +430,7 @@ if not IS_PYSTON:
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             libraries=["DbgHelp"] if CURRENT_OS == "Windows" else [],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/Zi"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/Zi", "/MT"],
             extra_link_args=["/DEBUG"] if CURRENT_OS == "Windows" else [],
         ),
         Extension(
