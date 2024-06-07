@@ -98,7 +98,7 @@ LONG WINAPI
 exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
 {
     if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        std::cout << "Access violation occurred at address: " << exceptionInfo->ExceptionRecord->ExceptionAddress << std::endl;
+        std::cout << "Access violation occurred at address: " << exceptionPointers->ExceptionRecord->ExceptionAddress << std::endl;
         std::cout << "Faulting address: " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << std::endl;
         std::cout << "Faulting thread: " << GET_TID << std::endl;
         printStackTrace(exceptionPointers->ContextRecord);
