@@ -428,7 +428,7 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            libraries=if CURRENT_OS == "Windows" ['Dbghelp'] else [],
+            libraries=["DbgHelp"] if CURRENT_OS == "Windows" else [],
             extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
         ),
         Extension(
