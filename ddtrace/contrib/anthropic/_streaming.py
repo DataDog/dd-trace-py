@@ -294,7 +294,6 @@ def _tag_streamed_chat_completion_response(integration, span, message):
 
 
 def _is_stream(resp: Any) -> bool:
-    # type: (...) -> bool
     import anthropic
 
     if hasattr(anthropic, "Stream") and isinstance(resp, anthropic.Stream):
@@ -303,7 +302,6 @@ def _is_stream(resp: Any) -> bool:
 
 
 def _is_async_stream(resp: Any) -> bool:
-    # type: (...) -> bool
     import anthropic
 
     if hasattr(anthropic, "AsyncStream") and isinstance(resp, anthropic.AsyncStream):
@@ -312,7 +310,6 @@ def _is_async_stream(resp: Any) -> bool:
 
 
 def _is_stream_manager(resp: Any) -> bool:
-    # type: (...) -> bool
     import anthropic
 
     if hasattr(anthropic, "MessageStreamManager") and isinstance(resp, anthropic.MessageStreamManager):
@@ -321,7 +318,6 @@ def _is_stream_manager(resp: Any) -> bool:
 
 
 def _is_async_stream_manager(resp: Any) -> bool:
-    # type: (...) -> bool
     import anthropic
 
     if hasattr(anthropic, "AsyncMessageStreamManager") and isinstance(resp, anthropic.AsyncMessageStreamManager):
