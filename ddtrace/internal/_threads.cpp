@@ -12,7 +12,87 @@
 #include <mutex>
 #include <thread>
 
-#define GET_TID std::this_thread::get_id()
+#include <dbghelp.h>
+#include <iostream>
+#include <windows.h>
+
+#ifdef _WIN32
+#pragma comment(lib, "DbgHelp.lib")
+
+void
+printStackTrace(CONTEXT* context)
+{
+    HANDLE process = GetCurrentProcess();
+    HANDLE thread = GetCurrentThread();
+    SymInitialize(process, NULL, TRUE);
+
+    STACKFRAME64 stackFrame;
+    memset(&stackFrame, 0, sizeof(STACKFRAME64));
+
+#ifdef _M_IX86
+    DWORD imageType = IMAGE_FILE_MACHINE_I386;
+    stackFrame.AddrPC.Offset = context->Eip;
+    stackFrame.AddrPC.Mode = AddrModeFlat;
+    stackFrame.AddrFrame.Offset = context->Ebp;
+    stackFrame.AddrFrame.Mode = AddrModeFlat;
+    stackFrame.AddrStack.Offset = context->Esp;
+    stackFrame.AddrStack.Mode = AddrModeFlat;
+#elif _M_X64
+    DWORD imageType = IMAGE_FILE_MACHINE_AMD64;
+    stackFrame.AddrPC.Offset = context->Rip;
+    stackFrame.AddrPC.Mode = AddrModeFlat;
+    stackFrame.AddrFrame.Offset = context->Rsp;
+    stackFrame.AddrFrame.Mode = AddrModeFlat;
+    stackFrame.AddrStack.Offset = context->Rsp;
+    stackFrame.AddrStack.Mode = AddrModeFlat;
+#endif
+
+    while (StackWalk64(
+      imageType, process, thread, &stackFrame, context, NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL)) {
+        DWORD64 address = stackFrame.AddrPC.Offset;
+        if (address == 0)
+            break;
+
+        std::cout << "0x" << std::hex << address << std::dec << std::endl;
+
+        BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+        PSYMBOL_INFO symbol = reinterpret_cast<PSYMBOL_INFO>(symbolBuffer);
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+        symbol->MaxNameLen = MAX_SYM_NAME;
+
+        if (SymFromAddr(process, address, NULL, symbol)) {
+            std::cout << symbol->Name << std::endl;
+        } else {
+            std::cout << "Unknown function" << std::endl;
+        }
+
+        DWORD displacement;
+        IMAGEHLP_LINE64 line;
+        line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+        if (SymGetLineFromAddr64(process, address, &displacement, &line)) {
+            std::cout << line.FileName << ":" << line.LineNumber << std::endl;
+        } else {
+            std::cout << "Unknown file" << std::endl;
+        }
+
+        std::cout << std::endl;
+    }
+
+    SymCleanup(process);
+}
+
+LONG WINAPI
+exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
+{
+    if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+        std::cout << "Access violation detected!" << std::endl;
+        printStackTrace(exceptionPointers->ContextRecord);
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
 
 // ----------------------------------------------------------------------------
 /**
@@ -79,53 +159,32 @@ class Event
   public:
     void set()
     {
-        std::cout << "-------- Setting event " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = true;
         _cond.notify_all();
-        std::cout << "-------- Done setting event " << this << " from thread " << GET_TID << std::endl;
     }
 
     void wait()
     {
-        std::cout << "-------- Waiting for event " << this << " from thread " << GET_TID << std::endl;
-        // Before taking the lock, print some information on the state of the lock
-        if (_mutex.try_lock()) {
-            std::cout << "-------- Lock is available for event " << this << " from thread " << GET_TID << std::endl;
-            _mutex.unlock();
-        } else {
-            std::cout << "-------- Lock is NOT available for event " << this << " from thread " << GET_TID << std::endl;
-        }
         std::unique_lock<std::mutex> lock(_mutex);
-        std::cout << "-------- Took a lock for event " << this << " from thread " << GET_TID << std::endl;
         _cond.wait(lock, [this]() { return _set; });
-        std::cout << "-------- Done waiting for event " << this << " from thread " << GET_TID << std::endl;
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
-        std::cout << "-------- Waiting for event with timeout " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
-        auto ret = _cond.wait_for(lock, timeout, [this]() { return _set; });
-        std::cout << "-------- Done waiting for event with timeout " << this << " from thread " << GET_TID << std::endl;
-        return ret;
+        return _cond.wait_for(lock, timeout, [this]() { return _set; });
     }
 
     void clear()
     {
-        std::cout << "-------- Clearing event " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
         _set = false;
-        std::cout << "-------- Done clearing event " << this << " from thread " << GET_TID << std::endl;
     }
-
-    // Destructor and constructor
-    Event() { std::cout << "-------- Creating event " << this << " from thread " << GET_TID << std::endl; }
-    ~Event() { std::cout << "-------- Destroying event " << this << " from thread " << GET_TID << std::endl; }
 
   private:
     std::condition_variable _cond;
-    std::mutex _mutex = {};
+    std::mutex _mutex;
     bool _set = false;
 };
 
@@ -551,6 +610,11 @@ static struct PyModuleDef threadsmodule = {
 PyMODINIT_FUNC
 PyInit__threads(void)
 {
+
+// Only set the exception filter on Windows
+#ifdef _WIN32
+    SetUnhandledExceptionFilter(exceptionFilter);
+#endif
     PyObject* m = NULL;
 
     if (PyType_Ready(&PeriodicThreadType) < 0)
