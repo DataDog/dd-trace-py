@@ -52,7 +52,12 @@ from ddtrace.propagation.http import HTTPPropagator
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {"bedrock": "botocore", "openai": "openai", "langchain": "langchain"}
+SUPPORTED_LLMOBS_INTEGRATIONS = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+}
 
 
 class LLMObs(Service):

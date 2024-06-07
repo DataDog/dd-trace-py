@@ -32,6 +32,7 @@ PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
 
+ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 
@@ -67,6 +68,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "bedrock"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
+            elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
+                llmobs_integration = "anthropic"
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
@@ -92,9 +95,9 @@ class LangChainIntegration(BaseLLMIntegration):
             or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
         )
 
-        if temperature is not None:
+        if temperature is not None and temperature != "None":
             metadata["temperature"] = float(temperature)
-        if max_tokens is not None:
+        if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if metadata:
             span.set_tag_str(METADATA, json.dumps(metadata))
