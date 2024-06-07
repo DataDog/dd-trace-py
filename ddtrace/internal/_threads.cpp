@@ -12,11 +12,11 @@
 #include <mutex>
 #include <thread>
 
+#ifdef _WIN32
 #include <dbghelp.h>
 #include <iostream>
 #include <windows.h>
 
-#ifdef _WIN32
 #pragma comment(lib, "DbgHelp.lib")
 
 void
