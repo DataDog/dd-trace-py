@@ -1,3 +1,4 @@
+import mock
 import pytest
 
 from ddtrace import config
@@ -327,17 +328,18 @@ def test_rate_limiter_on_spans(tracer):
 
 def test_rate_limiter_on_long_running_spans(tracer):
     """
-    Ensure that the rate limiter is applied correctly to long spans
+    Ensure that the rate limiter is applied on increasing time intervals
     """
     tracer.configure(sampler=DatadogSampler(rate_limit=5))
 
-    span_m30 = tracer.trace(name="march 30")
-    span_m30.start = 1622347257  # Mar 30 2021
-    span_m30.finish(1617333414)  # April 2 2021
+    with mock.patch("ddtrace.internal.rate_limiter.compat.monotonic_ns", return_value=1617333414):
+        span_m30 = tracer.trace(name="march 30")
+        span_m30.start = 1622347257  # Mar 30 2021
+        span_m30.finish(1617333414)  # April 2 2021
 
-    span_m29 = tracer.trace(name="march 29")
-    span_m29.start = 1616999414  # Mar 29 2021
-    span_m29.finish(1617333414)  # April 2 2021
+        span_m29 = tracer.trace(name="march 29")
+        span_m29.start = 1616999414  # Mar 29 2021
+        span_m29.finish(1617333414)  # April 2 2021
 
     assert span_m29.context.sampling_priority > 0
     assert span_m30.context.sampling_priority > 0

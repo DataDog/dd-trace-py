@@ -30,7 +30,7 @@ class RateLimiter(_RateLimiter):
             )
         # rate limits are tested and mocked in pytest so we need to compute the timestamp here
         # (or move the unit tests to rust)
-        return self._is_allowed(compat.monotonic_ns())  # type: ignore[attr-defined]
+        return self._is_allowed(compat.monotonic_ns())
 
 
 class RateLimitExceeded(Exception):
