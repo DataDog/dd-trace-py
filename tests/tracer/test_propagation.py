@@ -12,6 +12,9 @@ from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -312,7 +315,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         headers = {
             "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": "2",
+            "x-datadog-sampling-priority": str(USER_KEEP),
             "x-datadog-origin": "synthetics",
             "x-datadog-tags": "_dd.p.test=value,any=tag",
             "ot-baggage-key1": "value1",
@@ -344,8 +347,8 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         assert "x-datadog-sampling-priority" not in next_headers
 
         # Span priority was unset, but as we keep 1 per min, it should be kept
-        # Since we have a rate limiter, priorities used are UserKeep and UserDrop
-        assert span._metrics["_sampling_priority_v1"] == 2
+        # Since we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
@@ -378,7 +381,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(t
         assert "x-datadog-sampling-priority" not in next_headers
 
         # Ensure span is dropped (no appsec event upstream or in this span)
-        assert span._metrics["_sampling_priority_v1"] == -1
+        assert span._metrics["_sampling_priority_v1"] == USER_REJECT
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
@@ -409,10 +412,10 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
         assert next_headers["x-datadog-trace-id"] != "1234"
         assert next_headers["x-datadog-parent-id"] != "5678"
-        assert next_headers["x-datadog-sampling-priority"] == "2"
+        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
 
-        # Ensure span is manual keep
-        assert span._metrics["_sampling_priority_v1"] == 2
+        # Ensure span is user keep
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
@@ -429,7 +432,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         headers = {
             "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": "2",
+            "x-datadog-sampling-priority": str(USER_KEEP),
             "x-datadog-origin": "synthetics",
             "x-datadog-tags": "_dd.p.test=value,any=tag",
             "ot-baggage-key1": "value1",
@@ -460,8 +463,8 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         assert "x-datadog-sampling-priority" not in next_headers
 
         # Priority was unset, and trace is not kept, so it should be dropped
-        # As we have a rate limiter, priorities used are UserKeep and UserDrop
-        assert span._metrics["_sampling_priority_v1"] == -1
+        # As we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
+        assert span._metrics["_sampling_priority_v1"] == USER_REJECT
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
@@ -478,7 +481,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         headers = {
             "x-datadog-trace-id": "1234",
             "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": "0",
+            "x-datadog-sampling-priority": str(AUTO_REJECT),
             "x-datadog-origin": "synthetics",
             "x-datadog-tags": "_dd.p.test=value,any=tag",
             "ot-baggage-key1": "value1",
@@ -492,7 +495,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
             _asm_manual_keep(span)
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            assert span.context.sampling_priority == 2
+            assert span.context.sampling_priority == USER_KEEP
             assert span.context.dd_origin == "synthetics"
             assert "_dd.p.appsec" in span.context._meta
             assert span.context._meta["_dd.p.appsec"] == "1"
@@ -502,20 +505,22 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         HTTPPropagator.inject(span.context, next_headers)
 
         # Ensure propagation of headers is not reset and adds appsec tag
-        assert next_headers["x-datadog-sampling-priority"] == "2"
+        assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
         assert next_headers["x-datadog-trace-id"] == "1234"
         assert "_dd.p.test=value" in next_headers["x-datadog-tags"]
         assert "_dd.p.appsec=1" in next_headers["x-datadog-tags"]
 
         # Ensure span has force-keep priority now
-        assert span._metrics["_sampling_priority_v1"] == 2
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
-def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_honored(tracer, upstream_priority):  # noqa: F811
+def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
+    tracer, upstream_priority  # noqa: F811
+):
     tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
     try:
         with tracer.trace("local_root_span0"):
@@ -538,7 +543,8 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_honored(t
         with tracer.trace("local_root_span") as span:
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            assert span.context.sampling_priority == int(upstream_priority)
+            # Enforced user keep regardless of upstream priority
+            assert span.context.sampling_priority == USER_KEEP
             assert span.context.dd_origin == "synthetics"
             assert span.context._meta == {
                 "_dd.origin": "synthetics",
@@ -548,7 +554,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_honored(t
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == 1234
                 assert child_span.parent_id != 5678
-                assert child_span.context.sampling_priority == int(upstream_priority)
+                assert child_span.context.sampling_priority == USER_KEEP
                 assert child_span.context.dd_origin == "synthetics"
                 assert child_span.context._meta == {
                     "_dd.origin": "synthetics",
@@ -559,12 +565,12 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_honored(t
             next_headers = {}
             HTTPPropagator.inject(span.context, next_headers)
             assert next_headers["x-datadog-origin"] == "synthetics"
-            assert next_headers["x-datadog-sampling-priority"] == upstream_priority
+            assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
             assert next_headers["x-datadog-trace-id"] == "1234"
             assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
 
-        # Ensure span keeps received priority (appsec event upstream)
-        assert span._metrics["_sampling_priority_v1"] == int(upstream_priority)
+        # Ensure span sets user keep regardless of received priority (appsec event upstream)
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
@@ -597,7 +603,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             _asm_manual_keep(span)
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            assert span.context.sampling_priority == 2  # force keep always
+            assert span.context.sampling_priority == USER_KEEP  # user keep always
             assert span.context.dd_origin == "synthetics"
             assert span.context._meta == {
                 "_dd.origin": "synthetics",
@@ -607,7 +613,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == 1234
                 assert child_span.parent_id != 5678
-                assert child_span.context.sampling_priority == 2  # force keep always
+                assert child_span.context.sampling_priority == USER_KEEP  # user keep always
                 assert child_span.context.dd_origin == "synthetics"
                 assert child_span.context._meta == {
                     "_dd.origin": "synthetics",
@@ -618,12 +624,12 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             next_headers = {}
             HTTPPropagator.inject(span.context, next_headers)
             assert next_headers["x-datadog-origin"] == "synthetics"
-            assert next_headers["x-datadog-sampling-priority"] == "2"  # force keep always
+            assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)  # user keep always
             assert next_headers["x-datadog-trace-id"] == "1234"
             assert next_headers["x-datadog-tags"].startswith("_dd.p.appsec=1,")
 
-        # Ensure span keeps received priority (appsec event upstream)
-        assert span._metrics["_sampling_priority_v1"] == 2  # force keep always
+        # Ensure span set to user keep regardless received priority (appsec event upstream)
+        assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
 
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
