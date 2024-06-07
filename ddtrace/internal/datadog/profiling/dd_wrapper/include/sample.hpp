@@ -66,6 +66,7 @@ class Sample
     bool push_trace_resource_container(std::string_view trace_resource_container);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
+    bool push_monotonic_ns(int64_t monotonic_ns);
 
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name,     // for ddog_prof_Function
@@ -73,8 +74,6 @@ class Sample
                     uint64_t address,          // for ddog_prof_Location
                     int64_t line               // for ddog_prof_Location
     );
-
-    void push_monotonic_ns(int64_t monotonic_ns);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

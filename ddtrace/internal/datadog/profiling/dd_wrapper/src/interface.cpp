@@ -109,7 +109,7 @@ ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
 void
 ddup_config_timeline_enabled(bool enabled) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_timeline_enabled(enabled);
+    Datadog::SampleManager::set_timeline_enabled(enabled);
 }
 
 bool

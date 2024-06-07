@@ -318,8 +318,8 @@ Datadog::Sample::push_class_name(std::string_view class_name)
     return true;
 }
 
-void
-Sample::push_monotonic_ns(int64_t _monotonic_ns)
+bool
+Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
     // Monotonic times have their epoch at the system start, so they need an
     // adjustment to the standard epoch
@@ -343,6 +343,8 @@ Sample::push_monotonic_ns(int64_t _monotonic_ns)
     if (timeline_enabled) {
       endtime_ns = _monotonic_ns + offset;
     }
+
+    return true;
 }
 
 ddog_prof_Profile&
