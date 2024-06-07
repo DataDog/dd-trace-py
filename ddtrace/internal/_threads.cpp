@@ -12,6 +12,8 @@
 #include <mutex>
 #include <thread>
 
+#define GET_TID std::this_thread::get_id()
+
 #ifdef _WIN32
 #include <dbghelp.h>
 #include <iostream>
