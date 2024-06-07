@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    core: This fix resolves an issue where the native periodic thread implementation was not linked with multithreading support on Windows, which could cause segmentation faults.
