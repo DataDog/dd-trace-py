@@ -768,9 +768,10 @@ class TelemetryWriter(PeriodicService):
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
+        # DEV: Disable first to prevent periodic being called from the PeriodicService loop
+        self.disable()
         self._app_closing_event()
         self.periodic(force_flush=True)
-        self.disable()
 
     def reset_queues(self):
         # type: () -> None
