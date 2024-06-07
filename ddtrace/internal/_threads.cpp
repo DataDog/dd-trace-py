@@ -16,8 +16,8 @@
 
 // clang-format off
 #ifdef _WIN32
-#include <dbghelp.h>
 #include <windows.h>
+#include <dbghelp.h>
 #include <iostream>
 #include <cstring>
 
