@@ -35,7 +35,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     // (although this is underspecified in the standard)
     timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-        auto now_ns = static_cast<int64_t>(ts.tv_sec) * 1000000000LL + static_cast<int64_t>(ts.tv_nsec);
+        auto now_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
         ddup_push_monotonic_ns(sample, now_ns);
     }
 
