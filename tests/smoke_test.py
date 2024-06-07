@@ -2,8 +2,8 @@ import os
 from platform import system
 import sys
 
-import ddtrace.bootstrap.sitecustomize as module
 import ddtrace.appsec._ddwaf
+import ddtrace.bootstrap.sitecustomize as module
 
 
 def mac_supported_iast_version():

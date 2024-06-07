@@ -23,12 +23,22 @@
 
 #pragma comment(lib, "DbgHelp.lib")
 
+void initializeSymbolHandler() {
+    HANDLE process = GetCurrentProcess();
+
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+
+    if (!SymInitialize(process, NULL, TRUE)) {
+        std::cerr << "Failed to initialize symbol handler. Error: " << GetLastError() << std::endl;
+        return;
+    }
+}
+
 void
 printStackTrace(CONTEXT* context)
 {
     HANDLE process = GetCurrentProcess();
     HANDLE thread = GetCurrentThread();
-    SymInitialize(process, NULL, TRUE);
 
     STACKFRAME64 stackFrame;
     memset(&stackFrame, 0, sizeof(STACKFRAME64));
@@ -61,33 +71,39 @@ printStackTrace(CONTEXT* context)
 
         // Try to print the module
         DWORD64 moduleBase = SymGetModuleBase64(process, address);
-        char moduleFileName[MAX_PATH];
-        if (moduleBase && GetModuleFileNameA((HMODULE)moduleBase, moduleFileName, MAX_PATH)) {
-            std::cout << "Module: " << moduleFileName << std::endl;
+        if (moduleBase) {
+            char moduleFileName[MAX_PATH];
+            if (GetModuleFileNameA((HMODULE)moduleBase, moduleFileName, MAX_PATH)) {
+                std::cout << "Module: " << moduleFileName << std::endl;
+            } else {
+                std::cerr << "Failed to get module file name. Error: " << GetLastError() << std::endl;
+            }
         } else {
-            std::cout << "Module: Unknown" << std::endl;
+            std::cerr << "Failed to get module base address. Error: " << GetLastError() << std::endl;
         }
 
         BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-        PSYMBOL_INFO symbol = reinterpret_cast<PSYMBOL_INFO>(symbolBuffer);
+        PSYMBOL_INFO symbol = (PSYMBOL_INFO)symbolBuffer;
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         symbol->MaxNameLen = MAX_SYM_NAME;
 
-        if (SymFromAddr(process, address, NULL, symbol)) {
-            std::cout << symbol->Name << std::endl;
-        } else {
-            std::cout << "Unknown function" << std::endl;
-        }
+        DWORD64 displacement = 0;
+        if (SymFromAddr(process, address, &displacement, symbol)) {
+            std::cout << "Function: " << symbol->Name << " - Address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
 
-        DWORD displacement;
-        IMAGEHLP_LINE64 line;
-        line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
-        if (SymGetLineFromAddr64(process, address, &displacement, &line)) {
-            std::cout << line.FileName << ":" << line.LineNumber << std::endl;
+            // Get line number info
+            IMAGEHLP_LINE64 line;
+            DWORD displacementLine;
+            if (SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
+                std::cout << "File: " << line.FileName << " - Line: " << line.LineNumber << std::endl;
+            } else {
+                std::cerr << "Failed to get line number. Error: " << GetLastError() << std::endl;
+                std::cout << "Unknown file" << std::endl;
+            }
         } else {
-            std::cout << "Unknown file" << std::endl;
+            std::cerr << "Failed to get symbol from address. Error: " << GetLastError() << std::endl;
+            std::cout << "Unknown function at address: 0x" << std::hex << address << std::dec << std::endl;
         }
-
         std::cout << std::endl;
     }
 
@@ -645,6 +661,7 @@ PyInit__threads(void)
 
 // Only set the exception filter on Windows
 #ifdef _WIN32
+    initializeSymbolHandler();
     SetUnhandledExceptionFilter(exceptionFilter);
 #endif
     PyObject* m = NULL;
