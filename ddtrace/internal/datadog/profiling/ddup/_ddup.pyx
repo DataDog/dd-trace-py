@@ -159,8 +159,8 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
-    if timeline_enabled:
-        ddup_config_timeline_enabled(timeline_enabled)
+    if timeline_enabled == True:
+        ddup_config_timeline_enabled(True)
     ddup_init()
 
 

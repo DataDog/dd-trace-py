@@ -173,7 +173,7 @@ class ProfilingConfig(En):
     timeline_enabled = En.v(
         bool,
         "timeline_enabled",
-        default=True,
+        default=False,
         help_type="Boolean",
         help="Whether to add timestamp information to captured samples.  Adds a small amount of "
         "overhead to the profiler, but enables the use of the Timeline view in the UI.",
