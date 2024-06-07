@@ -89,7 +89,7 @@ LONG WINAPI
 exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
 {
     if (exceptionPointers->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
-        std::cout << "Access violation detected!" << std::endl;
+        std::cout << "Access violation detected at address " << exceptionPointers->ExceptionRecord->ExceptionInformation[1] << " from thread " << GET_TID << std::endl;
         printStackTrace(exceptionPointers->ContextRecord);
         return EXCEPTION_EXECUTE_HANDLER;
     }
