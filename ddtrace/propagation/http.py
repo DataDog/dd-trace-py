@@ -351,10 +351,10 @@ class _DatadogMultiHeader:
                 meta = validate_sampling_decision(meta)
 
             # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
-            # are propagated. If the tag is not present, we should not create a context,
-            # forcing propagation to reset here (stop previous propagation, start new propagation).
+            # are propagated downstream, however we need 1 trace per minute sent to the backend, so
+            # we unset sampling priority so the rate limiter decides.
             if asm_config._appsec_standalone_enabled and (not meta or APPSEC.PROPAGATION_HEADER not in meta):
-                sampling_priority = 1  # type: ignore[assignment]
+                sampling_priority = None
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead

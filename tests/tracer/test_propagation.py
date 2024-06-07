@@ -326,8 +326,8 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
             # First span should be kept, as we keep 1 per min
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            # Priority is set to auto-keep
-            assert span.context.sampling_priority == 1
+            # Priority is unset
+            assert span.context.sampling_priority is None
             assert span.context.dd_origin == "synthetics"
             assert "_dd.p.test" in span.context._meta
             assert "_dd.p.appsec" not in span.context._meta
@@ -342,8 +342,6 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(t
         assert "x-datadog-parent-id" not in next_headers
         assert "x-datadog-sampling-priority" not in next_headers
 
-        # Ensure span priority is set to auto-keep
-        assert span._metrics["_sampling_priority_v1"] == 1
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
@@ -439,8 +437,8 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         with tracer.trace("local_root_span") as span:
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            # Priority is set to auto-keep
-            assert span.context.sampling_priority == 1
+            # Priority is unset
+            assert span.context.sampling_priority is None
             assert span.context.dd_origin == "synthetics"
             assert "_dd.p.test" in span.context._meta
             assert "_dd.p.appsec" not in span.context._meta
@@ -455,8 +453,6 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         assert "x-datadog-parent-id" not in next_headers
         assert "x-datadog-sampling-priority" not in next_headers
 
-        # Priority is set to auto-keep
-        assert span._metrics["_sampling_priority_v1"] == 1
     finally:
         tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
