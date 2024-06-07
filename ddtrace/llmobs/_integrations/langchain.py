@@ -32,6 +32,7 @@ PROVIDER = "langchain.request.provider"
 TOTAL_COST = "langchain.tokens.total_cost"
 TYPE = "langchain.request.type"
 
+ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 
@@ -67,6 +68,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "bedrock"
             elif model_provider.startswith(OPENAI_PROVIDER_NAME):
                 llmobs_integration = "openai"
+            elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
+                llmobs_integration = "anthropic"
 
             is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
 
