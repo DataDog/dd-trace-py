@@ -14,10 +14,12 @@
 
 #define GET_TID std::this_thread::get_id()
 
+// clang-format off
 #ifdef _WIN32
 #include <dbghelp.h>
-#include <iostream>
 #include <windows.h>
+#include <iostream>
+#include <cstring>
 
 #pragma comment(lib, "DbgHelp.lib")
 
@@ -95,6 +97,7 @@ exceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 #endif
+// clang-format on
 
 // ----------------------------------------------------------------------------
 /**
