@@ -164,28 +164,39 @@ class Event
   public:
     void set()
     {
+        std::cout << "-------- [SET] start " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
+        std::cout << "-------- [SET] mtx " << this << " from thread " << GET_TID << std::endl;
         _set = true;
         _cond.notify_all();
     }
 
     void wait()
     {
+        std::cout << "-------- [WAIT] start " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
+        std::cout << "-------- [WAIT] mtx " << this << " from thread " << GET_TID << std::endl;
         _cond.wait(lock, [this]() { return _set; });
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
+        std::cout << "-------- [WAITT] start " << this << " from thread " << GET_TID << std::endl;
         std::unique_lock<std::mutex> lock(_mutex);
+        std::cout << "-------- [WAITT] mtx " << this << " from thread " << GET_TID << std::endl;
         return _cond.wait_for(lock, timeout, [this]() { return _set; });
     }
 
     void clear()
     {
+        std::cout << "-------- [CLEAR] start " << this << " from thread " << GET_TID << std::endl;
         std::lock_guard<std::mutex> lock(_mutex);
+        std::cout << "-------- [CLEAR] mtx " << this << " from thread " << GET_TID << std::endl;
         _set = false;
     }
+
+    Event() { std::cout << "-------- [CONST] " << this << " from thread " << GET_TID << std::endl; }
+    ~Event() { std::cout << "-------- [DEST] " << this << " from thread " << GET_TID << std::endl; }
 
   private:
     std::condition_variable _cond;
