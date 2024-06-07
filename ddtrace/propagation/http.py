@@ -321,12 +321,6 @@ class _DatadogMultiHeader:
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
 
-        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
-        # are propagated. If the tag is not present, we should not create a context,
-        # forcing propagation to reset here (stop previous propagation, start new propagation).
-        if asm_config._appsec_standalone_enabled and (not meta or APPSEC.PROPAGATION_HEADER not in meta):
-            return None
-
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
         # Here we reconstruct the full 128 bit trace_id if 128-bit trace id generation is enabled.
@@ -355,6 +349,12 @@ class _DatadogMultiHeader:
 
             if meta:
                 meta = validate_sampling_decision(meta)
+
+            # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+            # are propagated. If the tag is not present, we should not create a context,
+            # forcing propagation to reset here (stop previous propagation, start new propagation).
+            if asm_config._appsec_standalone_enabled and (not meta or APPSEC.PROPAGATION_HEADER not in meta):
+                sampling_priority = 1  # type: ignore[assignment]
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
