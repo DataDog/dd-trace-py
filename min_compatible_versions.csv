@@ -23,12 +23,11 @@ async_generator,~=1.10
 asyncpg,~=0.22.0
 asynctest,==0.13.0
 attrs,>=20
-austin-python,~=1.0
 blinker,0
 boto3,0
 botocore,~=1.13
 bottle,>=0.12
-bytecode,0
+bytecode,>=0.13.0
 cassandra-driver,~=3.24.0
 cattrs,<23.1.1
 celery,~=4.4
@@ -62,7 +61,7 @@ elasticsearch7,~=7.13.0
 elasticsearch7[async],0
 elasticsearch8,~=8.0.1
 elasticsearch[async],0
-envier,==0.5.1
+envier,~=0.5
 exceptiongroup,0
 falcon,~=3.0
 fastapi,~=0.64.0
@@ -74,7 +73,7 @@ googleapis-common-protos,0
 graphene,~=3.0.0
 graphql-core,~=3.2.0
 graphql-relay,0
-greenlet,~=1.0
+greenlet,~=1.0.0
 grpcio,~=1.34.0
 gunicorn,==20.0.4
 gunicorn[gevent],0
@@ -86,7 +85,7 @@ importlib-metadata,0
 importlib_metadata,<5.0
 itsdangerous,<2.0
 jinja2,~=2.11.0
-kombu,>=4.2.0
+kombu,~=4.4
 langchain,==0.0.192
 langchain-aws,0
 langchain-community,==0.0.14
@@ -116,7 +115,7 @@ openai[datalib],==1.30.1
 opensearch-py,0
 opensearch-py[async],0
 opensearch-py[requests],~=1.1.0
-opentelemetry-api,~=1.0.0
+opentelemetry-api,>=1
 opentelemetry-instrumentation-flask,<=0.37b0
 opentracing,>=2.0.0
 peewee,0
@@ -140,7 +139,7 @@ pyramid,~=1.10
 pysqlite3-binary,0
 pytest,~=4.0
 pytest-aiohttp,0
-pytest-asyncio,==0.21.1
+pytest-asyncio,~=0.21.1
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
@@ -153,13 +152,10 @@ python-json-logger,==2.0.7
 python-memcached,0
 redis,~=2.0
 redis-py-cluster,>=2.0
-reno,0
 requests,~=2.20.0
 requests-mock,>=1.4
 responses,~=0.16.0
-rich,0
 rq,~=1.8.0
-ruamel.yaml,0
 sanic,~=20.12
 sanic-testing,~=0.8.3
 scikit-learn,==1.0.2
