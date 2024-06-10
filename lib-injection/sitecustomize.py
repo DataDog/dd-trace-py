@@ -65,7 +65,7 @@ def build_installed_pkgs():
                 installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
             except ImportError:
                 pass
-    return installed_packages
+    return {key.lower(): value for key, value in installed_packages}
 
 
 def build_min_pkgs():
@@ -157,7 +157,7 @@ def runtime_version_is_supported(python_runtime, python_version):
 
 def package_is_compatible(package_name, package_version):
     installed_version = parse_version(package_version)
-    supported_version_spec = PKGS_ALLOW_LIST.get(package_name, Version((0,), ""))
+    supported_version_spec = PKGS_ALLOW_LIST.get(package_name.lower(), Version((0,), ""))
     if supported_version_spec.constraint in ("<", "<="):
         return True  # minimum "less than" means there is no minimum
     return installed_version.version >= supported_version_spec.version
