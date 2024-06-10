@@ -20,10 +20,30 @@ DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
     }
 }
 
-Datadog::Uploader::Uploader(std::string_view _url, ddog_prof_Exporter* _ddog_exporter)
-  : url{ _url }
-  , ddog_exporter{ _ddog_exporter }
+Datadog::Uploader::Uploader(ddog_prof_Exporter* _ddog_exporter, std::string_view _runtime_id, uint64_t _upload_seq)
+  : ddog_exporter{ _ddog_exporter }
+  , runtime_id{ _runtime_id }
+  , upload_seq{ _upload_seq }
 {
+}
+
+bool
+Datadog::Uploader::pprof_to_disk(ddog_prof_Profile& profile, int dirfd)
+{
+    // Serialize the profile
+    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
+    if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
+        errmsg = err_to_msg(&err, "Error serializing pprof");
+        ddog_Error_drop(&err);
+        return false;
+    }
+    ddog_prof_EncodedProfile *encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+
+    // Create the filename
+    (void)dirfd;
+    (void)encoded;
+    return true;
 }
 
 bool
@@ -34,11 +54,10 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error serializing pprof");
-        std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
         return false;
     }
-    ddog_prof_EncodedProfile* encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    ddog_prof_EncodedProfile *encoded = &result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
     // If we have any custom tags, set them now
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
