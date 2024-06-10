@@ -311,7 +311,6 @@ PACKAGES = [
     ),
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
-    PackageForTesting("pillow", "10.3.0", "", "", "", test_e2e=False, import_name="PIL.Image"),
     PackageForTesting(
         "platformdirs", "4.2.2", "", "", "", test_e2e=False, import_module_to_validate="platformdirs.unix"
     ),
@@ -467,6 +466,16 @@ PACKAGES = [
         "",
         "We're in Python 3",
         "",
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
+    PackageForTesting(
+        "pillow",
+        "10.3.0",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_name="PIL.Image",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
     PackageForTesting(
