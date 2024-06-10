@@ -206,7 +206,6 @@ def _inject():
                             [
                                 "integration_name:" + key,
                                 "integration_version:" + value,
-                                "min_supported_version:" + str(PKGS_ALLOW_LIST[key]),
                             ],
                         )
                     )
