@@ -44,7 +44,7 @@ INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
-VERSION_COMPAT_FILE = "../datadog-lib/min_compatible_versions.csv"
+VERSION_COMPAT_FILE = "min_compatible_versions.csv"
 
 
 def build_installed_pkgs():
