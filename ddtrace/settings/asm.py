@@ -107,6 +107,7 @@ class ASMConfig(Env):
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
+        "_appsec_standalone_enabled",
         "_iast_enabled",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
