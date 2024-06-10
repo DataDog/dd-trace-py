@@ -1,6 +1,0 @@
----
-features:
-  - |
-    langchain: This introduces support for ``langchain==0.2.0`` by conditionally patching the 
-    ``langchain-community`` module if available, which is an optional dependency for ``langchain>=0.2.0``.
-    See the langchain integration :ref: `docs<langchain>` for more details.
