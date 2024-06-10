@@ -1,9 +1,8 @@
 interactions:
 - request:
-    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
-      "text": "Hello, I am looking for information about some books!"}, {"type": "text",
-      "text": "What is the best selling book?"}]}], "model": "claude-3-opus-20240229",
-      "system": "Respond only in all caps.", "temperature": 0.8}'
+    body: '{"max_tokens": 15, "messages": [{"role": "user", "content": "When do you
+      use ''whom'' instead of ''who''?"}], "model": "claude-3-opus-20240229", "temperature":
+      0.0}'
     headers:
       accept:
       - application/json
@@ -14,7 +13,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '300'
+      - '160'
       content-type:
       - application/json
       host:
@@ -40,16 +39,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0yOYUuEQBiE/8oyn1fw9ipovyXZZWdKKBFUiOnbIemud+8ueMj99/DooE8DM88M
-        M6NroTHwrgpXZfTinqJvNWz3X69vPBXHbJPdQMIdR1ooYq53BImD7RejZu7Y1cZBYrAt9dBo+tq3
-        FKwDO3oOVKiuQqVuIdFY48g46Pf5MuhoWqpn0SgfYxHFRRkUcZom2UZEeb4V+YO4S1NRJs+xSArx
-        gfs8w+lTgp0dqwPVbM3yrZ4qZ3/IMP4ipr0n0xC08X0v4c/f9YzOjN5dYL1WEta7/9bq+nT6BQAA
-        //8DAMSYrqgZAQAA
+        H4sIAAAAAAAAA0xPTUvDQBT8K8ucN5Ck9tA9ijePpVhrJWySZ7ua7It5b7US8t8lxYKngfliZkJo
+        4dDLqcqL/W7PtDrUu3r73H4/HOL9Zl08wkJ/BlpcJOJPBIuRu4XwIkHUR4VFzy11cGg6n1rKVhkP
+        SbIyL+/ystzAouGoFBXuZboVKl2W6BUcjng6c3+ECWKSUGu8GD2T4fqdGjX8Zrz5orE2PJphpIEl
+        aOCI+dVClIdqJC8cl6H+Uil/UBT8SUKfiWJDcDF1nUW6HnETQhyS3syuLC046X+qWM/zLwAAAP//
+        AwCVZ1cpJgEAAA==
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88f16344983e1861-EWR
+      - 88f280bf1ca11811-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -57,7 +56,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Wed, 05 Jun 2024 16:02:36 GMT
+      - Wed, 05 Jun 2024 19:17:30 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -67,19 +66,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-05T16:02:57Z'
+      - '2024-06-05T19:17:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-05T16:02:57Z'
+      - '2024-06-05T19:17:57Z'
       request-id:
-      - req_01Bd7D9NJM29LYXW5VTm99rv
+      - req_01Wtyi2DFVCLRToeZc2tHttk
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 07d6532b3235336a58f4f8d0baffd032
+      - fc184fcf99f97f1199b087e4ddc2aee5
     status:
       code: 200
       message: OK
