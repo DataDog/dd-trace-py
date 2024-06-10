@@ -203,7 +203,40 @@ class _ProfilerInstance(service.Service):
             endpoint_call_counter_span_processor.enable()
 
         if self._export_libdd_enabled:
-            ddup.init(
+            try:
+                ddup.init(
+                    env=self.env,
+                    service=self.service,
+                    version=self.version,
+                    tags=self.tags,  # type: ignore
+                    max_nframes=config.max_frames,
+                    url=endpoint,
+                    timeline_enabled=config.timeline_enabled,
+                )
+                return []
+            except Exception as e:
+                LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
+                self._export_libdd_enabled = False
+                config.export.libdd_enabled = False
+
+                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
+                # collector.
+                if self._export_libdd_required:
+                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
+                    config.enabled = False
+                    config.export.libdd_required = False
+                    config.lock.enabled = False
+                    config.memory.enabled = False
+                    config.stack.enabled = False
+                    return []
+
+        # DEV: Import this only if needed to avoid importing protobuf
+        # unnecessarily
+        from ddtrace.profiling.exporter import http
+
+        return [
+            http.PprofHTTPExporter(
+                service=self.service,
                 env=self.env,
                 service=self.service,
                 version=self.version,
