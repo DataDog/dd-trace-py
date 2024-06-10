@@ -18,6 +18,13 @@ This includes:
 - ``langchain.embeddings.openai.OpenAIEmbeddings.embed_documents`` with ``langchain_openai.OpenAIEmbeddings.embed_documents``
 - ``langchain.vectorstores.pinecone.Pinecone.similarity_search`` with ``langchain_pinecone.PineconeVectorStore.similarity_search``
 
+**Note**: For ``langchain>=0.2.0``, this integration does not patch ``langchain-community`` if it is not available, as ``langchain-community``
+is no longer a required dependency of ``langchain>=0.2.0``. This means that this integration will not trace the following:
+
+- Embedding calls made using ``langchain_community.embeddings.*``
+- Vectorstore similarity search calls made using ``langchain_community.vectorstores.*``
+- Total cost metrics for OpenAI requests
+
 
 Metrics
 ~~~~~~~
