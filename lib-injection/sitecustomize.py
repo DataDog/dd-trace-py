@@ -65,7 +65,7 @@ def build_installed_pkgs():
                 installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
             except ImportError:
                 pass
-    return {key.lower(): value for key, value in installed_packages}
+    return {key.lower(): value for key, value in installed_packages.items()}
 
 
 def build_min_pkgs():
