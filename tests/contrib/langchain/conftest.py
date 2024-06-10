@@ -10,6 +10,7 @@ from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -79,25 +80,25 @@ def mock_llmobs_span_writer():
 
 @pytest.fixture
 def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
-    with override_config("langchain", ddtrace_config_langchain):
-        with override_env(
-            dict(
-                OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-                COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-                ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-                AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
-                _DD_API_KEY="<not-a-real-key>",
-            )
-        ):
-            patch(langchain=True)
-            import langchain
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        with override_config("langchain", ddtrace_config_langchain):
+            with override_env(
+                dict(
+                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+                    COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+                    HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+                    AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+                )
+            ):
+                patch(langchain=True)
+                import langchain
 
-            mock_logs.reset_mock()
-            mock_metrics.reset_mock()
+                mock_logs.reset_mock()
+                mock_metrics.reset_mock()
 
-            yield langchain
-            unpatch()
+                yield langchain
+                unpatch()
 
 
 @pytest.fixture
