@@ -24,7 +24,11 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_wrapped(langchain.chains.base.Chain.__call__)
             self.assert_wrapped(langchain.chains.base.Chain.acall)
         else:
-            import langchain_community as gated_langchain
+            try:
+                import langchain_community as gated_langchain
+            except ImportError:
+                gated_langchain = None
+
             import langchain_core
             import langchain_openai
             import langchain_pinecone
@@ -42,6 +46,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
 
+        if not gated_langchain:
+            return
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
             if embedding_model:
@@ -67,9 +73,13 @@ class TestLangchainPatch(PatchTestCase.Base):
         else:
             from langchain import chains  # noqa: F401
             from langchain.chains import base  # noqa: F401
-            import langchain_community as gated_langchain
-            from langchain_community import embeddings  # noqa: F401
-            from langchain_community import vectorstores  # noqa: F401
+
+            try:
+                from langchain_community import embeddings  # noqa: F401
+                from langchain_community import vectorstores  # noqa: F401
+                import langchain_community as gated_langchain  # noqa: F401
+            except ImportError:
+                gated_langchain = None
             import langchain_core
             import langchain_openai
             import langchain_pinecone
@@ -87,6 +97,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
 
+        if not gated_langchain:
+            return
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
             if embedding_model:
@@ -108,7 +120,11 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(langchain.chains.base.Chain.acall)
         else:
             from langchain.chains import base  # noqa: F401
-            import langchain_community as gated_langchain
+
+            try:
+                import langchain_community as gated_langchain
+            except ImportError:
+                gated_langchain = None
             import langchain_core
             import langchain_openai
             import langchain_pinecone
@@ -126,6 +142,8 @@ class TestLangchainPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(langchain_openai.OpenAIEmbeddings.embed_documents)
             self.assert_not_double_wrapped(langchain_pinecone.PineconeVectorStore.similarity_search)
 
+        if not gated_langchain:
+            return
         for text_embedding_model in text_embedding_models:
             embedding_model = getattr(gated_langchain.embeddings, text_embedding_model, None)
             if embedding_model:

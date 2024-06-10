@@ -170,7 +170,7 @@ def test_cohere_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
+def test_huggingfacehub_llm_sync(langchain, request_vcr):
     llm = langchain.llms.HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
         model_kwargs={"temperature": 0.5, "max_length": 256},
@@ -181,7 +181,7 @@ def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
-def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
+def test_ai21_llm_sync(langchain, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "ai21_completion_sync.yaml"
@@ -465,13 +465,13 @@ def test_openai_embedding_document(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_query(langchain, langchain_community):
+def test_fake_embedding_query(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_document(langchain, langchain_community):
+def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
 
@@ -808,7 +808,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
-def test_chat_prompt_template_does_not_parse_template(langchain, langchain_community, mock_tracer):
+def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     """
     Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
     as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
@@ -1158,7 +1158,8 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func", side_effect=Exception("Mocked Error"),
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
             embeddings = langchain.embeddings.OpenAIEmbeddings()

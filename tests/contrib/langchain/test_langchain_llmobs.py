@@ -339,6 +339,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
         _assert_expected_llmobs_llm_span(span, mock_llmobs_span_writer)
 
     def test_llmobs_cohere_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
         span = self._invoke_llm(
             llm=langchain_community.llms.Cohere(model="cohere.command-light-text-v14"),
             prompt="What is the secret Krabby Patty recipe?",
@@ -350,6 +352,8 @@ class TestLLMObsLangchainCommunity(BaseTestLLMObsLangchain):
 
     @pytest.mark.skipif(sys.version_info < (3, 10, 0), reason="Requires unnecessary cassette file for Python 3.9")
     def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer):
+        if langchain_community is None:
+            pytest.skip("langchain-community not installed which is required for this test.")
         span = self._invoke_llm(
             llm=langchain_community.llms.AI21(),
             prompt="Why does everyone in Bikini Bottom hate Plankton?",
@@ -630,7 +634,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_with_llm_model_bedrock_enabled(self):
         from langchain.chains import ConversationChain
         from langchain.memory import ConversationBufferMemory
-        from langchain_community.llms import Bedrock
+
+        try:
+            from langchain_community.llms import Bedrock
+        except (ImportError, ModuleNotFoundError):
+            self.skipTest("langchain-community not installed which is required for this test.")
 
         patch(langchain=True, botocore=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
@@ -641,7 +649,11 @@ class TestLangchainTraceStructureWithLlmIntegrations(SubprocessTestCase):
     def test_llmobs_with_llm_model_bedrock_disabled(self):
         from langchain.chains import ConversationChain
         from langchain.memory import ConversationBufferMemory
-        from langchain_community.llms import Bedrock
+
+        try:
+            from langchain_community.llms import Bedrock
+        except (ImportError, ModuleNotFoundError):
+            self.skipTest("langchain-community not installed which is required for this test.")
 
         patch(langchain=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False, agentless_enabled=True)
