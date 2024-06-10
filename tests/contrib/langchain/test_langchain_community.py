@@ -176,7 +176,7 @@ def test_openai_llm_metrics(
         any_order=True,
     )
     if langchain_community:
-        mock_metrics.increment.called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
+        mock_metrics.increment.assert_called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
     mock_logs.assert_not_called()
 
 
@@ -351,7 +351,7 @@ def test_chat_model_metrics(
         any_order=True,
     )
     if langchain_community:
-        mock_metrics.increment.called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
+        mock_metrics.increment.assert_called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
     mock_logs.assert_not_called()
 
 
