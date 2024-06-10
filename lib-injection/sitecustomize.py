@@ -44,7 +44,7 @@ INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
-VERSION_COMPAT_FILE = "min_compatible_versions.csv"
+VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
 
 
 def build_installed_pkgs():
@@ -70,13 +70,14 @@ def build_installed_pkgs():
 
 def build_min_pkgs():
     min_pkgs = dict()
-    if os.path.exists(VERSION_COMPAT_FILE):
-        with open(VERSION_COMPAT_FILE, "r") as csvfile:
-            csv_reader = csv.reader(csvfile, delimiter=",")
-            for idx, row in enumerate(csv_reader):
-                if idx < 2:
-                    continue
-                min_pkgs[row[0]] = parse_version(row[1])
+    for location in VERSION_COMPAT_FILE_LOCATIONS:
+        if os.path.exists(location):
+            with open(location, "r") as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=",")
+                for idx, row in enumerate(csv_reader):
+                    if idx < 2:
+                        continue
+                    min_pkgs[row[0]] = parse_version(row[1])
     return min_pkgs
 
 
