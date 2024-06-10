@@ -21,7 +21,7 @@ extern "C"
     void ddup_config_profiler_version(std::string_view profiler_version);
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
-    void ddup_config_timeline_enabled(bool enabled);
+    void ddup_config_timeline(bool enable);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);

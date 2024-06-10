@@ -25,6 +25,12 @@ class Sample
     SampleType type_mask;
     std::string errmsg;
 
+    // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
+    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching around
+    // the frontend code too much, we push enablement down to whether or not timestamps get added to samples
+    // (a 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
+    static inline bool timeline_enabled = false;
+
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
@@ -37,7 +43,6 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    bool timeline_enabled = false;
     int64_t endtime_ns = 0; // end of the event
 
   public:
@@ -68,6 +73,10 @@ class Sample
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);
 
+    // Interacts with static Sample state
+    bool is_timeline_enabled() const;
+    static void set_timeline(bool enabled);
+
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name,     // for ddog_prof_Function
                     std::string_view filename, // for ddog_prof_Function
@@ -82,7 +91,7 @@ class Sample
     static void profile_release();
     static void profile_clear_state();
     static void postfork_child();
-    Sample(SampleType _type_mask, unsigned int _max_nframes, bool _timeline_enabled);
+    Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     // friend class SampleManager;
     friend class SampleManager;

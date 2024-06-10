@@ -3,10 +3,9 @@
 #include <chrono>
 #include <thread>
 
-Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes, bool _timeline_enabled)
+Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
   : max_nframes{ _max_nframes }
   , type_mask{ _type_mask }
-  , timeline_enabled{ _timeline_enabled }
 {
     // Initialize values
     values.resize(profile_state.get_sample_type_length());
@@ -340,11 +339,23 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
     }();
 
     // If timeline is not enabled, then this is a no-op
-    if (timeline_enabled) {
-      endtime_ns = _monotonic_ns + offset;
+    if (is_timeline_enabled()) {
+        endtime_ns = _monotonic_ns + offset;
     }
 
     return true;
+}
+
+void
+Datadog::Sample::set_timeline(bool enabled)
+{
+    timeline_enabled = enabled;
+}
+
+bool
+Datadog::Sample::is_timeline_enabled() const
+{
+    return timeline_enabled;
 }
 
 ddog_prof_Profile&

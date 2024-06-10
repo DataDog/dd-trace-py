@@ -40,7 +40,7 @@ cdef extern from "interface.hpp":
     void ddup_config_profiler_version(string_view profiler_version)
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
-    void ddup_config_timeline_enabled(bint enabled)
+    void ddup_config_timeline(bint enable)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -160,7 +160,7 @@ def init(
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
     if timeline_enabled == True:
-        ddup_config_timeline_enabled(True)
+        ddup_config_timeline(True)
     ddup_init()
 
 
