@@ -217,6 +217,7 @@ class _ProfilerInstance(service.Service):
                     tags=self.tags,  # type: ignore
                     max_nframes=config.max_frames,
                     url=endpoint,
+                    timeline_enabled=config.timeline_enabled,
                 )
                 return []
             except Exception as e:
