@@ -149,6 +149,7 @@ def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
+@flaky(1735812000)
 def test_openai_llm_metrics(
     langchain, langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
 ):
@@ -244,6 +245,7 @@ def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vc
         )
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
@@ -487,6 +489,7 @@ def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr,
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     """
@@ -498,6 +501,7 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
         chain.invoke("what is two raised to the fifty-fourth power?")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
     ignores=["metrics.langchain.tokens.total_cost"],
@@ -547,6 +551,7 @@ def test_cohere_math_chain_sync(langchain, langchain_cohere, request_vcr):
         chain.invoke("what is thirteen raised to the .3432 power?")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
     """
@@ -600,6 +605,7 @@ def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
         sequential_chain.invoke({"text": input_text, "style": "a 90s rapper"})
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
@@ -679,6 +685,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langch
         await sequential_chain.ainvoke({"input_text": input_text})
 
 
+@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -1125,6 +1132,7 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
         chain.invoke({"input": "how can langsmith help with testing?"})
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
