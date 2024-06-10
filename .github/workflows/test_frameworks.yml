@@ -189,6 +189,8 @@ jobs:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
       DD_IAST_ENABLED: ${{ matrix.iast }}
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
+      DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled  # To avoid a couple failures due to the extra query
+      DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false  # To avoid a couple failures due to the extra query
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
       DD_DEBUGGER_EXPL_PROFILER_ENABLED: ${{ matrix.expl_profiler }}
