@@ -77,7 +77,7 @@ def build_min_pkgs():
                 for idx, row in enumerate(csv_reader):
                     if idx < 2:
                         continue
-                    min_pkgs[row[0]] = parse_version(row[1])
+                    min_pkgs[row[0].lower()] = parse_version(row[1])
             break
     return min_pkgs
 
