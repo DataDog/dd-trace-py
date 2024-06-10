@@ -29,7 +29,7 @@ def parse_version(version: str) -> Tuple:
 
 
 RUNTIMES_ALLOW_LIST = {
-    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.12")},
+    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in (
@@ -44,28 +44,39 @@ INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
+VERSION_COMPAT_FILE = "../datadog-lib/min_compatible_versions.csv"
 
 
 def build_installed_pkgs():
+    installed_packages = {}
     if sys.version_info >= (3, 8):
         from importlib import metadata as importlib_metadata
 
         installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
     else:
-        import pkg_resources
+        try:
+            import pkg_resources
 
-        installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+        except ImportError:
+            try:
+                import importlib_metadata
+
+                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+            except ImportError:
+                pass
     return installed_packages
 
 
 def build_min_pkgs():
     min_pkgs = dict()
-    with open("../datadog-lib/min_compatible_versions.csv", "r") as csvfile:
-        csv_reader = csv.reader(csvfile, delimiter=",")
-        for idx, row in enumerate(csv_reader):
-            if idx < 2:
-                continue
-            min_pkgs[row[0]] = parse_version(row[1])
+    if os.path.exists(VERSION_COMPAT_FILE):
+        with open(VERSION_COMPAT_FILE, "r") as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=",")
+            for idx, row in enumerate(csv_reader):
+                if idx < 2:
+                    continue
+                min_pkgs[row[0]] = parse_version(row[1])
     return min_pkgs
 
 
@@ -138,7 +149,7 @@ def runtime_version_is_supported(python_runtime, python_version):
     if not supported_versions:
         return False
     return (
-        supported_versions["min"].version <= parse_version(python_version).version <= supported_versions["max"].version
+        supported_versions["min"].version <= parse_version(python_version).version < supported_versions["max"].version
     )
 
 
