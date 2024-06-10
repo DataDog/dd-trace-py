@@ -47,7 +47,7 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     # Is one click available?
     _asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
-    _asm_static_rule_file = Env.var(str, APPSEC.RULE_FILE, default=None)
+    _asm_static_rule_file = Env.var(str, APPSEC.RULE_FILE, default="")
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
