@@ -31,7 +31,7 @@ impl RateLimiter {
         }
     }
 
-    pub fn is_allowed(&mut self, timestamp_ns: f64) -> bool {
+    pub fn _is_allowed(&mut self, timestamp_ns: f64) -> bool {
         let mut _lock = self._lock.lock().unwrap();
 
         let allowed = (|| -> bool {
@@ -43,7 +43,11 @@ impl RateLimiter {
             }
 
             if self.tokens < self.max_tokens {
-                let elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
+                let mut elapsed: f64 = (timestamp_ns - self.last_update_ns) / self.time_window;
+                if elapsed < 0.0 {
+                    // Note - this should never happen, but if it does, we should reset the elapsed time to avoid negative tokens.
+                    elapsed = 0.0
+                }
                 self.tokens += elapsed * self.max_tokens;
                 if self.tokens > self.max_tokens {
                     self.tokens = self.max_tokens;
@@ -114,8 +118,8 @@ impl RateLimiterPy {
         }
     }
 
-    pub fn is_allowed(&mut self, py: Python<'_>, timestamp_ns: f64) -> bool {
-        py.allow_threads(|| self.rate_limiter.is_allowed(timestamp_ns))
+    pub fn _is_allowed(&mut self, py: Python<'_>, timestamp_ns: f64) -> bool {
+        py.allow_threads(|| self.rate_limiter._is_allowed(timestamp_ns))
     }
 
     #[getter]

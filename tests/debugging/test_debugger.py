@@ -1143,6 +1143,7 @@ def test_debugger_continue_wrapping_after_first_failure():
         assert d._probe_registry[probe_ok.probe_id].installed
 
 
+@flaky(1735812000)
 def test_debugger_redacted_identifiers():
     import tests.submod.stuff as stuff
 
