@@ -8,6 +8,9 @@ from typing import Optional  # noqa:F401
 
 import attr
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 from ..internal import compat
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .core import RateLimiter as _RateLimiter
@@ -17,6 +20,17 @@ class RateLimiter(_RateLimiter):
     @property
     def _has_been_configured(self):
         return self.rate_limit != DEFAULT_SAMPLING_RATE_LIMIT
+
+    def is_allowed(self, timestamp_ns: Optional[int] = None) -> bool:
+        if timestamp_ns is not None:
+            deprecate(
+                "The `timestamp_ns` parameter is deprecated and will be removed in a future version."
+                "Ratelimiter will use the current time.",
+                category=DDTraceDeprecationWarning,
+            )
+        # rate limits are tested and mocked in pytest so we need to compute the timestamp here
+        # (or move the unit tests to rust)
+        return self._is_allowed(compat.monotonic_ns())
 
 
 class RateLimitExceeded(Exception):
