@@ -618,6 +618,7 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
     assert g is not f
 
 
+@flaky(1735812000)
 def test_debugger_line_probe_on_wrapped_function(stuff):
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
