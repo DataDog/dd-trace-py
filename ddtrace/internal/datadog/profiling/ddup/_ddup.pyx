@@ -159,7 +159,7 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
-    if timeline_enabled == True:
+    if timeline_enabled is True:
         ddup_config_timeline(True)
     ddup_init()
 
@@ -289,7 +289,6 @@ cdef class SampleHandle:
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
-
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
