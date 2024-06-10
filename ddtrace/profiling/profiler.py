@@ -24,6 +24,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
+from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
@@ -117,6 +118,7 @@ class _ProfilerInstance(service.Service):
     _memory_collector_enabled = attr.ib(type=bool, default=config.memory.enabled)
     _stack_collector_enabled = attr.ib(type=bool, default=config.stack.enabled)
     _lock_collector_enabled = attr.ib(type=bool, default=config.lock.enabled)
+    _pytorch_collector_enabled = attr.ib(type=bool, default=config.pytorch.enabled)
     enable_code_provenance = attr.ib(type=bool, default=config.code_provenance)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
 
@@ -128,7 +130,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-    _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -174,13 +175,11 @@ class _ProfilerInstance(service.Service):
         # Did the user request the libdd collector?  Better log it.
         if self._export_libdd_enabled:
             LOG.debug("The libdd collector is enabled")
-        if self._export_libdd_required:
-            LOG.debug("The libdd collector is required")
 
         # Build the list of enabled Profiling features and send along as a tag
         configured_features = []
         if self._stack_collector_enabled:
-            if config.stack.v2.enabled:
+            if config.stack.v2_enabled:
                 configured_features.append("stack_v2")
             else:
                 configured_features.append("stack")
@@ -190,13 +189,12 @@ class _ProfilerInstance(service.Service):
             configured_features.append("mem")
         if config.heap.sample_size > 0:
             configured_features.append("heap")
-
+        if self._pytorch_collector_enabled:
+            configured_features.append("pytorch")
         if self._export_libdd_enabled:
             configured_features.append("exp_dd")
         else:
             configured_features.append("exp_py")
-        if self._export_libdd_required:
-            configured_features.append("req_dd")
         configured_features.append("CAP" + str(config.capture_pct))
         configured_features.append("MAXF" + str(config.max_frames))
         self.tags.update({"profiler_config": "_".join(configured_features)})
@@ -207,9 +205,19 @@ class _ProfilerInstance(service.Service):
 
         # If libdd is enabled, then
         # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
-        # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
             try:
+                enabled_types = [""] + [
+                    collector
+                    for collector, enabled in [
+                        ("stack", self._stack_collector_enabled),
+                        ("lock", self._lock_collector_enabled),
+                        ("memory", self._memory_collector_enabled),
+                        ("pytorch", self._pytorch_collector_enabled),
+                    ]
+                    if enabled
+                ]
+
                 ddup.init(
                     env=self.env,
                     service=self.service,
@@ -217,23 +225,20 @@ class _ProfilerInstance(service.Service):
                     tags=self.tags,  # type: ignore
                     max_nframes=config.max_frames,
                     url=endpoint,
+                    types=enabled_types,
                 )
                 return []
             except Exception as e:
+                # If we're here, then the libdatadog upload failed to initialize.  This means we need to disable any
+                # of the features that rely on it.
                 LOG.error("Failed to initialize libdd collector (%s), falling back to the legacy collector", e)
                 self._export_libdd_enabled = False
                 config.export.libdd_enabled = False
 
-                # If we're here and libdd was required, then there's nothing else to do.  We don't have a
-                # collector.
-                if self._export_libdd_required:
-                    LOG.error("libdd collector is required but could not be initialized. Disabling profiling.")
-                    config.enabled = False
-                    config.export.libdd_required = False
-                    config.lock.enabled = False
-                    config.memory.enabled = False
-                    config.stack.enabled = False
-                    return []
+                # Now disable any other features
+                config.stack.v2_enabled = False
+                config.pytorch.enabled = False
+                self._pytorch_collector_enabled = False
 
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
@@ -311,6 +316,33 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
+
+        if self._pytorch_collector_enabled:
+
+            def start_collector(collector_class: Type) -> None:
+                with self._service_lock:
+                    col = collector_class(r, tracer=self.tracer)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                            LOG.debug("Started pytorch collector %r", col)
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
+
+            self._collectors_on_import = [
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]
 
             for module, hook in self._collectors_on_import:

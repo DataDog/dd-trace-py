@@ -3,6 +3,7 @@
 
 import platform
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -16,6 +17,19 @@ from ddtrace._trace.span import Span
 
 StringType = Union[str, bytes, None]
 
+cdef extern from "types.hpp":
+    cdef enum SampleType:
+        Invalid = 0
+        CPU = 1 << 0
+        Wall = 1 << 1
+        ExceptionType = 1 << 2
+        LockAcquire = 1 << 3
+        LockRelease = 1 << 4
+        Allocation = 1 << 5
+        Heap = 1 << 6
+        GPUTime = 1 << 7
+        GPUMemory = 1 << 8
+        GPUFlops = 1 << 9
 
 cdef extern from "stdint.h":
     ctypedef unsigned long long uint64_t
@@ -53,6 +67,9 @@ cdef extern from "interface.hpp":
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
     void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
+    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -63,7 +80,9 @@ cdef extern from "interface.hpp":
     void ddup_push_trace_resource_container(Sample *sample, string_view trace_resource_container)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
+    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
+    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
@@ -123,14 +142,36 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
+# Module lookups
+cdef dict enum_values = {
+    "invalid": Invalid,
+    "stack": CPU + Wall + ExceptionType,
+    "memory": Allocation + Heap,
+    "lock": LockAcquire + LockRelease,
+    "pytorch": GPUTime + GPUMemory + GPUFlops,
+}
+
+
 # Public API
+def get_types(types: Union[str, List[str], None]) -> int:
+    if types is None:
+        return Invalid
+    if isinstance(types, str):
+        return enum_values[types]
+    if isinstance(types, list):
+        return sum(enum_values[t] for t in types)
+    raise ValueError("Invalid types value")
+
+
 def init(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None) -> None:
+        url: StringType = None,
+        types: Union[str, List[str], None] = None,
+) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -156,6 +197,17 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+
+    # Now configure the sample types
+    type_mask = CPU | Wall | ExceptionType | LockAcquire | LockRelease | Allocation | Heap
+    if types:
+        try:
+            type_mask = get_types(types)
+        except Exception:
+            pass
+    ddup_config_sample_type(type_mask)
+
+    # Initialize the uploader
     ddup_init()
 
 
@@ -200,6 +252,18 @@ cdef class SampleHandle:
     def push_heap(self, value: int) -> None:
         if self.ptr is not NULL:
             ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+
+    def push_gpu_gputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_memory(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_flops(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -261,6 +325,11 @@ cdef class SampleHandle:
             class_name_bytes = ensure_binary_or_empty(class_name)
             ddup_push_class_name(self.ptr, string_view(<const char*>class_name_bytes, len(class_name_bytes)))
 
+    def push_gpu_device_name(self, device_name: StringType) -> None:
+        if self.ptr is not NULL:
+            device_name_bytes = ensure_binary_or_empty(device_name)
+            ddup_push_gpu_device_name(self.ptr, string_view(<const char*>device_name_bytes, len(device_name_bytes)))
+
     def push_span(self, span: Optional[Span], endpoint_collection_enabled: bool) -> None:
         if self.ptr is NULL:
             return
@@ -281,6 +350,10 @@ cdef class SampleHandle:
                     self.ptr,
                     string_view(<const char*>root_service_bytes, len(root_service_bytes))
             )
+
+    def push_monotonic_ns(self, value: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_monotonic_ns(self.ptr, clamp_to_int64_unsigned(value))
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

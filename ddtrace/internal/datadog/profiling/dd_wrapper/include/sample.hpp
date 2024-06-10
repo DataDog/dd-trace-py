@@ -36,6 +36,9 @@ class Sample
     // Storage for values
     std::vector<int64_t> values = {};
 
+    // Additional metadata
+    int64_t endtime_ns = 0; // end time for the event
+
   public:
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
@@ -44,12 +47,15 @@ class Sample
     void clear_buffers();
 
     // Add values
-    bool push_walltime(int64_t walltime, int64_t count);
-    bool push_cputime(int64_t cputime, int64_t count);
+    bool push_walltime(int64_t time, int64_t count);
+    bool push_cputime(int64_t time, int64_t count);
     bool push_acquire(int64_t acquire_time, int64_t count);
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size);
+    bool push_gpu_gputime(int64_t time, int64_t count);
+    bool push_gpu_memory(int64_t size, int64_t count);
+    bool push_gpu_flops(int64_t flops, int64_t count);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);
@@ -63,12 +69,17 @@ class Sample
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_class_name(std::string_view class_name);
 
+    // Pytorch GPU metadata
+    bool push_gpu_device_name(std::string_view device_name);
+
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name,     // for ddog_prof_Function
                     std::string_view filename, // for ddog_prof_Function
                     uint64_t address,          // for ddog_prof_Location
                     int64_t line               // for ddog_prof_Location
     );
+
+    void push_monotonic_ns(int64_t monotonic_ns);
 
     // Flushes the current buffer, clearing it
     bool flush_sample();

@@ -76,6 +76,6 @@ class Profile
     const ValueIndex& val();
 
     // collect
-    bool collect(const ddog_prof_Sample& sample);
+    bool collect(const ddog_prof_Sample& sample, int64_t endtime_ns);
 };
 } // namespace Datadog

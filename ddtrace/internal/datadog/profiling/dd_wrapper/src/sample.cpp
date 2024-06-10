@@ -1,5 +1,6 @@
 #include "sample.hpp"
 
+#include <chrono>
 #include <thread>
 
 Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
@@ -117,18 +118,16 @@ Datadog::Sample::flush_sample()
         .labels = { labels.data(), labels.size() },
     };
 
-    const bool ret = profile_state.collect(sample);
+    const bool ret = profile_state.collect(sample, endtime_ns);
     clear_buffers();
     return ret;
 }
 
 bool
-Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
+Datadog::Sample::push_cputime(int64_t time, int64_t count)
 {
-    // NB all push-type operations return bool for semantic uniformity,
-    // even if they can't error.  This should promote generic code.
     if (0U != (type_mask & SampleType::CPU)) {
-        values[profile_state.val().cpu_time] += cputime * count;
+        values[profile_state.val().cpu_time] += time * count;
         values[profile_state.val().cpu_count] += count;
         return true;
     }
@@ -137,10 +136,10 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 }
 
 bool
-Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
+Datadog::Sample::push_walltime(int64_t time, int64_t count)
 {
     if (0U != (type_mask & SampleType::Wall)) {
-        values[profile_state.val().wall_time] += walltime * count;
+        values[profile_state.val().wall_time] += time * count;
         values[profile_state.val().wall_count] += count;
         return true;
     }
@@ -214,6 +213,42 @@ Datadog::Sample::push_heap(int64_t size)
         return true;
     }
     std::cout << "bad push heap" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUTime)) {
+        values[profile_state.val().gpu_time] += time * count;
+        values[profile_state.val().gpu_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUMemory)) {
+        values[profile_state.val().gpu_alloc_space] += size * count;
+        values[profile_state.val().gpu_alloc_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu memory" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUFlops)) {
+        values[profile_state.val().gpu_flops] += size * count;
+        values[profile_state.val().gpu_flops_samples] += count;
+        return true;
+    }
+    std::cout << "bad push gpu flops" << std::endl;
     return false;
 }
 
@@ -314,6 +349,39 @@ Datadog::Sample::push_class_name(std::string_view class_name)
         return false;
     }
     return true;
+}
+
+bool
+Datadog::Sample::push_gpu_device_name(std::string_view device_name)
+{
+    if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+void
+Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
+{
+    // Monotonic times have their epoch at the system start, so they need an
+    // adjustment to the standard epoch
+    // Just set a static for now and use a lambda to compute the offset once
+    const static auto offset = []() {
+        // Get the current epoch time
+        using namespace std::chrono;
+        auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
+
+        // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
+        // which clock is actually used in std::chrono
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+
+        // Compute the difference.  We're after 1970, so epoch_ns will be larger
+        return epoch_ns - monotonic_ns;
+    }();
+    endtime_ns = _monotonic_ns + offset;
 }
 
 ddog_prof_Profile&
