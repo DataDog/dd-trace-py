@@ -75,9 +75,9 @@ class TestLangchainPatch(PatchTestCase.Base):
             from langchain.chains import base  # noqa: F401
 
             try:
+                import langchain_community as gated_langchain
                 from langchain_community import embeddings  # noqa: F401
                 from langchain_community import vectorstores  # noqa: F401
-                import langchain_community as gated_langchain  # noqa: F401
             except ImportError:
                 gated_langchain = None
             import langchain_core

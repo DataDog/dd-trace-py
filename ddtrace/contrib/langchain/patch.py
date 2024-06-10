@@ -8,6 +8,7 @@ from typing import Union
 import langchain
 from pydantic import SecretStr
 
+
 try:
     import langchain_core
 except ImportError:
@@ -132,19 +133,19 @@ def _tag_openai_token_usage(
         metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
         span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
     total_cost = span.get_metric(TOTAL_COST) or 0
+    if not propagate and get_openai_token_cost_for_model:
+        try:
+            completion_cost = get_openai_token_cost_for_model(
+                span.get_tag(MODEL),
+                span.get_metric(COMPLETION_TOKENS),
+                is_completion=True,
+            )
+            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
+            total_cost = completion_cost + prompt_cost
+        except ValueError:
+            # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
+            log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
     if get_openai_token_cost_for_model:
-        if not propagate:
-            try:
-                completion_cost = get_openai_token_cost_for_model(
-                    span.get_tag(MODEL),
-                    span.get_metric(COMPLETION_TOKENS),
-                    is_completion=True,
-                )
-                prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
-                total_cost = completion_cost + prompt_cost
-            except ValueError:
-                # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
-                log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
         span.set_metric(TOTAL_COST, propagated_cost + total_cost)
     if span._parent is not None:
         _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
