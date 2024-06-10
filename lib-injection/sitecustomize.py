@@ -98,7 +98,6 @@ def gen_telemetry_payload(telemetry_events):
             "language_version": PYTHON_VERSION,
             "runtime_name": PYTHON_RUNTIME,
             "runtime_version": PYTHON_VERSION,
-            "tracer_name": "python",
             "tracer_version": INSTALLED_PACKAGES.get("ddtrace", "unknown"),
             "pid": os.getpid(),
         },
