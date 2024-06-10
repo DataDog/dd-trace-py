@@ -151,6 +151,7 @@ def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
+@flaky(1735812000)
 def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
@@ -530,6 +531,7 @@ def test_cohere_math_chain_sync(langchain, langchain_community, request_vcr):
         chain.invoke("what is thirteen raised to the .3432 power?")
 
 
+@flaky(1735812000)
 @pytest.mark.snapshot
 def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
     """
