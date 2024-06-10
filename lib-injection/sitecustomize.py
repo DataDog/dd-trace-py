@@ -78,6 +78,7 @@ def build_min_pkgs():
                     if idx < 2:
                         continue
                     min_pkgs[row[0]] = parse_version(row[1])
+            break
     return min_pkgs
 
 
