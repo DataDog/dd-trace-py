@@ -59,6 +59,7 @@ class PackageForTesting:
             self.expected_result2 = expected_result2
 
         self.extra_packages = extras if extras else []
+        print("JJJ self.extra_packages: ", self.extra_packages)
 
         if import_name:
             self.import_name = import_name
@@ -310,8 +311,7 @@ PACKAGES = [
     ),
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
-    # TODO: Test import fails with AttributeError: 'FormattedValue' object has no attribute 'values'
-    # PackageForTesting("pillow", "10.3.0", "", "", "", test_e2e=False, import_name="PIL.Image"),
+    PackageForTesting("pillow", "10.3.0", "", "", "", test_e2e=False, import_name="PIL.Image"),
     PackageForTesting(
         "platformdirs", "4.2.2", "", "", "", test_e2e=False, import_module_to_validate="platformdirs.unix"
     ),
@@ -402,14 +402,10 @@ PACKAGES = [
         "",
         test_import=False,
     ),
-    PackageForTesting("six", "1.16.0", "", "We're in Python 3", ""),
-    # TODO: Test import fails with AttributeError: 'FormattedValue' object has no attribute 'values'
-    # PackageForTesting("soupsieve", "2.5", "", "", "", test_e2e=False,
-    # import_module_to_validate="soupsieve.css_match"),
     PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False, import_module_to_validate="tomli._parser"),
     PackageForTesting("tomlkit", "0.12.5", "", "", "", test_e2e=False, import_module_to_validate="tomlkit.items"),
     PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
-    # Python 3.8 and 3.9 fial with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
+    # Python 3.8 and 3.9 fail with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
     PackageForTesting(
         "urllib3",
         "2.1.0",
@@ -423,6 +419,17 @@ PACKAGES = [
     ),
     # These show an issue in astunparse ("FormattedValue has no attribute values")
     # so we use ast.unparse which is only 3.9
+    PackageForTesting(
+        "soupsieve",
+        "2.5",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_module_to_validate="soupsieve.css_match",
+        extras=[("beautifulsoup4", "4.12.3")],
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
     PackageForTesting(
         "werkzeug",
         "3.0.3",
@@ -452,6 +459,14 @@ PACKAGES = [
         "",
         import_name="typing_extensions",
         test_e2e=False,
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
+    PackageForTesting(
+        "six",
+        "1.16.0",
+        "",
+        "We're in Python 3",
+        "",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
     PackageForTesting(
@@ -612,13 +627,13 @@ def test_packages_not_patched_import(package, venv):
     cmdlist = [venv, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_name]
 
     # 1. Try with the specified version
-    package.install(venv, install_extra=False)
+    package.install(venv)
     result = subprocess.run(cmdlist, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout
     package.uninstall(venv)
 
     # 2. Try with the latest version
-    package.install_latest(venv, install_extra=False)
+    package.install_latest(venv)
     result = subprocess.run(cmdlist, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout
 
@@ -641,12 +656,12 @@ def test_packages_patched_import(package, venv):
 
     with override_env({IAST_ENV: "true"}):
         # 1. Try with the specified version
-        package.install(venv, install_extra=False)
+        package.install(venv)
         result = subprocess.run(cmdlist, capture_output=True, text=True)
         assert result.returncode == 0, result.stdout
         package.uninstall(venv)
 
         # 2. Try with the latest version
-        package.install_latest(venv, install_extra=False)
+        package.install_latest(venv)
         result = subprocess.run(cmdlist, capture_output=True, text=True)
         assert result.returncode == 0, result.stdout
