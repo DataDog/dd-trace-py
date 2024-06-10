@@ -1,4 +1,4 @@
 ---
 other:
   - |
-    docs: We removed the deprecated sqlparse dependency.
+    Removes the deprecated sqlparse dependency.
