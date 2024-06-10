@@ -26,9 +26,9 @@ class Sample
     std::string errmsg;
 
     // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
-    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching around
-    // the frontend code too much, we push enablement down to whether or not timestamps get added to samples
-    // (a 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
+    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching
+    // around the frontend code too much, we push enablement down to whether or not timestamps get added to samples (a
+    // 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
     static inline bool timeline_enabled = false;
 
     // Keeps temporary buffer of frames in the stack
