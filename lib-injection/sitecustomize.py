@@ -204,7 +204,7 @@ def _inject():
                         create_count_metric(
                             "library_entrypoint.abort.integration",
                             [
-                                "integration_name:" + key,
+                                "integration:" + key,
                                 "integration_version:" + value,
                             ],
                         )
