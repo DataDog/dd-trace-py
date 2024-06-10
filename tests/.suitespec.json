@@ -73,7 +73,8 @@
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
-            "ddtrace/settings/config.py"
+            "ddtrace/settings/config.py",
+            "src/core/*"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -247,6 +248,9 @@
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
+        ],
+        "anthropic": [
+            "ddtrace/contrib/anthropic/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*"
@@ -475,6 +479,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
+            "@llmobs",
             "@serverless",
             "@remoteconfig",
             "tests/tracer/*",
@@ -1379,6 +1384,17 @@
             "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "anthropic": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@anthropic",
+            "@requests",
+            "@llmobs",
+            "tests/contrib/anthropic/*",
+            "tests/snapshots/tests.contrib.anthropic.*"
         ],
         "runtime": [
             "@core",
