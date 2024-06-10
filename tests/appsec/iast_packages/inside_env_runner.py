@@ -34,8 +34,8 @@ def try_unpatched(module_name):
 def try_patched(module_name):
     try:
         module, patched_module = _iast_patched_module_and_patched_source(module_name)
-        assert module, "Module is None after patching"
-        assert patched_module, "Patched source is None after patching"
+        assert module, "Module is None after patching: Maybe not an error, but something fishy is going on"
+        assert patched_module, "Patched source is None after patching: Maybe not an error, but something fishy is going on"
         new_code = unparse(patched_module)
         assert (
             "import ddtrace.appsec._iast.taint_sinks as ddtrace_taint_sinks"
