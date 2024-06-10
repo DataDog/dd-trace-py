@@ -12,6 +12,7 @@ to be run at specific points during pytest execution. The most important hooks u
 
 """
 import os
+from pathlib import Path
 from typing import Dict  # noqa:F401
 
 import pytest
@@ -38,8 +39,9 @@ def _is_enabled_early(early_config):
 
     if (
         "--no-ddtrace" in early_config.invocation_params.args
-        or early_config.getini("ddtrace") is False
         or early_config.getini("no-ddtrace")
+        or "ddtrace" in early_config.inicfg
+        and early_config.getini("ddtrace") is False
     ):
         return False
 
@@ -105,10 +107,18 @@ def pytest_load_initial_conftests(early_config, parser, args):
         COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
 
         if USE_DD_COVERAGE:
+            from ddtrace.ext.git import extract_workspace_path
             from ddtrace.internal.coverage.code import ModuleCodeCollector
+            from ddtrace.internal.coverage.installer import install
 
-            if not ModuleCodeCollector.is_installed():
-                ModuleCodeCollector.install()
+            try:
+                workspace_path = Path(extract_workspace_path())
+            except ValueError:
+                workspace_path = Path(os.getcwd())
+
+            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+
+            install(include_paths=[workspace_path])
             if COVER_SESSION:
                 ModuleCodeCollector.start_coverage()
         else:

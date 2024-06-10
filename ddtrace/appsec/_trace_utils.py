@@ -27,6 +27,10 @@ def _asm_manual_keep(span: Span) -> None:
     # set decision maker to ASM = -5
     span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.APPSEC)
 
+    # set Security propagation tag
+    span.set_tag_str(APPSEC.PROPAGATION_HEADER, "1")
+    span.context._meta[APPSEC.PROPAGATION_HEADER] = "1"
+
 
 def _track_user_login_common(
     tracer: Tracer,
@@ -342,7 +346,18 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
 
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
-            track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode)
+            exists = info_retriever.user_exists()
+            if exists:
+                user_id, user_extra = info_retriever.get_user_info()
+                track_user_login_failure_event(
+                    pin.tracer,
+                    user_id=user_id,
+                    login_events_mode=mode,
+                    exists=True,
+                    **user_extra,
+                )
+            else:
+                track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists)
 
     return False, None
 
