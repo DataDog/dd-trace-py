@@ -374,7 +374,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
-            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            allowed = self._rate_limiter.is_allowed()
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return waf_results
