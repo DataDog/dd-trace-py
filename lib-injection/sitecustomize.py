@@ -244,7 +244,9 @@ def _inject():
             send_telemetry(telemetry_event)
             return
 
-        site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (PYTHON_VERSION, current_platform))
+        site_pkgs_path = os.path.join(
+            pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
+        )
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
