@@ -1,4 +1,0 @@
----
-other:
-  - |
-    docs: We removed the deprecated sqlparse dependency.
