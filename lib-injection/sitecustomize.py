@@ -168,7 +168,7 @@ def _inject():
     global PKGS_ALLOW_LIST
     INSTALLED_PACKAGES = build_installed_pkgs()
     PYTHON_RUNTIME = platform.python_implementation().lower()
-    PYTHON_VERSION = ".".join(str(i) for i in sys.version_info[:2])
+    PYTHON_VERSION = platform.python_version()
     PKGS_ALLOW_LIST = build_min_pkgs()
     telemetry_data = []
     integration_incomp = False
