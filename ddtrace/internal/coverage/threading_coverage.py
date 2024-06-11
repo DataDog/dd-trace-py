@@ -61,7 +61,7 @@ class CoverageCollectingThread(threading.Thread):
         thread_join(self, *args, **kwargs)
         if self._should_cover:
             thread_coverage = self._coverage_queue.get()
-            ModuleCodeCollector._instance.absorb_data_json(thread_coverage)
+            ModuleCodeCollector.absorb_data_json(thread_coverage)
 
 
 def _patch_threading():

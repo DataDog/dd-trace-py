@@ -485,6 +485,12 @@ class _PytestDDTracePluginV1:
 
             _store_span(session, test_session_span)
 
+            if USE_DD_COVERAGE:
+                session_context_collector = ModuleCodeCollector.CollectInContext()
+                session_context_collector.__enter__()
+                session._dd_coverage_context = session_context_collector
+                print(f"ROMAIN SESSIONSTART {session_context_collector=} {session._dd_coverage_context.get_covered_lines()=}")
+
     @staticmethod
     def pytest_sessionfinish(session, exitstatus):
         if _CIVisibility.enabled:
@@ -502,10 +508,14 @@ class _PytestDDTracePluginV1:
                     _add_pct_covered_to_span(_coverage_data, test_session_span)
                     unpatch_coverage()
                 test_session_span.finish()
+                if hasattr(session, "_dd_coverage_context"):
+                    session._dd_coverage_context.__exit__()
+                    print(f"SESSION COVERAGE:  {session._dd_coverage_context=}  {session._dd_coverage_context.get_covered_lines()}")
             _CIVisibility.disable()
 
     @staticmethod
     def pytest_collection_modifyitems(session, config, items):
+        # print(f"ROMAIN COLLECTION {session._dd_coverage_context} {session._dd_coverage_context.get_covered_lines()=}")
         if _CIVisibility.test_skipping_enabled():
             skip = pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON)
 
@@ -716,6 +726,7 @@ class _PytestDDTracePluginV1:
 
             # Finish coverage for the test suite if coverage is enabled
             if coverage_per_test and _module_has_dd_coverage_enabled(pytest):
+                ModuleCodeCollector.inject_coverage(covered=item.session._dd_coverage_context.get_covered_lines())
                 _report_coverage_to_span(pytest._dd_coverage, span, root_directory, TEST_FRAMEWORKS.PYTEST)
 
             nextitem_pytest_module_item = _find_pytest_item(nextitem, pytest.Module)

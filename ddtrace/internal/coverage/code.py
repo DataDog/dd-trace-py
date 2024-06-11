@@ -102,19 +102,34 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             if line not in ctx_lines:
                 ctx_lines.add(line)
 
-    def absorb_data_json(self, data_json: str):
+    @classmethod
+    def absorb_data_json(cls, data_json: str):
         """Absorb a JSON report of coverage data. This is used to aggregate coverage data from multiple processes.
 
         Absolute paths are expected.
         """
         data = json.loads(data_json)
-        for path, lines in data["lines"].items():
-            self.lines[path] |= set(lines)
-        for path, covered in data["covered"].items():
-            if self._coverage_enabled:
-                self.covered[path] |= set(covered)
-            if ctx_coverage_enabled.get():
-                ctx_covered.get()[path] |= set(covered)
+        cls.inject_coverage(lines=data["lines"], covered=data["covered"])
+
+    @classmethod
+    def inject_coverage(
+        cls, lines: t.Optional[t.Dict[str, t.Set[int]]] = None, covered: t.Optional[t.Dict[str, t.Set[int]]] = None
+    ):
+        """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
+        instance = cls._instance
+
+        if instance is None:
+            return
+
+        if lines:
+            for path, lines in lines.items():
+                instance.lines[path] |= set(lines)
+        if covered:
+            for path, covered in covered.items():
+                if instance._coverage_enabled:
+                    instance.covered[path] |= set(covered)
+                if ctx_coverage_enabled.get():
+                    ctx_covered.get()[path] |= set(covered)
 
     @classmethod
     def report(cls, workspace_path: Path, ignore_nocover: bool = False):
@@ -170,14 +185,17 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     class CollectInContext:
         def __enter__(self):
+            print(f"ROMAIN ENTERING CONTEXT {self=}")
             ctx_covered.set(defaultdict(set))
             ctx_coverage_enabled.set(True)
             return self
 
         def __exit__(self, *args, **kwargs):
+            print(f"ROMAIN EXITING CONTEXT {self=}")
             ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self):
+            print(f"ROMAIN GETTING COVERED LINES {self=} {ctx_covered}")
             return ctx_covered.get()
 
     @classmethod
