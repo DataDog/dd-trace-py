@@ -144,6 +144,63 @@ class TestLLMObsAnthropic:
                 )
             )
 
+    def test_stream_helper(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+        """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
+
+        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            }
+                        ],
+                    },
+                ],
+            ) as stream:
+                for _ in stream.text_stream:
+                    pass
+
+            message = stream.get_final_message()
+            assert message is not None
+
+            message = stream.get_final_text()
+            assert message is not None
+
+            span = mock_tracer.pop_traces()[0][0]
+            assert mock_llmobs_writer.enqueue.call_count == 1
+            mock_llmobs_writer.enqueue.assert_called_with(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name="claude-3-opus-20240229",
+                    model_provider="anthropic",
+                    input_messages=[
+                        {
+                            "content": "Can you explain what Descartes meant by 'I think, therefore I am'?",
+                            "role": "user",
+                        },
+                    ],
+                    output_messages=[
+                        {
+                            "content": 'The famous philosophical statement "I think, therefore I am" (originally in',
+                            "role": "assistant",
+                        }
+                    ],
+                    metadata={"temperature": 0.8, "max_tokens": 15.0},
+                    token_metrics={"prompt_tokens": 27, "completion_tokens": 15, "total_tokens": 42},
+                    tags={"ml_app": "<ml-app-name>"},
+                )
+            )
+
     def test_image(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an image input.
 
