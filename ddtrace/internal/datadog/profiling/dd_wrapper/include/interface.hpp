@@ -21,6 +21,7 @@ extern "C"
     void ddup_config_profiler_version(std::string_view profiler_version);
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
+    void ddup_config_timeline(bool enable);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
@@ -56,6 +57,7 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 

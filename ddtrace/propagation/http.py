@@ -25,6 +25,8 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -230,6 +232,11 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+        # are propagated. If the tag is not present, we should not propagate downstream.
+        if asm_config._appsec_standalone_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+            return
+
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
             # bits should be converted to a base 10 integer.
@@ -342,6 +349,16 @@ class _DatadogMultiHeader:
 
             if meta:
                 meta = validate_sampling_decision(meta)
+
+            if asm_config._appsec_standalone_enabled:
+                # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+                # are propagated downstream, however we need 1 trace per minute sent to the backend, so
+                # we unset sampling priority so the rate limiter decides.
+                if not meta or APPSEC.PROPAGATION_HEADER not in meta:
+                    sampling_priority = None
+                # If the trace has appsec propagation tag, the default priority is user keep
+                elif meta and APPSEC.PROPAGATION_HEADER in meta:
+                    sampling_priority = 2  # type: ignore[assignment]
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
