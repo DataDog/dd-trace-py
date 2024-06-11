@@ -293,7 +293,12 @@ class SpanAggregator(SpanProcessor):
     )
 
     def _on_span_start(self, span: Span) -> None:
-        """This function MUST be called with self._lock held."""
+        """This function MUST be called with self._lock held. If the lock is not held, the span is not processed."""
+        if (config._span_aggregator_rlock and not self._lock._is_owned()) or (
+            not config._span_aggregator_rlock and not self._lock.locked()
+        ):
+            log.warning("_on_span_start() called without holding self._lock while starting span %s", span)
+            return
         trace = self._traces[span.trace_id]
         trace.spans.append(span)
         self._span_metrics["spans_created"][span._span_api] += 1
@@ -335,14 +340,13 @@ class SpanAggregator(SpanProcessor):
                     finished = trace_spans
 
                 num_finished = len(finished)
-                trace.num_finished -= num_finished           
+                trace.num_finished -= num_finished
                 if trace.num_finished != 0:
                     log_msg = f"Finished span count of {num_finished} is not the expected {trace.num_finished}. {span}"
                     if config._telemetry_enabled:
                         telemetry.telemetry_writer.add_log("WARNING", log_msg)
                     log.warning(log_msg)
                     trace.num_finished = 0
-
 
                 # If we have removed all spans from this trace, then delete the trace from the traces dict
                 if len(trace.spans) == 0:

@@ -1,3 +1,4 @@
+import threading
 from typing import Any  # noqa:F401
 
 import attr
@@ -762,3 +763,33 @@ class TestSpanProcessor(TracerTestCase):
         assert spans[0].trace_id == span1.trace_id
         assert spans[1].name == "regression2"
         assert spans[1].trace_id == span2.trace_id
+
+
+@pytest.mark.parametrize("use_rlock", [True, False])
+def test_span_aggregator__on_span_start_witnout_lock_does_not_add_span(use_rlock):
+    """Ensure that SpanAggregator._on_span_start does not add a span if the lock is not acquired"""
+
+    with mock.patch("ddtrace.config._span_aggregator_rlock", use_rlock):
+        tracer = DummyTracer()
+        span = Span("span")
+        span._local_root = span
+        tracer._deferred_processors[0]._lock = threading.RLock() if use_rlock else threading.Lock()
+        tracer._deferred_processors[0]._on_span_start(span)
+
+        assert not tracer._deferred_processors[0]._traces
+        span.finish()
+
+
+@pytest.mark.parametrize("use_rlock", [True, False])
+def test_span_aggregator__on_span_start_with_lock_adds_span(use_rlock):
+    """Ensure that SpanAggregator._on_span_start adds a span if the lock is acquired"""
+
+    with mock.patch("ddtrace.config._span_aggregator_rlock", use_rlock):
+        tracer = DummyTracer()
+        span = Span("span")
+        span._local_root = span
+        tracer._deferred_processors[0]._lock = threading.RLock() if use_rlock else threading.Lock()
+        with tracer._deferred_processors[0]._lock:
+            tracer._deferred_processors[0]._on_span_start(span)
+        assert len(tracer._deferred_processors[0]._traces) == 1
+        span.finish()
