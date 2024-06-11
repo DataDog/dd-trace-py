@@ -2,14 +2,122 @@
 This module when included on the PYTHONPATH will update the PYTHONPATH to point to a directory
 containing the ddtrace package compatible with the current Python version and platform.
 """
+
+from __future__ import print_function  # noqa: E402
+
+from collections import namedtuple
+import csv
+import json
 import os
+import platform
+import re
+import subprocess
 import sys
 import time
+from typing import Tuple
 
 
-debug_mode = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
-# Python versions that are supported by the current ddtrace release
-installable_py_versions = ("3.7", "3.8", "3.9", "3.10", "3.11", "3.12")
+Version = namedtuple("Version", ["version", "constraint"])
+
+
+def parse_version(version: str) -> Tuple:
+    constraint_idx = re.search(r"\d", version).start()
+    numeric = version[constraint_idx:]
+    constraint = version[:constraint_idx]
+    parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
+    return Version(parsed_version, constraint)
+
+
+RUNTIMES_ALLOW_LIST = {
+    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
+}
+
+FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in (
+    "true",
+    "1",
+    "t",
+)
+FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
+TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED")
+DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
+INSTALLED_PACKAGES = None
+PYTHON_VERSION = None
+PYTHON_RUNTIME = None
+PKGS_ALLOW_LIST = None
+VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
+
+
+def build_installed_pkgs():
+    installed_packages = {}
+    if sys.version_info >= (3, 8):
+        from importlib import metadata as importlib_metadata
+
+        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+    else:
+        try:
+            import pkg_resources
+
+            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+        except ImportError:
+            try:
+                import importlib_metadata
+
+                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+            except ImportError:
+                pass
+    return {key.lower(): value for key, value in installed_packages.items()}
+
+
+def build_min_pkgs():
+    min_pkgs = dict()
+    for location in VERSION_COMPAT_FILE_LOCATIONS:
+        if os.path.exists(location):
+            with open(location, "r") as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=",")
+                for idx, row in enumerate(csv_reader):
+                    if idx < 2:
+                        continue
+                    min_pkgs[row[0].lower()] = parse_version(row[1])
+            break
+    return min_pkgs
+
+
+def create_count_metric(metric, tags=None):
+    if tags is None:
+        tags = []
+    return {
+        "name": metric,
+        "tags": tags,
+    }
+
+
+def gen_telemetry_payload(telemetry_events):
+    return {
+        "metadata": {
+            "language_name": "python",
+            "language_version": PYTHON_VERSION,
+            "runtime_name": PYTHON_RUNTIME,
+            "runtime_version": PYTHON_VERSION,
+            "tracer_version": INSTALLED_PACKAGES.get("ddtrace", "unknown"),
+            "pid": os.getpid(),
+        },
+        "points": telemetry_events,
+    }
+
+
+def send_telemetry(event):
+    event_json = json.dumps(event)
+    if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
+        return
+    p = subprocess.Popen(
+        [FORWARDER_EXECUTABLE, str(os.getpid())],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
+    p.stdin.write(event_json)
+    p.stdin.close()
 
 
 def _get_clib():
@@ -17,7 +125,6 @@ def _get_clib():
 
     If GNU is not detected then returns MUSL.
     """
-    import platform
 
     libc, version = platform.libc_ver()
     if libc == "glibc":
@@ -25,42 +132,121 @@ def _get_clib():
     return "musl"
 
 
-def _log(msg, *args, level="info"):
+def _log(msg, *args, **kwargs):
     """Log a message to stderr.
 
     This function is provided instead of built-in Python logging since we can't rely on any logger
     being configured.
     """
-    if debug_mode:
+    level = kwargs.get("level", "info")
+    if DEBUG_MODE:
         asctime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         msg = "[%s] [%s] datadog.autoinstrumentation(pid: %d): " % (asctime, level.upper(), os.getpid()) + msg % args
         print(msg, file=sys.stderr)
 
 
+def runtime_version_is_supported(python_runtime, python_version):
+    supported_versions = RUNTIMES_ALLOW_LIST.get(python_runtime, {})
+    if not supported_versions:
+        return False
+    return (
+        supported_versions["min"].version <= parse_version(python_version).version < supported_versions["max"].version
+    )
+
+
+def package_is_compatible(package_name, package_version):
+    installed_version = parse_version(package_version)
+    supported_version_spec = PKGS_ALLOW_LIST.get(package_name.lower(), Version((0,), ""))
+    if supported_version_spec.constraint in ("<", "<="):
+        return True  # minimum "less than" means there is no minimum
+    return installed_version.version >= supported_version_spec.version
+
+
 def _inject():
+    global INSTALLED_PACKAGES
+    global PYTHON_VERSION
+    global PYTHON_RUNTIME
+    global PKGS_ALLOW_LIST
+    INSTALLED_PACKAGES = build_installed_pkgs()
+    PYTHON_RUNTIME = platform.python_implementation().lower()
+    PYTHON_VERSION = platform.python_version()
+    PKGS_ALLOW_LIST = build_min_pkgs()
+    telemetry_data = []
+    integration_incomp = False
+    runtime_incomp = False
     try:
         import ddtrace
-    except ModuleNotFoundError:
+    except ImportError:
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
-        platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
-        _log("detected platform %s" % platform, level="debug")
+        current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_1"
+        _log("detected platform %s" % current_platform, level="debug")
 
         script_dir = os.path.dirname(__file__)
         pkgs_path = os.path.join(script_dir, "ddtrace_pkgs")
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
         _log("ddtrace_pkgs contents: %r" % os.listdir(pkgs_path), level="debug")
 
-        python_version = ".".join(str(i) for i in sys.version_info[:2])
-        if python_version not in installable_py_versions:
+        # check installed packages against allow list
+        incompatible_packages = {}
+        for package_name, package_version in INSTALLED_PACKAGES.items():
+            if not package_is_compatible(package_name, package_version):
+                incompatible_packages[package_name] = package_version
+
+        if incompatible_packages:
+            _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
+            integration_incomp = True
+            if not FORCE_INJECT:
+                _log("Aborting dd-trace-py instrumentation.", level="debug")
+
+                for key, value in incompatible_packages.items():
+                    telemetry_data.append(
+                        create_count_metric(
+                            "library_entrypoint.abort.integration",
+                            [
+                                "integration:" + key,
+                                "integration_version:" + value,
+                            ],
+                        )
+                    )
+
+            else:
+                _log(
+                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
+                    level="debug",
+                )
+        if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
-                f"This version of ddtrace does not support single step instrumentation with python {python_version} "
-                f"(supported versions: {installable_py_versions}), aborting",
-                level="error",
+                "Found incompatible runtime: %s %s. Supported runtimes: %s"
+                % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST),
+                level="debug",
             )
+            runtime_incomp = True
+            if not FORCE_INJECT:
+                _log("Aborting dd-trace-py instrumentation.", level="debug")
+
+                telemetry_data.append(create_count_metric("library_entrypoint.abort.runtime"))
+            else:
+                _log(
+                    "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
+                    level="debug",
+                )
+        if telemetry_data:
+            telemetry_data.append(
+                create_count_metric(
+                    "library_entrypoint.abort",
+                    [
+                        "reason:integration" if integration_incomp else "reason:incompatible_runtime",
+                    ],
+                )
+            )
+            telemetry_event = gen_telemetry_payload(telemetry_data)
+            send_telemetry(telemetry_event)
             return
 
-        site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (python_version, platform))
+        site_pkgs_path = os.path.join(
+            pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
+        )
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
@@ -69,7 +255,6 @@ def _inject():
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
         sys.path.insert(0, site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
-
         try:
             import ddtrace  # noqa: F401
 
@@ -79,29 +264,52 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
-
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
-            import ddtrace.bootstrap.sitecustomize
+            try:
+                import ddtrace.bootstrap.sitecustomize
 
-            # Modify the PYTHONPATH for any subprocesses that might be spawned:
-            #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
-            #     now that the package is installed.
-            #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
-            #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
-            python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
-            if script_dir in python_path:
-                python_path.remove(script_dir)
-            python_path.insert(0, site_pkgs_path)
-            bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
-            python_path.insert(0, bootstrap_dir)
-            python_path = os.pathsep.join(python_path)
-            os.environ["PYTHONPATH"] = python_path
+                # Modify the PYTHONPATH for any subprocesses that might be spawned:
+                #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
+                #     now that the package is installed.
+                #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
+                #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
+                python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
+                if script_dir in python_path:
+                    python_path.remove(script_dir)
+                python_path.insert(0, site_pkgs_path)
+                bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
+                python_path.insert(0, bootstrap_dir)
+                python_path = os.pathsep.join(python_path)
+                os.environ["PYTHONPATH"] = python_path
 
-            # Also insert the bootstrap dir in the path of the current python process.
-            sys.path.insert(0, bootstrap_dir)
-            _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
+                # Also insert the bootstrap dir in the path of the current python process.
+                sys.path.insert(0, bootstrap_dir)
+                _log("successfully configured ddtrace package, python path is %r" % os.environ["PYTHONPATH"])
+                event = gen_telemetry_payload(
+                    [
+                        create_count_metric(
+                            "library_entrypoint.complete",
+                            [
+                                "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                            ],
+                        )
+                    ]
+                )
+                send_telemetry(event)
+            except Exception as e:
+                event = gen_telemetry_payload(
+                    [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
+                )
+                send_telemetry(event)
+                _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
+                return
     else:
-        _log(f"user-installed ddtrace found: {ddtrace.__version__}, aborting site-packages injection", level="warning")
+        _log(
+            "user-installed ddtrace found: %s, aborting site-packages injection" % ddtrace.__version__, level="warning"
+        )
 
 
-_inject()
+try:
+    _inject()
+except Exception:
+    pass  # absolutely never allow exceptions to propagate to the app
