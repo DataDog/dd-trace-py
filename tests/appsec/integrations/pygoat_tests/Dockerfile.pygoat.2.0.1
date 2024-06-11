@@ -31,6 +31,7 @@ WORKDIR /app/pygoat
 RUN git checkout v2.0.1
 RUN python3 -m pip install --no-cache-dir pip==22.0.4
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip --no-cache-dir install --verbose  --force-reinstall -I pyyaml
 
 # install pygoat
 EXPOSE 8321
