@@ -230,7 +230,7 @@ class Contrib_TestClass_For_Threats:
         import logging
 
         with caplog.at_level(logging.DEBUG), override_global_config(
-            dict(_asm_enabled=True), _asm_static_rule_file=rules.RULES_GOOD_PATH
+            dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)
         ):
             self.update_tracer(interface)
             payload = '{"attack": "bad_payload",}</attack>&='
@@ -1088,7 +1088,7 @@ class Contrib_TestClass_For_Threats:
         """
         When the rule file is invalid, the tracer should not crash or prevent normal behavior
         """
-        with override_global_config(dict(_asm_enabled=True), _asm_static_rule_file=rules.RULES_BAD_VERSION):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_BAD_VERSION)):
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
