@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+from typing import Optional
 
 from envier import Env
 
@@ -47,7 +48,7 @@ class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
     # Is one click available?
     _asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
-    _asm_static_rule_file = Env.var(str, APPSEC.RULE_FILE, default="")
+    _asm_static_rule_file = Env.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None

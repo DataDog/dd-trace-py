@@ -53,7 +53,7 @@ def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
     if ddtrace.config._remote_config_enabled:
         if asm_config._asm_can_be_enabled:
             value |= Flags.ASM_ACTIVATION
-        if tracer._appsec_processor and asm_config._asm__asm_static_rule_file is None:
+        if tracer._appsec_processor and asm_config._asm_static_rule_file is None:
             value |= _ALL_ASM_BLOCKING
             if asm_config._ep_enabled:
                 value |= _ALL_RASP
