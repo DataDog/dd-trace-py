@@ -40,6 +40,7 @@ cdef extern from "interface.hpp":
     void ddup_config_profiler_version(string_view profiler_version)
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
+    void ddup_config_timeline(bint enable)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -64,6 +65,7 @@ cdef extern from "interface.hpp":
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
+    void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
     void ddup_set_runtime_id(string_view _id)
@@ -130,7 +132,8 @@ def init(
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
-        url: StringType = None) -> None:
+        url: StringType = None,
+        timeline_enabled: Optional[bool] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -156,6 +159,8 @@ def init(
         for key, val in tags.items():
             if key and val:
                 call_ddup_config_user_tag(ensure_binary_or_empty(key), ensure_binary_or_empty(val))
+    if timeline_enabled is True:
+        ddup_config_timeline(True)
     ddup_init()
 
 
@@ -234,7 +239,6 @@ cdef class SampleHandle:
     def push_task_id(self, task_id: Optional[int]) -> None:
         if self.ptr is not NULL:
             if task_id is not None:
-                ddup_push_task_id(self.ptr, task_id)
                 ddup_push_task_id(self.ptr, clamp_to_int64_unsigned(task_id))
 
     def push_task_name(self, task_name: StringType) -> None:
@@ -281,6 +285,10 @@ cdef class SampleHandle:
                     self.ptr,
                     string_view(<const char*>root_service_bytes, len(root_service_bytes))
             )
+
+    def push_monotonic_ns(self, monotonic_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use
