@@ -82,6 +82,14 @@ def get_distributions():
 @callonce
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    # Prefer the official API if available, otherwise fallback to the vendored version
+    if hasattr(importlib_metadata, "packages_distributions"):
+        return importlib_metadata.packages_distributions()
     return _packages_distributions()
 
 
