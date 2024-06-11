@@ -33,7 +33,7 @@ RUN python3 -m pip install --no-cache-dir pip==22.0.4
 RUN pip install --no-cache-dir -r requirements.txt
 # At some point, pyyaml started failing on CI with CBaseLoader import error, this
 # fixed the problem
-RUN pip --no-cache-dir install --force-reinstall -I pyyaml
+RUN pip --no-cache-dir install --force-reinstall -I pyyaml==6.0.1
 
 # install pygoat
 EXPOSE 8321
