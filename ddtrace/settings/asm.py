@@ -13,6 +13,8 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 def _validate_sample_rate(r: float) -> None:
@@ -50,7 +52,33 @@ class ASMConfig(Env):
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
-    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
+    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default=None)
+    # Deprecation phase, to be removed in ddtrace 3.0.0
+    if _automatic_login_events_mode is not None:
+        if _automatic_login_events_mode == "extended":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=ident instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        elif _automatic_login_events_mode == "safe":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anon instead",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        elif _automatic_login_events_mode == "disabled":
+            deprecate(
+                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=disabled"
+                " instead or DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false"
+                " to disable the feature and bypass Remote Config",
+                removal_version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        _automatic_login_events_mode = _automatic_login_events_mode.lower()
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
