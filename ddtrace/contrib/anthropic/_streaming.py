@@ -33,6 +33,11 @@ class BaseTracedAnthropicStream(wrapt.ObjectProxy):
 
 
 class TracedAnthropicStream(BaseTracedAnthropicStream):
+    def __init__(self, wrapped, integration, span, args, kwargs):
+        super().__init__(wrapped, integration, span, args, kwargs)
+        # we need to set a text_stream attribute so we can trace the yielded chunks
+        self.text_stream = self.__stream_text__()
+
     def __enter__(self):
         self.__wrapped__.__enter__()
         return self
@@ -67,6 +72,11 @@ class TracedAnthropicStream(BaseTracedAnthropicStream):
 
 
 class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
+    def __init__(self, wrapped, integration, span, args, kwargs):
+        super().__init__(wrapped, integration, span, args, kwargs)
+        # we need to set a text_stream attribute so we can trace the yielded chunks
+        self.text_stream = self.__stream_text__()
+
     async def __aenter__(self):
         await self.__wrapped__.__aenter__()
         return self
@@ -114,8 +124,6 @@ class TracedAnthropicStreamManager(BaseTracedAnthropicStream):
             self._args,
             self._kwargs,
         )
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        traced_stream.text_stream = traced_stream.__stream_text__()
         return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -132,8 +140,6 @@ class TracedAnthropicAsyncStreamManager(BaseTracedAnthropicStream):
             self._args,
             self._kwargs,
         )
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        traced_stream.text_stream = traced_stream.__stream_text__()
         return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -174,7 +180,7 @@ def _construct_message(streamed_chunks):
     return message
 
 
-def _extract_from_chunk(chunk, message={}) -> Tuple[Dict[str, str], bool]:
+def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
     """Constructs a chat message dictionary from streamed chunks given chunk type"""
     TRANSFORMATIONS_BY_BLOCK_TYPE = {
         "message_start": _on_message_start_chunk,
@@ -198,29 +204,14 @@ def _on_message_start_chunk(chunk, message):
 
     chunk_message = getattr(chunk, "message", "")
     if chunk_message:
-        content_text = ""
-        content_type = ""
-        contents = getattr(chunk.message, "content", [])
-        for content in contents:
-            if content.type == "text":
-                content_text += content.text
-                content_type = "text"
-            elif content.type == "image":
-                content_text = "([IMAGE DETECTED])"
-                content_type = "image"
-            message["content"].append({"text": content_text, "type": content_type})
-
         chunk_role = getattr(chunk_message, "role", "")
         chunk_usage = getattr(chunk_message, "usage", "")
-        chunk_finish_reason = getattr(chunk_message, "stop_reason", "")
         if chunk_role:
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {}
             message["usage"]["input_tokens"] = getattr(chunk_usage, "input_tokens", 0)
-            message["usage"]["output_tokens"] = getattr(chunk_usage, "output_tokens", 0)
-        if chunk_finish_reason:
-            message["finish_reason"] = chunk_finish_reason
+            message["usage"]["output_tokens"] = 0
     return message
 
 
