@@ -1,6 +1,7 @@
 FROM python:3.11
 
 ENV PYTHONUNBUFFERED 1
+ENV DD_INJECTION_ENABLED 1
 # intentionally redundant in this test
 ENV DD_INJECT_FORCE 1
 ENV DJANGO_SETTINGS_MODULE django_app
