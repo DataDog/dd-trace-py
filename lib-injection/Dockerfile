@@ -31,6 +31,9 @@ RUN addgroup -g 10000 -S datadog && \
     adduser -u ${UID} -S datadog -G datadog
 RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
 RUN chmod -R 755 /datadog-init/ddtrace_pkgs
+ADD telemetry-forwarder.sh /datadog-init/telemetry-forwarder.sh
+RUN chown -R datadog:datadog /datadog-init/telemetry-forwarder.sh
+RUN chmod +x /datadog-init/telemetry-forwarder.sh
 USER ${UID}
 WORKDIR /datadog-init
 ADD sitecustomize.py /datadog-init/sitecustomize.py
