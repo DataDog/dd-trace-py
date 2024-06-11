@@ -30,6 +30,8 @@
             "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
             "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
             "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package-force/*",
             "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
