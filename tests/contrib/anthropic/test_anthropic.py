@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import anthropic as anthropic_module
 import pytest
 
@@ -53,6 +55,37 @@ def test_anthropic_llm_sync_create(anthropic, request_vcr):
                         }
                     ],
                 }
+            ],
+        )
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_create_image", ignores=["resource"]
+)
+def test_anthropic_llm_sync_create_image(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_create_image.yaml"):
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Hello, what do you see in the following image?",
+                        },
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": Path(__file__).parent.joinpath("images/bits.png"),
+                            },
+                        },
+                    ],
+                },
             ],
         )
 
