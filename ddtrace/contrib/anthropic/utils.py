@@ -3,6 +3,7 @@ from typing import Any
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.anthropic import _get_attr
 
 
 log = get_logger(__name__)
@@ -57,11 +58,3 @@ def _extract_api_key(instance: Any) -> Optional[str]:
     if client:
         return getattr(client, "api_key", None)
     return None
-
-
-def _get_attr(o: Any, attr: str, default: Any):
-    # Since our response may be a dict or object, convenience method
-    if isinstance(o, dict):
-        return o.get(attr, default)
-    else:
-        return getattr(o, attr, default)
