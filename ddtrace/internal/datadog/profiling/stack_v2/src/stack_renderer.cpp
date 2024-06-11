@@ -32,12 +32,27 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, 1000 * wall_time_us, 1);
 
+    // Get the current time in ns in a way compatible with python's time.monotonic_ns(), which is backed by
+    // clock_gettime(CLOCK_MONOTONIC) on linux and mach_absolute_time() on macOS.
+    // This is not the same as std::chrono::steady_clock, which is backed by clock_gettime(CLOCK_MONOTONIC_RAW)
+    // (although this is underspecified in the standard)
+    int64_t now_ns = 0;
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        now_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
+        ddup_push_monotonic_ns(sample, now_ns);
+    }
+
+    ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
+    ddup_push_walltime(sample, 1000LL * wall_time_us, 1);
+
     // We stash the current thread information in the StackRenderer instance, since a task may be begun
     // after ending the sample.
     stashed_thread_id = thread_id;
     stashed_native_id = native_id;
     stashed_thread_name = std::string(name);
     stashed_wall_time_us = wall_time_us;
+    stashed_end_time_ns = now_ns;
 }
 
 void
@@ -63,6 +78,11 @@ StackRenderer::render_task_begin(std::string_view name)
                              stashed_thread_name);
         ddup_push_walltime(sample, 1000 * stashed_wall_time_us, 1);
         ddup_push_cputime(sample, 1000 * stashed_cpu_time_us, 1); // initialized to 0, so possibly a no-op
+
+        // If we have a nonzero timestamp, push that too
+        if (stashed_end_time_ns != 0) {
+            ddup_push_monotonic_ns(sample, stashed_end_time_ns);
+        }
     }
 
     ddup_push_task_name(sample, name);

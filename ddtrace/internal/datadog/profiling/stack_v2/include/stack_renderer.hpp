@@ -26,6 +26,7 @@ class StackRenderer : public RendererInterface
     std::string stashed_thread_name;
     microsecond_t stashed_wall_time_us = 0;
     microsecond_t stashed_cpu_time_us = 0;
+    int64_t stashed_now_time_ns = 0;
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
