@@ -3,6 +3,8 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
+import anthropic
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.vendor import wrapt
@@ -148,7 +150,6 @@ class TracedAnthropicAsyncStreamManager(BaseTracedAnthropicStream):
 
 def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
     # builds the response message given streamed chunks and sets according span tags
-    resp_message = {}
     try:
         resp_message = _construct_message(streamed_chunks)
 
@@ -174,9 +175,6 @@ def _construct_message(streamed_chunks):
     message = {"content": []}
     for chunk in streamed_chunks:
         message = _extract_from_chunk(chunk, message)
-
-        if "finish_reason" in message:
-            return message
     return message
 
 
@@ -199,9 +197,6 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
 
 def _on_message_start_chunk(chunk, message):
     # this is the starting chunk of the message
-    if getattr(chunk, "type", "") != "message_start":
-        return message
-
     chunk_message = getattr(chunk, "message", "")
     if chunk_message:
         chunk_role = getattr(chunk_message, "role", "")
@@ -211,24 +206,17 @@ def _on_message_start_chunk(chunk, message):
         if chunk_usage:
             message["usage"] = {}
             message["usage"]["input_tokens"] = getattr(chunk_usage, "input_tokens", 0)
-            message["usage"]["output_tokens"] = 0
     return message
 
 
 def _on_content_block_start_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
-    if getattr(chunk, "type", "") != "content_block_start":
-        return message
-
     message["content"].append({"type": "text", "text": ""})
     return message
 
 
 def _on_content_block_delta_chunk(chunk, message):
     # delta events contain new content for the current message.content block
-    if getattr(chunk, "type", "") != "content_block_delta":
-        return message
-
     delta_block = getattr(chunk, "delta", "")
     chunk_content = getattr(delta_block, "text", "")
     if chunk_content:
@@ -238,9 +226,6 @@ def _on_content_block_delta_chunk(chunk, message):
 
 def _on_message_delta_chunk(chunk, message):
     # message delta events signal the end of the message
-    if getattr(chunk, "type", "") != "message_delta":
-        return message
-
     delta_block = getattr(chunk, "delta", "")
     chunk_finish_reason = getattr(delta_block, "stop_reason", "")
     if chunk_finish_reason:
@@ -257,9 +242,6 @@ def _on_message_delta_chunk(chunk, message):
 
 
 def _on_error_chunk(chunk, message):
-    if getattr(chunk, "type", "") != "error":
-        return message
-
     if getattr(chunk, "error"):
         message["error"] = {}
         if getattr(chunk.error, "type"):
@@ -275,7 +257,7 @@ def _tag_streamed_chat_completion_response(integration, span, message):
         return
     for idx, block in enumerate(message["content"]):
         span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
-        span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", str(block["text"]))
+        span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"])))
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))
@@ -285,32 +267,24 @@ def _tag_streamed_chat_completion_response(integration, span, message):
 
 
 def _is_stream(resp: Any) -> bool:
-    import anthropic
-
     if hasattr(anthropic, "Stream") and isinstance(resp, anthropic.Stream):
         return True
     return False
 
 
 def _is_async_stream(resp: Any) -> bool:
-    import anthropic
-
     if hasattr(anthropic, "AsyncStream") and isinstance(resp, anthropic.AsyncStream):
         return True
     return False
 
 
 def _is_stream_manager(resp: Any) -> bool:
-    import anthropic
-
     if hasattr(anthropic, "MessageStreamManager") and isinstance(resp, anthropic.MessageStreamManager):
         return True
     return False
 
 
 def _is_async_stream_manager(resp: Any) -> bool:
-    import anthropic
-
     if hasattr(anthropic, "AsyncMessageStreamManager") and isinstance(resp, anthropic.AsyncMessageStreamManager):
         return True
     return False
