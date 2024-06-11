@@ -459,3 +459,91 @@ async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapsh
                     tools=tools,
                 )
                 assert response is not None
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+            stream = await llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
+                tools=tools,
+                stream=True,
+            )
+            async for _ in stream:
+                pass
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
+                tools=tools,
+                stream=True,
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass
+
+            message = await stream.get_final_message()
+            assert message is not None
+
+            message = await stream.get_final_text()
+            assert message is not None
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools.yaml"):
+            async with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"}],
+                tools=tools,
+                stream=True,
+            ) as stream:
+                async for _ in stream.text_stream:
+                    pass
+
+            message = await stream.get_final_message()
+            assert message is not None
+
+        with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result.yaml"):
+            if message.stop_reason == "tool_use":
+                async with llm.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=500,
+                    messages=[
+                        {"role": "user", "content": "What is the result of 1,984,135 * 9,343,116?"},
+                        {"role": "assistant", "content": message.content},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": "toolu_019rZvYJsQPUvLQmDE6r7b9B",
+                                    "content": "18538003464660",
+                                }
+                            ],
+                        },
+                    ],
+                    tools=tools,
+                    stream=True,
+                ) as stream:
+                    async for _ in stream:
+                        pass
