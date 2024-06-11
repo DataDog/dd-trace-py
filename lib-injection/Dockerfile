@@ -33,5 +33,6 @@ RUN chown -R datadog:datadog /datadog-init/ddtrace_pkgs
 RUN chmod -R 755 /datadog-init/ddtrace_pkgs
 USER ${UID}
 WORKDIR /datadog-init
+ADD min_compatible_versions.csv /datadog-init/min_compatible_versions.csv
 ADD sitecustomize.py /datadog-init/sitecustomize.py
 ADD copy-lib.sh /datadog-init/copy-lib.sh
