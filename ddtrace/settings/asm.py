@@ -46,8 +46,6 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
-    # Is one click available?
-    _asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
     _asm_static_rule_file = Env.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -143,6 +141,15 @@ class ASMConfig(Env):
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+
+    def __init__(self):
+        super().__init__()
+        # Is one click available?
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+
+    def reset(self):
+        """For testing puposes, reset the configuration to its default values given current environment variables."""
+        self.__init__()
 
 
 config = ASMConfig()

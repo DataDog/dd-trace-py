@@ -154,6 +154,7 @@ def override_global_config(values):
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
 
+    ddtrace.settings.asm.config.reset()
     # Override from the passed in keys
     for key, value in values.items():
         if key in global_config_keys:
