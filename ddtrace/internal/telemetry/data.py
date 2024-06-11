@@ -1,14 +1,13 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
+from typing import Dict, Set  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import Distribution
-from ddtrace.internal.packages import filename_to_package
+from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 from ddtrace.version import get_version
@@ -73,22 +72,18 @@ def _get_application(key):
     }
 
 
-def update_imported_dependencies(
-    already_imported: Dict[str, Distribution], new_modules: List[str]
-) -> List[Dict[str, str]]:
+def update_imported_dependencies(module_names: Set[str]) -> List[Dict[str, str]]:
     deps = []
 
-    for module_path in new_modules:
-        if not module_path:
+    for module_name in module_names:
+        dists = get_module_distribution_versions(module_name)
+        if not dists:
             continue
-        try:
-            package = filename_to_package(module_path)
-            if not package or (package.name in already_imported) or package.name == "ddtrace":
-                continue  # not third party or already imported
-        except AttributeError:
-            continue
-        already_imported[package.name] = package
-        deps.append({"name": package.name, "version": package.version})
+
+        for name, version in dists.items():
+            if name == "ddtrace":
+                continue
+            deps.append({"name": name, "version": version})
 
     return deps
 

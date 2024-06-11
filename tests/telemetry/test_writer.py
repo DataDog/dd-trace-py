@@ -1,3 +1,4 @@
+import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -13,7 +14,6 @@ from ddtrace.internal.service import ServiceStatusError
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriterModuleWatchdog
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
@@ -342,10 +342,11 @@ import ddtrace.auto
 
 
 def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_time):
-    import xmltodict
+    if "xmltodict" in sys.modules:
+        del sys.modules["xmltodict"]
 
-    new_deps = [str(origin(xmltodict))]
-    telemetry_writer._update_dependencies_event(new_deps)
+    import xmltodict  # noqa: F401
+
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
@@ -363,13 +364,12 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         initial_event_count = len(test_agent_session.get_events())
-        TelemetryWriterModuleWatchdog._initial = False
-        TelemetryWriterModuleWatchdog._new_imported.clear()
 
-        import xmltodict
+        if "xmltodict" in sys.modules:
+            del sys.modules["xmltodict"]
 
-        new_deps = [str(origin(xmltodict))]
-        telemetry_writer._update_dependencies_event(new_deps)
+        import xmltodict  # noqa: F401
+
         # force a flush
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
@@ -380,13 +380,11 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
 
 @pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    if "string" in sys.modules:
+        del sys.modules["string"]
 
-    import string
+    import string  # noqa: F401
 
-    new_deps = [str(origin(string))]
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events("app-dependencies-loaded")
@@ -396,19 +394,16 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
 
 @flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
-    TelemetryWriterModuleWatchdog._initial = False
-    TelemetryWriterModuleWatchdog._new_imported.clear()
+    if "xmltodict" in sys.modules:
+        del sys.modules["xmltodict"]
 
-    import xmltodict
+    import xmltodict  # noqa: F401
 
-    new_deps = [str(origin(xmltodict))]
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
 
-    telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events()

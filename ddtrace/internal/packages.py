@@ -45,8 +45,9 @@ except AttributeError:
         if isinstance(path_repr, (str, bytes)):
             return path_repr
         raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, "
-            "not {}".format(path_type.__name__, type(path_repr).__name__)
+            "expected {}.__fspath__() to return str or bytes, " "not {}".format(
+                path_type.__name__, type(path_repr).__name__
+            )
         )
 
 
@@ -75,6 +76,39 @@ def get_distributions():
             pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
+
+
+@callonce
+def get_package_distributions() -> t.Mapping[str, t.List[str]]:
+    """a mapping of importable package names to their distribution name(s)"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    return importlib_metadata.packages_distributions()
+
+
+@cached()
+def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        return {
+            module_name: importlib_metadata.distribution(module_name).version,
+        }
+    except importlib_metadata.PackageNotFoundError:
+        pass
+
+    pkgs = get_package_distributions()
+    names = pkgs.get(module_name)
+    if not names:
+        return {}
+
+    return {name: get_version_for_package(name) for name in names}
 
 
 @cached()
