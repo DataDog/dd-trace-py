@@ -3,6 +3,8 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
+from ddtrace.contrib.anthropic.utils import tag_tool_result_on_span
+from ddtrace.contrib.anthropic.utils import tag_tool_usage_on_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.vendor import wrapt
@@ -188,6 +190,8 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
         "content_block_delta": _on_content_block_delta_chunk,
         "message_delta": _on_message_delta_chunk,
         "error": _on_error_chunk,
+        "tool_use": _on_tool_usage_chunk,
+        "tool_result": _on_tool_result_chunk,
     }
     chunk_type = getattr(chunk, "type", "")
     transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
@@ -269,13 +273,39 @@ def _on_error_chunk(chunk, message):
     return message
 
 
+def _on_tool_usage_chunk(chunk, message):
+    if getattr(chunk, "type", "") != "tool_use":
+        return message
+
+    tool_name = _get_attr(chunk, "name", None)
+    tool_inputs = _get_attr(chunk, "input", None)
+    if tool_name:
+        message["content"].append({"type": "tool_use", "name:": tool_name})
+    if tool_inputs:
+        message["content"][-1]["input"] = tool_inputs
+
+
+def _on_tool_result_chunk(chunk, message):
+    if getattr(chunk, "type", "") != "tool_result":
+        return message
+
+    content = _get_attr(chunk, "content", None)
+    if content:
+        message["content"].append({"type": "tool_result", "content:": content})
+
+
 def _tag_streamed_chat_completion_response(integration, span, message):
     """Tagging logic for streamed chat completions."""
     if message is None:
         return
     for idx, block in enumerate(message["content"]):
         span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
-        span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", str(block["text"]))
+        if "text" in block:
+            span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", str(block["text"]))
+        if block["type"] == "tool_use":
+            tag_tool_usage_on_span(span, block, idx)
+        elif block["type"] == "tool_result":
+            tag_tool_result_on_span(span, block, idx)
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))

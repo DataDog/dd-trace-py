@@ -113,9 +113,11 @@ class AnthropicIntegration(BaseLLMIntegration):
                     elif _get_attr(block, "type", None) == "tool_use":
                         name = _get_attr(block, "name", "")
                         inputs = _get_attr(block, "input", "")
-                        input_messages.append(
-                            {"content": "[TOOL USE: NAME=%s, INPUTS=%s]" % (name, json.dumps(inputs)), "role": role}
-                        )
+                        input_messages.append({"content": "\n\n[tool: {}]\n\n".format(name), "role": role})
+                        input_messages["content"] += "{}".format(json.dumps(inputs))
+                    elif _get_attr(block, "type", None) == "tool_result":
+                        content = _get_attr(block, "content", "")
+                        input_messages.append({"content": "\n\n[tool result: {}]".format(content), "role": role})
                     else:
                         input_messages.append({"content": str(block), "role": role})
 
@@ -139,10 +141,11 @@ class AnthropicIntegration(BaseLLMIntegration):
                     if _get_attr(completion, "type", None) == "tool_use":
                         name = _get_attr(completion, "name", "")
                         inputs = _get_attr(completion, "input", "")
-                        output_messages.append(
-                            {"content": "\n\n[tool: {}]\n\n".format(name), "role": role}
-                        )
-                        output_messages["content"] += "{}".format(str(inputs))
+                        output_messages.append({"content": "\n\n[tool: {}]\n\n".format(name), "role": role})
+                        output_messages["content"] += "{}".format(json.dumps(inputs))
+                    elif _get_attr(completion, "type", None) == "tool_result":
+                        content = _get_attr(completion, "content", "")
+                        output_messages.append({"content": "\n\n[tool result: {}]".format(content), "role": role})
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:

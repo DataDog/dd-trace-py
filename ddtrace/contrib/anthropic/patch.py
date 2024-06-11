@@ -87,13 +87,23 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                             tool_inputs = _get_attr(block, "input", None)
                             if tool_name:
                                 span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                    "anthropic.request.messages.%d.content.%d.tool_calls.name"
+                                    % (message_idx, block_idx),
                                     tool_name,
                                 )
                             if tool_inputs:
                                 span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                    "anthropic.request.messages.%d.content.%d.tool_calls.arguments"
+                                    % (message_idx, block_idx),
                                     json.dumps(tool_inputs),
+                                )
+                        elif _get_attr(block, "type", None) == "tool_result":
+                            content = _get_attr(block, "content", None)
+                            if content:
+                                span.set_tag_str(
+                                    "anthropic.request.messages.%d.content.%d.tool_result.content"
+                                    % (message_idx, block_idx),
+                                    content,
                                 )
 
                     span.set_tag_str(
@@ -174,13 +184,23 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                             tool_inputs = _get_attr(block, "input", None)
                             if tool_name:
                                 span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                    "anthropic.request.messages.%d.content.%d.tool_calls.name"
+                                    % (message_idx, block_idx),
                                     tool_name,
                                 )
                             if tool_inputs:
                                 span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
+                                    "anthropic.request.messages.%d.content.%d.tool_calls.arguments"
+                                    % (message_idx, block_idx),
                                     json.dumps(tool_inputs),
+                                )
+                        elif _get_attr(block, "type", None) == "tool_result":
+                            content = _get_attr(block, "content", None)
+                            if content:
+                                span.set_tag_str(
+                                    "anthropic.request.messages.%d.content.%d.tool_result.content"
+                                    % (message_idx, block_idx),
+                                    content,
                                 )
 
                     span.set_tag_str(

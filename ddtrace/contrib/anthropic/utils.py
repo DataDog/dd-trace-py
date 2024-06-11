@@ -19,6 +19,8 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
                 )
             elif chat_completion.type == "tool_use":
                 tag_tool_usage_on_span(span, chat_completion, idx)
+            elif chat_completion.type == "tool_result":
+                tag_tool_result_on_span(span, chat_completion, idx)
 
         span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), chat_completion.type)
 
@@ -35,9 +37,20 @@ def tag_tool_usage_on_span(span, chat_completion, idx):
     tool_name = _get_attr(chat_completion, "name", None)
     tool_inputs = _get_attr(chat_completion, "input", None)
     if tool_name:
-        span.set_tag_str("anthropic.response.completions.content.%d.name" % (idx), tool_name)
+        span.set_tag_str("anthropic.response.completions.content.%d.tool_calls.name" % (idx), tool_name)
     if tool_inputs:
-        span.set_tag_str("anthropic.response.completions.content.%d.name" % (idx), json.dumps(tool_inputs))
+        span.set_tag_str(
+            "anthropic.response.completions.content.%d.tool_calls.arguments" % (idx), json.dumps(tool_inputs)
+        )
+
+
+def tag_tool_result_on_span(span, chat_completion, idx):
+    content = _get_attr(chat_completion, "name", None)
+    if content:
+        span.set_tag_str(
+            "anthropic.response.completions.content.%d.tool_result.content" % (idx),
+            content,
+        )
 
 
 def tag_params_on_span(span, kwargs, integration):
@@ -45,7 +58,7 @@ def tag_params_on_span(span, kwargs, integration):
     for k, v in kwargs.items():
         if k == "system" and integration.is_pc_sampled_span(span):
             span.set_tag_str("anthropic.request.system", integration.trunc(v))
-        elif k not in ("messages", "model", "tools"):
+        elif k not in ("messages", "model"):
             tagged_params[k] = v
     span.set_tag_str("anthropic.request.parameters", json.dumps(tagged_params))
 
