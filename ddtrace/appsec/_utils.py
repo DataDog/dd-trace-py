@@ -121,7 +121,7 @@ class _UserInfoRetriever:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
-        if config._automatic_login_events_mode == "extended":
+        if asm_config._automatic_login_events_mode == "extended":
             return user_login
 
         return _safe_userid(user_login)

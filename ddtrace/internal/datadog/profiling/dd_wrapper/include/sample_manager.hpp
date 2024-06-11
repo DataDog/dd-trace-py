@@ -24,6 +24,7 @@ class SampleManager
     // Configuration
     static void add_type(unsigned int type);
     static void set_max_nframes(unsigned int _max_nframes);
+    static void set_timeline(bool enable);
 
     // Sampling entrypoint (this could also be called `build_ptr()`)
     static Sample* start_sample();

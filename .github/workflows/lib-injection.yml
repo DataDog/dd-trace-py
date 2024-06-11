@@ -155,6 +155,36 @@ jobs:
           # Wait for the app to start
           sleep 60
           docker compose logs
+
+  test_unit_no_instrumentation:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [
+          'dd-lib-python-init-test-django-unsupported-python',
+          'dd-lib-python-init-test-django-unsupported-package',
+        ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the app
+        run: |
+          SRC="$(pwd)"
+          cd lib-injection
+          export DDTRACE_PYTHON_VERSION="v2.6.3"
+          export APP_CONTEXT="${SRC}/tests/lib-injection/${{matrix.variant}}"
+          export TEMP_DIR="${SRC}/tmp/ddtrace"
+          mkdir -p "${TEMP_DIR}"
+          # Give the temp dir permissions, by default the docker user doesn't have permissions
+          # to write to the filesystem.
+          chmod 777 $TEMP_DIR
+          # Start the lib_inject to get the files copied. This avoids a race condition with the startup of the
+          # application.
+          docker compose up --build lib_inject
+          docker compose up --build -d
+          # Wait for the app to start
+          sleep 60
+          docker compose logs
       - name: Check Permissions on ddtrace pkgs
         run: |
            cd lib-injection
