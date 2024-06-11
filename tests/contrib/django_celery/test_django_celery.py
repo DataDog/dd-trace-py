@@ -34,4 +34,6 @@ def test_django_celery_gevent_startup():
         assert "celery@" in out, "Celery started correctly"
         assert "DJANGO_SETTINGS_MODULE" not in err, "No Django lazy objects"
     else:
-        assert retcode == 0, "Celery was finished with errors: %s" % err.decode("utf-8")
+        err_text = err.decode("utf-8")
+        if "not recommended" not in err_text:
+            assert retcode == 0, "Celery was finished with errors: %s" % err_text

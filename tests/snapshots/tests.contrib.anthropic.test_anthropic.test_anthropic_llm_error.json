@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "anthropic.request",
+    "service": "",
+    "resource": "Messages.create",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "665f5f5600000000",
+      "anthropic.request.api_key": "sk-...key>",
+      "anthropic.request.model": "claude-3-opus-20240229",
+      "anthropic.request.parameters": "{\"max_tokens\": 15}",
+      "error.message": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/anthropic/patch.py\", line 95, in traced_chat_model_generate\n    chat_completions = func(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_utils/_utils.py\", line 277, in wrapper\n    return func(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/resources/messages.py\", line 681, in create\n    return self._post(\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 1239, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 921, in request\n    return self._request(\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic/lib/python3.10/site-packages/anthropic/_base_client.py\", line 1019, in _request\n    raise self._make_status_error_from_response(err.response) from None\nanthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}\n",
+      "error.type": "anthropic.BadRequestError",
+      "language": "python",
+      "runtime-id": "23da57548a3443fa96c5bf9137d02aa9"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 66314
+    },
+    "duration": 109469000,
+    "start": 1717526358769596000
+  }]]

@@ -29,7 +29,7 @@ def parse_version(version: str) -> Tuple:
 
 
 RUNTIMES_ALLOW_LIST = {
-    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.12")},
+    "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in (
@@ -44,28 +44,41 @@ INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
 PYTHON_RUNTIME = None
 PKGS_ALLOW_LIST = None
+VERSION_COMPAT_FILE_LOCATIONS = ("../datadog-lib/min_compatible_versions.csv", "min_compatible_versions.csv")
 
 
 def build_installed_pkgs():
+    installed_packages = {}
     if sys.version_info >= (3, 8):
         from importlib import metadata as importlib_metadata
 
         installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
     else:
-        import pkg_resources
+        try:
+            import pkg_resources
 
-        installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
-    return installed_packages
+            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
+        except ImportError:
+            try:
+                import importlib_metadata
+
+                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+            except ImportError:
+                pass
+    return {key.lower(): value for key, value in installed_packages.items()}
 
 
 def build_min_pkgs():
     min_pkgs = dict()
-    with open("../datadog-lib/min_compatible_versions.csv", "r") as csvfile:
-        csv_reader = csv.reader(csvfile, delimiter=",")
-        for idx, row in enumerate(csv_reader):
-            if idx < 2:
-                continue
-            min_pkgs[row[0]] = parse_version(row[1])
+    for location in VERSION_COMPAT_FILE_LOCATIONS:
+        if os.path.exists(location):
+            with open(location, "r") as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=",")
+                for idx, row in enumerate(csv_reader):
+                    if idx < 2:
+                        continue
+                    min_pkgs[row[0].lower()] = parse_version(row[1])
+            break
     return min_pkgs
 
 
@@ -85,7 +98,6 @@ def gen_telemetry_payload(telemetry_events):
             "language_version": PYTHON_VERSION,
             "runtime_name": PYTHON_RUNTIME,
             "runtime_version": PYTHON_VERSION,
-            "tracer_name": "python",
             "tracer_version": INSTALLED_PACKAGES.get("ddtrace", "unknown"),
             "pid": os.getpid(),
         },
@@ -138,13 +150,13 @@ def runtime_version_is_supported(python_runtime, python_version):
     if not supported_versions:
         return False
     return (
-        supported_versions["min"].version <= parse_version(python_version).version <= supported_versions["max"].version
+        supported_versions["min"].version <= parse_version(python_version).version < supported_versions["max"].version
     )
 
 
 def package_is_compatible(package_name, package_version):
     installed_version = parse_version(package_version)
-    supported_version_spec = PKGS_ALLOW_LIST.get(package_name, Version((0,), ""))
+    supported_version_spec = PKGS_ALLOW_LIST.get(package_name.lower(), Version((0,), ""))
     if supported_version_spec.constraint in ("<", "<="):
         return True  # minimum "less than" means there is no minimum
     return installed_version.version >= supported_version_spec.version
@@ -192,9 +204,8 @@ def _inject():
                         create_count_metric(
                             "library_entrypoint.abort.integration",
                             [
-                                "integration_name:" + key,
+                                "integration:" + key,
                                 "integration_version:" + value,
-                                "min_supported_version:" + str(PKGS_ALLOW_LIST[key]),
                             ],
                         )
                     )
@@ -233,7 +244,9 @@ def _inject():
             send_telemetry(telemetry_event)
             return
 
-        site_pkgs_path = os.path.join(pkgs_path, "site-packages-ddtrace-py%s-%s" % (PYTHON_VERSION, current_platform))
+        site_pkgs_path = os.path.join(
+            pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
+        )
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
