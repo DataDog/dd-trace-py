@@ -79,8 +79,8 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)), override_env(
-        {APPSEC.ENV: appsec_enabled}
+    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(
+        dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
     ):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
@@ -102,7 +102,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: appsec_enabled}):
+    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(dict(_asm_enabled=True)):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
         else:
@@ -876,7 +876,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -910,7 +910,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -974,7 +974,7 @@ def test_rc_rules_data(tracer):
     RULES_PATH = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
     )
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)), open(
         RULES_PATH, "r"
     ) as dd_rules:
         tracer.configure(appsec_enabled=True, api_version="v0.4")
@@ -1000,14 +1000,14 @@ def test_rc_rules_data(tracer):
 
 
 def test_rc_rules_data_error_empty(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {}
         assert not _appsec_rules_data(config, tracer)
 
 
 def test_rc_rules_data_error_ddwaf(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules": [{"invalid": mock.MagicMock()}],
