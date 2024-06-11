@@ -1019,8 +1019,16 @@ def snapshot_context(
         except Exception as e:
             pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
-            r = conn.getresponse()
-            if r.status != 200:
+            r = None
+            attempt_start = time.time()
+            while r is None and time.time() - attempt_start < 60:
+                try:
+                    r = conn.getresponse()
+                except http.client.RemoteDisconnected:
+                    time.sleep(1)
+            if r is None:
+                pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
+            elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
                 pytest.fail(to_unicode(r.read()), pytrace=False)
 

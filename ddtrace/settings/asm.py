@@ -113,6 +113,7 @@ class ASMConfig(Env):
         "_asm_enabled",
         "_asm_can_be_enabled",
         "_asm_static_rule_file",
+        "_appsec_standalone_enabled",
         "_iast_enabled",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
