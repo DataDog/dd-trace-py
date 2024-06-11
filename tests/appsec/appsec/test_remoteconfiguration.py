@@ -29,7 +29,7 @@ from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings import config as asm_config
+from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
 from tests.utils import override_env
