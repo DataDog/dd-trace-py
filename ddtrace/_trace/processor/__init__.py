@@ -297,11 +297,17 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
+    def _lock_held(self) -> bool:
+        """Return True if the current lock is held, depending on whether the lock is reentrant
+
+        In the reentrant RLock case, _is_owned() is used even though it is an internal method because the alternative
+        is trying to acquire the lock in a non-blocking way, then re-releasing it.
+        """
+        return self._lock._is_owned() if config._span_aggregator_rlock else self._lock.locked()
+
     def _on_span_start(self, span: Span) -> None:
         """This function MUST be called with self._lock held. If the lock is not held, the span is not processed."""
-        if (config._span_aggregator_rlock and not self._lock._is_owned()) or (
-            not config._span_aggregator_rlock and not self._lock.locked()
-        ):
+        if not self._lock_held():
             log.warning("_on_span_start() called without holding self._lock while starting span %s", span)
             return
         trace = self._traces[span.trace_id]
