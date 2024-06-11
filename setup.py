@@ -9,6 +9,8 @@ import sysconfig
 import tarfile
 
 import cmake
+from setuptools_rust import Binding
+from setuptools_rust import RustExtension
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -426,7 +428,7 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
         ),
         Extension(
             "ddtrace.internal.coverage._native",
@@ -496,7 +498,7 @@ setup(
         "build_py": LibraryDownloader,
         "clean": CleanLibraries,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -561,4 +563,13 @@ setup(
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.core._core",
+            path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensures spans are rate limited at the expected rate (100 spans per second by default). Previously long running spans would set the rate limiter to set an invalid window and this could cause the next trace to be dropped.
