@@ -91,7 +91,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def hook(self, arg):
         path, line = arg
 
-        if self.coverage_enabled:
+        if self._coverage_enabled:
             lines = self.covered[path]
             if line not in lines:
                 # This line has already been covered
@@ -111,7 +111,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         for path, lines in data["lines"].items():
             self.lines[path] |= set(lines)
         for path, covered in data["covered"].items():
-            self.covered[path] |= set(covered)
+            if self._coverage_enabled:
+                self.covered[path] |= set(covered)
             if ctx_coverage_enabled.get():
                 ctx_covered.get()[path] |= set(covered)
 
@@ -171,21 +172,25 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         def __enter__(self):
             ctx_covered.set(defaultdict(set))
             ctx_coverage_enabled.set(True)
+            return self
 
         def __exit__(self, *args, **kwargs):
             ctx_coverage_enabled.set(False)
+
+        def get_covered_lines(self):
+            return ctx_covered.get()
 
     @classmethod
     def start_coverage(cls):
         if cls._instance is None:
             return
-        cls._instance.coverage_enabled = True
+        cls._instance._coverage_enabled = True
 
     @classmethod
     def stop_coverage(cls):
         if cls._instance is None:
             return
-        cls._instance.coverage_enabled = False
+        cls._instance._coverage_enabled = False
 
     @classmethod
     def coverage_enabled(cls):
