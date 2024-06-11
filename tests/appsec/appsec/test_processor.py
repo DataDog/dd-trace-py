@@ -98,8 +98,8 @@ def test_ddwaf_ctx(tracer_appsec):
 @pytest.mark.parametrize("rule,exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
     # by default enable must not crash but display errors in the logs
-    with override_global_config(dict(_raise=False)):
-        with override_global_config(dict(_asm_static_rule_file=rule)):
+    with override_env(dict(DD_APPSEC_RULES=rule)):
+        with override_global_config(dict(_raise=False)):
             _enable_appsec(tracer)
 
 

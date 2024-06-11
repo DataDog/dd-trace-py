@@ -79,12 +79,10 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(
+    with override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}), override_global_config(
         dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
     ):
-        if appsec_enabled == "":
-            del os.environ[APPSEC.ENV]
-        else:
+        if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
         rc_config = {"config": {"asm": {"enabled": rc_value}}}
@@ -940,7 +938,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
