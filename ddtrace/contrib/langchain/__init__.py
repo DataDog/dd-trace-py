@@ -22,7 +22,7 @@ This includes:
 is no longer a required dependency of ``langchain>=0.2.0``. This means that this integration will not trace the following:
 
 - Embedding calls made using ``langchain_community.embeddings.*``
-- Vectorstore similarity search calls made using ``langchain_community.vectorstores.*``
+- Vector store similarity search calls made using ``langchain_community.vectorstores.*``
 - Total cost metrics for OpenAI requests
 
 
