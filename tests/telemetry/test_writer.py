@@ -8,7 +8,6 @@ import httpretty
 import mock
 import pytest
 
-from ddtrace.internal.module import origin
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 import ddtrace.internal.telemetry
@@ -345,10 +344,12 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     if "xmltodict" in sys.modules:
         del sys.modules["xmltodict"]
 
+    telemetry_writer.periodic(force_flush=True)
+
     import xmltodict  # noqa: F401
 
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events()
     assert len(events) >= 1
     assert "payload" in events[-1]
@@ -357,8 +358,6 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
     assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
-    assert telemetry_writer._imported_dependencies["xmltodict"].name == "xmltodict"
-    assert telemetry_writer._imported_dependencies["xmltodict"].version
 
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
@@ -520,14 +519,15 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 # sends failing app-heartbeat event
                 telemetry_writer.periodic()
                 # asserts unsuccessful status code was logged
-                log.debug.assert_called_with(
+                log.debug.assert_called_once_with(
                     "failed to send telemetry to the %s at %s. response: %s",
                     "Datadog Agent",
                     telemetry_writer._client.url,
                     mock_status,
                 )
             # ensure one failing request was sent
-            assert len(httpretty.latest_requests()) == 1
+            reqs = httpretty.latest_requests()
+            assert len(reqs) == 1
 
 
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):

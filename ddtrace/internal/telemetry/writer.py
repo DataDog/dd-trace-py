@@ -230,7 +230,7 @@ class TelemetryWriter(PeriodicService):
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
 
         # Keep track of the imported modules we've already checked
-        self._imported_modules: Set[str] = set()
+        self._imported_dependencies: Set[str] = set()
 
         self._is_agentless = config._ci_visibility_agentless_enabled if agentless is None else agentless
 
@@ -554,8 +554,8 @@ class TelemetryWriter(PeriodicService):
 
         with self._lock:
             latest_modules = set(sys.modules.keys())
-            new_modules = latest_modules - self._imported_modules
-            self._imported_modules = latest_modules
+            new_modules = latest_modules - self._imported_dependencies
+            self._imported_dependencies = latest_modules
 
         packages = update_imported_dependencies(new_modules)
         if packages:

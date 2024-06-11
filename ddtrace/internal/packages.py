@@ -45,9 +45,8 @@ except AttributeError:
         if isinstance(path_repr, (str, bytes)):
             return path_repr
         raise TypeError(
-            "expected {}.__fspath__() to return str or bytes, " "not {}".format(
-                path_type.__name__, type(path_repr).__name__
-            )
+            "expected {}.__fspath__() to return str or bytes, "
+            "not {}".format(path_type.__name__, type(path_repr).__name__)
         )
 
 
