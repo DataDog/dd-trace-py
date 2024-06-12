@@ -185,17 +185,14 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     class CollectInContext:
         def __enter__(self):
-            print(f"ROMAIN ENTERING CONTEXT {self=}")
             ctx_covered.set(defaultdict(set))
             ctx_coverage_enabled.set(True)
             return self
 
         def __exit__(self, *args, **kwargs):
-            print(f"ROMAIN EXITING CONTEXT {self=}")
             ctx_coverage_enabled.set(False)
 
         def get_covered_lines(self):
-            print(f"ROMAIN GETTING COVERED LINES {self=} {ctx_covered}")
             return ctx_covered.get()
 
     @classmethod
@@ -280,11 +277,15 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def instrument_code(self, code: CodeType) -> CodeType:
         # Avoid instrumenting the same code object multiple times
+        # print(f"ROMAIN INSTRUMENTING CODE {code=}")
         if code in self.seen:
             return code
         self.seen.add(code)
 
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename)
+        # Don't re-instrument the code that was just instrumented
+        self.seen.add(new_code)
+
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
