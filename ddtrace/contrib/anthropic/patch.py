@@ -84,7 +84,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                                 "([IMAGE DETECTED])",
                             )
                         elif _get_attr(block, "type", None) == "tool_use":
-                            tag_tool_use_input_on_span(span, block, message_idx, block_idx)
+                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
 
                         elif _get_attr(block, "type", None) == "tool_result":
                             tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
@@ -163,7 +163,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                                 "([IMAGE DETECTED])",
                             )
                         elif _get_attr(block, "type", None) == "tool_use":
-                            tag_tool_use_input_on_span(span, block, message_idx, block_idx)
+                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
 
                         elif _get_attr(block, "type", None) == "tool_result":
                             tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)

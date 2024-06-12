@@ -305,7 +305,7 @@ def _tag_streamed_chat_completion_response(integration, span, message):
                 f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]).strip())
             )
         if block["type"] == "tool_use":
-            tag_tool_use_output_on_span(span, block, idx)
+            tag_tool_use_output_on_span(integration, span, block, idx)
 
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))

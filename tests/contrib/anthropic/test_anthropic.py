@@ -443,6 +443,7 @@ async def test_anthropic_llm_async_stream_helper(anthropic, request_vcr, snapsho
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools", ignores=["resource"]
@@ -459,6 +460,7 @@ async def test_anthropic_llm_async_tools(anthropic, request_vcr, snapshot_contex
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use", ignores=["resource"]
@@ -499,6 +501,7 @@ async def test_anthropic_llm_async_tools_full_use(anthropic, request_vcr, snapsh
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream", ignores=["resource"]
@@ -517,6 +520,7 @@ async def test_anthropic_llm_async_stream_tools(anthropic, request_vcr, snapshot
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_stream_helper", ignores=["resource"]
@@ -540,6 +544,7 @@ async def test_anthropic_llm_async_stream_helper_tools(anthropic, request_vcr, s
 
 
 @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+@pytest.mark.asyncio
 async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr, snapshot_context):
     with snapshot_context(
         token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_tools_full_use_stream", ignores=["resource"]

@@ -18,7 +18,7 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
                     integration.trunc(str(getattr(chat_completion, "text", "").strip())),
                 )
             elif chat_completion.type == "tool_use":
-                tag_tool_use_output_on_span(span, chat_completion, idx)
+                tag_tool_use_output_on_span(integration, span, chat_completion, idx)
 
         span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), chat_completion.type)
 
@@ -31,7 +31,7 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
     integration.record_usage(span, usage)
 
 
-def tag_tool_use_input_on_span(span, chat_input, message_idx, block_idx):
+def tag_tool_use_input_on_span(integration, span, chat_input, message_idx, block_idx):
     tool_name = _get_attr(chat_input, "name", None)
     tool_inputs = _get_attr(chat_input, "input", None)
     if tool_name:
@@ -42,7 +42,7 @@ def tag_tool_use_input_on_span(span, chat_input, message_idx, block_idx):
     if tool_inputs:
         span.set_tag_str(
             "anthropic.request.messages.%d.content.%d.tool_call.input" % (message_idx, block_idx),
-            json.dumps(tool_inputs),
+            integration.trunc(json.dumps(tool_inputs)),
         )
 
 
@@ -76,13 +76,16 @@ def tag_tool_result_input_on_span(integration, span, chat_input, message_idx, bl
             )
 
 
-def tag_tool_use_output_on_span(span, chat_completion, idx):
+def tag_tool_use_output_on_span(integration, span, chat_completion, idx):
     tool_name = _get_attr(chat_completion, "name", None)
     tool_inputs = _get_attr(chat_completion, "input", None)
     if tool_name:
         span.set_tag_str("anthropic.response.completions.content.%d.tool_call.name" % (idx), tool_name)
     if tool_inputs:
-        span.set_tag_str("anthropic.response.completions.content.%d.tool_call.input" % (idx), json.dumps(tool_inputs))
+        span.set_tag_str(
+            "anthropic.response.completions.content.%d.tool_call.input" % (idx),
+            integration.trunc(json.dumps(tool_inputs)),
+        )
 
 
 def tag_params_on_span(span, kwargs, integration):
