@@ -18,7 +18,7 @@ from ddtrace.internal import core
 from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
 import tests.appsec.rules as rules
 from tests.utils import TracerTestCase
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class EventsSDKTestCase(TracerTestCase):
@@ -217,7 +217,7 @@ class EventsSDKTestCase(TracerTestCase):
 
     def test_set_user_blocked(self):
         tracer = self._tracer_appsec
-        with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled="true", _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             tracer.configure(api_version="v0.4")
             with tracer.trace("fake_span", span_type=SpanTypes.WEB) as span:
                 set_user(
