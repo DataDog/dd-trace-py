@@ -330,7 +330,7 @@ class SpanAggregator(SpanProcessor):
             if span.trace_id not in self._traces:
                 log_msg = f"Finished span not connected to a trace, adding to trace. {span}"
                 if config._telemetry_enabled:
-                    telemetry.telemetry_writer.add_log("WARNING", log_msg)
+                    telemetry.telemetry_writer.add_log("WARN", log_msg)
                 log.warning(log_msg)
                 self._on_span_start(span)
 
