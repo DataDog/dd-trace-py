@@ -178,7 +178,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
+                "astunparse": latest,
                 "flask": "~=3.0",
+                "virtualenv-clone": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
