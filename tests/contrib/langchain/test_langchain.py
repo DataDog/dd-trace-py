@@ -5,17 +5,14 @@ import sys
 import mock
 import pytest
 
-from ddtrace.contrib.langchain.patch import BASE_LANGCHAIN_MODULE_NAME
-from ddtrace.contrib.langchain.patch import SHOULD_PATCH_LANGCHAIN_COMMUNITY
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
 from tests.utils import override_global_config
 
 
-pytestmark = pytest.mark.skipif(
-    SHOULD_PATCH_LANGCHAIN_COMMUNITY, reason="This module does not test langchain_community"
-)
+pytestmark = pytest.mark.skipif(not PATCH_LANGCHAIN_V0, reason="This module only tests langchain < 0.1")
 
 
 @pytest.fixture(scope="session")
@@ -173,7 +170,7 @@ def test_cohere_llm_sync(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
+def test_huggingfacehub_llm_sync(langchain, request_vcr):
     llm = langchain.llms.HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
         model_kwargs={"temperature": 0.5, "max_length": 256},
@@ -184,7 +181,7 @@ def test_huggingfacehub_llm_sync(langchain, langchain_community, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
-def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
+def test_ai21_llm_sync(langchain, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     if sys.version_info >= (3, 10, 0):
         cassette_name = "ai21_completion_sync.yaml"
@@ -468,13 +465,13 @@ def test_openai_embedding_document(langchain, request_vcr):
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_query(langchain, langchain_community):
+def test_fake_embedding_query(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot(ignores=["resource"])
-def test_fake_embedding_document(langchain, langchain_community):
+def test_fake_embedding_document(langchain):
     embeddings = langchain.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
 
@@ -811,7 +808,7 @@ def test_chain_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs,
     mock_metrics.count.assert_not_called()
 
 
-def test_chat_prompt_template_does_not_parse_template(langchain, langchain_community, mock_tracer):
+def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     """
     Test that tracing a chain with a ChatPromptTemplate does not try to directly parse the template,
     as ChatPromptTemplates do not contain a specific template attribute (which will lead to an attribute error)
@@ -819,10 +816,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_commu
     """
     import langchain.prompts.chat  # noqa: F401
 
-    # Use of BASE_LANGCHAIN_MODULE_NAME to reduce warnings
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0)
             template = "You are a helpful assistant that translates english to pirate."
@@ -1095,9 +1089,7 @@ def test_llm_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.llms.openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             llm = langchain.llms.OpenAI(model="text-davinci-003")
             llm("Can you please not return an error?")
@@ -1109,7 +1101,7 @@ def test_llm_logs_when_response_not_completed(
     mock_logs.enqueue.assert_called_with(
         {
             "timestamp": mock.ANY,
-            "message": f"sampled {BASE_LANGCHAIN_MODULE_NAME}.llms.openai.OpenAI",
+            "message": "sampled langchain.llms.openai.OpenAI",
             "hostname": mock.ANY,
             "ddsource": "langchain",
             "service": "",
@@ -1131,9 +1123,7 @@ def test_chat_model_logs_when_response_not_completed(
     langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
-    with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")
-    ):
+    with mock.patch("langchain.chat_models.openai.ChatOpenAI._generate", side_effect=Exception("Mocked Error")):
         with pytest.raises(Exception) as exc_info:
             chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
             chat([langchain.schema.HumanMessage(content="Can you please not return an error?")])
@@ -1168,7 +1158,7 @@ def test_embedding_logs_when_response_not_completed(
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func",
         side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
@@ -1202,7 +1192,7 @@ def test_embedding_logs_when_response_not_completed(
 def test_vectorstore_logs_error(langchain, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch(
-        f"{BASE_LANGCHAIN_MODULE_NAME}.embeddings.openai.OpenAIEmbeddings._embedding_func",
+        "langchain.embeddings.openai.OpenAIEmbeddings._embedding_func",
         side_effect=Exception("Mocked Error"),
     ):
         with pytest.raises(Exception) as exc_info:
