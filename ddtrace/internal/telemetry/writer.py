@@ -52,6 +52,9 @@ from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
+from .constants import TELEMETRY_LIB_INJECTION_FORCED
+from .constants import TELEMETRY_LIB_WAS_INJECTED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -498,6 +501,9 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
+                (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
+                (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
+                (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
             ]
             + get_python_config_vars()
         )

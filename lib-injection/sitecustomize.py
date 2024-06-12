@@ -173,6 +173,7 @@ def _inject():
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
+    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     try:
         import ddtrace
     except ImportError:
@@ -252,7 +253,7 @@ def _inject():
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
-        sys.path.insert(0, site_pkgs_path)
+        sys.path.insert(-1, site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
         try:
             import ddtrace  # noqa: F401
@@ -263,6 +264,7 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
+            ddtrace.settings.config._lib_was_injected = True
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             try:
                 import ddtrace.bootstrap.sitecustomize
@@ -275,7 +277,7 @@ def _inject():
                 python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
                 if script_dir in python_path:
                     python_path.remove(script_dir)
-                python_path.insert(0, site_pkgs_path)
+                python_path.insert(-1, site_pkgs_path)
                 bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
