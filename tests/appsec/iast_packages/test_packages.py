@@ -59,7 +59,6 @@ class PackageForTesting:
             self.expected_result2 = expected_result2
 
         self.extra_packages = extras if extras else []
-        print("JJJ self.extra_packages: ", self.extra_packages)
 
         if import_name:
             self.import_name = import_name
@@ -141,8 +140,9 @@ class PackageForTesting:
 # pypular package is discarded because it is not a real top package
 # wheel, importlib-metadata and pip is discarded because they are package to build projects
 # colorama and awscli are terminal commands
+_user_dir = os.path.expanduser("~")
 PACKAGES = [
-    PackageForTesting("asn1crypto", "1.5.1", "", "", "", test_e2e=False, import_module_to_validate="asn1crypto.core"),
+    PackageForTesting("asn1crypto", "1.5.1", "", "Ok", "", import_module_to_validate="asn1crypto.core"),
     PackageForTesting(
         "attrs",
         "23.2.0",
@@ -186,7 +186,7 @@ PACKAGES = [
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
     ),
-    PackageForTesting("click", "8.1.7", "", "", "", test_e2e=False, import_module_to_validate="click.core"),
+    PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
     PackageForTesting(
         "cryptography",
         "42.0.7",
@@ -195,11 +195,20 @@ PACKAGES = [
         "",
         import_module_to_validate="cryptography.fernet",
     ),
-    PackageForTesting("distlib", "0.3.8", "", "", "", test_e2e=False, import_module_to_validate="distlib.util"),
     PackageForTesting(
-        "exceptiongroup", "1.2.1", "", "", "", test_e2e=False, import_module_to_validate="exceptiongroup._formatting"
+        "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
     ),
-    PackageForTesting("filelock", "3.14.0", "", "", "", test_e2e=False, import_module_to_validate="filelock._api"),
+    PackageForTesting(
+        "exceptiongroup",
+        "1.2.1",
+        "foobar",
+        "ValueError: First error with foobar\nTypeError: Second error with foobar",
+        "",
+        import_module_to_validate="exceptiongroup._formatting",
+    ),
+    PackageForTesting(
+        "filelock", "3.14.0", "foobar", "Lock acquired for file: foobar", "", import_module_to_validate="filelock._api"
+    ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
     PackageForTesting(
@@ -232,19 +241,30 @@ PACKAGES = [
     PackageForTesting(
         "importlib-resources",
         "6.4.0",
+        "foobar",
+        "Content of foobar:\nThis is the default content of the file.",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_name="importlib_resources",
         skip_python_version=[(3, 8)],
         import_module_to_validate="importlib_resources.readers",
     ),
-    PackageForTesting("isodate", "0.6.1", "", "", "", test_e2e=False, import_module_to_validate="isodate.duration"),
     PackageForTesting(
-        "itsdangerous", "2.2.0", "", "", "", test_e2e=False, import_module_to_validate="itsdangerous.serializer"
+        "isodate",
+        "0.6.1",
+        "2023-06-15T13:45:30",
+        "Parsed date and time: 2023-06-15 13:45:30",
+        "",
+        import_module_to_validate="isodate.duration",
     ),
-    PackageForTesting("jinja2", "3.1.4", "", "", "", test_e2e=False, import_module_to_validate="jinja2.compiler"),
+    PackageForTesting(
+        "itsdangerous",
+        "2.2.0",
+        "foobar",
+        "Signed value: foobar.generated_signature\nUnsigned value: foobar",
+        "",
+        import_module_to_validate="itsdangerous.serializer",
+    ),
+    PackageForTesting("jinja2", "3.1.4", "foobar", "Hello, foobar!", "", import_module_to_validate="jinja2.compiler"),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
     # jsonschema fails for Python 3.8
     #        except KeyError:
@@ -266,29 +286,38 @@ PACKAGES = [
         "",
         skip_python_version=[(3, 8)],
     ),
-    PackageForTesting("markupsafe", "2.1.5", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "markupsafe",
+        "2.1.5",
+        "<script>alert('XSS')</script>",
+        "Hello, &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;!",
+        "",
+    ),
     PackageForTesting(
         "lxml",
         "5.2.2",
+        "<root><element>foobar</element></root>",
+        "Element text: foobar",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_name="lxml.etree",
         import_module_to_validate="lxml.doctestcompare",
     ),
     PackageForTesting(
         "more-itertools",
         "10.2.0",
+        "1,2,3,4,5,6",
+        "Chunked sequence: [[1, 2], [3, 4], [5, 6]]",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_name="more_itertools",
         import_module_to_validate="more_itertools.more",
     ),
     PackageForTesting(
-        "multidict", "6.0.5", "", "", "", test_e2e=False, import_module_to_validate="multidict._multidict_py"
+        "multidict",
+        "6.0.5",
+        "key1=value1",
+        "MultiDict contents: {'key1': 'value1'}",
+        "",
+        import_module_to_validate="multidict._multidict_py",
     ),
     # Python 3.12 fails in all steps with "import error" when import numpy
     PackageForTesting(
@@ -300,8 +329,17 @@ PACKAGES = [
         skip_python_version=[(3, 12)],
         import_module_to_validate="numpy.core._internal",
     ),
-    PackageForTesting("oauthlib", "3.2.2", "", "", "", test_e2e=False, import_module_to_validate="oauthlib.common"),
-    PackageForTesting("openpyxl", "3.1.2", "", "", "", test_e2e=False, import_module_to_validate="openpyxl.chart.axis"),
+    PackageForTesting(
+        "oauthlib",
+        "3.2.2",
+        "my-client-id",
+        "OAuth2 client created with client ID: my-client-id",
+        "",
+        import_module_to_validate="oauthlib.common",
+    ),
+    PackageForTesting(
+        "openpyxl", "3.1.2", "foobar", "Written value: foobar", "", import_module_to_validate="openpyxl.chart.axis"
+    ),
     PackageForTesting(
         "packaging",
         "24.0",
@@ -310,11 +348,23 @@ PACKAGES = [
         "",
     ),
     # Pandas dropped Python 3.8 support in pandas>2.0.3
-    PackageForTesting("pandas", "2.2.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
+    PackageForTesting("pandas", "2.2.2", "foobar", "Written value: foobar", "", skip_python_version=[(3, 8)]),
     PackageForTesting(
-        "platformdirs", "4.2.2", "", "", "", test_e2e=False, import_module_to_validate="platformdirs.unix"
+        "platformdirs",
+        "4.2.2",
+        "foobar-app",
+        "User data directory for foobar-app: %s/.local/share/foobar-app" % _user_dir,
+        "",
+        import_module_to_validate="platformdirs.unix",
     ),
-    PackageForTesting("pluggy", "1.5.0", "", "", "", test_e2e=False, import_module_to_validate="pluggy._hooks"),
+    PackageForTesting(
+        "pluggy",
+        "1.5.0",
+        "foobar",
+        "Hook result: Plugin received: foobar",
+        "",
+        import_module_to_validate="pluggy._hooks",
+    ),
     PackageForTesting(
         "pyasn1",
         "0.6.0",
@@ -324,7 +374,13 @@ PACKAGES = [
         import_module_to_validate="pyasn1.codec.native.decoder",
     ),
     PackageForTesting("pycparser", "2.22", "", "", ""),
-    PackageForTesting("pydantic", "2.7.1", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "pydantic",
+        "2.7.1",
+        '{"name": "foobar", "description": "A test item"}',
+        "Validated item: name=foobar, description=A test item",
+        "",
+    ),
     PackageForTesting(
         "pydantic-core",
         "2.18.2",
@@ -335,7 +391,7 @@ PACKAGES = [
         import_name="pydantic_core",
         import_module_to_validate="pydantic_core.core_schema",
     ),
-    # TODO: patching Pytest fails: ImportError: cannot import name 'Dir' from '_pytest.main'
+    # # TODO: patching Pytest fails: ImportError: cannot import name 'Dir' from '_pytest.main'
     # PackageForTesting("pytest", "8.2.1", "", "", "", test_e2e=False),
     PackageForTesting(
         "python-dateutil",
@@ -346,7 +402,13 @@ PACKAGES = [
         import_name="dateutil",
         import_module_to_validate="dateutil.relativedelta",
     ),
-    PackageForTesting("pytz", "2024.1", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "pytz",
+        "2024.1",
+        "America/New_York",
+        "Current time in America/New_York: replaced_time",
+        "",
+    ),
     PackageForTesting(
         "PyYAML",
         "6.0.1",
@@ -390,9 +452,9 @@ PACKAGES = [
         "",
         extras=[("boto3", "1.34.110")],
     ),
-    # TODO: Test import fails with
-    #   AttributeError: partially initialized module 'setuptools' has no
-    #   attribute 'dist' (most likely due to a circular import)
+    # # TODO: Test import fails with
+    # #   AttributeError: partially initialized module 'setuptools' has no
+    # #   attribute 'dist' (most likely due to a circular import)
     PackageForTesting(
         "setuptools",
         "70.0.0",
@@ -401,8 +463,22 @@ PACKAGES = [
         "",
         test_import=False,
     ),
-    PackageForTesting("tomli", "2.0.1", "", "", "", test_e2e=False, import_module_to_validate="tomli._parser"),
-    PackageForTesting("tomlkit", "0.12.5", "", "", "", test_e2e=False, import_module_to_validate="tomlkit.items"),
+    PackageForTesting(
+        "tomli",
+        "2.0.1",
+        "key = 'value'",
+        "Parsed TOML data: {'key': 'value'}",
+        "",
+        import_module_to_validate="tomli._parser",
+    ),
+    PackageForTesting(
+        "tomlkit",
+        "0.12.5",
+        "key = 'value'",
+        "Parsed TOML data: {'key': 'value'}",
+        "",
+        import_module_to_validate="tomlkit.items",
+    ),
     PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
     # Python 3.8 and 3.9 fail with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
     PackageForTesting(
@@ -414,17 +490,21 @@ PACKAGES = [
         skip_python_version=[(3, 8), (3, 9)],
     ),
     PackageForTesting(
-        "virtualenv", "20.26.2", "", "", "", test_e2e=False, import_module_to_validate="virtualenv.activation.activator"
+        "virtualenv",
+        "20.26.2",
+        "myenv",
+        "Virtual environment created at replaced_path\nContents of replaced_path: replaced_contents",
+        "",
+        import_module_to_validate="virtualenv.activation.activator",
     ),
     # These show an issue in astunparse ("FormattedValue has no attribute values")
     # so we use ast.unparse which is only 3.9
     PackageForTesting(
         "soupsieve",
         "2.5",
+        "<div><p>Example paragraph</p></div>",
+        "Found 1 paragraph(s): Example paragraph",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_module_to_validate="soupsieve.css_match",
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
@@ -432,24 +512,30 @@ PACKAGES = [
     PackageForTesting(
         "werkzeug",
         "3.0.3",
+        "your-password",
+        "Original password: your-password\nHashed password: replaced_hashed\nPassword match: True",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_module_to_validate="werkzeug.http",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
     PackageForTesting(
         "yarl",
         "1.9.4",
+        "https://example.com/path?query=param",
+        "Original URL: https://example.com/path?query=param\nScheme: https\nHost:"
+        + "example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
-    PackageForTesting("zipp", "3.18.2", "", "", "", test_e2e=False, skip_python_version=[(3, 6), (3, 7), (3, 8)]),
+    PackageForTesting(
+        "zipp",
+        "3.18.2",
+        "example.zip",
+        "Contents of example.zip: ['example.zip/example.txt']",
+        "",
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
     PackageForTesting(
         "typing-extensions",
         "4.11.0",
@@ -471,45 +557,129 @@ PACKAGES = [
     PackageForTesting(
         "pillow",
         "10.3.0",
+        "Hello, Pillow!",
+        "Image correctly generated",
         "",
-        "",
-        "",
-        test_e2e=False,
         import_name="PIL.Image",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
     ),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
-    PackageForTesting("pyjwt", "2.8.0", "", "", "", test_e2e=False, import_name="jwt"),
-    PackageForTesting("wrapt", "1.16.0", "", "", "", test_e2e=False),
-    PackageForTesting("cachetools", "5.3.3", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "pyjwt",
+        "2.8.0",
+        "username123",
+        "Encoded JWT: replaced_token\nDecoded payload: {'user': 'username123'}",
+        "",
+        import_name="jwt",
+    ),
+    PackageForTesting(
+        "wrapt",
+        "1.16.0",
+        "some-value",
+        "Function executed with param: some-value",
+        "",
+    ),
+    PackageForTesting(
+        "cachetools",
+        "5.3.3",
+        "some-key",
+        "Computed value for some-key\nCached value for some-key: Computed value for some-key",
+        "",
+    ),
     # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
-    PackageForTesting("docutils", "0.21.2", "", "", "", test_e2e=False, skip_python_version=[(3, 8)]),
-    PackageForTesting("pyarrow", "16.1.0", "", "", "", test_e2e=False),
+    PackageForTesting(
+        "docutils", "0.21.2", "Hello, **world**!", "Conversion successful!", "", skip_python_version=[(3, 8)]
+    ),
+    PackageForTesting(
+        "pyarrow",
+        "16.1.0",
+        "some-value",
+        "Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}",
+        "",
+        extras=[("pandas", "2.2.2")],
+    ),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
-    PackageForTesting("pyparsing", "3.1.2", "", "", "", test_e2e=False),
-    PackageForTesting("aiohttp", "3.9.5", "", "", "", test_e2e=False),
+    PackageForTesting("pyparsing", "3.1.2", "123-456-7890", "Parsed phone number: ['123', '456', '7890']", ""),
+    # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
+    PackageForTesting(
+        "aiohttp",
+        "3.9.5",
+        "https://example.com",
+        "foobar",
+        "",
+        test_e2e=False,
+    ),
     # scipy dropped Python 3.8 support in scipy > 1.10.1
     PackageForTesting(
-        "scipy", "1.13.0", "", "", "", test_e2e=False, import_name="scipy.special", skip_python_version=[(3, 8)]
+        "scipy",
+        "1.13.0",
+        "1,2,3,4,5",
+        "Mean: 3.0, Standard Deviation: 1.581",
+        "",
+        import_name="scipy.special",
+        skip_python_version=[(3, 8)],
     ),
-    PackageForTesting("iniconfig", "2.0.0", "", "", "", test_e2e=False),
-    PackageForTesting("psutil", "5.9.8", "", "", "", test_e2e=False),
-    PackageForTesting("frozenlist", "1.4.1", "", "", "", test_e2e=False),
-    PackageForTesting("aiosignal", "1.3.1", "", "", "", test_e2e=False),
-    PackageForTesting("pygments", "2.18.0", "", "", "", test_e2e=False),
+    PackageForTesting("iniconfig", "2.0.0", "test1234", "Parsed INI data: {'section': [('key', 'value')]}", ""),
+    PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
+    PackageForTesting(
+        "frozenlist",
+        "1.4.1",
+        "1,2,3",
+        "Original list: <FrozenList(frozen=True, [1, 2, 3])> Attempt to modify frozen list!",
+        "",
+    ),
+    # TODO: e2e implemented but fails unpatched: "Signal handlers results: None"
+    PackageForTesting(
+        "aiosignal",
+        "1.3.1",
+        "test_value",
+        "Signal handlers results: [('Handler 1 called', None), ('Handler 2 called', None)]",
+        "",
+        test_e2e=False,
+    ),
+    PackageForTesting(
+        "pygments",
+        "2.18.0",
+        "print('Hello, world!')",
+        '<div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">'
+        '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
+        "",
+    ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
-    PackageForTesting("pyopenssl", "24.1.0", "", "", "", test_e2e=False, import_name="OpenSSL.SSL"),
-    PackageForTesting("decorator", "5.1.1", "", "", "", test_e2e=False),
-    PackageForTesting("requests-toolbelt", "1.0.0", "", "", "", test_e2e=False, import_name="requests_toolbelt"),
-    PackageForTesting("pynacl", "1.5.0", "", "", "", test_e2e=False, import_name="nacl.utils"),
-    PackageForTesting("annotated-types", "0.7.0", "", "", "", test_e2e=False, import_name="annotated_types"),
+    PackageForTesting(
+        "pyopenssl",
+        "24.1.0",
+        "example.com",
+        "Certificate: replaced_cert; Private Key: replaced_priv_key",
+        "",
+        import_name="OpenSSL.SSL",
+    ),
+    PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
+    # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
+    PackageForTesting(
+        "requests-toolbelt", "1.0.0", "test_value", "", "", import_name="requests_toolbelt", test_e2e=False
+    ),
+    PackageForTesting(
+        "pynacl",
+        "1.5.0",
+        "Hello, World!",
+        "Key: replaced_key; Encrypted: replaced_encrypted; Decrypted: Hello, World!",
+        "",
+        import_name="nacl.utils",
+    ),
+    PackageForTesting("annotated-types", "0.7.0", "15", "Processed value: 15", "", import_name="annotated_types"),
 ]
 
 # Use this function if you want to test one or a filter number of package for debug proposes
 # SKIP_FUNCTION = lambda package: package.name == "pynacl"  # noqa: E731
 SKIP_FUNCTION = lambda package: True  # noqa: E731
+
+
+# Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
+# Remember to set to False before pushing it!
+_DEBUG_MODE = True  # JJJ Set to False!
 
 
 @pytest.fixture(scope="module")
@@ -522,25 +692,27 @@ def template_venv():
     os.makedirs(cloned_venvs_dir, exist_ok=True)
 
     # Create virtual environment
-    subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
-    pip_executable = os.path.join(venv_dir, "bin", "pip")
-    this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
-    # Install dependencies.
-    deps_to_install = [
-        "flask",
-        "attrs",
-        "six",
-        "cattrs",
-        "pytest",
-        "charset_normalizer",
-        this_dd_trace_py_path,
-    ]
-    subprocess.check_call([pip_executable, "install", *deps_to_install])
+    if not _DEBUG_MODE:
+        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+        pip_executable = os.path.join(venv_dir, "bin", "pip")
+        this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
+        # Install dependencies.
+        deps_to_install = [
+            "flask",
+            "attrs",
+            "six",
+            "cattrs",
+            "pytest",
+            "charset_normalizer",
+            this_dd_trace_py_path,
+        ]
+        subprocess.check_call([pip_executable, "install", *deps_to_install])
 
     yield venv_dir
 
     # Cleanup: Remove the virtual environment directory after tests
-    shutil.rmtree(venv_dir)
+    if not _DEBUG_MODE:
+        shutil.rmtree(venv_dir)
 
 
 @pytest.fixture()
@@ -561,12 +733,16 @@ def venv(template_venv):
 def _assert_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
+    print("JJJ content: \n", content)
     if type(content["param"]) in (str, bytes):
+        print("JJJ param: |%s|" % content["param"])
+        print("JJJ expected_param: |%s|" % package.expected_param)
         assert content["param"].startswith(package.expected_param)
     else:
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
+        print("JJJ content[result1]: |%s|" % content["result1"])
         assert content["result1"].startswith(package.expected_result1)
     else:
         assert content["result1"] == package.expected_result1
