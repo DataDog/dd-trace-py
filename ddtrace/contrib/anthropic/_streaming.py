@@ -5,8 +5,8 @@ from typing import Tuple
 
 import anthropic
 
-from ddtrace.contrib.anthropic.utils import tag_tool_result_on_span
-from ddtrace.contrib.anthropic.utils import tag_tool_usage_on_span
+from ddtrace.contrib.anthropic.utils import tag_tool_result_output_on_span
+from ddtrace.contrib.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.vendor import wrapt
@@ -283,13 +283,15 @@ def _tag_streamed_chat_completion_response(integration, span, message):
     for idx, block in enumerate(message["content"]):
         span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
-        
+
         if "text" in block:
-            span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"])))
+            span.set_tag_str(
+                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]))
+            )
         if block["type"] == "tool_use":
-            tag_tool_usage_on_span(span, block, idx)
+            tag_tool_use_output_on_span(span, block, idx)
         elif block["type"] == "tool_result":
-            tag_tool_result_on_span(span, block, idx)
+            tag_tool_result_output_on_span(span, block, idx)
 
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))

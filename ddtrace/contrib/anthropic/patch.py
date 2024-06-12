@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -19,6 +18,8 @@ from ._streaming import is_streaming_operation
 from .utils import _extract_api_key
 from .utils import handle_non_streamed_response
 from .utils import tag_params_on_span
+from .utils import tag_tool_result_input_on_span
+from .utils import tag_tool_use_input_on_span
 
 
 log = get_logger(__name__)
@@ -83,28 +84,10 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                                 "([IMAGE DETECTED])",
                             )
                         elif _get_attr(block, "type", None) == "tool_use":
-                            tool_name = _get_attr(block, "name", None)
-                            tool_inputs = _get_attr(block, "input", None)
-                            if tool_name:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_calls.name"
-                                    % (message_idx, block_idx),
-                                    tool_name,
-                                )
-                            if tool_inputs:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_calls.arguments"
-                                    % (message_idx, block_idx),
-                                    json.dumps(tool_inputs),
-                                )
+                            tag_tool_use_input_on_span(span, block, message_idx, block_idx)
+
                         elif _get_attr(block, "type", None) == "tool_result":
-                            content = _get_attr(block, "content", None)
-                            if content:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_result.content"
-                                    % (message_idx, block_idx),
-                                    content,
-                                )
+                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
@@ -180,28 +163,10 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                                 "([IMAGE DETECTED])",
                             )
                         elif _get_attr(block, "type", None) == "tool_use":
-                            tool_name = _get_attr(block, "name", None)
-                            tool_inputs = _get_attr(block, "input", None)
-                            if tool_name:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_calls.name"
-                                    % (message_idx, block_idx),
-                                    tool_name,
-                                )
-                            if tool_inputs:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_calls.arguments"
-                                    % (message_idx, block_idx),
-                                    json.dumps(tool_inputs),
-                                )
+                            tag_tool_use_input_on_span(span, block, message_idx, block_idx)
+
                         elif _get_attr(block, "type", None) == "tool_result":
-                            content = _get_attr(block, "content", None)
-                            if content:
-                                span.set_tag_str(
-                                    "anthropic.request.messages.%d.content.%d.tool_result.content"
-                                    % (message_idx, block_idx),
-                                    content,
-                                )
+                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
