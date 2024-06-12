@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: This fix resolves an issue where requests contrib would not propagate when apm is opted out (in ASM Standalone).
+    ASM: This fix resolves an issue where the `requests` integration would not propagate when apm is opted out (i.e. in ASM Standalone).
