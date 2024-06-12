@@ -1,16 +1,13 @@
-import os
 from typing import Any
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
 from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
-from ddtrace.settings import _config as config
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -64,12 +61,6 @@ def parse_response_body(raw_body):
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
-
-
-def _appsec_rc_features_is_enabled() -> bool:
-    if config._remote_config_enabled:
-        return APPSEC_ENV not in os.environ
-    return False
 
 
 def _appsec_apisec_features_is_active() -> bool:
