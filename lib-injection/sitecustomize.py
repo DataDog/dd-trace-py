@@ -173,6 +173,7 @@ def _inject():
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
+    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     try:
         import ddtrace
     except ImportError:
@@ -263,6 +264,7 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
+            ddtrace.settings.config._lib_was_injected = True
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             try:
                 import ddtrace.bootstrap.sitecustomize
