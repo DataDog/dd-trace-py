@@ -377,7 +377,6 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
             assert events[0]["request_type"] != "app-dependencies-loaded"
 
 
-@pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
 def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_session, mock_time):
     if "string" in sys.modules:
         del sys.modules["string"]
@@ -391,7 +390,6 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     assert len(events) == 1
 
 
-@flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     if "xmltodict" in sys.modules:
         del sys.modules["xmltodict"]
