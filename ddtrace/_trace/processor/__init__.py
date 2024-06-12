@@ -355,7 +355,7 @@ class SpanAggregator(SpanProcessor):
                 if trace.num_finished != 0:
                     log_msg = f"Finished span count of {num_finished} is not the expected {trace.num_finished}. {span}"
                     if config._telemetry_enabled:
-                        telemetry.telemetry_writer.add_log("WARNING", log_msg)
+                        telemetry.telemetry_writer.add_log("WARN", log_msg)
                     log.warning(log_msg)
                     trace.num_finished = 0
 
