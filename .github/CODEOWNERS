@@ -18,6 +18,7 @@ tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
+.riot/requirements/                 @DataDog/apm-python
 
 # Core
 tests/internal                      @DataDog/apm-core-python
