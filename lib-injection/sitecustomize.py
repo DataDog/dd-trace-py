@@ -32,13 +32,9 @@ RUNTIMES_ALLOW_LIST = {
     "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
 }
 
-FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in (
-    "true",
-    "1",
-    "t",
-)
-FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
-TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED")
+FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
+FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
+TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
@@ -107,7 +103,9 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
+    _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
+        _log("not sending telemetry: TELEMETRY_ENABLED=%s" % TELEMETRY_ENABLED, level="debug")
         return
     p = subprocess.Popen(
         [FORWARDER_EXECUTABLE, str(os.getpid())],
@@ -118,6 +116,7 @@ def send_telemetry(event):
     )
     p.stdin.write(event_json)
     p.stdin.close()
+    _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
 
 
 def _get_clib():
@@ -174,6 +173,7 @@ def _inject():
     telemetry_data = []
     integration_incomp = False
     runtime_incomp = False
+    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     try:
         import ddtrace
     except ImportError:
@@ -253,7 +253,7 @@ def _inject():
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
-        sys.path.insert(0, site_pkgs_path)
+        sys.path.insert(-1, site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
         try:
             import ddtrace  # noqa: F401
@@ -264,6 +264,7 @@ def _inject():
         else:
             # In injected environments, the profiler needs to know that it is only allowed to use the native exporter
             os.environ["DD_PROFILING_EXPORT_LIBDD_REQUIRED"] = "true"
+            ddtrace.settings.config._lib_was_injected = True
             # This import has the same effect as ddtrace-run for the current process (auto-instrument all libraries).
             try:
                 import ddtrace.bootstrap.sitecustomize
@@ -276,7 +277,7 @@ def _inject():
                 python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
                 if script_dir in python_path:
                     python_path.remove(script_dir)
-                python_path.insert(0, site_pkgs_path)
+                python_path.insert(-1, site_pkgs_path)
                 bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
