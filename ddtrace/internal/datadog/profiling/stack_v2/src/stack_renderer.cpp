@@ -52,7 +52,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     stashed_native_id = native_id;
     stashed_thread_name = std::string(name);
     stashed_wall_time_us = wall_time_us;
-    stashed_end_time_ns = now_ns;
+    stashed_now_time_ns = now_ns;
 }
 
 void
@@ -80,8 +80,8 @@ StackRenderer::render_task_begin(std::string_view name)
         ddup_push_cputime(sample, 1000 * stashed_cpu_time_us, 1); // initialized to 0, so possibly a no-op
 
         // If we have a nonzero timestamp, push that too
-        if (stashed_end_time_ns != 0) {
-            ddup_push_monotonic_ns(sample, stashed_end_time_ns);
+        if (stashed_now_time_ns != 0) {
+            ddup_push_monotonic_ns(sample, stashed_now_time_ns);
         }
     }
 
