@@ -44,7 +44,7 @@ _ALL_ASM_BLOCKING = (
     | Flags.ASM_CUSTOM_BLOCKING_RESPONSE
 )
 
-_ALL_RASP = Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF
+_ALL_RASP = Flags.ASM_RASP_SQLI | Flags.ASM_RASP_LFI | Flags.ASM_RASP_SSRF
 
 
 def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
