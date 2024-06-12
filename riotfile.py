@@ -2632,7 +2632,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility tests/coverage",
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,
