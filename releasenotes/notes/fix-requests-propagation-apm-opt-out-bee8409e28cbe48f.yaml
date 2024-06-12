@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where requests contrib would not propagate when apm is opted out (in ASM Standalone).
