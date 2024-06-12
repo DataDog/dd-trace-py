@@ -13,7 +13,7 @@ pkg_urllib3 = Blueprint("package_urllib3", __name__)
 
 
 @pkg_urllib3.route("/urllib3")
-def pkg_requests_view():
+def pkg_urllib3_view():
     import urllib3
 
     response = ResultResponse(request.args.get("package_param"))
