@@ -10,17 +10,17 @@ log = get_logger(__name__)
 
 
 def handle_non_streamed_response(integration, chat_completions, args, kwargs, span):
-    for idx, chat_completion in enumerate(chat_completions.content):
+    for idx, block in enumerate(chat_completions.content):
         if integration.is_pc_sampled_span(span):
-            if getattr(chat_completion, "text", "") != "":
+            if getattr(block, "text", "") != "":
                 span.set_tag_str(
                     "anthropic.response.completions.content.%d.text" % (idx),
-                    integration.trunc(str(getattr(chat_completion, "text", "").strip())),
+                    integration.trunc(str(getattr(block, "text", "").strip())),
                 )
-            elif chat_completion.type == "tool_use":
-                tag_tool_use_output_on_span(integration, span, chat_completion, idx)
+            elif block.type == "tool_use":
+                tag_tool_use_output_on_span(integration, span, block, idx)
 
-        span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), chat_completion.type)
+        span.set_tag_str("anthropic.response.completions.content.%d.type" % (idx), block.type)
 
     # set message level tags
     if getattr(chat_completions, "stop_reason", None) is not None:
