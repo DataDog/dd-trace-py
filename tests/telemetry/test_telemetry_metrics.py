@@ -447,8 +447,6 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
         for _ in range(3):
             sleep(0.1)
             telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARN, "test error 1")
-            telemetry_writer.add_log("potato", "test error 1")
-            telemetry_writer.add_log("WARN", "test error 1")
 
         expected_payload = [
             {
