@@ -120,3 +120,4 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 .github/workflows/system-tests.yml  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
+tests/utils.py                      @DataDog/python-guild
