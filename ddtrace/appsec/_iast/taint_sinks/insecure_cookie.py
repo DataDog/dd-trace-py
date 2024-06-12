@@ -4,7 +4,6 @@ from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from ..constants import EVIDENCE_COOKIE
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
 from ..constants import VULN_NO_SAMESITE_COOKIE
@@ -19,7 +18,6 @@ if TYPE_CHECKING:
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     scrub_evidence = False
     skip_location = True
 
@@ -27,14 +25,12 @@ class InsecureCookie(VulnerabilityBase):
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
-    evidence_type = EVIDENCE_COOKIE
     skip_location = True
 
 
