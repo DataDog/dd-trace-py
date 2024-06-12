@@ -189,8 +189,6 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
         "content_block_stop": _on_content_block_stop_chunk,
         "message_delta": _on_message_delta_chunk,
         "error": _on_error_chunk,
-        "tool_use": _on_tool_usage_chunk,
-        "tool_result": _on_tool_result_chunk,
     }
     chunk_type = _get_attr(chunk, "type", "")
     transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
@@ -276,21 +274,6 @@ def _on_error_chunk(chunk, message):
         if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
-
-
-def _on_tool_usage_chunk(chunk, message):
-    tool_name = _get_attr(chunk, "name", None)
-    tool_inputs = _get_attr(chunk, "input", None)
-    if tool_name:
-        message["content"].append({"type": "tool_use", "name:": tool_name})
-    if tool_inputs:
-        message["content"][-1]["input"] = tool_inputs
-
-
-def _on_tool_result_chunk(chunk, message):
-    content = _get_attr(chunk, "content", None)
-    if content:
-        message["content"].append({"type": "tool_result", "content:": content})
 
 
 def _tag_streamed_chat_completion_response(integration, span, message):
