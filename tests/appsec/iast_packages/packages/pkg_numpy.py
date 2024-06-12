@@ -17,7 +17,7 @@ def np_float(x):
 
 
 @pkg_numpy.route("/numpy")
-def pkg_idna_view():
+def pkg_numpy_view():
     import numpy as np
 
     response = ResultResponse(request.args.get("package_param"))
