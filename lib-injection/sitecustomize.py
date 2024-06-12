@@ -108,7 +108,7 @@ def send_telemetry(event):
         _log("not sending telemetry: TELEMETRY_ENABLED=%s" % TELEMETRY_ENABLED, level="debug")
         return
     p = subprocess.Popen(
-        [FORWARDER_EXECUTABLE, str(os.getpid())],
+        [FORWARDER_EXECUTABLE, "library_entrypoint"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
