@@ -210,7 +210,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
