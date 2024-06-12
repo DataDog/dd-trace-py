@@ -14,7 +14,7 @@ pkg_chartset_normalizer = Blueprint("package_chartset_normalizer", __name__)
 
 
 @pkg_chartset_normalizer.route("/charset-normalizer")
-def pkg_idna_view():
+def pkg_charset_normalizer_view():
     response = ResultResponse(request.args.get("package_param"))
     response.result1 = str(from_bytes(bytes(response.package_param, encoding="utf-8")).best())
     return response.json()

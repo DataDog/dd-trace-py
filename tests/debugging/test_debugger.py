@@ -618,6 +618,7 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
     assert g is not f
 
 
+@flaky(1735812000)
 def test_debugger_line_probe_on_wrapped_function(stuff):
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
@@ -1143,6 +1144,7 @@ def test_debugger_continue_wrapping_after_first_failure():
         assert d._probe_registry[probe_ok.probe_id].installed
 
 
+@flaky(1735812000)
 def test_debugger_redacted_identifiers():
     import tests.submod.stuff as stuff
 

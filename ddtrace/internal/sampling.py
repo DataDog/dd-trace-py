@@ -147,7 +147,7 @@ class SpanSamplingRule:
     def sample(self, span):
         # type: (Span) -> bool
         if self._sample(span):
-            if self._limiter.is_allowed(span.start_ns):
+            if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
@@ -310,7 +310,7 @@ def _apply_rate_limit(span, sampled, limiter):
     # type: (Span, bool, RateLimiter) -> bool
     allowed = True
     if sampled:
-        allowed = limiter.is_allowed(span.start_ns)
+        allowed = limiter.is_allowed()
         if not allowed:
             _set_priority(span, USER_REJECT)
     if limiter._has_been_configured:

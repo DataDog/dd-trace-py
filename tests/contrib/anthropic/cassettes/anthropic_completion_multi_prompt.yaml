@@ -2,8 +2,8 @@ interactions:
 - request:
     body: '{"max_tokens": 15, "messages": [{"role": "user", "content": [{"type": "text",
       "text": "Hello, I am looking for information about some books!"}, {"type": "text",
-      "text": "Can you explain what Descartes meant by ''I think, therefore I am''?"}]}],
-      "model": "claude-3-opus-20240229", "system": "Respond only in all caps."}'
+      "text": "What is the best selling book?"}]}], "model": "claude-3-opus-20240229",
+      "system": "Respond only in all caps.", "temperature": 0.8}'
     headers:
       accept:
       - application/json
@@ -14,13 +14,13 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '316'
+      - '300'
       content-type:
       - application/json
       host:
       - api.anthropic.com
       user-agent:
-      - Anthropic/Python 0.26.1
+      - Anthropic/Python 0.28.0
       x-stainless-arch:
       - arm64
       x-stainless-async:
@@ -30,26 +30,26 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 0.26.1
+      - 0.28.0
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.13
+      - 3.10.9
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA0yOQUvDQBSE/0qYi5cNpLFR3FvUSEuphqb1UJWwJM8a3OzG7ltpCfnvktKCp4GZ
-        b4bp0dSQaN2ujCbJ/etxc7NVy23++ftVL27znNsEAnzsaKTIObUjCOytHg3lXONYGYZAa2vSkKi0
-        8jWF16HtvAvjKJ5GcXwHgcoaJsOQb/1lkOkwVk8i8ZgVD+lqnRVXwVO6fNkUQT5bpUUWvGMerGfz
-        54XA8CHg2HblnpSzZjylDiXbbzIO58jRjydTEaTxWgv402nZozGd5wssp4mA9fzfmiTD8AcAAP//
-        AwCozOzqEgEAAA==
+        H4sIAAAAAAAAA0yOYUuEQBiE/8oyn1fw9ipovyXZZWdKKBFUiOnbIemud+8ueMj99/DooE8DM88M
+        M6NroTHwrgpXZfTinqJvNWz3X69vPBXHbJPdQMIdR1ooYq53BImD7RejZu7Y1cZBYrAt9dBo+tq3
+        FKwDO3oOVKiuQqVuIdFY48g46Pf5MuhoWqpn0SgfYxHFRRkUcZom2UZEeb4V+YO4S1NRJs+xSArx
+        gfs8w+lTgp0dqwPVbM3yrZ4qZ3/IMP4ipr0n0xC08X0v4c/f9YzOjN5dYL1WEta7/9bq+nT6BQAA
+        //8DAMSYrqgZAQAA
     headers:
       CF-Cache-Status:
       - DYNAMIC
       CF-RAY:
-      - 88ea9acec90172b7-EWR
+      - 88f16344983e1861-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -57,7 +57,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 04 Jun 2024 20:17:11 GMT
+      - Wed, 05 Jun 2024 16:02:36 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -67,19 +67,19 @@ interactions:
       anthropic-ratelimit-requests-remaining:
       - '4'
       anthropic-ratelimit-requests-reset:
-      - '2024-06-04T20:17:57Z'
+      - '2024-06-05T16:02:57Z'
       anthropic-ratelimit-tokens-limit:
       - '10000'
       anthropic-ratelimit-tokens-remaining:
       - '10000'
       anthropic-ratelimit-tokens-reset:
-      - '2024-06-04T20:17:57Z'
+      - '2024-06-05T16:02:57Z'
       request-id:
-      - req_01PDCp5gcfpzQ4P5NAdtXfrU
+      - req_01Bd7D9NJM29LYXW5VTm99rv
       via:
       - 1.1 google
       x-cloud-trace-context:
-      - 609af05f60c212e11bbb86f767f6f1b0
+      - 07d6532b3235336a58f4f8d0baffd032
     status:
       code: 200
       message: OK
