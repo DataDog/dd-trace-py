@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: This fix removes patching for the edits and fine tunes endpoints, which have been removed
+    from the OpenAI API.

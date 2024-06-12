@@ -56,6 +56,7 @@ def _expected_llmobs_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    integration=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -73,7 +74,9 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
+    )
     meta_dict = {"input": {}, "output": {}}
     if input_messages is not None:
         meta_dict["input"].update({"messages": input_messages})
@@ -110,6 +113,7 @@ def _expected_llmobs_non_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    integration=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool).
@@ -125,7 +129,9 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, integration=integration
+    )
     meta_dict = {"input": {}, "output": {}}
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
@@ -153,13 +159,14 @@ def _llmobs_base_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    integration=None,
 ):
     span_event = {
         "span_id": str(span.span_id),
         "trace_id": "{:x}".format(span.trace_id),
         "parent_id": _get_llmobs_parent_id(span),
         "session_id": session_id or "{:x}".format(span.trace_id),
-        "name": span.name,
+        "name": span.resource if integration == "langchain" else span.name,
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
@@ -185,13 +192,22 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None
+    span_id, trace_id, metric_type, label, categorical_value=None, score_value=None, numerical_value=None, tags=None
 ):
-    eval_metric_event = {"span_id": span_id, "trace_id": trace_id, "metric_type": metric_type, "label": label}
+    eval_metric_event = {
+        "span_id": span_id,
+        "trace_id": trace_id,
+        "metric_type": metric_type,
+        "label": label,
+        "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:{}".format("unnamed-ml-app")],
+    }
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if tags is not None:
+        eval_metric_event["tags"] = tags
+
     return eval_metric_event

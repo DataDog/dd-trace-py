@@ -117,7 +117,7 @@ def get_app():
     @app.post("/rasp/{endpoint:str}/")
     @app.options("/rasp/{endpoint:str}/")
     async def rasp(endpoint: str, request: Request):
-        query_params = dict(request.query_params)
+        query_params = request.query_params
         if endpoint == "lfi":
             res = ["lfi endpoint"]
             for param in query_params:
@@ -128,6 +128,7 @@ def get_app():
                         res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\br>\n".join(res))
         elif endpoint == "ssrf":
             res = ["ssrf endpoint"]
@@ -155,7 +156,23 @@ def get_app():
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
+        elif endpoint == "shell":
+            res = ["shell endpoint"]
+            for param in query_params:
+                if param.startswith("cmd"):
+                    cmd = query_params[param]
+                    try:
+                        import subprocess
+
+                        with subprocess.Popen(cmd, stdout=subprocess.PIPE) as f:
+                            res.append(f"cmd stdout: {f.stdout.read()}")
+                    except Exception as e:
+                        res.append(f"Error: {e}")
+            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            return HTMLResponse("<\\br>\n".join(res))
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
     return app

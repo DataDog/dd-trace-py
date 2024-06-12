@@ -976,6 +976,11 @@ class HTTPPropagator(object):
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
+        if config._llmobs_enabled:
+            from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+
+            _inject_llmobs_parent_id(span_context)
+
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
