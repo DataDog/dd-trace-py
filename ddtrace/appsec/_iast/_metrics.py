@@ -9,6 +9,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 
 
@@ -73,7 +74,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         tags = {
             "lib_language": "python",
         }
-        telemetry.telemetry_writer.add_log("ERROR", msg, stack_trace=stack_trace, tags=tags)
+        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF logs metrics", exc_info=True)
 
