@@ -15,7 +15,7 @@ pkg_pyyaml = Blueprint("package_pyyaml", __name__)
 
 
 @pkg_pyyaml.route("/PyYAML")
-def pkg_idna_view():
+def pkg_pyyaml_view():
     import yaml
 
     response = ResultResponse(request.args.get("package_param"))
