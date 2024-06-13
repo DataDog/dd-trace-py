@@ -116,7 +116,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         name = _get_attr(block, "name", "")
                         inputs = _get_attr(block, "input", "")
                         input_messages.append(
-                            {"content": "\n\n[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
+                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
                         )
 
                     elif _get_attr(block, "type", None) == "tool_result":
@@ -143,19 +143,19 @@ class AnthropicIntegration(BaseLLMIntegration):
         role = _get_attr(response, "role", "")
 
         if isinstance(content, str):
-            return [{"content": content.strip(), "role": role}]
+            return [{"content": content, "role": role}]
 
         elif isinstance(content, list):
             for completion in content:
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
-                    output_messages.append({"content": text.strip(), "role": role})
+                    output_messages.append({"content": text, "role": role})
                 else:
                     if _get_attr(completion, "type", None) == "tool_use":
                         name = _get_attr(completion, "name", "")
                         inputs = _get_attr(completion, "input", "")
                         output_messages.append(
-                            {"content": "\n\n[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
+                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
                         )
         return output_messages
 

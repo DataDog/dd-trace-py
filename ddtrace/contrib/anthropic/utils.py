@@ -15,7 +15,7 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
             if getattr(block, "text", "") != "":
                 span.set_tag_str(
                     "anthropic.response.completions.content.%d.text" % (idx),
-                    integration.trunc(str(getattr(block, "text", "").strip())),
+                    integration.trunc(str(getattr(block, "text", ""))),
                 )
             elif block.type == "tool_use":
                 tag_tool_use_output_on_span(integration, span, block, idx)
@@ -32,18 +32,14 @@ def handle_non_streamed_response(integration, chat_completions, args, kwargs, sp
 
 
 def tag_tool_use_input_on_span(integration, span, chat_input, message_idx, block_idx):
-    tool_name = _get_attr(chat_input, "name", None)
-    tool_inputs = _get_attr(chat_input, "input", None)
-    if tool_name:
-        span.set_tag_str(
-            "anthropic.request.messages.%d.content.%d.tool_call.name" % (message_idx, block_idx),
-            tool_name,
-        )
-    if tool_inputs:
-        span.set_tag_str(
-            "anthropic.request.messages.%d.content.%d.tool_call.input" % (message_idx, block_idx),
-            integration.trunc(json.dumps(tool_inputs)),
-        )
+    span.set_tag_str(
+        "anthropic.request.messages.%d.content.%d.tool_call.name" % (message_idx, block_idx),
+        _get_attr(chat_input, "name", ""),
+    )
+    span.set_tag_str(
+        "anthropic.request.messages.%d.content.%d.tool_call.input" % (message_idx, block_idx),
+        integration.trunc(json.dumps(_get_attr(chat_input, "input", {}))),
+    )
 
 
 def tag_tool_result_input_on_span(integration, span, chat_input, message_idx, block_idx):
@@ -51,7 +47,7 @@ def tag_tool_result_input_on_span(integration, span, chat_input, message_idx, bl
     if isinstance(content, str):
         span.set_tag_str(
             "anthropic.request.messages.%d.content.%d.tool_result.content.0.text" % (message_idx, block_idx),
-            integration.trunc(str(content).strip()),
+            integration.trunc(str(content)),
         )
     elif isinstance(content, list):
         for tool_block_idx, tool_block in enumerate(content):
@@ -61,7 +57,7 @@ def tag_tool_result_input_on_span(integration, span, chat_input, message_idx, bl
                 span.set_tag_str(
                     "anthropic.request.messages.%d.content.%d.tool_result.content.%d.text"
                     % (message_idx, block_idx, tool_block_idx),
-                    integration.trunc(str(tool_block_text).strip()),
+                    integration.trunc(str(tool_block_text)),
                 )
             elif tool_block_type == "image":
                 span.set_tag_str(

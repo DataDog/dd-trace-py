@@ -207,8 +207,7 @@ def _on_message_start_chunk(chunk, message):
         if chunk_role:
             message["role"] = chunk_role
         if chunk_usage:
-            message["usage"] = {}
-            message["usage"]["input_tokens"] = _get_attr(chunk_usage, "input_tokens", 0)
+            message["usage"] = {"input_tokens": _get_attr(chunk_usage, "input_tokens", 0)}
     return message
 
 
@@ -285,7 +284,7 @@ def _tag_streamed_chat_completion_response(integration, span, message):
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
         if "text" in block:
             span.set_tag_str(
-                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]).strip())
+                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]))
             )
         if block["type"] == "tool_use":
             tag_tool_use_output_on_span(integration, span, block, idx)

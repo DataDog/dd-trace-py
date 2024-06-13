@@ -64,7 +64,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "").strip()),
+                        integration.trunc(message.get("content", "")),
                     )
                 span.set_tag_str(
                     "anthropic.request.messages.%d.content.0.type" % (message_idx),
@@ -76,7 +76,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                         if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(_get_attr(block, "text", "")).strip()),
+                                integration.trunc(str(_get_attr(block, "text", ""))),
                             )
                         elif _get_attr(block, "type", None) == "image":
                             span.set_tag_str(
@@ -143,7 +143,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                 if integration.is_pc_sampled_span(span):
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.0.text" % (message_idx),
-                        integration.trunc(message.get("content", "").strip()),
+                        integration.trunc(message.get("content", "")),
                     )
                 span.set_tag_str(
                     "anthropic.request.messages.%d.content.0.type" % (message_idx),
@@ -155,7 +155,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                         if _get_attr(block, "type", None) == "text":
                             span.set_tag_str(
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(_get_attr(block, "text", "")).strip()),
+                                integration.trunc(str(_get_attr(block, "text", ""))),
                             )
                         elif _get_attr(block, "type", None) == "image":
                             span.set_tag_str(

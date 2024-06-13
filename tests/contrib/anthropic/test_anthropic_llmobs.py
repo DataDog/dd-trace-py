@@ -8,6 +8,17 @@ from .test_anthropic import ANTHROPIC_VERSION
 from .utils import tools
 
 
+WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
+WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
+question about the weather in a specific location. \n\nThe get_weather tool requires a "location" \
+parameter. The user has provided the location of "San Francisco, CA" in their question, so we have \
+the necessary information to make the API call.\n\nNo other tools are needed to answer this question. \
+We can proceed with calling the get_weather tool with the provided location.\n</thinking>'
+WEATHER_OUTPUT_MESSAGE_2 = '[tool: get_weather]\n\n{"location": "San Francisco, CA"}'
+WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
+Francisco, CA is 73°F."
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
@@ -271,7 +282,7 @@ class TestLLMObsAnthropic:
             message = llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=200,
-                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
             )
             assert message is not None
@@ -283,19 +294,13 @@ class TestLLMObsAnthropic:
                 span_1,
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
-                input_messages=[{"content": "What is the weather in San Francisco, CA?", "role": "user"}],
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {
-                        "content": "<thinking>\nThe get_weather tool is directly relevant for answering this "
-                        + "question about the weather in a specific location. \n\nThe get_weather tool "
-                        + 'requires a "location" parameter. The user has provided the location of "San '
-                        + 'Francisco, CA" in their question, so we have the necessary information to '
-                        + "make the API call.\n\nNo other tools are needed to answer this question. We "
-                        + "can proceed with calling the get_weather tool with the provided location."
-                        + "\n</thinking>",
+                        "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
                 token_metrics={"prompt_tokens": 599, "completion_tokens": 152, "total_tokens": 751},
@@ -310,7 +315,7 @@ class TestLLMObsAnthropic:
                     model="claude-3-opus-20240229",
                     max_tokens=500,
                     messages=[
-                        {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                        {"role": "user", "content": WEATHER_PROMPT},
                         {"role": "assistant", "content": message.content},
                         {
                             "role": "user",
@@ -336,23 +341,17 @@ class TestLLMObsAnthropic:
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
                 input_messages=[
-                    {"content": "What is the weather in San Francisco, CA?", "role": "user"},
+                    {"content": WEATHER_PROMPT, "role": "user"},
                     {
-                        "content": "<thinking>\nThe get_weather tool is directly relevant for answering this "
-                        + "question about the weather in a specific location. \n\nThe get_weather tool requires "
-                        + 'a "location" parameter. The user has provided the location of "San Francisco, CA" in '
-                        + "their question, so we have the necessary information to make the API call.\n\nNo "
-                        + "other tools are needed to answer this question. We can proceed with calling the "
-                        + "get_weather tool with the provided location.\n</thinking>",
+                        "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
                     {
-                        "content": "Based on the result from the get_weather tool, the current weather in San Francisco"
-                        + ", CA is 73°F.",
+                        "content": WEATHER_OUTPUT_MESSAGE_3,
                         "role": "assistant",
                     }
                 ],
@@ -375,7 +374,7 @@ class TestLLMObsAnthropic:
             message = await llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=200,
-                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
             )
             assert message is not None
@@ -387,18 +386,13 @@ class TestLLMObsAnthropic:
                 span_1,
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
-                input_messages=[{"content": "What is the weather in San Francisco, CA?", "role": "user"}],
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {
-                        "content": "<thinking>\nThe get_weather tool is directly relevant for answering this "
-                        + "question about the weather in a specific location. \n\nThe get_weather tool requires a "
-                        + '"location" parameter. The user has provided the location of "San Francisco, CA" in '
-                        + "their question, so we have the necessary information to make the API call.\n\nNo other"
-                        + " tools are needed to answer this question. We can proceed with calling the get_weather"
-                        + " tool with the provided location.\n</thinking>",
+                        "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
                 token_metrics={"prompt_tokens": 599, "completion_tokens": 152, "total_tokens": 751},
@@ -413,7 +407,7 @@ class TestLLMObsAnthropic:
                     model="claude-3-opus-20240229",
                     max_tokens=500,
                     messages=[
-                        {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                        {"role": "user", "content": WEATHER_PROMPT},
                         {"role": "assistant", "content": message.content},
                         {
                             "role": "user",
@@ -439,23 +433,17 @@ class TestLLMObsAnthropic:
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
                 input_messages=[
-                    {"content": "What is the weather in San Francisco, CA?", "role": "user"},
+                    {"content": WEATHER_PROMPT, "role": "user"},
                     {
-                        "content": "<thinking>\nThe get_weather tool is directly relevant for answering this "
-                        + "question about the weather in a specific location. \n\nThe get_weather tool requires "
-                        + 'a "location" parameter. The user has provided the location of "San Francisco, CA" in '
-                        + "their question, so we have the necessary information to make the API call.\n\nNo other"
-                        + " tools are needed to answer this question. We can proceed with calling the get_weather"
-                        + " tool with the provided location.\n</thinking>",
+                        "content": WEATHER_OUTPUT_MESSAGE_1,
                         "role": "assistant",
                     },
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
                     {
-                        "content": "Based on the result from the get_weather tool, the current weather in San Francisco"
-                        + ", CA is 73°F.",
+                        "content": WEATHER_OUTPUT_MESSAGE_3,
                         "role": "assistant",
                     }
                 ],
@@ -476,7 +464,7 @@ class TestLLMObsAnthropic:
             stream = llm.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=200,
-                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
                 stream=True,
             )
@@ -484,6 +472,8 @@ class TestLLMObsAnthropic:
                 pass
 
         message = [
+            # this message output differs from the other weather outputs since it was produced from a different
+            # streamed response.
             {
                 "text": "<thinking>\nThe get_weather tool is relevant for answering this question as it provides "
                 + "weather information for a specified location.\n\nThe tool has one required parameter:\n- location "
@@ -491,7 +481,7 @@ class TestLLMObsAnthropic:
                 + " the location is fully specified. We can proceed with calling the get_weather tool.\n</thinking>",
                 "type": "text",
             },
-            {"text": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "type": "text"},
+            {"text": WEATHER_OUTPUT_MESSAGE_2, "type": "text"},
         ]
 
         traces = mock_tracer.pop_traces()
@@ -501,7 +491,7 @@ class TestLLMObsAnthropic:
                 span_1,
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
-                input_messages=[{"content": "What is the weather in San Francisco, CA?", "role": "user"}],
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message[0]["text"], "role": "assistant"},
                     {"content": message[1]["text"], "role": "assistant"},
@@ -517,7 +507,7 @@ class TestLLMObsAnthropic:
                 model="claude-3-opus-20240229",
                 max_tokens=500,
                 messages=[
-                    {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                    {"role": "user", "content": WEATHER_PROMPT},
                     {"role": "assistant", "content": message},
                     {
                         "role": "user",
@@ -545,15 +535,14 @@ class TestLLMObsAnthropic:
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
                 input_messages=[
-                    {"content": "What is the weather in San Francisco, CA?", "role": "user"},
+                    {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message[0]["text"], "role": "assistant"},
                     {"content": message[1]["text"], "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
                 output_messages=[
                     {
-                        "content": "Based on the result from the get_weather tool, the current weather in "
-                        "San Francisco, CA is 73°F (23°C).",
+                        "content": "\n\n" + WEATHER_OUTPUT_MESSAGE_3[:-1] + " (23°C).",
                         "role": "assistant",
                     }
                 ],
@@ -577,7 +566,7 @@ class TestLLMObsAnthropic:
             async with llm.messages.stream(
                 model="claude-3-opus-20240229",
                 max_tokens=200,
-                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
             ) as stream:
                 async for _ in stream.text_stream:
@@ -596,10 +585,10 @@ class TestLLMObsAnthropic:
                 span_1,
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
-                input_messages=[{"content": "What is the weather in San Francisco, CA?", "role": "user"}],
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
                 output_messages=[
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                 ],
                 metadata={"temperature": 1.0, "max_tokens": 200.0},
                 token_metrics={"prompt_tokens": 599, "completion_tokens": 146, "total_tokens": 745},
@@ -612,7 +601,7 @@ class TestLLMObsAnthropic:
                 model="claude-3-opus-20240229",
                 max_tokens=500,
                 messages=[
-                    {"role": "user", "content": "What is the weather in San Francisco, CA?"},
+                    {"role": "user", "content": WEATHER_PROMPT},
                     {"role": "assistant", "content": message.content},
                     {
                         "role": "user",
@@ -645,12 +634,14 @@ class TestLLMObsAnthropic:
                 model_name="claude-3-opus-20240229",
                 model_provider="anthropic",
                 input_messages=[
-                    {"content": "What is the weather in San Francisco, CA?", "role": "user"},
+                    {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
-                    {"content": '\n\n[tool: get_weather]\n\n{"location": "San Francisco, CA"}', "role": "assistant"},
+                    {"content": WEATHER_OUTPUT_MESSAGE_2, "role": "assistant"},
                     {"content": ["The weather is 73f"], "role": "user"},
                 ],
-                output_messages=[{"content": "The current weather in San Francisco, CA is 73°F.", "role": "assistant"}],
+                output_messages=[
+                    {"content": "\n\nThe current weather in San Francisco, CA is 73°F.", "role": "assistant"}
+                ],
                 metadata={"temperature": 1.0, "max_tokens": 500.0},
                 token_metrics={"prompt_tokens": 762, "completion_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>"},

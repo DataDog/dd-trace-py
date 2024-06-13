@@ -69,7 +69,7 @@
       "anthropic.request.messages.2.role": "user",
       "anthropic.request.model": "claude-3-opus-20240229",
       "anthropic.request.parameters": "{\"max_tokens\": 500, \"tools\": [{\"name\": \"get_weather\", \"description\": \"Get the weather for a specific location\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"location\": {\"type\": \"string\"}}}}], \"stream\": true}",
-      "anthropic.response.completions.content.0.text": "Based on the result from the get_weather tool, the current weather in San Francisco, CA is 73\u00b0F (23\u00b0C).",
+      "anthropic.response.completions.content.0.text": "\\n\\nBased on the result from the get_weather tool, the current weather in San Francisco, CA is 73\u00b0F (23\u00b0C).",
       "anthropic.response.completions.content.0.type": "text",
       "anthropic.response.completions.finish_reason": "end_turn",
       "anthropic.response.completions.role": "assistant",
