@@ -9,7 +9,7 @@ on:
     branches:
       - main
     paths-ignore:
-      - tests/appsec/iast_packages/packages/*
+      - 'tests/appsec/iast_packages/packages/*.py'
 
 jobs:
   analyze:
