@@ -10,7 +10,6 @@ from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -53,7 +52,7 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
 
 
 def test_request_block_request_callable(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -79,7 +78,7 @@ _ALLOWED_USER = "111111"
 
 
 def test_request_userblock_200(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _ALLOWED_USER
         )
@@ -88,7 +87,7 @@ def test_request_userblock_200(client, test_spans, tracer):
 
 
 def test_request_userblock_403(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+    with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
         root, result = _aux_appsec_get_root_span(
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _BLOCKED_USER
         )

@@ -7,7 +7,6 @@ from ddtrace.ext import http
 from ddtrace.internal import constants
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -44,7 +43,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             return block_request()
 
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/block", headers={"X-REAL-IP": rules._IP.DEFAULT})
             # Should not block by IP but since the route is calling block_request it will be blocked
@@ -65,7 +64,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             block_request_if_user_blocked(tracer, user_id)
             return "Ok", 200
 
-        with override_global_config(dict(_asm_enabled=True)), override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
