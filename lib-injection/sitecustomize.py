@@ -32,13 +32,9 @@ RUNTIMES_ALLOW_LIST = {
     "cpython": {"min": parse_version("3.7"), "max": parse_version("3.13")},
 }
 
-FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in (
-    "true",
-    "1",
-    "t",
-)
-FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH")
-TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED")
+FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
+FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
+TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
@@ -107,7 +103,9 @@ def gen_telemetry_payload(telemetry_events):
 
 def send_telemetry(event):
     event_json = json.dumps(event)
+    _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
+        _log("not sending telemetry: TELEMETRY_ENABLED=%s" % TELEMETRY_ENABLED, level="debug")
         return
     p = subprocess.Popen(
         [FORWARDER_EXECUTABLE, str(os.getpid())],
@@ -118,6 +116,7 @@ def send_telemetry(event):
     )
     p.stdin.write(event_json)
     p.stdin.close()
+    _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
 
 
 def _get_clib():
