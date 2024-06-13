@@ -155,7 +155,7 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
     if (0U != (type_mask & SampleType::Exception)) {
         if (!push_label(ExportLabelKey::exception_type, exception_type)) {
             std::cout << "bad push_label for exception type" << std::endl;
-            std::cout << ExportLabelKey::exception_type << " exception_type: " << exception_type << std::endl;
+            std::cout << to_string(ExportLabelKey::exception_type) << " exception_type: " << exception_type << std::endl;
         }
         values[profile_state.val().exception_count] += count;
         return true;
