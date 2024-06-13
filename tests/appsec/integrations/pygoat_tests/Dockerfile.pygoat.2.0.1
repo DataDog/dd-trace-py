@@ -31,10 +31,14 @@ WORKDIR /app/pygoat
 RUN git checkout v2.0.1
 RUN python3 -m pip install --no-cache-dir pip==22.0.4
 RUN pip install --no-cache-dir -r requirements.txt
+# At some point, pyyaml started failing on CI with CBaseLoader import error, this
+# fixed the problem
+RUN pip --no-cache-dir install --force-reinstall -I pyyaml==6.0.1
 
 # install pygoat
 EXPOSE 8321
 
+# Note: admin login from the fixtures is "admin/adminpassword"
 RUN python3 manage.py migrate
 RUN python3 manage.py loaddata ../fixtures/*
 CMD ["ddtrace-run", "python", "manage.py", "runserver", "0.0.0.0:8321"]

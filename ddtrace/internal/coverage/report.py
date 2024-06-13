@@ -2,6 +2,7 @@ import ast
 import json
 import linecache
 import os
+from pathlib import Path
 import re
 import typing as t
 
@@ -16,6 +17,17 @@ except OSError:
 NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
 
 ast_cache: t.Dict[str, t.Any] = {}
+
+
+def _get_relative_path_strings(executable_lines, workspace_path: Path) -> t.Dict[str, str]:
+    relative_path_strs: t.Dict[str, str] = {}
+
+    for path in executable_lines:
+        path_obj = Path(path)
+        path_str = str(path_obj.relative_to(workspace_path) if path_obj.is_relative_to(workspace_path) else path_obj)
+        relative_path_strs[path] = path_str
+
+    return relative_path_strs
 
 
 def _get_ast_for_path(path: str):
@@ -64,11 +76,18 @@ def no_cover(path, src_line) -> t.Optional[t.Tuple[int, int]]:
     return None
 
 
-def print_coverage_report(executable_lines, covered_lines, ignore_nocover=False):
+def print_coverage_report(executable_lines, covered_lines, workspace_path: Path, ignore_nocover=False):
     total_executable_lines = 0
     total_covered_lines = 0
     total_missed_lines = 0
-    n = max(len(path) for path in executable_lines) + 4
+
+    if len(executable_lines) == 0:
+        print("No Datadog line coverage recorded.")
+        return
+
+    relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
+
+    n = max(len(path_str) for path_str in relative_path_strs.values()) + 4
 
     covered_lines = covered_lines
 
@@ -104,14 +123,18 @@ def print_coverage_report(executable_lines, covered_lines, ignore_nocover=False)
         missed_ranges = collapse_ranges(sorted(path_lines - path_covered))
         missed = ",".join([f"{start}-{end}" if start != end else str(start) for start, end in missed_ranges])
         missed_str = f"  [{missed}]" if missed else ""
-        print(f"{path:{n}s}{n_lines:>8}{n_missed:>8}{int(n_covered / n_lines * 100):>8}%{missed_str}")
+        print(
+            f"{relative_path_strs[path]:{n}s}{n_lines:>8}{n_missed:>8}{int(n_covered / n_lines * 100):>8}%{missed_str}"
+        )
     print("-" * (w))
     total_covered_percent = int((total_covered_lines / total_executable_lines) * 100)
     print(f"{'TOTAL':<{n}}{total_executable_lines:>8}{total_missed_lines:>8}{total_covered_percent:>8}%")
     print()
 
 
-def get_json_report(executable_lines, covered_lines, ignore_nocover=False):
+def gen_json_report(
+    executable_lines, covered_lines, workspace_path: t.Optional[Path] = None, ignore_nocover=False
+) -> str:
     """Writes a JSON-formatted coverage report similar in structure to coverage.py 's JSON report, but only
     containing a subset (namely file-level executed and missing lines).
 
@@ -125,8 +148,13 @@ def get_json_report(executable_lines, covered_lines, ignore_nocover=False):
       }
     }
 
+    Paths are relative to workspace_path if provided, and are absolute otherwise.
     """
-    output = {"files": {}}
+    output: t.Dict[str, t.Dict[str, t.Dict[str, t.List[int]]]] = {"files": {}}
+
+    relative_path_strs: t.Dict[str, str] = {}
+    if workspace_path is not None:
+        relative_path_strs.update(_get_relative_path_strings(executable_lines, workspace_path))
 
     for path, orig_lines in sorted(executable_lines.items()):
         path_lines = orig_lines.copy()
@@ -142,7 +170,9 @@ def get_json_report(executable_lines, covered_lines, ignore_nocover=False):
                         path_lines.discard(no_cover_line)
                         path_covered.discard(no_cover_line)
 
-        output["files"][path] = {
+        path_str = relative_path_strs[path] if workspace_path is not None else path
+
+        output["files"][path_str] = {
             "executed_lines": sorted(list(path_covered)),
             "missing_lines": sorted(list(path_lines - path_covered)),
         }

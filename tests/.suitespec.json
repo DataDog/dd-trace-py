@@ -30,6 +30,8 @@
             "tests/lib-injection/dd-lib-python-init-test-django-no-perms/*",
             "tests/lib-injection/dd-lib-python-init-test-django-pre-installed/*",
             "tests/lib-injection/dd-lib-python-init-test-django-unsupported-python/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package/*",
+            "tests/lib-injection/dd-lib-python-init-test-django-unsupported-package-force/*",
             "tests/lib-injection/dd-lib-python-init-test-django-uvicorn/*"
         ],
         "core": [
@@ -71,7 +73,8 @@
             "ddtrace/__init__.py",
             "ddtrace/py.typed",
             "ddtrace/version.py",
-            "ddtrace/settings/config.py"
+            "ddtrace/settings/config.py",
+            "src/core/*"
         ],
         "bootstrap": [
             "ddtrace/bootstrap/*",
@@ -245,6 +248,9 @@
         ],
         "langchain": [
             "ddtrace/contrib/langchain/*"
+        ],
+        "anthropic": [
+            "ddtrace/contrib/anthropic/*"
         ],
         "subprocess": [
             "ddtrace/contrib/subprocess/*"
@@ -473,6 +479,7 @@
             "@bootstrap",
             "@core",
             "@contrib",
+            "@llmobs",
             "@serverless",
             "@remoteconfig",
             "tests/tracer/*",
@@ -626,7 +633,8 @@
             "@git",
             "@pytest",
             "@codeowners",
-            "tests/ci_visibility/*"
+            "tests/ci_visibility/*",
+            "tests/coverage/*"
         ],
         "llmobs": [
             "@bootstrap",
@@ -1377,6 +1385,17 @@
             "@llmobs",
             "tests/contrib/langchain/*",
             "tests/snapshots/tests.contrib.{suite}.*"
+        ],
+        "anthropic": [
+            "@bootstrap",
+            "@core",
+            "@tracing",
+            "@contrib",
+            "@anthropic",
+            "@requests",
+            "@llmobs",
+            "tests/contrib/anthropic/*",
+            "tests/snapshots/tests.contrib.anthropic.*"
         ],
         "runtime": [
             "@core",

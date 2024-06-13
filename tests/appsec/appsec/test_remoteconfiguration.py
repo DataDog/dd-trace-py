@@ -19,7 +19,6 @@ from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-from ddtrace.appsec._utils import _appsec_rc_features_is_enabled
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -30,6 +29,7 @@ from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import Either
 from tests.utils import override_env
@@ -56,7 +56,7 @@ def test_rc_enabled_by_default(tracer):
     # TODO: remove https://github.com/DataDog/dd-trace-py/blob/1.x/riotfile.py#L100 or refactor this test
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    assert _appsec_rc_features_is_enabled()
+    assert asm_config._asm_can_be_enabled
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
@@ -79,12 +79,10 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)), override_env(
-        {APPSEC.ENV: appsec_enabled}
+    with override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}), override_global_config(
+        dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
     ):
-        if appsec_enabled == "":
-            del os.environ[APPSEC.ENV]
-        else:
+        if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
         rc_config = {"config": {"asm": {"enabled": rc_value}}}
@@ -102,7 +100,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config
     ],
 )
 def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: appsec_enabled}):
+    with override_env({APPSEC.ENV: appsec_enabled}), override_global_config(dict(_asm_enabled=True)):
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
         else:
@@ -120,7 +118,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "C/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "4Av8"),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", "CAA="),
         (False, "false", ""),
@@ -145,14 +143,14 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "C/4="),  # All capabilities
-        ({"DD_APPSEC_RULES": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
+        ({}, "4Av+"),  # All capabilities
+        ({"_asm_static_rule_file": DEFAULT.RULES}, "CAI="),  # Only ASM_FEATURES
     ],
 )
 def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, expected):
-    with override_env(env_rules), override_global_config(
-        dict(_asm_enabled=False, api_version="v0.4", _remote_config_enabled=True)
-    ):
+    global_config = dict(_asm_enabled=False, _remote_config_enabled=True)
+    global_config.update(env_rules)
+    with override_global_config(global_config):
         rc_config = {"config": {"asm": {"enabled": True}}}
         # flaky test
         # assert not remoteconfig_poller._worker
@@ -176,15 +174,15 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
     "env_rules, expected",
     [
         ({}, True),  # All capabilities
-        ({"DD_APPSEC_RULES": DEFAULT.RULES}, False),  # Only ASM_FEATURES
+        ({"_asm_static_rule_file": DEFAULT.RULES}, False),  # Only ASM_FEATURES
     ],
 )
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     tracer, remote_config_worker, env_rules, expected
 ):
-    with override_env(env_rules), override_global_config(
-        dict(_remote_config_enabled=True, _asm_enabled=True, api_version="v0.4")
-    ):
+    global_config = dict(_remote_config_enabled=True, _asm_enabled=True)
+    global_config.update(env_rules)
+    with override_global_config(global_config):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)
 
@@ -880,7 +878,7 @@ def test_load_new_empty_config_and_remove_targets_file_same_product(
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -914,7 +912,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -944,7 +942,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         rc_config = {
             "config": {
@@ -978,27 +976,40 @@ def test_rc_rules_data(tracer):
     RULES_PATH = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(rules.ROOT_DIR))), "ddtrace/appsec/rules.json"
     )
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}), open(
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)), open(
         RULES_PATH, "r"
     ) as dd_rules:
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules_data": [],
             "custom_rules": [],
+            "actions": [],
             "rules": json.load(dd_rules)["rules"],
+            "rules_override": [],
+            "scanners": [],
+            "processors": [],
+            "ignore": [],
         }
-        assert _appsec_rules_data(config, tracer)
+        with mock.patch("ddtrace.appsec._processor.AppSecSpanProcessor._update_rules", autospec=True) as mock_update:
+            mock_update.reset_mock()
+            _appsec_rules_data(config, tracer)
+            calls = mock_update.mock_calls
+            for v in config:
+                if v == "ignore":
+                    assert v not in calls[-1][1][1]
+                else:
+                    assert v in calls[-1][1][1]
 
 
 def test_rc_rules_data_error_empty(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {}
         assert not _appsec_rules_data(config, tracer)
 
 
 def test_rc_rules_data_error_ddwaf(tracer):
-    with override_global_config(dict(_asm_enabled=True)), override_env({APPSEC.ENV: "true"}):
+    with override_env({APPSEC.ENV: "true"}), override_global_config(dict(_asm_enabled=True)):
         tracer.configure(appsec_enabled=True, api_version="v0.4")
         config = {
             "rules": [{"invalid": mock.MagicMock()}],
