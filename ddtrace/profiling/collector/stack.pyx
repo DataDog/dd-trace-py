@@ -1,6 +1,7 @@
 """CPU profiling collector."""
 from __future__ import absolute_import
 
+from itertools import chain
 import logging
 import sys
 import typing
@@ -8,10 +9,11 @@ import typing
 import attr
 import six
 
-from ddtrace import _threading as ddtrace_threading
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace.internal import compat
+from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.utils import formats
@@ -288,11 +290,14 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     )
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint, now_ns = 0):
     # Do not use `threading.enumerate` to not mess with locking (gevent!)
+    # Also collect the native threads, that are not registered with the built-in
+    # threading module, to keep backward compatibility with the previous
+    # pure-Python implementation of periodic threads.
     thread_id_ignore_list = {
         thread_id
-        for thread_id, thread in ddtrace_threading._active.items()
+        for thread_id, thread in chain(periodic_threads.items(), ddtrace_threading._active.items())
         if getattr(thread, "_ddtrace_profiling_ignore", False)
     } if ignore_profiler else set()
 
@@ -326,6 +331,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_walltime(wall_time, 1)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
@@ -353,6 +359,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if nframes:
             if use_libdd:
                 handle = ddup.SampleHandle()
+                handle.push_monotonic_ns(now_ns)
                 handle.push_cputime( cpu_time, 1)
                 handle.push_walltime( wall_time, 1)
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
@@ -385,6 +392,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             if nframes:
                 if use_libdd:
                     handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(now_ns)
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_exceptioninfo(exc_type, 1)
                     handle.push_class_name(frames[0].class_name)
@@ -536,6 +544,7 @@ class StackCollector(collector.PeriodicCollector):
                 wall_time,
                 self._thread_span_links,
                 self.endpoint_collection_enabled,
+                now_ns=now,
             )
 
         used_wall_time_ns = compat.monotonic_ns() - now

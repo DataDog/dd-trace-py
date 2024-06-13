@@ -6,8 +6,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.utils import override_env
@@ -64,7 +64,7 @@ def test_string_index(input_str, index_pos, expected_result, tainted):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
-def test_index_error_and_no_log_metric(telemetry_writer):
+def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
         source_name="test_add_aspect_tainting_left_hand",
@@ -75,7 +75,8 @@ def test_index_error_and_no_log_metric(telemetry_writer):
         mod.do_index(string_input, 100)
 
     list_metrics_logs = list(telemetry_writer._logs)
-    assert len(list_metrics_logs) == 0
+    assert len(list_metrics_logs) == 1
+    assert "IAST propagation error. index_aspect" in list_metrics_logs[0]["message"]
 
 
 @pytest.mark.skip_iast_check_logs
@@ -92,7 +93,7 @@ def test_propagate_ranges_with_no_context(caplog):
     )
     assert get_tainted_ranges(string_input)
 
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result = mod.do_index(string_input, 3)
         assert result == "d"

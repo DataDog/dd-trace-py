@@ -52,6 +52,9 @@ from .constants import TELEMETRY_DOGSTATSD_URL
 from .constants import TELEMETRY_DYNAMIC_INSTRUMENTATION_ENABLED
 from .constants import TELEMETRY_ENABLED
 from .constants import TELEMETRY_EXCEPTION_DEBUGGING_ENABLED
+from .constants import TELEMETRY_INJECT_WAS_ATTEMPTED
+from .constants import TELEMETRY_LIB_INJECTION_FORCED
+from .constants import TELEMETRY_LIB_WAS_INJECTED
 from .constants import TELEMETRY_OBFUSCATION_QUERY_STRING_PATTERN
 from .constants import TELEMETRY_OTEL_ENABLED
 from .constants import TELEMETRY_PARTIAL_FLUSH_ENABLED
@@ -93,6 +96,7 @@ from .constants import TELEMETRY_TYPE_GENERATE_METRICS
 from .constants import TELEMETRY_TYPE_LOGS
 from .data import get_application
 from .data import get_host_info
+from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .metrics import CountMetric
 from .metrics import DistributionMetric
@@ -370,10 +374,7 @@ class TelemetryWriter(PeriodicService):
 
     def _telemetry_entry(self, cfg_name: str) -> Tuple[str, str, _ConfigSource]:
         item = config._config[cfg_name]
-        if cfg_name == "_trace_enabled":
-            name = "trace_enabled"
-            value = "true" if item.value() else "false"
-        elif cfg_name == "_profiling_enabled":
+        if cfg_name == "_profiling_enabled":
             name = "profiling_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_asm_enabled":
@@ -398,7 +399,7 @@ class TelemetryWriter(PeriodicService):
             name = "trace_tags"
             value = ",".join(":".join(x) for x in item.value().items())
         elif cfg_name == "_tracing_enabled":
-            name = "tracing_enabled"
+            name = "trace_enabled"
             value = "true" if item.value() else "false"
         elif cfg_name == "_sca_enabled":
             name = "DD_APPSEC_SCA_ENABLED"
@@ -432,7 +433,6 @@ class TelemetryWriter(PeriodicService):
 
         self.add_configurations(
             [
-                self._telemetry_entry("_trace_enabled"),
                 self._telemetry_entry("_profiling_enabled"),
                 self._telemetry_entry("_asm_enabled"),
                 self._telemetry_entry("_sca_enabled"),
@@ -501,7 +501,11 @@ class TelemetryWriter(PeriodicService):
                 (TELEMETRY_PROFILING_CAPTURE_PCT, prof_config.capture_pct, "unknown"),
                 (TELEMETRY_PROFILING_MAX_FRAMES, prof_config.max_frames, "unknown"),
                 (TELEMETRY_PROFILING_UPLOAD_INTERVAL, prof_config.upload_interval, "unknown"),
+                (TELEMETRY_INJECT_WAS_ATTEMPTED, config._inject_was_attempted, "unknown"),
+                (TELEMETRY_LIB_WAS_INJECTED, config._lib_was_injected, "unknown"),
+                (TELEMETRY_LIB_INJECTION_FORCED, config._inject_force, "unknown"),
             ]
+            + get_python_config_vars()
         )
 
         if config._config["_sca_enabled"].value() is None:

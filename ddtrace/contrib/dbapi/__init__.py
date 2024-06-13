@@ -105,13 +105,13 @@ class TracedCursor(wrapt.ObjectProxy):
             if _is_iast_enabled():
                 try:
                     from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-                    from ddtrace.appsec._iast._taint_utils import check_tainted_args
+                    from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
                     from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 
                     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
                     _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
-                    if check_tainted_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
-                        SqlInjection.report(evidence_value=args[0])
+                    if check_tainted_dbapi_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
+                        SqlInjection.report(evidence_value=args[0], dialect=self._self_config.integration_name)
                 except Exception:
                     log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
 
@@ -142,6 +142,7 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
+        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
@@ -160,6 +161,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
+        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,

@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import itertools
 import json
+import sys
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -25,6 +26,9 @@ class Interface:
         self.name = name
         self.framework = framework
         self.client = client
+
+    def __repr__(self):
+        return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
 def payload_to_xml(payload: Dict[str, str]) -> str:
@@ -101,6 +105,7 @@ class Contrib_TestClass_For_Threats:
         # if interface.name == "fastapi":
         #    raise pytest.skip("fastapi does not have a healthcheck endpoint")
         with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
@@ -147,9 +152,7 @@ class Contrib_TestClass_For_Threats:
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
     def test_request_cookies(self, interface: Interface, root_span, asm_enabled, cookies, attack):
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
-        ):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
@@ -226,8 +229,8 @@ class Contrib_TestClass_For_Threats:
         # Ensure no crash when body is not parsable
         import logging
 
-        with caplog.at_level(logging.DEBUG), override_global_config(dict(_asm_enabled=True)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
+        with caplog.at_level(logging.DEBUG), override_global_config(
+            dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)
         ):
             self.update_tracer(interface)
             payload = '{"attack": "bad_payload",}</attack>&='
@@ -323,9 +326,7 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
-        ):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             if blocked and asm_enabled:
@@ -366,9 +367,7 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=asm_enabled)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)
-        ):
+        with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/" + query, headers=headers)
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
@@ -398,8 +397,12 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_METHOD)):
+            dict(
+                _asm_enabled=asm_enabled,
+                _use_metastruct_for_triggers=metastruct,
+                _asm_static_rule_file=rules.RULES_SRB_METHOD,
+            )
+        ):
             self.update_tracer(interface)
             response = getattr(interface.client, method)("/", **kwargs)
             assert get_tag(http.URL) == "http://localhost:8000/"
@@ -428,8 +431,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             assert get_tag(http.URL) == f"http://localhost:8000{uri}"
@@ -487,8 +492,10 @@ class Contrib_TestClass_For_Threats:
 
         uri = f"/asm/4352/{path}"  # removing trailer slash will cause errors
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -528,8 +535,10 @@ class Contrib_TestClass_For_Threats:
 
         uri = f"/{query}"
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -564,8 +573,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get("/", headers=headers)
             # DEV Warning: encoded URL will behave differently
@@ -600,8 +611,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
             # DEV Warning: encoded URL will behave differently
@@ -638,8 +651,12 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB_RESPONSE)):
+            dict(
+                _asm_enabled=asm_enabled,
+                _use_metastruct_for_triggers=metastruct,
+                _asm_static_rule_file=rules.RULES_SRB_RESPONSE,
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get(uri)
             # DEV Warning: encoded URL will behave differently
@@ -676,8 +693,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             if headers:
                 uri += "?headers=" + quote(",".join(f"{k}={v}" for k, v in headers.items()))
@@ -746,8 +765,10 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
 
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.post("/asm/", data=body, content_type=content_type)
             # DEV Warning: encoded URL will behave differently
@@ -796,10 +817,13 @@ class Contrib_TestClass_For_Threats:
         try:
             uri = f"/?param={query}"
             with override_global_config(
-                dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
+                dict(
+                    _asm_enabled=asm_enabled,
+                    _use_metastruct_for_triggers=metastruct,
+                    _asm_static_rule_file=rules.RULES_SRBCA,
+                )
             ), override_env(
                 dict(
-                    DD_APPSEC_RULES=rules.RULES_SRBCA,
                     DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,
                     DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=rules.RESPONSE_CUSTOM_HTML,
                 )
@@ -973,7 +997,12 @@ class Contrib_TestClass_For_Threats:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
-                        assert api in expected_value, (api, name)
+                        assert any(
+                            all(api[0].get(k) == v for k, v in expected[0].items()) for expected in expected_value
+                        ), (
+                            api,
+                            name,
+                        )
             else:
                 assert value is None, name
 
@@ -1059,9 +1088,7 @@ class Contrib_TestClass_For_Threats:
         """
         When the rule file is invalid, the tracer should not crash or prevent normal behavior
         """
-        with override_global_config(dict(_asm_enabled=True)), override_env(
-            dict(DD_APPSEC_RULES=rules.RULES_BAD_VERSION)
-        ):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_BAD_VERSION)):
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
@@ -1167,8 +1194,10 @@ class Contrib_TestClass_For_Threats:
         if interface.name != "fastapi":
             raise pytest.skip("only fastapi tests have support for stream response")
         with override_global_config(
-            dict(_asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct)
-        ), override_env(dict(DD_APPSEC_RULES=rules.RULES_SRB)):
+            dict(
+                _asm_enabled=asm_enabled, _use_metastruct_for_triggers=metastruct, _asm_static_rule_file=rules.RULES_SRB
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get("/stream/")
             assert self.body(response) == "0123456789"
@@ -1188,7 +1217,8 @@ class Contrib_TestClass_For_Threats:
                 ],
                 repeat=2,
             )
-        ],
+        ]
+        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))],
     )
     @pytest.mark.parametrize(
         ("rule_file", "blocking"),
@@ -1202,6 +1232,7 @@ class Contrib_TestClass_For_Threats:
         interface,
         root_span,
         get_tag,
+        get_metric,
         asm_enabled,
         ep_enabled,
         endpoint,
@@ -1213,82 +1244,71 @@ class Contrib_TestClass_For_Threats:
     ):
         from unittest.mock import patch as mock_patch
 
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-        from ddtrace.appsec._common_module_patches import unpatch_common_modules
+        from ddtrace.appsec._constants import APPSEC
         from ddtrace.appsec._metrics import DDWAF_VERSION
-        from ddtrace.contrib.requests import patch as patch_requests
-        from ddtrace.contrib.requests import unpatch as unpatch_requests
         from ddtrace.ext import http
 
-        try:
-            patch_requests()
-            with override_global_config(dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled)), override_env(
-                dict(DD_APPSEC_RULES=rule_file)
-            ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
-                patch_common_modules()
-                self.update_tracer(interface)
-                response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
-                code = 403 if blocking and asm_enabled and ep_enabled else 200
-                assert self.status(response) == code
-                assert get_tag(http.STATUS_CODE) == str(code)
-                if code == 200:
-                    assert self.body(response).startswith(f"{endpoint} endpoint")
-                if asm_enabled and ep_enabled:
-                    self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
-                    assert self.check_for_stack_trace(root_span)
-                    for trace in self.check_for_stack_trace(root_span):
-                        assert "frames" in trace
-                        function = trace["frames"][0]["function"]
-                        assert any(
-                            function.endswith(top_function) for top_function in top_functions
-                        ), f"unknown top function {function}"
-                    # assert mocked.call_args_list == []
-                    telemetry_calls = {
-                        (c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
-                    }
-                    assert (
-                        "CountMetric",
-                        "appsec.rasp.rule.match",
-                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                    ) in telemetry_calls
-                    assert (
-                        "CountMetric",
-                        "appsec.rasp.rule.eval",
-                        (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
-                    ) in telemetry_calls
-                    if blocking:
-                        assert get_tag("rasp.request.done") is None
-                    else:
-                        assert get_tag("rasp.request.done") == endpoint
+        with override_global_config(
+            dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
+        ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
+            self.update_tracer(interface)
+            assert asm_config._asm_enabled == asm_enabled
+            response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+            code = 403 if blocking and asm_enabled and ep_enabled else 200
+            assert self.status(response) == code, (self.status(response), code)
+            assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
+            if code == 200:
+                assert self.body(response).startswith(f"{endpoint} endpoint")
+            if asm_enabled and ep_enabled:
+                self.check_rules_triggered([rule] * (1 if blocking else 2), root_span)
+                assert self.check_for_stack_trace(root_span)
+                for trace in self.check_for_stack_trace(root_span):
+                    assert "frames" in trace
+                    function = trace["frames"][0]["function"]
+                    assert any(function.endswith(top_function) for top_function in top_functions) or (
+                        asm_config._iast_enabled and function.endswith("ast_function")
+                    ), f"unknown top function {function}"
+                # assert mocked.call_args_list == []
+                telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+                assert (
+                    "CountMetric",
+                    "appsec.rasp.rule.match",
+                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                ) in telemetry_calls
+                assert (
+                    "CountMetric",
+                    "appsec.rasp.rule.eval",
+                    (("rule_type", endpoint), ("waf_version", DDWAF_VERSION)),
+                ) in telemetry_calls
+                if blocking:
+                    assert get_tag("rasp.request.done") is None
                 else:
-                    assert get_triggers(root_span()) is None
-                    assert self.check_for_stack_trace(root_span) == []
                     assert get_tag("rasp.request.done") == endpoint
-        finally:
-            unpatch_common_modules()
-            unpatch_requests()
+                assert get_metric(APPSEC.RASP_DURATION) is not None
+                assert get_metric(APPSEC.RASP_DURATION_EXT) is not None
+                assert get_metric(APPSEC.RASP_RULE_EVAL) is not None
+                assert float(get_metric(APPSEC.RASP_DURATION_EXT)) >= float(get_metric(APPSEC.RASP_DURATION))
+                assert int(get_metric(APPSEC.RASP_RULE_EVAL)) > 0
+            else:
+                assert get_triggers(root_span()) is None
+                assert self.check_for_stack_trace(root_span) == []
+                assert get_tag("rasp.request.done") == endpoint
 
-    @pytest.mark.skip(reason="iast integration not working yet")
-    def test_iast(self, iast, interface, root_span, get_tag):
-        from ddtrace.appsec._iast.taint_sinks.command_injection import patch
-        from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch
+    def test_iast(self, interface, root_span, get_tag):
+        if interface.name == "fastapi" and asm_config._iast_enabled:
+            raise pytest.xfail("fastapi does not fully support IAST for now")
         from ddtrace.ext import http
 
         url = "/rasp/shell/?cmd=ls"
-        try:
-            patch()
-            # patch_common_modules()
-            with override_global_config(dict(_iast_enabled=True)):
-                self.update_tracer(interface)
-                response = interface.client.get(url)
-                assert self.status(response) == 200
-                assert get_tag(http.STATUS_CODE) == "200"
-                assert self.body(response).startswith("shell endpoint")
-                assert get_tag("_dd.iast.json")
-        finally:
-            assert iast is None
-            unpatch()
-            # unpatch_common_modules()
+        self.update_tracer(interface)
+        response = interface.client.get(url)
+        assert self.status(response) == 200
+        assert get_tag(http.STATUS_CODE) == "200"
+        assert self.body(response).startswith("shell endpoint")
+        if asm_config._iast_enabled:
+            assert get_tag("_dd.iast.json") is not None
+        else:
+            assert get_tag("_dd.iast.json") is None
 
 
 @contextmanager
@@ -1306,7 +1326,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = ddtrace.Pin.get_from(interface.framework).tracer
+    original_tracer = getattr(ddtrace.Pin.get_from(interface.framework), "tracer", None)
     ddtrace.Pin.override(interface.framework, tracer=interface.tracer)
     yield
-    ddtrace.Pin.override(interface.framework, tracer=original_tracer)
+    if original_tracer is not None:
+        ddtrace.Pin.override(interface.framework, tracer=original_tracer)

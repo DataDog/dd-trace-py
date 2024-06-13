@@ -178,7 +178,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
+                "astunparse": latest,
                 "flask": "~=3.0",
+                "virtualenv-clone": latest,
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -211,7 +213,6 @@ venv = Venv(
                 "opentelemetry-api": ">=1",
                 "opentracing": ">=2.0.0",
                 "bytecode": latest,
-                "sqlparse": ">=0.2.2",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -276,7 +277,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -447,6 +448,7 @@ venv = Venv(
                 "pytest-asyncio": "~=0.21.1",
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
+                "pyfakefs": latest,
             },
             pys=select_pys(min_version="3.7", max_version="3.12"),
         ),
@@ -1736,6 +1738,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
             },
+            # grpc.aio support is broken and disabled by default
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.9"),
@@ -2305,13 +2309,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.3.9"],
+                        "openai[embeddings,datalib]": ["==0.27.2", "==1.1.1", "==1.30.1"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[datalib]": ["==1.3.9"],
+                        "openai[datalib]": ["==1.30.1"],
                         "tiktoken": latest,
                     },
                     env={"TIKTOKEN_AVAILABLE": "True"},
@@ -2482,7 +2486,6 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "tiktoken": latest,
-                "cohere": latest,
                 "huggingface-hub": latest,
                 "ai21": latest,
                 "exceptiongroup": latest,
@@ -2497,21 +2500,67 @@ venv = Venv(
                         "langchain-community": "==0.0.14",
                         "openai": "==0.27.8",
                         "pinecone-client": "==2.2.4",
+                        "cohere": "==4.57",
                     }
                 ),
                 Venv(
                     pkgs={
-                        "langchain": "==0.1.9",
-                        "langchain-community": "==0.0.24",
-                        "langchain-core": "==0.1.27",
-                        "langchain-openai": "==0.0.8",
-                        "langchain-pinecone": "==0.0.3",
-                        "langsmith": "==0.1.9",
-                        "openai": "==1.12.0",
+                        "langchain": "==0.1.20",
+                        "langchain-community": "==0.0.38",
+                        "langchain-core": "==0.1.52",
+                        "langchain-openai": "==0.1.6",
+                        "langchain-anthropic": "==0.1.11",
+                        "langchain-pinecone": "==0.1.0",
+                        "langchain-aws": "==0.1.3",
+                        "langchain-cohere": "==0.1.4",
+                        "openai": "==1.30.3",
                         "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": "==5.4.0",
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.2.0",
+                        "langchain-core": "==0.2.0",
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": latest,
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-community": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
+                        "cohere": latest,
                     }
                 ),
             ],
+        ),
+        Venv(
+            name="anthropic",
+            command="pytest {cmdargs} tests/contrib/anthropic",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+                "anthropic": [latest, "~=0.28"],
+            },
         ),
         Venv(
             name="logbook",
@@ -2598,7 +2647,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility tests/coverage",
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,

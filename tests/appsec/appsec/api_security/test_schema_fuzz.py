@@ -15,7 +15,9 @@ def build_schema(obj):
     waf = ddwaf.DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()
     res = waf.run(
-        ctx, {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}}
+        ctx,
+        {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}},
+        timeout_ms=50_000.0,
     ).derivatives
     return res["_dd.appsec.s.req.body"]
 

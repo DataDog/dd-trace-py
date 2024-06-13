@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+from enum import Enum
 import logging
 import math
 from typing import Any
@@ -10,8 +11,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import destroy_context
 from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
@@ -244,7 +245,7 @@ def test_propagate_ranges_with_no_context(caplog):
         source_value=string_to_taint,
         source_origin=OriginType.PARAMETER,
     )
-    destroy_context()
+    reset_context()
     with override_env({IAST.ENV_DEBUG: "true"}), caplog.at_level(logging.DEBUG):
         result_2 = mod.do_args_kwargs_4(string_input, 6, test_var=1)
 
@@ -252,3 +253,35 @@ def test_propagate_ranges_with_no_context(caplog):
     log_messages = [record.message for record in caplog.get_records("call")]
     assert not any("[IAST] " in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
+
+
+class ExportType(str, Enum):
+    USAGE = "Usage"
+    ACTUAL_COST = "ActualCost"
+
+
+def test_format_value_aspect_no_change_patched_unpatched():
+    # Issue: https://datadoghq.atlassian.net/jira/software/c/projects/APPSEC/boards/1141?selectedIssue=APPSEC-53155
+    fstr_unpatched = f"{ExportType.ACTUAL_COST}"
+    fstr_patched = mod.do_exporttype_member_format()
+    assert fstr_patched == fstr_unpatched
+
+
+class CustomSpec:
+    def __str__(self):
+        return "str"
+
+    def __repr__(self):
+        return "repr"
+
+    def __format__(self, format_spec):
+        return "format_" + format_spec
+
+
+def test_format_value_aspect_no_change_customspec():
+    c = CustomSpec()
+    assert f"{c}" == mod.do_customspec_simple()
+    assert f"{c!s}" == mod.do_customspec_cstr()
+    assert f"{c!r}" == mod.do_customspec_repr()
+    assert f"{c!a}" == mod.do_customspec_ascii()
+    assert f"{c!s:<20s}" == mod.do_customspec_formatspec()

@@ -1,4 +1,3 @@
-import json
 from operator import itemgetter
 import os
 import re
@@ -9,21 +8,15 @@ import langchain.prompts  # noqa: F401
 import mock
 import pytest
 
-from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs
+from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 from tests.utils import override_global_config
 
 
-SHOULD_USE_LANGCHAIN_COMMUNITY = parse_version(langchain.__version__) >= (0, 1)
-SHOULD_USE_LANGCHAIN_OPENAI = SHOULD_USE_LANGCHAIN_COMMUNITY
-
 pytestmark = pytest.mark.skipif(
-    not SHOULD_USE_LANGCHAIN_COMMUNITY or sys.version_info < (3, 10),
-    reason="This module only tests langchain_community and Python 3.10+",
+    PATCH_LANGCHAIN_V0 or sys.version_info < (3, 10),
+    reason="This module only tests langchain >= 0.1 and Python 3.10+",
 )
 
 
@@ -32,7 +25,6 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain_community")
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(
     ddtrace_config_langchain, langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, mock_tracer
@@ -84,7 +76,6 @@ def test_global_tags(
         )
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
@@ -92,8 +83,7 @@ def test_openai_llm_sync(langchain, langchain_openai, request_vcr):
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
@@ -106,14 +96,14 @@ def test_openai_llm_sync_multiple_prompts(langchain, langchain_openai, request_v
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_llm_async(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_async.yaml"):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_sync_stream.yaml"):
@@ -121,21 +111,19 @@ def test_openai_llm_sync_stream(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_llm_async_stream(langchain, langchain_openai, request_vcr):
     llm = langchain_openai.OpenAI(streaming=True)
     with request_vcr.use_cassette("openai_completion_async_stream.yaml"):
         await llm.agenerate(["Why is Spongebob so bad at driving?"])
 
 
-@flaky(1735812000)
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, langchain_openai, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain_openai.OpenAI()
 
-    # if parse_version(openai.__version__) >= (1, 0, 0):
     if getattr(openai, "__version__", "") >= "1.0.0":
         invalid_error = openai.BadRequestError
     else:
@@ -146,20 +134,25 @@ def test_openai_llm_error(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot
-def test_cohere_llm_sync(langchain_community, request_vcr):
-    llm = langchain_community.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
+def test_cohere_llm_sync(langchain_cohere, request_vcr):
+    llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("cohere_completion_sync.yaml"):
         llm.invoke("What is the secret Krabby Patty recipe?")
 
 
 @pytest.mark.snapshot
 def test_ai21_llm_sync(langchain, langchain_community, request_vcr):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
     llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("ai21_completion_sync.yaml"):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+@flaky(1735812000)
+def test_openai_llm_metrics(
+    langchain, langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     llm = langchain_openai.OpenAI()
     with request_vcr.use_cassette("openai_completion_sync.yaml"):
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
@@ -178,11 +171,12 @@ def test_openai_llm_metrics(langchain, langchain_openai, request_vcr, mock_metri
             mock.call.distribution("tokens.prompt", 17, tags=expected_tags),
             mock.call.distribution("tokens.completion", 256, tags=expected_tags),
             mock.call.distribution("tokens.total", 273, tags=expected_tags),
-            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
             mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
+    if langchain_community:
+        mock_metrics.increment.assert_called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
     mock_logs.assert_not_called()
 
 
@@ -224,16 +218,14 @@ def test_llm_logs(
     mock_metrics.count.assert_not_called()
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_call_langchain_openai(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
@@ -253,7 +245,8 @@ def test_openai_chat_model_sync_generate(langchain, langchain_openai, request_vc
         )
 
 
-@pytest.mark.snapshot
+@flaky(1735812000)
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
     Test that input messages with nested contents are still tagged without error
@@ -283,7 +276,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_chat_model_async_call(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_call.yaml"):
@@ -291,7 +284,7 @@ async def test_openai_chat_model_async_call(langchain, langchain_openai, request
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_chat_model_async_generate(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
@@ -311,7 +304,10 @@ async def test_openai_chat_model_async_generate(langchain, langchain_openai, req
         )
 
 
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_stream.yaml"):
@@ -319,15 +315,19 @@ def test_openai_chat_model_sync_stream(langchain, langchain_openai, request_vcr)
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain_community.test_openai_chat_model_stream",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 async def test_openai_chat_model_async_stream(langchain, langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(streaming=True, temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_stream.yaml"):
         await chat.agenerate([[langchain.schema.HumanMessage(content="What is the secret Krabby Patty recipe?")]])
 
 
-@flaky(1735812000)
-def test_chat_model_metrics(langchain, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
+def test_chat_model_metrics(
+    langchain, langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
+):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
@@ -346,15 +346,15 @@ def test_chat_model_metrics(langchain, langchain_openai, request_vcr, mock_metri
             mock.call.distribution("tokens.prompt", 20, tags=expected_tags),
             mock.call.distribution("tokens.completion", 96, tags=expected_tags),
             mock.call.distribution("tokens.total", 116, tags=expected_tags),
-            mock.call.increment("tokens.total_cost", mock.ANY, tags=expected_tags),
             mock.call.distribution("request.duration", mock.ANY, tags=expected_tags),
         ],
         any_order=True,
     )
+    if langchain_community:
+        mock_metrics.increment.assert_called_once_with("tokens.total_cost", mock.ANY, tags=expected_tags)
     mock_logs.assert_not_called()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -417,12 +417,16 @@ def test_openai_embedding_query(langchain_openai, request_vcr):
 
 @pytest.mark.snapshot
 def test_fake_embedding_query(langchain, langchain_community):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
     embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_query(text="foo")
 
 
 @pytest.mark.snapshot
 def test_fake_embedding_document(langchain, langchain_community):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
     embeddings = langchain_community.embeddings.FakeEmbeddings(size=99)
     embeddings.embed_documents(texts=["foo", "bar"])
 
@@ -486,7 +490,7 @@ def test_embedding_logs(langchain_openai, ddtrace_config_langchain, request_vcr,
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -498,7 +502,10 @@ def test_openai_math_chain_sync(langchain, langchain_openai, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
     prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
@@ -507,8 +514,10 @@ def test_chain_invoke_dict_input(langchain, langchain_openai, request_vcr):
         chain.invoke(input={"base": "two"})
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_chain_invoke")
+@pytest.mark.snapshot(
+    token="tests.contrib.langchain.test_langchain_community.test_chain_invoke",
+    ignores=["metrics.langchain.tokens.total_cost"],
+)
 def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
     prompt_template = "what is {base} raised to the fifty-fourth power?"
     prompt = langchain.prompts.PromptTemplate(input_variables=["base"], template=prompt_template)
@@ -518,7 +527,7 @@ def test_chain_invoke_str_input(langchain, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
@@ -530,19 +539,20 @@ async def test_openai_math_chain_async(langchain, langchain_openai, request_vcr)
 
 
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain_community.test_cohere_math_chain")
-def test_cohere_math_chain_sync(langchain, langchain_community, request_vcr):
+def test_cohere_math_chain_sync(langchain, langchain_cohere, request_vcr):
     """
     Test that using the provided LLMMathChain will result in a 3-span trace with
     the overall LLMMathChain, LLMChain, and underlying Cohere interface.
     """
     chain = langchain.chains.LLMMathChain.from_llm(
-        langchain_community.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
+        langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     )
     with request_vcr.use_cassette("cohere_math_chain_sync.yaml"):
         chain.invoke("what is thirteen raised to the .3432 power?")
 
 
-@pytest.mark.snapshot
+@flaky(1735812000)
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
     """
     Test that using a SequentialChain will result in a 4-span trace with
@@ -596,7 +606,7 @@ def test_openai_sequential_chain(langchain, langchain_openai, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
@@ -636,7 +646,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, langchain_ope
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_openai_sequential_chain_with_multiple_llm_async(langchain, langchain_openai, request_vcr):
     template = """Paraphrase this text:
 
@@ -786,7 +796,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, langchain_opena
 
 
 @pytest.mark.snapshot
-def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_openai, request_vcr):
+def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -806,8 +816,8 @@ def test_pinecone_vectorstore_similarity_search(langchain_community, langchain_o
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot
-def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_openai, request_vcr):
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
+def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
@@ -832,9 +842,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain_community, langchain_ope
             qa_with_sources.invoke("Who was Alan Turing?")
 
 
-def test_vectorstore_similarity_search_metrics(
-    langchain_community, langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer
-):
+def test_vectorstore_similarity_search_metrics(langchain_openai, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import langchain_pinecone
     import pinecone
 
@@ -867,7 +875,7 @@ def test_vectorstore_similarity_search_metrics(
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_vectorstore_logs(
-    langchain_openai, langchain_community, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
+    langchain_openai, ddtrace_config_langchain, request_vcr, mock_logs, mock_metrics, mock_tracer
 ):
     import langchain_pinecone
     import pinecone
@@ -926,7 +934,7 @@ def test_vectorstore_logs(
     mock_metrics.count.assert_not_called()
 
 
-@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "meta.http.useragent", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -946,9 +954,8 @@ def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_s
 from langchain_openai import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain_community import get_request_vcr
-llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
-    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    OpenAI().invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 """,
         env=env,
     )
@@ -957,14 +964,12 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     assert err == b""
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.http.useragent", "metrics.langchain.tokens.total_cost"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.parametrize("service_name", [None, "mysvc"])
 def test_openai_service_name(
     langchain, request_vcr, ddtrace_run_python_code_in_subprocess, schema_version, service_name
 ):
-    import os
-
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
@@ -983,14 +988,12 @@ def test_openai_service_name(
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        # TODO: need to correct this
         """
 from langchain_openai import OpenAI
 import ddtrace
 from tests.contrib.langchain.test_langchain_community import get_request_vcr
-llm = OpenAI()
 with get_request_vcr(subdirectory_name="langchain_community").use_cassette("openai_completion_sync.yaml"):
-    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    OpenAI().invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 """,
         env=env,
     )
@@ -999,13 +1002,12 @@ with get_request_vcr(subdirectory_name="langchain_community").use_cassette("open
     assert err == b""
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
 )
 def test_llm_logs_when_response_not_completed(
-    langchain, langchain_openai, langchain_community, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
+    langchain_openai, ddtrace_config_langchain, mock_logs, mock_metrics, mock_tracer
 ):
     """Test that errors get logged even if the response is not returned."""
     with mock.patch("langchain_openai.OpenAI._generate", side_effect=Exception("Mocked Error")):
@@ -1118,8 +1120,7 @@ def test_embedding_logs_when_response_not_completed(
     )
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -1132,7 +1133,7 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
 
 
 @flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
         "Tell me a short joke about {topic} in the style of {style}"
@@ -1162,7 +1163,7 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -1174,8 +1175,8 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request
         await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 test")
 def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     """
@@ -1188,11 +1189,11 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="Python 3.11+ required")
 def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     """
@@ -1205,11 +1206,10 @@ def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
-        chain.batch(["chickens", "pigs"])
+        chain.batch(inputs=["chickens", "pigs"])
 
 
-@flaky(1735812000)
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
@@ -1232,9 +1232,9 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
-@flaky(1735812000)
+@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
@@ -1246,315 +1246,4 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
-        await chain.abatch(["chickens", "pigs"])
-
-
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="langchain_community_test")],
-)
-class TestLLMObsLangchain:
-    @staticmethod
-    def _expected_llmobs_chain_calls(trace, expected_spans_data: list):
-        expected_llmobs_writer_calls = [mock.call.start()]
-
-        for idx, span in enumerate(trace):
-            kind, kwargs = expected_spans_data[idx]
-            expected_span_event = None
-            if kind == "chain":
-                expected_span_event = TestLLMObsLangchain._expected_llmobs_chain_call(span, **kwargs)
-            else:
-                expected_span_event = TestLLMObsLangchain._expected_llmobs_llm_call(span, **kwargs)
-
-            expected_llmobs_writer_calls += [mock.call.enqueue(expected_span_event)]
-
-        return expected_llmobs_writer_calls
-
-    @staticmethod
-    def _expected_llmobs_chain_call(span, input_parameters=None, input_value=None, output_value=None):
-        return _expected_llmobs_non_llm_span_event(
-            span,
-            span_kind="workflow",
-            parameters=input_parameters,
-            input_value=input_value,
-            output_value=output_value,
-            tags={
-                "ml_app": "langchain_community_test",
-            },
-        )
-
-    @staticmethod
-    def _expected_llmobs_llm_call(span, provider="openai", input_role=None, output_role=None):
-        input_meta = {"content": mock.ANY}
-        if input_role is not None:
-            input_meta["role"] = input_role
-
-        output_meta = {"content": mock.ANY}
-        if output_role is not None:
-            output_meta["role"] = output_role
-
-        temperature_key = "temperature"
-        if provider == "huggingface_hub":
-            max_tokens_key = "model_kwargs.max_tokens"
-            temperature_key = "model_kwargs.temperature"
-        elif provider == "ai21":
-            max_tokens_key = "maxTokens"
-        else:
-            max_tokens_key = "max_tokens"
-
-        metadata = {}
-        temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
-        max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
-        if temperature is not None:
-            metadata["temperature"] = float(temperature)
-        if max_tokens is not None:
-            metadata["max_tokens"] = int(max_tokens)
-
-        return _expected_llmobs_llm_span_event(
-            span,
-            model_name=span.get_tag("langchain.request.model"),
-            model_provider=span.get_tag("langchain.request.provider"),
-            input_messages=[input_meta],
-            output_messages=[output_meta],
-            metadata=metadata,
-            token_metrics={},
-            tags={
-                "ml_app": "langchain_community_test",
-            },
-        )
-
-    @classmethod
-    def _test_llmobs_llm_invoke(
-        cls,
-        provider,
-        generate_trace,
-        request_vcr,
-        mock_llmobs_span_writer,
-        mock_tracer,
-        cassette_name,
-        input_role=None,
-        output_role=None,
-    ):
-        LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
-
-        with request_vcr.use_cassette(cassette_name):
-            generate_trace("Can you explain what an LLM chain is?")
-        span = mock_tracer.pop_traces()[0][0]
-
-        expected_llmons_writer_calls = [
-            mock.call.start(),
-            mock.call.enqueue(
-                cls._expected_llmobs_llm_call(
-                    span,
-                    provider=provider,
-                    input_role=input_role,
-                    output_role=output_role,
-                )
-            ),
-        ]
-
-        assert mock_llmobs_span_writer.enqueue.call_count == 1
-        mock_llmobs_span_writer.assert_has_calls(expected_llmons_writer_calls)
-
-    @classmethod
-    def _test_llmobs_chain_invoke(
-        cls,
-        generate_trace,
-        request_vcr,
-        mock_llmobs_span_writer,
-        mock_tracer,
-        cassette_name,
-        expected_spans_data=[("llm", {"provider": "openai", "input_role": None, "output_role": None})],
-    ):
-        # disable the service before re-enabling it, as it was enabled in another test
-        LLMObs.disable()
-        LLMObs.enable(tracer=mock_tracer)
-
-        with request_vcr.use_cassette(cassette_name):
-            generate_trace("Can you explain what an LLM chain is?")
-        trace = mock_tracer.pop_traces()[0]
-
-        expected_llmobs_writer_calls = cls._expected_llmobs_chain_calls(
-            trace=trace, expected_spans_data=expected_spans_data
-        )
-        assert mock_llmobs_span_writer.enqueue.call_count == len(expected_spans_data)
-        mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
-
-    @flaky(1735812000)
-    def test_llmobs_openai_llm(self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
-        llm = langchain_openai.OpenAI()
-
-        self._test_llmobs_llm_invoke(
-            generate_trace=llm.invoke,
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="openai_completion_sync.yaml",
-            provider="openai",
-        )
-
-    def test_llmobs_cohere_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer, request_vcr):
-        llm = langchain_community.llms.Cohere(model="cohere.command-light-text-v14")
-
-        self._test_llmobs_llm_invoke(
-            generate_trace=llm.invoke,
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="cohere_completion_sync.yaml",
-            provider="cohere",
-        )
-
-    def test_llmobs_ai21_llm(self, langchain_community, mock_llmobs_span_writer, mock_tracer, request_vcr):
-        llm = langchain_community.llms.AI21()
-
-        self._test_llmobs_llm_invoke(
-            generate_trace=llm.invoke,
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="ai21_completion_sync.yaml",
-            provider="ai21",
-        )
-
-    @flaky(1735812000)
-    def test_llmobs_openai_chat_model(self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
-        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-
-        self._test_llmobs_llm_invoke(
-            generate_trace=lambda prompt: chat.invoke([langchain.schema.HumanMessage(content=prompt)]),
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="openai_chat_completion_sync_call.yaml",
-            provider="openai",
-            input_role="user",
-            output_role="assistant",
-        )
-
-    @flaky(1735812000)
-    def test_llmobs_openai_chat_model_custom_role(
-        self, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
-    ):
-        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-
-        self._test_llmobs_llm_invoke(
-            generate_trace=lambda prompt: chat.invoke([langchain.schema.ChatMessage(content=prompt, role="custom")]),
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="openai_chat_completion_sync_call.yaml",
-            provider="openai",
-            input_role="custom",
-            output_role="assistant",
-        )
-
-    @flaky(1735812000)
-    def test_llmobs_chain(self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr):
-        prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
-            [("system", "You are world class technical documentation writer."), ("user", "{input}")]
-        )
-        llm = langchain_openai.OpenAI()
-
-        chain = prompt | llm
-
-        expected_output = (
-            "\nSystem: Langsmith can help with testing in several ways. "
-            "First, it can generate automated tests based on your technical documentation, "
-            "ensuring that your code matches the documented specifications. "
-            "This can save you time and effort in testing your code manually. "
-            "Additionally, Langsmith can also analyze your technical documentation for completeness and accuracy, "
-            "helping you identify any potential gaps or errors before testing begins. "
-            "Finally, Langsmith can assist with creating test cases and scenarios based on your documentation, "
-            "making the testing process more efficient and effective."
-        )
-
-        self._test_llmobs_chain_invoke(
-            generate_trace=lambda prompt: chain.invoke({"input": prompt}),
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="lcel_openai_chain_call.yaml",
-            expected_spans_data=[
-                (
-                    "chain",
-                    {
-                        "input_value": json.dumps([{"input": "Can you explain what an LLM chain is?"}]),
-                        "output_value": expected_output,
-                    },
-                ),
-                ("llm", {"provider": "openai", "input_role": None, "output_role": None}),
-            ],
-        )
-
-    def test_llmobs_chain_nested(
-        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
-    ):
-        prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
-        prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
-            "what country is the city {city} in? respond in {language}"
-        )
-
-        model = langchain_openai.ChatOpenAI()
-
-        chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
-        chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
-
-        complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
-
-        self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: complete_chain.invoke(
-                {"person": "Spongebob Squarepants", "language": "Spanish"}
-            ),
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="lcel_openai_chain_nested.yaml",
-            expected_spans_data=[
-                (
-                    "chain",
-                    {
-                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
-                        "output_value": mock.ANY,
-                    },
-                ),
-                (
-                    "chain",
-                    {
-                        "input_value": json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
-                        "output_value": mock.ANY,
-                    },
-                ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-            ],
-        )
-
-    @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Python <3.11 required")
-    def test_llmobs_chain_batch(
-        self, langchain_core, langchain_openai, mock_llmobs_span_writer, mock_tracer, request_vcr
-    ):
-        prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
-        output_parser = langchain_core.output_parsers.StrOutputParser()
-        model = langchain_openai.ChatOpenAI()
-        chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
-
-        self._test_llmobs_chain_invoke(
-            generate_trace=lambda inputs: chain.batch(["chickens", "pigs"]),
-            request_vcr=request_vcr,
-            mock_llmobs_span_writer=mock_llmobs_span_writer,
-            mock_tracer=mock_tracer,
-            cassette_name="lcel_openai_chain_batch.yaml",
-            expected_spans_data=[
-                (
-                    "chain",
-                    {
-                        "input_value": json.dumps(["chickens", "pigs"]),
-                        "output_value": mock.ANY,
-                    },
-                ),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-                ("llm", {"provider": "openai", "input_role": "user", "output_role": "assistant"}),
-            ],
-        )
+        await chain.abatch(inputs=["chickens", "pigs"])

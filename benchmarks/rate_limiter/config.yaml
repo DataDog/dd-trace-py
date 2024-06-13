@@ -1,0 +1,19 @@
+defaults: &defaults
+  rate_limit: 100
+  time_window: 1000000000
+  num_windows: 100
+no_rate_limit:
+  <<: *defaults
+  rate_limit: 0
+low_rate_limit:
+  <<: *defaults
+  rate_limit: 1
+high_rate_limit:
+  <<: *defaults
+  rate_limit: 10000
+short_window:
+  <<: *defaults
+  time_window: 100000
+long_window:
+  <<: *defaults
+  time_window: 1000000000000

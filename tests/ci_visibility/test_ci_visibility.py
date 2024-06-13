@@ -1674,10 +1674,10 @@ class TestIsITRSkippable:
     m3_s2_t7 = api.CITestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
-        return {getattr(self, suite_id) for suite_id in vars(self) if re.match(r"^m\d_s\d$", suite_id)}
+        return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
 
     def _get_all_test_ids(self):
-        return {getattr(self, test_id) for test_id in vars(self) if re.match(r"^m\d_s\d_t\d$", test_id)}
+        return {getattr(self, test_id) for test_id in vars(self.__class__) if re.match(r"^m\d_s\d_t\d$", test_id)}
 
     def test_is_item_itr_skippable_test_level(self):
         with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
@@ -1723,12 +1723,15 @@ class TestIsITRSkippable:
             mock_instance._tests_to_skip = defaultdict(list)
             mock_instance._suite_skipping_mode = True
 
+            expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
+            expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
+
             # Check skippable suites are correct
-            for suite_id in [self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1]:
+            for suite_id in expected_skippable_suite_ids:
                 assert CIVisibility.is_item_itr_skippable(suite_id) is True
 
             # Check non-skippable suites are correct
-            for suite_id in [self.m1_s2, self.m3_s2]:
+            for suite_id in expected_non_skippable_suite_ids:
                 assert CIVisibility.is_item_itr_skippable(suite_id) is False
 
             # Check all tests are not skippable
