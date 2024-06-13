@@ -6,7 +6,8 @@ from requests.exceptions import ConnectionError
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
-_PORT=8030
+
+_PORT = 8030
 
 
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
