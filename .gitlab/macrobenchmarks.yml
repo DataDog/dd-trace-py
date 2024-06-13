@@ -16,7 +16,7 @@ variables:
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
-    git clone --branch gnufede/python/macrobenchmarks-iast https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
       bp-runner bp-runner.flask-realworld.yml --debug
     else
@@ -169,4 +169,40 @@ appsec-enabled-iast-worst-ep-disabled:
     DD_APPSEC_ENABLED: "true"
     DD_IAST_ENABLED: "true"
     DD_APPSEC_RASP_ENABLED: "false"
+    IAST_WORST: "true"
+
+appsec-worst-iast-disabled-ep-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "false"
+    DD_IAST_ENABLED: "false"
+    DD_APPSEC_RASP_ENABLED: "true"
+    IAST_WORST: "true"
+
+appsec-worst-iast-enabled-ep-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles?q=select%20pg_sleep
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "true"
+    DD_IAST_ENABLED: "true"
+    DD_APPSEC_RASP_ENABLED: "true"
+    IAST_WORST: "true"
+
+appsec-worst-iast-worst-ep-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_ENDPOINT: http://0.0.0.0:8000/iast/propagation?string1=Hi&password=select%20pg_sleep
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_APPSEC_ENABLED: "true"
+    DD_IAST_ENABLED: "true"
+    DD_APPSEC_RASP_ENABLED: "true"
     IAST_WORST: "true"
