@@ -64,6 +64,12 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     // we don't return error
     // TODO is this what we want?
     if (val.empty() || key_sv.empty()) {
+        if (val.empty()) {
+            std::cout << "bad push label (val)" << std::endl;
+        }
+        if (key_sv.empty()) {
+            std::cout << "bad push label (key)" << std::endl;
+        }
         return true;
     }
 
