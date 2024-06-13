@@ -750,7 +750,7 @@ def _assert_results(response, package):
 
 
 # We need to set a different port for these tests of they can conflict with other tests using the flask server
-# running in paralell (e.g. test_gunicorn_handlers.py)
+# running in parallel (e.g. test_gunicorn_handlers.py)
 _TEST_PORT = 8010
 
 
