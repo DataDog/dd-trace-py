@@ -1,0 +1,2 @@
+paths-ignore:
+  - 'tests/appsec/iast_packages/packages/*.py'
