@@ -64,12 +64,6 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     // we don't return error
     // TODO is this what we want?
     if (val.empty() || key_sv.empty()) {
-        if (val.empty()) {
-            std::cout << "bad push label (val)" << std::endl;
-        }
-        if (key_sv.empty()) {
-            std::cout << "bad push label (key)" << std::endl;
-        }
         return true;
     }
 
@@ -159,7 +153,10 @@ bool
 Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t count)
 {
     if (0U != (type_mask & SampleType::Exception)) {
-        push_label(ExportLabelKey::exception_type, exception_type);
+        if (!push_label(ExportLabelKey::exception_type, exception_type)) {
+            std::cout << "bad push_label for exception type" << std::endl;
+            std::cout << ExportLabelKey::exception_type << " exception_type: " << exception_type << std::endl;
+        }
         values[profile_state.val().exception_count] += count;
         return true;
     }
