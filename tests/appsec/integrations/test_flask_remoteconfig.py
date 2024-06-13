@@ -222,7 +222,9 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
         time.sleep(sleep_time * pow(8, id_try / max_retries))
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
+
 _PORT = 8040
+
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
