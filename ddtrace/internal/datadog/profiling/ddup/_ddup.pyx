@@ -252,8 +252,10 @@ cdef class SampleHandle:
             exc_name = None
             if exc_type is type:
                 exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
+                print("exc_type is a type", exc_type, " exc_name is ", exc_name)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
+                print("exc_type is not a type", exc_type, " exc_name is ", exc_name)
             ddup_push_exceptioninfo(
                 self.ptr,
                 string_view(<const char*>exc_name, len(exc_name)),
