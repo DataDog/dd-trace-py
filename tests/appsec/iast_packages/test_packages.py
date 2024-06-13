@@ -523,7 +523,7 @@ PACKAGES = [
         "1.9.4",
         "https://example.com/path?query=param",
         "Original URL: https://example.com/path?query=param\nScheme: https\nHost:"
-        + "example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
+        + " example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
         "",
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
