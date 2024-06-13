@@ -669,7 +669,16 @@ PACKAGES = [
         "",
         import_name="nacl.utils",
     ),
-    PackageForTesting("annotated-types", "0.7.0", "15", "Processed value: 15", "", import_name="annotated_types"),
+    # Requires "Annotated" from "typing" which was included in 3.9
+    PackageForTesting(
+        "annotated-types",
+        "0.7.0",
+        "15",
+        "Processed value: 15",
+        "",
+        import_name="annotated_types",
+        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    ),
 ]
 
 # Use this function if you want to test one or a filter number of package for debug proposes
