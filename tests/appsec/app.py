@@ -1,6 +1,7 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
 
+import os
 import subprocess  # nosec
 
 from flask import Flask
@@ -194,4 +195,5 @@ def iast_ast_patching_import_error():
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=8000)
+    env_port = os.getenv("FLASK_RUN_PORT", 8000)
+    app.run(debug=False, port=env_port)

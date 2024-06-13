@@ -748,6 +748,7 @@ def _assert_results(response, package):
     else:
         assert content["result2"] == package.expected_result2
 
+_TEST_PORT=8010
 
 @pytest.mark.parametrize(
     "package",
@@ -762,7 +763,8 @@ def test_flask_packages_not_patched(package, venv):
 
     package.install(venv)
     with flask_server(
-        python_cmd=venv, iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None
+        python_cmd=venv, iast_enabled="false", tracer_enabled="true", remote_configuration_enabled="false", token=None,
+        port=_TEST_PORT
     ) as context:
         _, client, pid = context
 
@@ -784,7 +786,7 @@ def test_flask_packages_patched(package, venv):
 
     package.install(venv)
     with flask_server(
-        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None
+        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None, port=_TEST_PORT
     ) as context:
         _, client, pid = context
         response = client.get(package.url)

@@ -57,6 +57,7 @@ def flask_server(
     token=None,
     app="tests/appsec/app.py",
     env=None,
+    port=8000,
 ):
     cmd = [python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
@@ -68,6 +69,7 @@ def flask_server(
         tracer_enabled=tracer_enabled,
         token=token,
         env=env,
+        port=port,
     )
 
 
@@ -80,6 +82,7 @@ def appsec_application_server(
     appsec_standalone_enabled=None,
     token=None,
     env=None,
+    port=8000,
 ):
     env = _build_env(env)
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
@@ -99,6 +102,7 @@ def appsec_application_server(
     if tracer_enabled is not None:
         env["DD_TRACE_ENABLED"] = tracer_enabled
     env["DD_TRACE_AGENT_URL"] = os.environ.get("DD_TRACE_AGENT_URL", "")
+    env["FLASK_RUN_PORT"] = str(port)
 
     server_process = subprocess.Popen(
         cmd,
@@ -108,7 +112,7 @@ def appsec_application_server(
         start_new_session=True,
     )
     try:
-        client = Client("http://0.0.0.0:8000")
+        client = Client("http://0.0.0.0:%s" % port)
 
         try:
             print("Waiting for server to start")
