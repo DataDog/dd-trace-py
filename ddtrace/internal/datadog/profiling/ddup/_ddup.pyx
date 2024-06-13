@@ -250,8 +250,8 @@ cdef class SampleHandle:
     def push_exceptioninfo(self, exc_type: Union[None, bytes, str, type], count: int) -> None:
         if self.ptr is not NULL:
             exc_name = None
-            if exc_type is type:
-                exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__name__)
+            if isinstance(exc_type, type):
+                exc_name = ensure_binary_or_empty(exc_type.__qualname__)
                 print("exc_type is a type", exc_type, " exc_name is ", exc_name)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
