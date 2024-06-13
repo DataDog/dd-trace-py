@@ -40,10 +40,8 @@ def pkg_iniconfig_view():
             # Clean up the created ini file
             if os.path.exists(ini_path):
                 os.remove(ini_path)
-        except Exception:
-            from traceback import format_exc  # JJJ
-
-            result_output = f"Error: {format_exc()}"
+        except Exception as e:
+            result_output = f"Error: {str(e)}"
 
         response.result1 = result_output
     except Exception as e:

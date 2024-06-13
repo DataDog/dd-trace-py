@@ -679,7 +679,7 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
-_DEBUG_MODE = True  # JJJ Set to False!
+_DEBUG_MODE = False
 
 
 @pytest.fixture(scope="module")
@@ -733,16 +733,12 @@ def venv(template_venv):
 def _assert_results(response, package):
     assert response.status_code == 200
     content = json.loads(response.content)
-    print("JJJ content: \n", content)
     if type(content["param"]) in (str, bytes):
-        print("JJJ param: |%s|" % content["param"])
-        print("JJJ expected_param: |%s|" % package.expected_param)
         assert content["param"].startswith(package.expected_param)
     else:
         assert content["param"] == package.expected_param
 
     if type(content["result1"]) in (str, bytes):
-        print("JJJ content[result1]: |%s|" % content["result1"])
         assert content["result1"].startswith(package.expected_result1)
     else:
         assert content["result1"] == package.expected_result1
