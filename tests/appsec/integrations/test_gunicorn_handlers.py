@@ -32,6 +32,7 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, appsec_standalone_en
             appsec_standalone_enabled=appsec_standalone_enabled,
             remote_configuration_enabled="false",
             token=None,
+            port=8030,
         ) as context:
             _, gunicorn_client, pid = context
             headers = {

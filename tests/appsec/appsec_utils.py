@@ -34,8 +34,9 @@ def gunicorn_server(
     tracer_enabled="true",
     appsec_standalone_enabled=None,
     token=None,
+    port=8000,
 ):
-    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:8000", "tests.appsec.app:app"]
+    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -43,6 +44,7 @@ def gunicorn_server(
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        port=port,
     )
 
 
