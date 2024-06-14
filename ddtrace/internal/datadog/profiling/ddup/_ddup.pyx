@@ -251,7 +251,7 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             exc_name = None
             if isinstance(exc_type, type):
-                exc_name = ensure_binary_or_empty(exc_type.__qualname__)
+                exc_name = ensure_binary_or_empty(exc_type.__module__ + "." + exc_type.__qualname__)
             else:
                 exc_name = ensure_binary_or_empty(exc_type)
             ddup_push_exceptioninfo(
