@@ -19,6 +19,7 @@ import six
 
 import ddtrace
 from ddtrace._trace.context import Context
+from ddtrace._trace.span import NoneSpan
 from ddtrace._trace.span import _is_top_level
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import AUTO_KEEP
@@ -1596,20 +1597,20 @@ def test_get_report_hostname_default(get_hostname, tracer, test_spans):
 
 def test_non_active_span(tracer, test_spans):
     with tracer.start_span("test", activate=False):
-        assert tracer.current_span() is None
-        assert tracer.current_root_span() is None
-    assert tracer.current_span() is None
-    assert tracer.current_root_span() is None
+        assert isinstance(tracer.current_span(), NoneSpan)
+        assert isinstance(tracer.current_root_span(), NoneSpan)
+    assert isinstance(tracer.current_span(), NoneSpan)
+    assert isinstance(tracer.current_root_span(), NoneSpan)
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
     with tracer.start_span("test1", activate=False):
         with tracer.start_span("test2", activate=False):
-            assert tracer.current_span() is None
-            assert tracer.current_root_span() is None
-    assert tracer.current_span() is None
-    assert tracer.current_root_span() is None
+            assert isinstance(tracer.current_span(), NoneSpan)
+            assert isinstance(tracer.current_root_span(), NoneSpan)
+    assert isinstance(tracer.current_span(), NoneSpan)
+    assert isinstance(tracer.current_root_span(), NoneSpan)
     traces = test_spans.pop_traces()
     assert len(traces) == 2
 

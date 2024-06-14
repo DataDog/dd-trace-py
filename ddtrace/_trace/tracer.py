@@ -942,7 +942,7 @@ class Tracer(object):
             span_api=span_api,
         )
 
-    def current_root_span(self) -> Optional[Span]:
+    def current_root_span(self) -> Span:
         """Returns the root span of the current execution.
 
         This is useful for attaching information related to the trace as a
@@ -957,7 +957,9 @@ class Tracer(object):
                 root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
-        if span is None:
+        if isinstance(span, NoneSpan):
+            return span
+        if span._local_root is None:
             return NoneSpan()
         return span._local_root
 

@@ -90,16 +90,12 @@ class TimeoutChannel:
         self.crashed = True
 
         root_span = tracer.current_root_span()
-        if root_span is not None:
-            root_span.error = 1
-            root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
-            root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
-        else:
-            log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
+        root_span.error = 1
+        root_span.set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
+        root_span.set_tag_str(ERROR_TYPE, "Impending Timeout")
 
         current_span = tracer.current_span()
-        if current_span is not None:
-            current_span.finish_with_ancestors()
+        current_span.finish_with_ancestors()
 
     def _remove_alarm_signal(self):
         """Removes the handler set for the signal `SIGALRM`."""

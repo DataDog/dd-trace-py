@@ -3,6 +3,7 @@ import typing as t
 import attr
 
 import ddtrace
+from ddtrace._trace.span import NoneSpan
 from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
@@ -82,14 +83,14 @@ class SpanDecoration(LogSignal):
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
-            span = ddtrace.tracer.current_span()  # type: t.Optional[Span]
+            span = ddtrace.tracer.current_span()
         elif probe.target_span == SpanDecorationTargetSpan.ROOT:
             span = ddtrace.tracer.current_root_span()
         else:
             log.error("Invalid target span for span decoration: %s", probe.target_span)
             return
 
-        if span is not None:
+        if not isinstance(span, NoneSpan):
             log.debug("Decorating span %r according to span decoration probe %r", span, probe)
             for d in probe.decorations:
                 try:
