@@ -664,6 +664,9 @@ class NoneSpan(Span):
     def __init__(self):
         super(NoneSpan, self).__init__("NoneSpan", trace_id=0, span_id=0, parent_id=0, start=0)
 
+    def __bool__(self):
+        return False
+
     @property
     def sampled(self):
         return True
