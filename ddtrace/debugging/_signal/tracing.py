@@ -82,7 +82,7 @@ class SpanDecoration(LogSignal):
         probe = t.cast(SpanDecorationMixin, self.probe)
 
         if probe.target_span == SpanDecorationTargetSpan.ACTIVE:
-            span = ddtrace.tracer.current_span()
+            span = ddtrace.tracer.current_span()  # type: t.Optional[Span]
         elif probe.target_span == SpanDecorationTargetSpan.ROOT:
             span = ddtrace.tracer.current_root_span()
         else:
