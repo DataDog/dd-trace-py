@@ -203,6 +203,10 @@ class ASMConfig(Env):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
 
+    @property
+    def _api_security_feature_active(self) -> bool:
+        return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
 
 config = ASMConfig()
 
