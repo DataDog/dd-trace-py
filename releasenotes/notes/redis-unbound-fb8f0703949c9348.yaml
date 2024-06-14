@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: This fix resolves a programming error that could result in uncaught exceptions from Redis-related integrations.
