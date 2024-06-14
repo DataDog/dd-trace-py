@@ -3,6 +3,7 @@ from typing import Optional
 import ddtrace
 from ddtrace import Span
 from ddtrace import config
+from ddtrace._trace.span import NoneSpan
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
@@ -74,7 +75,7 @@ def _get_session_id(span: Span) -> str:
 def _inject_llmobs_parent_id(span_context):
     """Inject the LLMObs parent ID into the span context for reconnecting distributed LLMObs traces."""
     span = ddtrace.tracer.current_span()
-    if span is None:
+    if not isinstance(span, NoneSpan):
         log.warning("No active span to inject LLMObs parent ID info.")
         return
     if span.context is not span_context:

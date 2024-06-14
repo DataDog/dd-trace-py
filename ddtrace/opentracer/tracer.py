@@ -13,6 +13,7 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 import ddtrace
 from ddtrace import Tracer as DatadogTracer
 from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
+from ddtrace._trace.span import NoneSpan
 from ddtrace._trace.span import Span as DatadogSpan
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
@@ -274,7 +275,7 @@ class Tracer(opentracing.Tracer):
                     dd_parent = dd_parent_span
             else:
                 dd_parent = active_dd_parent
-        elif ot_parent is not None and isinstance(ot_parent, Span):
+        elif ot_parent and isinstance(ot_parent, Span) and not isinstance(ot_parent, NoneSpan):
             # a span is given to use as a parent
             ot_parent_context = ot_parent.context
             dd_parent = ot_parent._dd_span
@@ -327,7 +328,7 @@ class Tracer(opentracing.Tracer):
         else:
             dd_span = self._dd_tracer.current_span()
             ot_span = None  # type: Optional[Span]
-            if dd_span:
+            if not isinstance(dd_span, NoneSpan):
                 ot_span = Span(self, None, dd_span.name)
                 ot_span._associate_dd_span(dd_span)
             return ot_span
