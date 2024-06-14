@@ -695,6 +695,9 @@ def test_pprof_exporter(gan):
     assert exports.time_nanos == 1
     assert exports.duration_nanos == 6
 
+    assert "exception type" in exports.string_table
+    assert "builtins.TypeError" in exports.string_table
+
     assert all(_ in exports.string_table for _ in ("time", "nanoseconds", "bonjour"))
 
 
