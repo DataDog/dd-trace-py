@@ -598,7 +598,7 @@ PACKAGES = [
         "some-value",
         "Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}",
         "",
-        extras=[("pandas", "2.2.2")],
+        extras=[("pandas", "1.1.5")],
     ),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting("pyparsing", "3.1.2", "123-456-7890", "Parsed phone number: ['123', '456', '7890']", ""),
