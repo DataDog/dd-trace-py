@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    flask: Fix scenarios when using flask-like frameworks would cause a crash because of patching issues on startup.
