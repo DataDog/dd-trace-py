@@ -17,6 +17,7 @@ pkg_annotated_types = Blueprint("package_annotated_types", __name__)
 @pkg_annotated_types.route("/annotated-types")
 def pkg_annotated_types_view():
     from typing import Annotated
+
     from annotated_types import Gt
 
     response = ResultResponse(request.args.get("package_param"))
