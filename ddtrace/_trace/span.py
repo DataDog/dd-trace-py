@@ -115,6 +115,170 @@ class Span(object):
 
     def __init__(
         self,
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        parent_id=None,  # type: Optional[int]
+        start=None,  # type: Optional[int]
+        context=None,  # type: Optional[Context]
+        on_finish=None,  # type: Optional[List[Callable[[Span], None]]]
+        span_api=SPAN_API_DATADOG,  # type: str
+        links=None,  # type: Optional[List[SpanLink]]
+    ):
+        # type: (...) -> None
+        # required span info
+        self.name = ""
+        self.service = service
+        self._resource = [resource or self.name]
+        self.span_type = span_type
+        self._span_api = span_api
+
+        # tags / metadata
+        self._meta = {}  # type: _MetaDictType
+        self.error = 0
+        self._metrics = {}  # type: _MetricDictType
+
+        self._meta_struct: Dict[str, Dict[str, Any]] = {}
+
+        # timing
+        self.start_ns = 0
+        self.duration_ns = None  # type: Optional[int]
+
+        # tracing
+        self.trace_id = trace_id
+        self.span_id = span_id
+        self.parent_id = parent_id
+        self._on_finish_callbacks = []  # type: List[Any]
+
+        self._context = None
+
+        self._links = links
+        self._events = []  # type: List[SpanEvent]
+        self._parent = None  # type: Optional[Span]
+        self._ignored_exceptions = None  # type: Optional[List[Exception]]
+        self._local_root = None  # type: Optional[Span]
+        self._store = None  # type: Optional[Dict[str, Any]]
+
+    @property
+    def _trace_id_64bits(self):
+        return 0
+
+    @property
+    def start(self):
+        return self.start_ns
+
+    @start.setter
+    def start(self, value):
+        pass
+
+    @property
+    def resource(self):
+        pass
+
+    @resource.setter
+    def resource(self, value):
+        pass
+
+    @property
+    def finished(self):
+        pass
+
+    @finished.setter
+    def finished(self, value):
+        pass
+
+    @property
+    def duration(self):
+        return self.duration_ns
+
+    @duration.setter
+    def duration(self, value):
+        pass
+
+    @property
+    def sampled(self):
+        pass
+
+    @sampled.setter
+    def sampled(self, value):
+        pass
+
+    def _pprint(self):
+        pass
+
+    def _finish_ns(self, finish_time_ns):
+        pass
+
+    def get_tag(self, key: _TagNameType) -> Optional[Text]:
+        return None
+
+    def get_tags(self) -> _MetaDictType:
+        return {}
+
+    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+        return None
+
+    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+        return None
+
+    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+        return None
+
+    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+        return None
+
+    def finish(self, finish_time=None):
+        pass
+
+    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+        return None
+
+    def set_metrics(self, metrics: _MetricDictType) -> None:
+        return None
+
+    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
+        return None
+
+    def get_metrics(self) -> _MetricDictType:
+        return self._metrics
+
+    @property
+    def context(self):
+        return self._context
+
+    def link_span(self, context, attributes=None):
+        return None
+
+    def set_link(self, trace_id, span_id, tracestate=None, flags=None, attributes=None):
+        pass
+
+    def finish_with_ancestors(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finish()
+
+    def _set_ctx_item(self, key, val):
+        pass
+
+    def _set_ctx_items(self, items):
+        pass
+
+    def _get_ctx_item(self, key):
+        pass
+
+    def _add_event(self, name, attributes=None, timestamp=None):
+        pass
+
+
+class ActualSpan(Span):
+    def __init__(
+        self,
         name,  # type: str
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
@@ -658,6 +822,45 @@ class Span(object):
             self.parent_id,
             self.name,
         )
+
+
+class NoneSpan(Span):
+    def __init__(self):
+        self.__dict__["attributes"] = {}
+
+    def __getattr__(self, name):
+        # Called when the attribute is not found in the usual places
+        return self.attributes.get(name, None)
+
+    def __setattr__(self, name, value):
+        # Called when an attribute is set
+        self.attributes[name] = value
+
+    def __call__(self, *args, **kwargs):
+        # Called when the object is used as a function
+        # print(f"Called with args: {args} and kwargs: {kwargs}")
+        return self
+
+    def __getattribute__(self, name):
+        # Handle any attribute access
+        if name == "attributes":
+            return object.__getattribute__(self, name)
+        if name in self.attributes:
+            return self.attributes[name]
+        return self
+
+    def __delattr__(self, name):
+        # Called when an attribute is deleted
+        if name in self.attributes:
+            del self.attributes[name]
+
+    def __str__(self):
+        # String representation of the object
+        return f"NoneSpan with attributes: {self.attributes}"
+
+    def __repr__(self):
+        # Representation of the object
+        return self.__str__()
 
 
 def _is_top_level(span):

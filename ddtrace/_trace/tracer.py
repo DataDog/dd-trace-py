@@ -26,6 +26,8 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.span import NoneSpan
+from ddtrace._trace.span import ActualSpan
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
@@ -776,7 +778,7 @@ class Tracer(object):
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
-            span = Span(
+            span = ActualSpan(
                 name=name,
                 context=context,
                 trace_id=trace_id,
@@ -803,7 +805,7 @@ class Tracer(object):
                     span._meta[k] = v
         else:
             # this is the root span of a new trace
-            span = Span(
+            span = ActualSpan(
                 name=name,
                 context=context,
                 service=service,
@@ -968,7 +970,7 @@ class Tracer(object):
         method.
         """
         active = self.context_provider.active()
-        return active if isinstance(active, Span) else None
+        return active if isinstance(active, ActualSpan) else NoneSpan()
 
     @property
     def agent_trace_url(self) -> Optional[str]:
