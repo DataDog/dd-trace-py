@@ -1759,16 +1759,16 @@ def test_closing_other_context_spans_single_span(tracer, test_spans):
     """
 
     def _target(span):
-        assert tracer.current_span() is None
+        assert isinstance(tracer.current_span(), NoneSpan)
         span.finish()
-        assert tracer.current_span() is None
+        assert isinstance(tracer.current_span(), NoneSpan)
 
     span = tracer.trace("main thread")
     assert tracer.current_span() is span
     t1 = threading.Thread(target=_target, args=(span,))
     t1.start()
     t1.join(60)
-    assert tracer.current_span() is None
+    assert isinstance(tracer.current_span(), NoneSpan)
 
     spans = test_spans.pop()
     assert len(spans) == 1
@@ -1781,9 +1781,9 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     """
 
     def _target(span):
-        assert tracer.current_span() is None
+        assert isinstance(tracer.current_span(), NoneSpan)
         span.finish()
-        assert tracer.current_span() is None
+        assert isinstance(tracer.current_span(), NoneSpan)
 
     root = tracer.trace("root span")
     span = tracer.trace("child span")

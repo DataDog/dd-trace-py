@@ -9,6 +9,7 @@ import ddtrace
 from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
+from ddtrace._trace.span import NoneSpan
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry
@@ -239,7 +240,7 @@ class LLMObs(Service):
                 log.warning("Failed to export span. Span must be a valid Span object.")
                 return None
         span = cls._instance.tracer.current_span()
-        if span is None:
+        if span is None or isinstance(span, NoneSpan):  # Redundant check as current_span() should never return None now
             log.warning("No span provided and no active LLMObs-generated span found.")
             return None
         if span.span_type != SpanTypes.LLM:

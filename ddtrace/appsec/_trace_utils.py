@@ -2,6 +2,7 @@ from typing import Optional
 
 from ddtrace import Tracer
 from ddtrace import constants
+from ddtrace._trace.span import NoneSpan
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -44,7 +45,7 @@ def _track_user_login_common(
 ) -> Optional[Span]:
     if span is None:
         span = tracer.current_root_span()
-    if span:
+    if not isinstance(span, NoneSpan):
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
 
@@ -173,7 +174,7 @@ def track_user_signup_event(
     tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
 ) -> None:
     span = tracer.current_root_span()
-    if span:
+    if not isinstance(span, NoneSpan):
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
         span.set_tag_str(user.ID, user_id)
@@ -212,7 +213,7 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
         return
 
     span = tracer.current_root_span()
-    if not span:
+    if isinstance(span, NoneSpan):
         log.warning(
             "No root span in the current execution. Skipping track_custom_event tags. "
             "See https://docs.datadoghq.com/security_platform/application_security"
@@ -249,7 +250,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
 
     # Early check to avoid calling the WAF if the request is already blocked
     span = tracer.current_root_span()
-    if not span:
+    if isinstance(span, NoneSpan):
         log.warning(
             "No root span in the current execution. should_block_user returning False"
             "See https://docs.datadoghq.com/security_platform/application_security"
@@ -293,7 +294,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
 
     if should_block_user(tracer, userid):
         span = tracer.current_root_span()
-        if span:
+        if not isinstance(span, NoneSpan):
             span.set_tag_str(user.ID, str(userid))
         _asm_request_context.block_request()
 

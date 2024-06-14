@@ -10,6 +10,7 @@ from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.span import NoneSpan
 from ddtrace._trace.span import Span  # noqa:F401
 
 
@@ -992,7 +993,7 @@ class HTTPPropagator(object):
             else:
                 root_span = ddtrace.tracer.current_root_span()
 
-            if root_span is not None and root_span.context.sampling_priority is None:
+            if root_span and not isinstance(root_span, NoneSpan) and root_span.context.sampling_priority is None:
                 ddtrace.tracer.sample(root_span)
         else:
             log.error("ddtrace.tracer.sample is not available, unable to sample span.")

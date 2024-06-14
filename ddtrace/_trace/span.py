@@ -664,6 +664,14 @@ class NoneSpan(Span):
     def __init__(self):
         super(NoneSpan, self).__init__("NoneSpan", trace_id=0, span_id=0, parent_id=0, start=0)
 
+    @property
+    def sampled(self):
+        return True
+
+    @sampled.setter
+    def sampled(self, value):
+        pass
+
 
 def _is_top_level(span):
     # type: (Span) -> bool
