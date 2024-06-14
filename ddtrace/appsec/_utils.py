@@ -67,6 +67,12 @@ def _appsec_apisec_features_is_active() -> bool:
     return asm_config._asm_libddwaf_available and asm_config._asm_enabled and asm_config._api_security_enabled
 
 
+def _hash_user_id(user_id: str) -> str:
+    import hashlib
+
+    return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
+
+
 def _safe_userid(user_id):
     try:
         _ = int(user_id)

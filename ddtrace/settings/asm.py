@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+from typing import List
 from typing import Optional
 
 from envier import Env
@@ -26,6 +27,16 @@ def _validate_sample_rate(r: float) -> None:
 def _validate_non_negative_int(r: int) -> None:
     if r < 0:
         raise ValueError("value must be non negative")
+
+
+def _parse_options(options: List[str]):
+    def parse(str_in: str) -> str:
+        for o in options:
+            if o.startswith(str_in.lower()):
+                return o
+        return options[0]
+
+    return parse
 
 
 def build_libddwaf_filename() -> str:
@@ -56,23 +67,25 @@ class ASMConfig(Env):
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
-    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default=None)
+    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="", parser=str.lower)
     # Deprecation phase, to be removed in ddtrace 3.0.0
     if _automatic_login_events_mode is not None:
         if _automatic_login_events_mode == "extended":
             deprecate(
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=ident instead",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=identification instead",
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
+            _automatic_login_events_mode = "identification"
         elif _automatic_login_events_mode == "safe":
             deprecate(
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anon instead",
+                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anonymisation instead",
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
+            _automatic_login_events_mode = "anonymization"
         elif _automatic_login_events_mode == "disabled":
             deprecate(
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
@@ -82,7 +95,14 @@ class ASMConfig(Env):
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        _automatic_login_events_mode = _automatic_login_events_mode.lower()
+    _auto_user_instrumentation_mode = Env.var(
+        str,
+        APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
+        default="",
+        parser=_parse_options(["disabled", "identification", "anonymization"]),
+    )
+    _auto_user_instrumentation_enabled = Env.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
+
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
     _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
     _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
@@ -175,6 +195,9 @@ class ASMConfig(Env):
         super().__init__()
         # Is one click available?
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        # Only for deprecation phase
+        if self._auto_user_instrumentation_mode == "":
+            self._auto_user_instrumentation_mode = self._automatic_login_events_mode or "identification"
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
