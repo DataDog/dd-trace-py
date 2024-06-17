@@ -299,7 +299,7 @@ def _inject():
                 send_telemetry(event)
             except Exception as e:
                 event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
+                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
                 )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")

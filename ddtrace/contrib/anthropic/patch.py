@@ -18,6 +18,8 @@ from ._streaming import is_streaming_operation
 from .utils import _extract_api_key
 from .utils import handle_non_streamed_response
 from .utils import tag_params_on_span
+from .utils import tag_tool_result_input_on_span
+from .utils import tag_tool_use_input_on_span
 
 
 log = get_logger(__name__)
@@ -81,6 +83,11 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 "([IMAGE DETECTED])",
                             )
+                        elif _get_attr(block, "type", None) == "tool_use":
+                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
+
+                        elif _get_attr(block, "type", None) == "tool_result":
+                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
@@ -155,6 +162,11 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
                                 "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
                                 "([IMAGE DETECTED])",
                             )
+                        elif _get_attr(block, "type", None) == "tool_use":
+                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
+
+                        elif _get_attr(block, "type", None) == "tool_result":
+                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
 
                     span.set_tag_str(
                         "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),

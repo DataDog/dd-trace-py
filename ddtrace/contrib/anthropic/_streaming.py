@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import Any
 from typing import Dict
@@ -5,6 +6,7 @@ from typing import Tuple
 
 import anthropic
 
+from ddtrace.contrib.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.anthropic import _get_attr
 from ddtrace.vendor import wrapt
@@ -184,10 +186,11 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
         "message_start": _on_message_start_chunk,
         "content_block_start": _on_content_block_start_chunk,
         "content_block_delta": _on_content_block_delta_chunk,
+        "content_block_stop": _on_content_block_stop_chunk,
         "message_delta": _on_message_delta_chunk,
         "error": _on_error_chunk,
     }
-    chunk_type = getattr(chunk, "type", "")
+    chunk_type = _get_attr(chunk, "type", "")
     transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
     if transformation is not None:
         message = transformation(chunk, message)
@@ -197,56 +200,77 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
 
 def _on_message_start_chunk(chunk, message):
     # this is the starting chunk of the message
-    chunk_message = getattr(chunk, "message", "")
+    chunk_message = _get_attr(chunk, "message", "")
     if chunk_message:
-        chunk_role = getattr(chunk_message, "role", "")
-        chunk_usage = getattr(chunk_message, "usage", "")
+        chunk_role = _get_attr(chunk_message, "role", "")
+        chunk_usage = _get_attr(chunk_message, "usage", "")
         if chunk_role:
             message["role"] = chunk_role
         if chunk_usage:
-            message["usage"] = {}
-            message["usage"]["input_tokens"] = getattr(chunk_usage, "input_tokens", 0)
+            message["usage"] = {"input_tokens": _get_attr(chunk_usage, "input_tokens", 0)}
     return message
 
 
 def _on_content_block_start_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
-    message["content"].append({"type": "text", "text": ""})
+    chunk_content_block = _get_attr(chunk, "content_block", "")
+    if chunk_content_block:
+        chunk_content_block_type = _get_attr(chunk_content_block, "type", "")
+        if chunk_content_block_type == "text":
+            chunk_content_block_text = _get_attr(chunk_content_block, "text", "")
+            message["content"].append({"type": "text", "text": chunk_content_block_text})
+        elif chunk_content_block_type == "tool_use":
+            chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
+            message["content"].append({"type": "tool_use", "name": chunk_content_block_name, "input": ""})
     return message
 
 
 def _on_content_block_delta_chunk(chunk, message):
     # delta events contain new content for the current message.content block
-    delta_block = getattr(chunk, "delta", "")
-    chunk_content = getattr(delta_block, "text", "")
-    if chunk_content:
-        message["content"][-1]["text"] += chunk_content
+    delta_block = _get_attr(chunk, "delta", "")
+    if delta_block:
+        chunk_content_text = _get_attr(delta_block, "text", "")
+        if chunk_content_text:
+            message["content"][-1]["text"] += chunk_content_text
+
+        chunk_content_json = _get_attr(delta_block, "partial_json", "")
+        if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
+            # we have a json content block, most likely a tool input dict
+            message["content"][-1]["input"] += chunk_content_json
+    return message
+
+
+def _on_content_block_stop_chunk(chunk, message):
+    # this is the start to a message.content block (possibly 1 of several content blocks)
+    content_type = _get_attr(message["content"][-1], "type", "")
+    if content_type == "tool_use":
+        input_json = _get_attr(message["content"][-1], "input", "{}")
+        message["content"][-1]["input"] = json.loads(input_json)
     return message
 
 
 def _on_message_delta_chunk(chunk, message):
     # message delta events signal the end of the message
-    delta_block = getattr(chunk, "delta", "")
-    chunk_finish_reason = getattr(delta_block, "stop_reason", "")
+    delta_block = _get_attr(chunk, "delta", "")
+    chunk_finish_reason = _get_attr(delta_block, "stop_reason", "")
     if chunk_finish_reason:
         message["finish_reason"] = chunk_finish_reason
-        message["content"][-1]["text"] = message["content"][-1]["text"].strip()
 
-    chunk_usage = getattr(chunk, "usage", {})
+    chunk_usage = _get_attr(chunk, "usage", {})
     if chunk_usage:
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
-        message_usage["output_tokens"] = getattr(chunk_usage, "output_tokens", 0)
+        message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
         message["usage"] = message_usage
 
     return message
 
 
 def _on_error_chunk(chunk, message):
-    if getattr(chunk, "error"):
+    if _get_attr(chunk, "error"):
         message["error"] = {}
-        if getattr(chunk.error, "type"):
+        if _get_attr(chunk.error, "type"):
             message["error"]["type"] = chunk.error.type
-        if getattr(chunk.error, "message"):
+        if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
 
@@ -257,8 +281,14 @@ def _tag_streamed_chat_completion_response(integration, span, message):
         return
     for idx, block in enumerate(message["content"]):
         span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
-        span.set_tag_str(f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"])))
         span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
+        if "text" in block:
+            span.set_tag_str(
+                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]))
+            )
+        if block["type"] == "tool_use":
+            tag_tool_use_output_on_span(integration, span, block, idx)
+
         if message.get("finish_reason") is not None:
             span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))
 

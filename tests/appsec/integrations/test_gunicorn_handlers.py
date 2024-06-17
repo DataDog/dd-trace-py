@@ -7,6 +7,9 @@ from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 
 
+_PORT = 8030
+
+
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("appsec_standalone_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
@@ -32,6 +35,7 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, appsec_standalone_en
             appsec_standalone_enabled=appsec_standalone_enabled,
             remote_configuration_enabled="false",
             token=None,
+            port=_PORT,
         ) as context:
             _, gunicorn_client, pid = context
             headers = {
@@ -65,6 +69,7 @@ def test_corner_case_when_appsec_reads_chunked_request_with_no_body(
             appsec_standalone_enabled=appsec_standalone_enabled,
             remote_configuration_enabled="false",
             token=None,
+            port=_PORT,
         ) as context:
             _, gunicorn_client, pid = context
             headers = {
@@ -97,6 +102,7 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, appsec_standalone_
         tracer_enabled=tracer_enabled,
         remote_configuration_enabled="false",
         token=None,
+        port=_PORT,
     ) as context:
         _, gunicorn_client, pid = context
 
@@ -126,6 +132,7 @@ def test_when_appsec_reads_empty_body_and_content_length_no_hang(
         tracer_enabled=tracer_enabled,
         remote_configuration_enabled="false",
         token=None,
+        port=_PORT,
     ) as context:
         _, gunicorn_client, pid = context
 

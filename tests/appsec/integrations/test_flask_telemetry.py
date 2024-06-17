@@ -5,7 +5,7 @@ from tests.utils import override_global_config
 
 def test_iast_span_metrics():
     # TODO: move tests/telemetry/conftest.py::test_agent_session into a common conftest
-    with flask_server(iast_enabled="true", token=None) as context:
+    with flask_server(iast_enabled="true", token=None, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
