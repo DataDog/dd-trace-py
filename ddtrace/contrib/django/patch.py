@@ -757,7 +757,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     result_user = func(*args, **kwargs)
     mode = asm_config._user_event_mode
     if mode == "disabled":
-        return
+        return result_user
     try:
         result = core.dispatch_with_results(
             "django.auth", (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs))

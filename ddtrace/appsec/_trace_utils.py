@@ -116,7 +116,7 @@ def track_user_login_success_event(
     if not span:
         return
 
-    if login_events_mode == LOGIN_EVENTS_MODE.ANON:
+    if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)

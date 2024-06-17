@@ -167,6 +167,8 @@ class ASMConfig(Env):
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
+        "_auto_user_instrumentation_mode",
+        "_auto_user_instrumentation_enabled",
         "_user_model_login_field",
         "_user_model_email_field",
         "_user_model_name_field",
