@@ -313,10 +313,10 @@ class SpanAggregator(SpanProcessor):
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                log_msg = "Finished span not connected to a trace, adding to trace."
+                log_msg = "finished span not connected to a trace"
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARN", log_msg)
-                log.warning("%s %s", log_msg, span)
+                log.warning("%s: %s", log_msg, span)
                 return
 
             trace = self._traces[span.trace_id]
@@ -338,10 +338,10 @@ class SpanAggregator(SpanProcessor):
                 num_finished = len(finished)
                 trace.num_finished -= num_finished
                 if trace.num_finished != 0:
-                    log_msg = f"Finished span count of {num_finished} is not the expected {trace.num_finished}. {span}"
+                    log_msg = "unexpected finished span count"
                     if config._telemetry_enabled:
                         telemetry.telemetry_writer.add_log("WARN", log_msg)
-                    log.warning(log_msg)
+                    log.warning("%s (%s) for span %s", log_msg, num_finished, span)
                     trace.num_finished = 0
 
                 # If we have removed all spans from this trace, then delete the trace from the traces dict

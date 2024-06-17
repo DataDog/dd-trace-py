@@ -695,16 +695,15 @@ def test_register_unregister_span_processor():
 
 
 def _stderr_contains_log(stderr: str) -> bool:
-    return "Finished span not connected to a trace, adding to trace." in stderr
+    return "finished span not connected to a trace" in stderr
 
 
 @pytest.mark.subprocess(err=_stderr_contains_log)
-def test_tracer_trace_removed_does_not_crash():
+def test_tracer_reconfigured_with_active_span_does_not_crash():
     import ddtrace
 
-    # Start the span with the tracer disabled so the span processors are not called
-    ddtrace.tracer.enabled = False
-    with ddtrace.tracer.trace("regression1"):
-        # Enable the tracer before the span finish is called to ensure the span processors
-        # are called on finish
-        ddtrace.tracer.enabled = True
+    with ddtrace.tracer.trace("regression1") as exploding_span:
+        # Reconfiguring the tracer clears active traces
+        # Calling .finish() manually bypasses the code that catches the exception
+        ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        exploding_span.finish()
