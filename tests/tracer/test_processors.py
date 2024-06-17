@@ -698,7 +698,9 @@ def _stderr_contains_log(stderr: str) -> bool:
     return "finished span not connected to a trace" in stderr
 
 
-@pytest.mark.subprocess(err=_stderr_contains_log)
+@pytest.mark.subprocess(
+    err=_stderr_contains_log, env=dict(DD_TRACE_DEBUG="true", DD_API_KEY="test", DD_CIVISIBILITY_AGENTLESS_ENABLED=None)
+)
 def test_tracer_reconfigured_with_active_span_does_not_crash():
     import ddtrace
 
