@@ -70,7 +70,6 @@ PATCH_MODULES = {
     "jinja2": True,
     "mako": True,
     "flask": True,
-    "flask_login": True,
     "kombu": False,
     "starlette": True,
     # Ignore some web framework integrations that might be configured explicitly in code
