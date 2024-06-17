@@ -65,14 +65,12 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
-ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
-tests/contrib/flask_login           @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
 tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
 tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
