@@ -148,6 +148,13 @@ def track_user_login_failure_event(
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
+    if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+        if login:
+            span.set_tag_str("%s.failure.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
+        if email:
+            span.set_tag_str("%s.failure.email" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, email)
+        if name:
+            span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
 
 
 def track_user_signup_event(
