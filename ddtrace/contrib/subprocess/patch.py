@@ -326,14 +326,10 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     try:
-        span = pin.tracer.start_span(
-            COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM, child_of=pin.tracer.current_span()
-        )
-        span.set_tag(COMMANDS.EXEC, ["os.fork"])
-        span.set_tag_str(COMMANDS.COMPONENT, "os")
-        ret = wrapped(*args, **kwargs)
-        if ret != 0:
-            span.finish()
+        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
+            span.set_tag(COMMANDS.EXEC, ["os.fork"])
+            span.set_tag_str(COMMANDS.COMPONENT, "os")
+            ret = wrapped(*args, **kwargs)
         return ret
     except Exception:  # noqa:E722
         log.debug(
