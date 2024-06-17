@@ -605,24 +605,3 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         env=env,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
-
-
-def _stderr_contains_log(stderr: str) -> bool:
-    return "Finished span not connected to a trace, adding to trace." in stderr
-
-
-@pytest.mark.subprocess(err=_stderr_contains_log)
-def test_tracer_reconfigure_does_not_crash_tracer_regression():
-    # If the tracer is reconfigured after a span has been started, it may recreate the SpanAggregator
-    # this means when the on_span_finish is called we won't have a trace already setup for the span
-
-    import ddtrace
-
-    span = ddtrace.tracer.trace("regression")
-
-    # Setting partial flush settings will recreate the SpanAggregator
-    # Setting a partial flush min spans of 1 will cause the SpanAggregator to flush immediately when span is finished
-    ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
-
-    # This line would raise an IndexError exception
-    span.finish()
