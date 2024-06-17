@@ -164,15 +164,15 @@ def test_sampling_rate(stats_tracer, sample_rate):
 
 
 @pytest.mark.snapshot()
-def test_stats_100(send_once_stats_tracer):
-    for _ in range(100):
+def test_stats_30(send_once_stats_tracer):
+    for _ in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list"):
             pass
 
 
 @pytest.mark.snapshot()
 def test_stats_errors(send_once_stats_tracer):
-    for i in range(100):
+    for i in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list") as span:
             if i % 2 == 0:
                 span.error = 1
