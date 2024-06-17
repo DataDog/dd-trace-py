@@ -326,15 +326,14 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     try:
-        parent_fork_span = pin.tracer._start_span(
-            COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM, activate=True
+        span = pin.tracer.start_span(
+            COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM, child_of=pin.tracer.current_span()
         )
-        parent_fork_span.set_tag(COMMANDS.EXEC, ["os.fork"])
-        parent_fork_span.set_tag_str(COMMANDS.COMPONENT, "os")
+        span.set_tag(COMMANDS.EXEC, ["os.fork"])
+        span.set_tag_str(COMMANDS.COMPONENT, "os")
         ret = wrapped(*args, **kwargs)
         if ret != 0:
-            # Only finish span in the parent process.
-            parent_fork_span.finish()
+            span.finish()
         return ret
     except Exception:  # noqa:E722
         log.debug(
