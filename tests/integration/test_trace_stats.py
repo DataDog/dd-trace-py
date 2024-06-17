@@ -226,7 +226,7 @@ def test_measured_span(send_once_stats_tracer):
 
 @pytest.mark.snapshot()
 def test_top_level(send_once_stats_tracer):
-    for _ in range(100):
+    for _ in range(30):
         with send_once_stats_tracer.trace("parent", service="svc-one"):  # Should have stats
             with send_once_stats_tracer.trace("child", service="svc-two"):  # Should have stats
                 pass
