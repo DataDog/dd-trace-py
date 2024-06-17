@@ -13,6 +13,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -77,7 +78,7 @@ class ASMConfig(Env):
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            _automatic_login_events_mode = "identification"
+            _automatic_login_events_mode = LOGIN_EVENTS_MODE.IDENT
         elif _automatic_login_events_mode == "safe":
             deprecate(
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
@@ -85,7 +86,7 @@ class ASMConfig(Env):
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-            _automatic_login_events_mode = "anonymization"
+            _automatic_login_events_mode = LOGIN_EVENTS_MODE.ANON
         elif _automatic_login_events_mode == "disabled":
             deprecate(
                 "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
@@ -99,7 +100,7 @@ class ASMConfig(Env):
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
         default="",
-        parser=_parse_options(["disabled", "identification", "anonymization"]),
+        parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_enabled = Env.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
 
@@ -197,7 +198,7 @@ class ASMConfig(Env):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
         # Only for deprecation phase
         if self._auto_user_instrumentation_mode == "":
-            self._auto_user_instrumentation_mode = self._automatic_login_events_mode or "identification"
+            self._auto_user_instrumentation_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
@@ -206,6 +207,12 @@ class ASMConfig(Env):
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
+    @property
+    def _user_event_mode(self) -> str:
+        if self._asm_enabled and self._auto_user_instrumentation_enabled:
+            return self._auto_user_instrumentation_mode
+        return LOGIN_EVENTS_MODE.DISABLED
 
 
 config = ASMConfig()

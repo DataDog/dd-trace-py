@@ -228,8 +228,8 @@ class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
     """
 
     DISABLED = "disabled"
-    SAFE = "safe"
-    EXTENDED = "extended"
+    IDENT = "identification"
+    ANON = "anonymization"
     SDK = "sdk"
 
 
