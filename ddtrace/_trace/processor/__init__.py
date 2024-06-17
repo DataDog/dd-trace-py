@@ -297,27 +297,12 @@ class SpanAggregator(SpanProcessor):
         type=Dict[str, DefaultDict],
     )
 
-    def _lock_held(self) -> bool:
-        """Return True if the current lock is held, depending on whether the lock is reentrant
-
-        In the reentrant RLock case, _is_owned() is used even though it is an internal method because the alternative
-        is trying to acquire the lock in a non-blocking way, then re-releasing it.
-        """
-        return self._lock._is_owned() if config._span_aggregator_rlock else self._lock.locked()
-
-    def _on_span_start(self, span: Span) -> None:
-        """This function MUST be called with self._lock held. If the lock is not held, the span is not processed."""
-        if not self._lock_held():
-            log.warning("_on_span_start() called without holding self._lock while starting span %s", span)
-            return
-        trace = self._traces[span.trace_id]
-        trace.spans.append(span)
-        self._span_metrics["spans_created"][span._span_api] += 1
-        self._queue_span_count_metrics("spans_created", "integration_name")
-
     def on_span_start(self, span: Span) -> None:
         with self._lock:
-            self._on_span_start(span)
+            trace = self._traces[span.trace_id]
+            trace.spans.append(span)
+            self._span_metrics["spans_created"][span._span_api] += 1
+            self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -328,11 +313,11 @@ class SpanAggregator(SpanProcessor):
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                log_msg = f"Finished span not connected to a trace, adding to trace. {span}"
+                log_msg = "Finished span not connected to a trace, adding to trace."
                 if config._telemetry_enabled:
                     telemetry.telemetry_writer.add_log("WARN", log_msg)
-                log.warning(log_msg)
-                self._on_span_start(span)
+                log.warning("%s %s", log_msg, span)
+                return
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1

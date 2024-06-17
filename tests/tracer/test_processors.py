@@ -1,4 +1,3 @@
-import threading
 from typing import Any  # noqa:F401
 
 import attr
@@ -30,7 +29,6 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.sampler import DatadogSampler
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
 
@@ -710,86 +708,3 @@ def test_tracer_trace_removed_does_not_crash():
         # Enable the tracer before the span finish is called to ensure the span processors
         # are called on finish
         ddtrace.tracer.enabled = True
-
-
-class TestSpanProcessor(TracerTestCase):
-    def test_span_processor_sends_missing_traces(self):
-        """This verifies that SpanAggregator will send a trace even when a span with an unknown trace ID appears"""
-
-        # The goal of these regressions is to simulate a scenario when a span start is not called
-        # on the SpanAggregator, but the span finish is called
-
-        # Create a span manually (self.tracer.on_span_start is not called), but
-        # register the tracers finish call
-        with Span("regression1", on_finish=[self.tracer._on_span_finish]) as span1:
-            pass
-
-        # Disabling the tracer means the processors won't be called, but enabling, they will again
-        self.tracer.enabled = False
-        with self.tracer.trace("regression2") as span2:
-            self.tracer.enabled = True
-
-        spans = self.pop_spans()
-
-        assert len(spans) == 2
-        assert spans[0].name == "regression1"
-        assert spans[0].trace_id == span1.trace_id
-        assert spans[1].name == "regression2"
-        assert spans[1].trace_id == span2.trace_id
-
-    def test_span_processor_sends_missing_traces_partial_flush(self):
-        """This verifies that a SpanProcessor will send a trace even when a span with an unknown trace ID appears"""
-
-        # The goal of these regressions is to simulate a scenario when a span start is not called
-        # on the SpanAggregator, but the span finish is called
-
-        # Ensure these scenarios also work with partial flush enabled
-        self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
-
-        # Create a span manually (self.tracer.on_span_start is not called), but
-        # register the tracers finish call
-        with Span("regression1", on_finish=[self.tracer._on_span_finish]) as span1:
-            pass
-
-        # Disabling the tracer means the processors won't be called, but enabling, they will again
-        self.tracer.enabled = False
-        with self.tracer.trace("regression2") as span2:
-            self.tracer.enabled = True
-
-        spans = self.pop_spans()
-
-        assert len(spans) == 2
-        assert spans[0].name == "regression1"
-        assert spans[0].trace_id == span1.trace_id
-        assert spans[1].name == "regression2"
-        assert spans[1].trace_id == span2.trace_id
-
-
-@pytest.mark.parametrize("use_rlock", [True, False])
-def test_span_aggregator__on_span_start_witnout_lock_does_not_add_span(use_rlock):
-    """Ensure that SpanAggregator._on_span_start does not add a span if the lock is not acquired"""
-
-    with mock.patch("ddtrace.config._span_aggregator_rlock", use_rlock):
-        tracer = DummyTracer()
-        span = Span("span")
-        span._local_root = span
-        tracer._deferred_processors[0]._lock = threading.RLock() if use_rlock else threading.Lock()
-        tracer._deferred_processors[0]._on_span_start(span)
-
-        assert not tracer._deferred_processors[0]._traces
-        span.finish()
-
-
-@pytest.mark.parametrize("use_rlock", [True, False])
-def test_span_aggregator__on_span_start_with_lock_adds_span(use_rlock):
-    """Ensure that SpanAggregator._on_span_start adds a span if the lock is acquired"""
-
-    with mock.patch("ddtrace.config._span_aggregator_rlock", use_rlock):
-        tracer = DummyTracer()
-        span = Span("span")
-        span._local_root = span
-        tracer._deferred_processors[0]._lock = threading.RLock() if use_rlock else threading.Lock()
-        with tracer._deferred_processors[0]._lock:
-            tracer._deferred_processors[0]._on_span_start(span)
-        assert len(tracer._deferred_processors[0]._traces) == 1
-        span.finish()
