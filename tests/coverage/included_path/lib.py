@@ -1,4 +1,4 @@
-from tests.coverage.included_path.import_time_lib import CONSTANT
+from tests.coverage.included_path.import_time_lib import CONSTANT, UNUSED_CONSTANT
 from tests.coverage.included_path.import_time_lib import COMPUTED_CONSTANT
 from tests.coverage.included_path.import_time_lib import ran_at_import_time
 from tests.coverage.included_path.import_time_lib import ran_and_assigned_at_import_time

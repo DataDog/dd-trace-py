@@ -1,9 +1,11 @@
 """Variables / functions in this file are used to test coverage of items at import time, rather than execution time"""
 
 CONSTANT = "some constant"
+UNUSED_CONSTANT = "unused constant"
 
 def compute_sort_of_constant(n: int = 1):
-    return n * CONSTANT
+    ret_val = n * CONSTANT
+    return ret_val
 
 COMPUTED_CONSTANT = compute_sort_of_constant()
 

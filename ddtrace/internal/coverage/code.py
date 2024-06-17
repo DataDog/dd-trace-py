@@ -61,6 +61,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self._coverage_enabled: bool = False
         self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
         self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self._module_constants: t.DefaultDict[str, t.Any] = defaultdict(dict)
         self._include_paths: t.List[Path] = []
         self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
@@ -253,6 +254,11 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         code_path = Path(code.co_filename)
 
+        # if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+        #     "coverage/included_path/import_time_lib.py"
+        # ):
+        #     breakpoint()
+
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
@@ -262,12 +268,23 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # mutating the parent code objects, the hashes maintained by the
         # generator will be invalidated.
         for nested_code, parent_code in list(collect_code_objects(code)):
+            if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+                    "coverage/included_path/import_time_lib.py") or code.co_filename.endswith("coverage/included_path/callee.py"):
+                if nested_code not in self.seen and nested_code.co_name == '<module>':
+                    print(nested_code)
+                    import dis
+                    dis.dis(nested_code)
+                    breakpoint()
             # Instrument the code object
             new_code = self.instrument_code(nested_code)
 
             # If it has a parent, update the parent's co_consts to point to the
             # new code object.
             if parent_code is not None:
+                # if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+                #         "coverage/included_path/import_time_lib.py"
+                # ):
+                #     # breakpoint()
                 replace_in_tuple(parent_code.co_consts, nested_code, new_code)
 
         return new_code
@@ -277,7 +294,11 @@ class ModuleCodeCollector(BaseModuleWatchdog):
 
     def instrument_code(self, code: CodeType) -> CodeType:
         # Avoid instrumenting the same code object multiple times
-        # print(f"ROMAIN INSTRUMENTING CODE {code=}")
+        # if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+        #     "coverage/included_path/import_time_lib.py"
+        # ):
+        #     breakpoint()
+
         if code in self.seen:
             return code
         self.seen.add(code)
@@ -285,7 +306,6 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
-
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
