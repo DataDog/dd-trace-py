@@ -192,9 +192,6 @@ contacting support.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
-.. [6] Automatically instrumented if ``DD_APPSEC_ENABLED=1``.
-
-
 .. _`Instrumentation Telemetry`:
 
 Instrumentation Telemetry
