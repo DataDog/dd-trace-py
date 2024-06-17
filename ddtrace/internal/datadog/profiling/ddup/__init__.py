@@ -1,12 +1,16 @@
 from .utils import sanitize_string  # noqa: F401
-
+import ctypes
 
 try:
+    ctypes.CDLL("/home/ubuntu/dd/dd-trace-py/build/cmake.linux-x86_64-cpython-310/dd_wrapper_build/libdd_wrapper.so")
     from ._ddup import *  # noqa: F403, F401
 
     is_available = True
 
 except Exception as e:
+    print(e)
+    import sys
+    print(sys.path)
     from typing import Dict  # noqa:F401
     from typing import Optional  # noqa:F401
 
