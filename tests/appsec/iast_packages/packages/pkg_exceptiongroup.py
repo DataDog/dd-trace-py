@@ -41,9 +41,11 @@ def pkg_exceptiongroup_view():
         response.result1 = f"Error: {str(e)}"
     return response.json()
 
+
 @pkg_exceptiongroup.route("/exceptiongroup_propagation")
 def pkg_exceptiongroup_propagation_view():
     from exceptiongroup import ExceptionGroup
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -69,7 +71,9 @@ def pkg_exceptiongroup_propagation_view():
         else:
             result_output = "Error: No exceptions caught"
 
-        response.result1 = "OK" if is_pyobject_tainted(package_param) else "Error: result is not tainted: %s" % result_output
+        response.result1 = (
+            "OK" if is_pyobject_tainted(package_param) else "Error: result is not tainted: %s" % result_output
+        )
     except Exception as e:
         response.result1 = f"Error: {str(e)}"
     return response.json()

@@ -26,6 +26,7 @@ def pkg_idna_view():
 @pkg_idna.route("/idna_propagation")
 def pkg_idna_propagation_view():
     import idna
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -37,4 +38,3 @@ def pkg_idna_propagation_view():
     res = str(idna.encode(response.result1), encoding="utf-8")
     response.result1 = "OK" if is_pyobject_tainted(res) else "Error: result is not tainted"
     return response.json()
-

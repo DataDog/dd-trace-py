@@ -35,6 +35,7 @@ def pkg_jinja2_view():
 @pkg_jinja2.route("/jinja2_propagation")
 def pkg_jinja2_propagation_view():
     from jinja2 import Template
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -49,7 +50,11 @@ def pkg_jinja2_propagation_view():
         template = Template(template_string)
         rendered_output = template.render(name=param_value)
 
-        response.result1 = "OK" if is_pyobject_tainted(rendered_output) else "Error: rendered_output is not tainted: %s" % rendered_output
+        response.result1 = (
+            "OK"
+            if is_pyobject_tainted(rendered_output)
+            else "Error: rendered_output is not tainted: %s" % rendered_output
+        )
     except Exception as e:
         response.result1 = f"Error: {str(e)}"
 

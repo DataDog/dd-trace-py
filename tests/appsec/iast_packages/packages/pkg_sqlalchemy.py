@@ -57,7 +57,7 @@ def pkg_sqlalchemy_propagation_view():
     from sqlalchemy import String
     from sqlalchemy import create_engine
     from sqlalchemy.orm import declarative_base
-    from sqlalchemy.orm import sessionmaker
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

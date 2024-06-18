@@ -52,6 +52,7 @@ def pkg_pynacl_view():
 def pkg_pynacl_propagation_view():
     from nacl import secret
     from nacl import utils
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -76,7 +77,11 @@ def pkg_pynacl_propagation_view():
             decrypted_message = decrypted.decode("utf-8")
             _ = key.hex()
 
-            result_output = "OK" if is_pyobject_tainted(decrypted_message) else f"Error: decrypted_message is not tainted: {decrypted_message}"
+            result_output = (
+                "OK"
+                if is_pyobject_tainted(decrypted_message)
+                else f"Error: decrypted_message is not tainted: {decrypted_message}"
+            )
         except Exception as e:
             result_output = f"Error: {str(e)}"
     except Exception as e:
@@ -85,4 +90,3 @@ def pkg_pynacl_propagation_view():
     response.result1 = result_output
 
     return jsonify(response.json())
-

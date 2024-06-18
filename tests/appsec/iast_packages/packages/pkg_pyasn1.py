@@ -51,6 +51,7 @@ def pkg_pyasn1_propagation_view():
     from pyasn1.codec.der import encoder
     from pyasn1.type import namedtype
     from pyasn1.type import univ
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -59,6 +60,7 @@ def pkg_pyasn1_propagation_view():
         return response.json()
 
     try:
+
         class ExampleASN1StructurePropagation(univ.Sequence):
             componentType = namedtype.NamedTypes(
                 namedtype.NamedType("name", univ.OctetString()), namedtype.NamedType("age", univ.Integer())

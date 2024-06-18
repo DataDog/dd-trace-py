@@ -46,6 +46,7 @@ def pkg_platformdirs_view():
 @pkg_platformdirs.route("/platformdirs_propagation")
 def pkg_platformdirs_propagation_view():
     from platformdirs import user_data_dir
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

@@ -29,6 +29,7 @@ def pkg_beautifulsoup4_view():
 @pkg_beautifulsoup4.route("/beautifulsoup4_propagation")
 def pkg_beautifulsoup4_propagation_view():
     from bs4 import BeautifulSoup
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -38,8 +39,8 @@ def pkg_beautifulsoup4_propagation_view():
 
     try:
         html = response.package_param
-        soup = BeautifulSoup(html, 'html.parser')
-        html_tags = soup.find_all('html')
+        soup = BeautifulSoup(html, "html.parser")
+        html_tags = soup.find_all("html")
         output = "".join(str(tag) for tag in html_tags).lstrip()
         if not is_pyobject_tainted(output):
             response.result1 = "Error: output is not tainted: " + str(output)

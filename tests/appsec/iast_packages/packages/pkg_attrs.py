@@ -18,6 +18,7 @@ def pkg_attrs_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
+
         @attrs.define
         class User:
             name: str
@@ -44,6 +45,7 @@ def pkg_attrs_propagation_view():
         return response.json()
 
     try:
+
         @attrs.define
         class UserPropagation:
             name: str

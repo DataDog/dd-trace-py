@@ -35,6 +35,7 @@ def pkg_multidict_view():
 @pkg_multidict.route("/multidict_propagation")
 def pkg_multidict_propagation_view():
     from multidict import MultiDict
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -46,7 +47,9 @@ def pkg_multidict_propagation_view():
         param_value = request.args.get("package_param", "key1=value1&key2=value2")
         items = [item.split("=") for item in param_value.split("&")]
         multi_dict = MultiDict(items)
-        response.result1 = "OK" if is_pyobject_tainted(multi_dict["key1"]) else "Error: multi_dict is not tainted: %s" % multi_dict
+        response.result1 = (
+            "OK" if is_pyobject_tainted(multi_dict["key1"]) else "Error: multi_dict is not tainted: %s" % multi_dict
+        )
     except Exception as e:
         response.result1 = f"Error: {str(e)}"
 

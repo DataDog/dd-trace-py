@@ -24,6 +24,7 @@ def pkg_charset_normalizer_view():
 @pkg_chartset_normalizer.route("/charset-normalizer_propagation")
 def pkg_charset_normalizer_propagation_view():
     from charset_normalizer import from_bytes
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

@@ -42,6 +42,7 @@ def pkg_soupsieve_view():
 def pkg_soupsieve_propagation_view():
     from bs4 import BeautifulSoup
     import soupsieve as sv
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

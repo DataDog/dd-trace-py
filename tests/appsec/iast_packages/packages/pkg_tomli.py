@@ -37,6 +37,7 @@ def pkg_tomli_view():
 @pkg_tomli.route("/tomli_propagation")
 def pkg_tomli_propagation_view():
     import tomli
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

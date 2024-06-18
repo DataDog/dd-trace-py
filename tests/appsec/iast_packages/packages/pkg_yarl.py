@@ -43,6 +43,7 @@ def pkg_yarl_view():
 @pkg_yarl.route("/yarl_propagation")
 def pkg_yarl_propagation_view():
     from yarl import URL
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -64,4 +65,3 @@ def pkg_yarl_propagation_view():
         response.result1 = f"Error: {str(e)}"
 
     return response.json()
-

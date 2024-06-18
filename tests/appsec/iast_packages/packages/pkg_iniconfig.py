@@ -45,9 +45,11 @@ def pkg_iniconfig_view():
 
     return jsonify(response.json())
 
+
 @pkg_iniconfig.route("/iniconfig_propagation")
 def pkg_iniconfig_propagation_view():
     import iniconfig
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -71,7 +73,9 @@ def pkg_iniconfig_propagation_view():
             config = iniconfig.IniConfig(ini_path)
             parsed_data = {section.name: list(section.items()) for section in config}
             value = parsed_data["section"][0][1]
-            result_output = "OK" if is_pyobject_tainted(value) else f"Error: value from parsed_data is not tainted: {value}"
+            result_output = (
+                "OK" if is_pyobject_tainted(value) else f"Error: value from parsed_data is not tainted: {value}"
+            )
 
             if os.path.exists(ini_path):
                 os.remove(ini_path)
@@ -83,4 +87,3 @@ def pkg_iniconfig_propagation_view():
     response.result1 = result_output
 
     return jsonify(response.json())
-

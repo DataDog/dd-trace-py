@@ -35,6 +35,7 @@ def pkg_rsa_view():
 @pkg_rsa.route("/rsa_propagation")
 def pkg_rsa_propagation_view():
     import rsa
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -48,7 +49,11 @@ def pkg_rsa_propagation_view():
         message = response.package_param
         encrypted_message = rsa.encrypt(message.encode(), public_key)
         decrypted_message = rsa.decrypt(encrypted_message, private_key).decode()
-        response.result1 = "OK" if is_pyobject_tainted(decrypted_message) else "Error: decrypted_message is not tainted: %s" % decrypted_message
+        response.result1 = (
+            "OK"
+            if is_pyobject_tainted(decrypted_message)
+            else "Error: decrypted_message is not tainted: %s" % decrypted_message
+        )
     except Exception as e:
         response.result1 = str(e)
 

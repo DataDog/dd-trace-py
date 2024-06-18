@@ -46,6 +46,7 @@ def pkg_pyparsing_view():
 @pkg_pyparsing.route("/pyparsing_propagation")
 def pkg_pyparsing_propagation_view():
     import pyparsing as pp
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -76,4 +77,3 @@ def pkg_pyparsing_propagation_view():
 
     response.result1 = result_output
     return jsonify(response.json())
-

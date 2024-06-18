@@ -29,6 +29,7 @@ def pkg_pyyaml_view():
 @pkg_pyyaml.route("/PyYAML_propagation")
 def pkg_pyyaml_propagation_view():
     import yaml
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -38,7 +39,7 @@ def pkg_pyyaml_propagation_view():
 
     rs = json.loads(response.package_param)
     yaml_string = yaml.dump(rs)
-    response.result1 = "OK" if is_pyobject_tainted(yaml_string) else "Error: yaml_string is not tainted: %s" % yaml_string
+    response.result1 = (
+        "OK" if is_pyobject_tainted(yaml_string) else "Error: yaml_string is not tainted: %s" % yaml_string
+    )
     return response.json()
-
-

@@ -12,6 +12,7 @@ from ddtrace.constants import IAST_ENV
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_env
 
+
 PYTHON_VERSION = sys.version_info[:2]
 
 
@@ -920,11 +921,7 @@ def test_flask_packages_patched(package, venv):
 
 @pytest.mark.parametrize(
     "package",
-    [
-        package
-        for package in PACKAGES
-        if package.test_propagation and SKIP_FUNCTION(package)
-    ],
+    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
     ids=lambda package: package.name,
 )
 def test_flask_packages_propagation(package, venv, printer):

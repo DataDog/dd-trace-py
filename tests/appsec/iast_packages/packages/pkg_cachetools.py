@@ -45,9 +45,11 @@ def pkg_cachetools_view():
 
     return jsonify(response.json())
 
+
 @pkg_cachetools.route("/cachetools_propagation")
 def pkg_cachetools_propagation_view():
     import cachetools
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))

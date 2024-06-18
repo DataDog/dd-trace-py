@@ -42,6 +42,7 @@ def pkg_docutils_view():
 @pkg_docutils.route("/docutils_propagation")
 def pkg_docutils_propagation_view():
     import docutils.core
+
     from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
@@ -55,7 +56,9 @@ def pkg_docutils_propagation_view():
         try:
             # Convert reStructuredText to HTML
             html_output = docutils.core.publish_string(rst_content, writer_name="html").decode("utf-8")
-            result_output = "OK" if is_pyobject_tainted(html_output) else f"Error: html_output is not tainted: {html_output}"
+            result_output = (
+                "OK" if is_pyobject_tainted(html_output) else f"Error: html_output is not tainted: {html_output}"
+            )
         except Exception as e:
             result_output = f"Error: {str(e)}"
     except Exception as e:
