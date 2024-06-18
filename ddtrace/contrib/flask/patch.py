@@ -434,7 +434,13 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
-        return wrapped(rule, endpoint=endpoint, view_func=view_func, provide_automatic_options=provide_automatic_options, **kwargs)
+        return wrapped(
+            rule,
+            endpoint=endpoint,
+            view_func=view_func,
+            provide_automatic_options=provide_automatic_options,
+            **kwargs
+        )
 
     return _wrap(*args, **kwargs)
 
