@@ -345,7 +345,8 @@ class DatadogSampler(RateByServiceSampler):
             return _PRIORITY_CATEGORY.RULE_DEF
 
         if self.limiter._has_been_configured:
-            # if the default rate limiter is used to sample traces
-            # auto_keep and auto_drop should be used
+            # If the default rate limiter is NOT used to sample traces
+            # the sampling priority must be set to manual keep/drop.
+            # This will disable agent based sample rates.
             return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)
