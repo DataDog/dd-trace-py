@@ -292,7 +292,9 @@ The following environment variables for the tracer are supported:
      description: |
          A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
 
-         For example, ``User-Agent:http.useragent,content-type:http.content_type``.
+         For example, ``User-Agent:http.useragent,content-type:http.content_type``. In this example the will set ``http.useragent`` and ``http.content_type`` tags 
+
+         If a tag value is not supplied the header will be normalized and set 
 
    DD_TRACE_API_VERSION:
      default: |
