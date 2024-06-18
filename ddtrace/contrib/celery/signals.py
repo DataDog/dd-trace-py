@@ -201,7 +201,7 @@ def trace_failure(*args, **kwargs):
 
         # ensure we are getting the actual exception class which stores the exception message
         exc = ex.exception
-        if getattr(exc, "exc"):
+        if hasattr(exc, "exc"):
             exc = exc.exc
 
         span.set_exc_info(ex.type, exc, ex.tb)
