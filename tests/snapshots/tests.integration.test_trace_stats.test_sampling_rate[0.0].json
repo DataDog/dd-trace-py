@@ -20,8 +20,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 158792,
-    "start": 1718641696077617794
+    "duration": 35875,
+    "start": 1718641696636756961
   }],
 [
   {
@@ -45,8 +45,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 10458,
-    "start": 1718641696078018419
+    "duration": 14708,
+    "start": 1718641696637089086
   }],
 [
   {
@@ -70,8 +70,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 6958,
-    "start": 1718641696078078211
+    "duration": 8375,
+    "start": 1718641696637162211
   }],
 [
   {
@@ -95,8 +95,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 6667,
-    "start": 1718641696078121252
+    "duration": 12875,
+    "start": 1718641696637255044
   }],
 [
   {
@@ -120,8 +120,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 6125,
-    "start": 1718641696078161627
+    "duration": 7583,
+    "start": 1718641696637309044
   }],
 [
   {
@@ -145,8 +145,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 5792,
-    "start": 1718641696078198127
+    "duration": 28458,
+    "start": 1718641696637356586
   }],
 [
   {
@@ -170,8 +170,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 5667,
-    "start": 1718641696078233377
+    "duration": 70500,
+    "start": 1718641696637418419
   }],
 [
   {
@@ -195,8 +195,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 5583,
-    "start": 1718641696078268794
+    "duration": 13500,
+    "start": 1718641696637640794
   }],
 [
   {
@@ -220,8 +220,8 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 5833,
-    "start": 1718641696078304044
+    "duration": 6625,
+    "start": 1718641696637688877
   }],
 [
   {
@@ -245,6 +245,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 4319
     },
-    "duration": 19291,
-    "start": 1718641696078414586
+    "duration": 6084,
+    "start": 1718641696637731252
   }]]
