@@ -1,5 +1,4 @@
 from .utils import sanitize_string  # noqa: F401
-import ctypes
 
 try:
     from ._ddup import *  # noqa: F403, F401
