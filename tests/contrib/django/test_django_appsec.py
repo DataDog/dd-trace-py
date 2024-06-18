@@ -334,6 +334,9 @@ def test_django_login_failure_safe_but_user_set_login(client, test_spans, tracer
         assert login_span
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.ANON
         assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "fred2"
+        assert (
+            login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID)
+            == "anon_d1ad1f735a4381c2e8dbed0222db1136"
+        )
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email")
         assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username")
