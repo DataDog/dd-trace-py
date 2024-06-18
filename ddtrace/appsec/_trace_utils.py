@@ -146,7 +146,7 @@ def track_user_login_failure_event(
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
-    if user_id and exists:
+    if user_id:
         if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
@@ -299,7 +299,7 @@ def _on_django_login(
         from ddtrace.contrib.django.compat import user_is_authenticated
 
         if user_is_authenticated(user):
-            user_id, _ = info_retriever.get_user_info()
+            user_id = info_retriever.get_userid()
 
             with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(request, "session_key", None)
@@ -333,7 +333,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id, _ = info_retriever.get_user_info()
+                user_id = info_retriever.get_userid()
                 track_user_login_failure_event(
                     pin.tracer,
                     user_id=user_id,
