@@ -428,13 +428,13 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
 
     # certain flask-like frameworks, like flaskopenapi-3, may call add_url_rule with extra arguments
     # adding a catch-all *args avoids number of arguments mismatch
-    def _wrap(rule, endpoint=None, view_func=None, *args, **kwargs):
+    def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
         if view_func:
             # TODO: `if hasattr(view_func, 'view_class')` then this was generated from a `flask.views.View`
             #   should we do something special with these views? Change the name/resource? Add tags?
             view_func = wrap_view(instance, view_func, name=endpoint, resource=rule)
 
-        return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
+        return wrapped(rule, endpoint=endpoint, view_func=view_func, provide_automatic_options=provide_automatic_options, **kwargs)
 
     return _wrap(*args, **kwargs)
 
