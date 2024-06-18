@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Celery: fixes ``error.message`` span tag to no longer include traceback information.
+    celery: changes ``error.message`` span tag to no longer include the traceback that is already included in the ``error.stack`` span tag.
