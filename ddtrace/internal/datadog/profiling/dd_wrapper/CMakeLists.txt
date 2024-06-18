@@ -69,8 +69,3 @@ if (BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
-
-# Copy over the generated library to the source directory, this is needed for
-# inplace builds, i.e. pip install -e . and for the tests.
-add_custom_command(TARGET dd_wrapper POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:dd_wrapper> "${CMAKE_CURRENT_SOURCE_DIR}/..")
