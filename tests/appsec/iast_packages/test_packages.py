@@ -28,6 +28,7 @@ class PackageForTesting:
     test_import = True
     test_import_python_versions_to_skip = []
     test_e2e = True
+    test_propagation = False
 
     def __init__(
         self,
@@ -42,12 +43,16 @@ class PackageForTesting:
         test_e2e=True,
         import_name=None,
         import_module_to_validate=None,
+        test_propagation=False,
+        fixme_propagation_fails=False,
     ):
         self.name = name
         self.package_version = version
         self.test_import = test_import
         self.test_import_python_versions_to_skip = skip_python_version if skip_python_version else []
         self.test_e2e = test_e2e
+        self.test_propagation = test_propagation
+        self.fixme_propagation_fails = fixme_propagation_fails
 
         if expected_param:
             self.expected_param = expected_param
@@ -73,6 +78,10 @@ class PackageForTesting:
     @property
     def url(self):
         return f"/{self.name}?package_param={self.expected_param}"
+
+    @property
+    def url_propagation(self):
+        return f"/{self.name}_propagation?package_param={self.expected_param}"
 
     def __str__(self):
         return f"{self.name}=={self.package_version}: {self.url_to_test}"
@@ -150,6 +159,7 @@ PACKAGES = [
         {"age": 65, "name": "Bruce Dickinson"},
         "",
         import_module_to_validate="attr.validators",
+        test_propagation=True,
     ),
     PackageForTesting(
         "azure-core",
@@ -161,7 +171,16 @@ PACKAGES = [
         import_name="azure",
         import_module_to_validate="azure.core.settings",
     ),
-    PackageForTesting("beautifulsoup4", "4.12.3", "<html></html>", "", "", import_name="bs4"),
+    PackageForTesting(
+        "beautifulsoup4",
+        "4.12.3",
+        "<html></html>",
+        "",
+        "",
+        import_name="bs4",
+        test_propagation=True,
+        fixme_propagation_fails=True,
+    ),
     PackageForTesting(
         "boto3",
         "1.34.110",
@@ -185,6 +204,7 @@ PACKAGES = [
         "",
         import_name="charset_normalizer",
         import_module_to_validate="charset_normalizer.api",
+        test_propagation=True,
     ),
     PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
     PackageForTesting(
@@ -194,6 +214,8 @@ PACKAGES = [
         "This is a secret message.",
         "",
         import_module_to_validate="cryptography.fernet",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
@@ -205,9 +227,15 @@ PACKAGES = [
         "ValueError: First error with foobar\nTypeError: Second error with foobar",
         "",
         import_module_to_validate="exceptiongroup._formatting",
+        test_propagation=True,
     ),
     PackageForTesting(
-        "filelock", "3.14.0", "foobar", "Lock acquired for file: foobar", "", import_module_to_validate="filelock._api"
+        "filelock",
+        "3.14.0",
+        "foobar",
+        "Lock acquired for file: foobar",
+        "",
+        import_module_to_validate="filelock._api",
     ),
     PackageForTesting("flask", "2.3.3", "", "", "", test_e2e=False, import_module_to_validate="flask.app"),
     PackageForTesting("fsspec", "2024.5.0", "", "/", ""),
@@ -237,6 +265,8 @@ PACKAGES = [
         "ドメイン.テスト",
         "xn--eckwd4c7c.xn--zckzah",
         import_module_to_validate="idna.codec",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "importlib-resources",
@@ -264,7 +294,16 @@ PACKAGES = [
         "",
         import_module_to_validate="itsdangerous.serializer",
     ),
-    PackageForTesting("jinja2", "3.1.4", "foobar", "Hello, foobar!", "", import_module_to_validate="jinja2.compiler"),
+    PackageForTesting(
+        "jinja2",
+        "3.1.4",
+        "foobar",
+        "Hello, foobar!",
+        "",
+        import_module_to_validate="jinja2.compiler",
+        test_propagation=True,
+        fixme_propagation_fails=True,
+    ),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
     # jsonschema fails for Python 3.8
     #        except KeyError:
@@ -301,6 +340,8 @@ PACKAGES = [
         "",
         import_name="lxml.etree",
         import_module_to_validate="lxml.doctestcompare",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "more-itertools",
@@ -318,6 +359,7 @@ PACKAGES = [
         "MultiDict contents: {'key1': 'value1'}",
         "",
         import_module_to_validate="multidict._multidict_py",
+        test_propagation=True,
     ),
     # Python 3.12 fails in all steps with "import error" when import numpy
     PackageForTesting(
@@ -356,6 +398,8 @@ PACKAGES = [
         "User data directory for foobar-app: %s/.local/share/foobar-app" % _user_dir,
         "",
         import_module_to_validate="platformdirs.unix",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pluggy",
@@ -372,6 +416,8 @@ PACKAGES = [
         {"decoded_age": 65, "decoded_name": "Bruce Dickinson"},
         "",
         import_module_to_validate="pyasn1.codec.native.decoder",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("pycparser", "2.22", "", "", ""),
     PackageForTesting(
@@ -417,6 +463,8 @@ PACKAGES = [
         "a: 1\nb:\n  c: 3\n  d: 4\n",
         import_name="yaml",
         import_module_to_validate="yaml.resolver",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "requests",
@@ -432,6 +480,8 @@ PACKAGES = [
         {"decrypted_message": "Bruce Dickinson", "message": "Bruce Dickinson"},
         "",
         import_module_to_validate="rsa.pkcs1",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -440,6 +490,7 @@ PACKAGES = [
         {"age": 65, "id": 1, "name": "Bruce Dickinson"},
         "",
         import_module_to_validate="sqlalchemy.orm.session",
+        test_propagation=True,
     ),
     PackageForTesting(
         "s3fs", "2024.5.0", "", "", "", extras=[("pyopenssl", "24.1.0")], import_module_to_validate="s3fs.core"
@@ -470,6 +521,8 @@ PACKAGES = [
         "Parsed TOML data: {'key': 'value'}",
         "",
         import_module_to_validate="tomli._parser",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "tomlkit",
@@ -508,6 +561,8 @@ PACKAGES = [
         import_module_to_validate="soupsieve.css_match",
         extras=[("beautifulsoup4", "4.12.3")],
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "werkzeug",
@@ -527,6 +582,8 @@ PACKAGES = [
         "",
         import_module_to_validate="yarl._url",
         skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "zipp",
@@ -580,6 +637,7 @@ PACKAGES = [
         "some-value",
         "Function executed with param: some-value",
         "",
+        test_propagation=True,
     ),
     PackageForTesting(
         "cachetools",
@@ -587,10 +645,18 @@ PACKAGES = [
         "some-key",
         "Computed value for some-key\nCached value for some-key: Computed value for some-key",
         "",
+        test_propagation=True,
     ),
     # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
     PackageForTesting(
-        "docutils", "0.21.2", "Hello, **world**!", "Conversion successful!", "", skip_python_version=[(3, 8)]
+        "docutils",
+        "0.21.2",
+        "Hello, **world**!",
+        "Conversion successful!",
+        "",
+        skip_python_version=[(3, 8)],
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
     ## Disabled due to a bug in CI:
@@ -609,7 +675,15 @@ PACKAGES = [
     #     skip_python_version=[(3, 12)],  # pandas 1.1.5 does not work with Python 3.12
     # ),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
-    PackageForTesting("pyparsing", "3.1.2", "123-456-7890", "Parsed phone number: ['123', '456', '7890']", ""),
+    PackageForTesting(
+        "pyparsing",
+        "3.1.2",
+        "123-456-7890",
+        "Parsed phone number: ['123', '456', '7890']",
+        "",
+        test_propagation=True,
+        fixme_propagation_fails=True,
+    ),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
         "aiohttp",
@@ -629,7 +703,15 @@ PACKAGES = [
         import_name="scipy.special",
         skip_python_version=[(3, 8)],
     ),
-    PackageForTesting("iniconfig", "2.0.0", "test1234", "Parsed INI data: {'section': [('key', 'value')]}", ""),
+    PackageForTesting(
+        "iniconfig",
+        "2.0.0",
+        "test1234",
+        "Parsed INI data: {'section': [('key', 'test1234')]}",
+        "",
+        test_propagation=True,
+        fixme_propagation_fails=True,
+    ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(
         "frozenlist",
@@ -654,6 +736,8 @@ PACKAGES = [
         '<div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">'
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
@@ -676,6 +760,8 @@ PACKAGES = [
         "Key: replaced_key; Encrypted: replaced_encrypted; Decrypted: Hello, World!",
         "",
         import_name="nacl.utils",
+        test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     # Requires "Annotated" from "typing" which was included in 3.9
     PackageForTesting(
@@ -692,7 +778,6 @@ PACKAGES = [
 # Use this function if you want to test one or a filter number of package for debug proposes
 # SKIP_FUNCTION = lambda package: package.name == "pynacl"  # noqa: E731
 SKIP_FUNCTION = lambda package: True  # noqa: E731
-
 
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
@@ -766,6 +851,24 @@ def _assert_results(response, package):
         assert content["result2"] == package.expected_result2
 
 
+def _assert_propagation_results(response, package):
+    assert response.status_code == 200
+    content = json.loads(response.content)
+    result_ok = content["result1"] == "OK"
+    if package.fixme_propagation_fails:
+        if result_ok:
+            print("FIXME: remove fixme_propagation_fails from package %s" % package.name)
+        else:
+            print("FIXME: propagation test (expectedly) failed for package %s" % package.name)
+        return
+
+    if not result_ok:
+        print(f"Error: incorrect result from propagation endpoint for package {package.name}: {content}")
+        print("Add the fixme_propagation_fail=True argument to the test dictionary entry or fix it")
+
+    assert result_ok
+
+
 # We need to set a different port for these tests of they can conflict with other tests using the flask server
 # running in parallel (e.g. test_gunicorn_handlers.py)
 _TEST_PORT = 8010
@@ -816,6 +919,26 @@ def test_flask_packages_patched(package, venv):
         _, client, pid = context
         response = client.get(package.url)
         _assert_results(response, package)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
+    ids=lambda package: package.name,
+)
+def test_flask_packages_propagation(package, venv, printer):
+    should_skip, reason = package.skip
+    if should_skip:
+        pytest.skip(reason)
+        return
+
+    package.install(venv)
+    with flask_server(
+        python_cmd=venv, iast_enabled="true", remote_configuration_enabled="false", token=None, port=_TEST_PORT
+    ) as context:
+        _, client, pid = context
+        response = client.get(package.url_propagation)
+        _assert_propagation_results(response, package)
 
 
 _INSIDE_ENV_RUNNER_PATH = os.path.join(os.path.dirname(__file__), "inside_env_runner.py")
