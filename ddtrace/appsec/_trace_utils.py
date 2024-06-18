@@ -334,7 +334,11 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id, _ = info_retriever.get_user_info()
+                user_id, all_info = info_retriever.get_user_info()
+                print(
+                    f"user_id: {user_id}, all_info: {all_info}, mode: {mode},"
+                    " result_user: {result_user}, kwargs: {kwargs}"
+                )
                 track_user_login_failure_event(
                     pin.tracer,
                     user_id=user_id,
@@ -342,7 +346,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
                     exists=True,
                 )
             else:
-                track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists)
+                track_user_login_failure_event(pin.tracer, user_id=user_id, login_events_mode=mode, exists=False)
 
     return False, None
 
