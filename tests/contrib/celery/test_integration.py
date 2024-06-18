@@ -280,7 +280,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.error == 1
         assert span.get_tag("component") == "celery"
         assert span.get_tag("span.kind") == "consumer"
-        assert "Task class is failing" in span.get_tag(ERROR_MSG)
+        assert span.get_tag(ERROR_MSG) == "Task class is failing"
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
         assert "Task class is failing" in span.get_tag("error.stack")
 

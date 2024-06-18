@@ -199,7 +199,12 @@ def trace_failure(*args, **kwargs):
             if isinstance(original_exception, task.throws):
                 return
 
-        span.set_exc_info(ex.type, ex.exception, ex.tb)
+        # ensure we are getting the actual exception class which stores the exception message
+        exc = ex.exception
+        if getattr(exc, "exc"):
+            exc = exc.exc
+
+        span.set_exc_info(ex.type, exc, ex.tb)
 
 
 def trace_retry(*args, **kwargs):
