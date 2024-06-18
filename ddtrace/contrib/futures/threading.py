@@ -1,4 +1,7 @@
+from typing import Optional
+
 import ddtrace
+from ddtrace._trace.context import Context
 
 
 def _wrap_submit(func, args, kwargs):
@@ -17,9 +20,10 @@ def _wrap_submit(func, args, kwargs):
     #
     #      The resolution is to not create/propagate a new context if one does not exist, but let the
     #      future's thread create the context instead.
-    current_ctx = None
+    # DEV: Be sure to propagate a Context and not a Span since we are crossing thread boundaries
+    current_ctx: Optional[Context] = None
     if ddtrace.tracer.context_provider._has_active_context():
-        current_ctx = ddtrace.tracer.context_provider.active()
+        current_ctx = ddtrace.tracer.current_trace_context()
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]
@@ -31,7 +35,7 @@ def _wrap_submit(func, args, kwargs):
     return func(self, _wrap_execution, current_ctx, fn, fn_args, kwargs)
 
 
-def _wrap_execution(ctx, fn, args, kwargs):
+def _wrap_execution(ctx: Optional[Context], fn, args, kwargs):
     """
     Intermediate target function that is executed in a new thread;
     it receives the original function with arguments and keyword
