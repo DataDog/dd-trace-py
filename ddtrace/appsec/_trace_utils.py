@@ -146,7 +146,7 @@ def track_user_login_failure_event(
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
-    if user_id:
+    if user_id and exists:
         if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
