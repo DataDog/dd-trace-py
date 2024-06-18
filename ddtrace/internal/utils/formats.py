@@ -70,6 +70,8 @@ def parse_tags_str(tags_str):
     The expected string is of the form::
         "key1:value1,key2:value2"
         "key1:value1 key2:value2"
+        "key1,key2"
+        "key1 key2"
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
@@ -86,10 +88,14 @@ def parse_tags_str(tags_str):
 
         for tag in tags:
             key, sep, value = tag.partition(":")
-            if not sep or not key or "," in key:
+            if "," in key:
                 invalids.append(tag)
-            else:
+            elif sep:
+                # parse key:val,key2:value2
                 parsed_tags.append((key, value))
+            else:
+                # parse key,key2
+                parsed_tags.append((key, key))
 
         return parsed_tags, invalids
 
