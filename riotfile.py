@@ -1133,20 +1133,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="flask_login",
-            command="pytest {cmdargs} tests/contrib/flask_login",
-            pys="3.11",
-            pkgs={
-                "pytest-randomly": latest,
-                "flask": "~=1.0.4",
-                "flask-login": "~=0.6.2",
-                "Jinja2": "~=2.11.0",
-                "markupsafe": "<2.0",
-                "itsdangerous": "<2.0",
-                "werkzeug": "<2.0",
-            },
-        ),
-        Venv(
             name="mako",
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
@@ -1583,6 +1569,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1610,6 +1597,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],

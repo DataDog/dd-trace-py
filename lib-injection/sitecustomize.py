@@ -34,7 +34,7 @@ RUNTIMES_ALLOW_LIST = {
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
-TELEMETRY_ENABLED = os.environ.get("DD_INJECTION_ENABLED", "").lower() in ("true", "1", "t")
+TELEMETRY_ENABLED = "true" in os.environ.get("DD_INJECTION_ENABLED", "").lower()
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
 INSTALLED_PACKAGES = None
 PYTHON_VERSION = None
@@ -108,7 +108,7 @@ def send_telemetry(event):
         _log("not sending telemetry: TELEMETRY_ENABLED=%s" % TELEMETRY_ENABLED, level="debug")
         return
     p = subprocess.Popen(
-        [FORWARDER_EXECUTABLE, str(os.getpid())],
+        [FORWARDER_EXECUTABLE, "library_entrypoint"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -299,7 +299,7 @@ def _inject():
                 send_telemetry(event)
             except Exception as e:
                 event = gen_telemetry_payload(
-                    [create_count_metric("library_entrypoint.error", ["error:" + type(e).__name__.lower()])]
+                    [create_count_metric("library_entrypoint.error", ["error_type:" + type(e).__name__.lower()])]
                 )
                 send_telemetry(event)
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
