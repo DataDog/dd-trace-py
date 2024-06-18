@@ -490,7 +490,7 @@ jobs:
     steps:
       - when:
           condition:
-            equal: [ juanjux/run-package-tests-on-main-only, << pipeline.git.branch >> ]
+            equal: [ 'juanjux/run-package-tests-on-main-only', <<pipeline.git.branch>> ]
         steps:
           - run_test:
               pattern: 'appsec_iast_packages'
