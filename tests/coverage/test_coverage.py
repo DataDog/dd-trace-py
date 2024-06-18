@@ -67,6 +67,18 @@ def test_coverage_at_import_time():
     #     print(f"Lines mismatch: {lines=} vs {expected_lines=}")
     #     assert False
 
+    print(f"{ModuleCodeCollector._instance._module_constants=}")
+
+    import dis
+    import sys
+    # print(sys.modules["tests.coverage.included_path.lib"])
+    # dis.dis(sys.modules["tests.coverage.included_path.lib"])
+    #
+    # print(sys.modules["tests.coverage.included_path.import_time_lib"])
+    # dis.dis(sys.modules["tests.coverage.included_path.import_time_lib"])
+
+
     if covered != expected_covered:
         print(f"Covered lines mismatch: {expected_covered=} vs {covered=}")
         assert False
+

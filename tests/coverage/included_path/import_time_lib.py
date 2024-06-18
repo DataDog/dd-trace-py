@@ -2,6 +2,10 @@
 
 CONSTANT = "some constant"
 UNUSED_CONSTANT = "unused constant"
+OVERWRITTEN_CONSTANT = "overwritten constant"  # This constant will be imported but the importer will overwrite it
+OVERWRITTEN_IN_FUNCTION_CONSTANT = "overwritten in function constant"  # same as above, but overwritten in function
+OVERWRITING_BY_IMPORT_AS_CONSTANT = "overwriting by import as"  # This constant will be imported in a way that overwrites the original
+OVERWRITTEN_BY_IMPORT_CONSTANT = "overwritten by import"  # This constant will be imported in a way that overwrites
 
 def compute_sort_of_constant(n: int = 1):
     ret_val = n * CONSTANT

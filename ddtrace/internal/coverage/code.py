@@ -268,13 +268,13 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         # mutating the parent code objects, the hashes maintained by the
         # generator will be invalidated.
         for nested_code, parent_code in list(collect_code_objects(code)):
-            if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
-                    "coverage/included_path/import_time_lib.py") or code.co_filename.endswith("coverage/included_path/callee.py"):
-                if nested_code not in self.seen and nested_code.co_name == '<module>':
-                    print(nested_code)
-                    import dis
-                    dis.dis(nested_code)
-                    breakpoint()
+            # if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+            #         "coverage/included_path/import_time_lib.py") or code.co_filename.endswith("coverage/included_path/callee.py"):
+            #     if nested_code not in self.seen and nested_code.co_name == '<module>':
+            #         print(nested_code)
+            #         import dis
+            #         dis.dis(nested_code)
+                    # breakpoint()
             # Instrument the code object
             new_code = self.instrument_code(nested_code)
 
@@ -303,9 +303,12 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        new_code, lines = instrument_all_lines(code, self.hook, code.co_filename)
+        new_code, lines, module_consts_to_lines = instrument_all_lines(code, self.hook, code.co_filename)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
+        if new_code.co_name == "<module>":
+            # breakpoint()
+            self._module_constants[code.co_filename].update(module_consts_to_lines)
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
