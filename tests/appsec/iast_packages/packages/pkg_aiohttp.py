@@ -40,3 +40,4 @@ def pkg_aiohttp_view():
         response.result1 = f"Error: {str(e)}"
 
     return jsonify(response.json())
+

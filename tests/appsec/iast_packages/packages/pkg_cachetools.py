@@ -44,3 +44,34 @@ def pkg_cachetools_view():
         response.result1 = f"Error: {str(e)}"
 
     return jsonify(response.json())
+
+@pkg_cachetools.route("/cachetools_propagation")
+def pkg_cachetools_propagation_view():
+    import cachetools
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+    response = ResultResponse(request.args.get("package_param"))
+
+    try:
+        param_value = request.args.get("package_param", "default-key")
+        if not is_pyobject_tainted(param_value):
+            response.result1 = "Error: package_param is not tainted"
+            return jsonify(response.json())
+
+        cache = cachetools.LRUCache(maxsize=2)
+
+        @cachetools.cached(cache)
+        def expensive_function(key):
+            return f"Computed value for {key}"
+
+        try:
+            # Access the cache with the parameter value
+            res = expensive_function(param_value)
+            result_output = "OK" if is_pyobject_tainted(res) else f"Error: result is not tainted: {res}"
+        except Exception as e:
+            result_output = f"Error: {str(e)}"
+    except Exception as e:
+        result_output = f"Error: {str(e)}"
+
+    response.result1 = result_output
+    return jsonify(response.json())

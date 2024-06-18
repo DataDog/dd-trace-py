@@ -33,3 +33,29 @@ def pkg_lxml_view():
         response.result1 = f"Error: {str(e)}"
 
     return response.json()
+
+
+@pkg_lxml.route("/lxml_propagation")
+def pkg_lxml_propagation_view():
+    from lxml import etree
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+    response = ResultResponse(request.args.get("package_param"))
+    if not is_pyobject_tainted(response.package_param):
+        response.result1 = "Error: package_param is not tainted"
+        return response.json()
+
+    try:
+        xml_string = request.args.get("package_param", "<root><element>default-value</element></root>")
+
+        try:
+            root = etree.fromstring(xml_string)
+            element = root.find("element")
+            response.result1 = "OK" if is_pyobject_tainted(element.text) else f"Error: element is not tainted: %s" % element.text
+        except etree.XMLSyntaxError as e:
+            response.result1 = f"Invalid XML: {str(e)}"
+
+    except Exception as e:
+        response.result1 = f"Error: {str(e)}"
+
+    return response.json()
