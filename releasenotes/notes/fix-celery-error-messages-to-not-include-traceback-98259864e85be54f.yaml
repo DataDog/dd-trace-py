@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Celery: fixes ``error.message`` span tag to no longer include traceback information.
