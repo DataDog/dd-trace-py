@@ -939,7 +939,6 @@
             "tests/contrib/flask/*",
             "tests/contrib/flask_autopatch/*",
             "tests/contrib/flask_cache/*",
-            "tests/contrib/flask_login/*",
             "tests/snapshots/tests.contrib.flask.*"
         ],
         "gevent": [
