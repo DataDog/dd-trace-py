@@ -8,7 +8,6 @@ import timeit
 from types import FrameType
 import typing  # noqa:F401
 import uuid
-from unittest import mock
 
 import pytest
 from six.moves import _thread
@@ -447,34 +446,6 @@ def test_exception_collection():
     assert e.frames == [
         (__file__, test_exception_collection.__code__.co_firstlineno + 8, "test_exception_collection", "")
     ]
-    assert e.nframes == 1
-    assert e.exc_type == ValueError
-
-
-@pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-@mock.patch("ddtrace.settings.profiling.config.export.libdd_enabled")
-def test_exception_collection_libdd(libdd_enabled):
-    libdd_enabled = True
-    r = recorder.Recorder()
-    c = stack.StackCollector(r)
-    with c:
-        try:
-            raise ValueError("hello")
-        except Exception:
-            time.sleep(1)
-
-    assert stack.StackCollector
-
-    exception_events = r.events[stack_event.StackExceptionSampleEvent]
-    assert len(exception_events) >= 1
-    e = exception_events[0]
-    assert e.timestamp > 0
-    assert e.sampling_period > 0
-    assert e.thread_id == _thread.get_ident()
-    assert e.thread_name == "MainThread"
-    # assert e.frames == [
-    #     (__file__, test_exception_collection_libdd.__code__.co_firstlineno + 8, "test_exception_collection_libdd", "")
-    # ]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 

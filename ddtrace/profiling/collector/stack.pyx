@@ -495,10 +495,7 @@ class StackCollector(collector.PeriodicCollector):
 
         # If libdd is enabled, propagate the configuration
         if config.export.libdd_enabled:
-            print("Lib datadog is enabled")
             set_use_libdd(True)
-
-        assert(use_libdd)
 
         # If at the end of things, stack v2 is still enabled, then start the native thread running the v2 sampler
         if self._stack_collector_v2_enabled:
