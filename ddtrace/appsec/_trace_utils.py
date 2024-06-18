@@ -320,8 +320,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
     if not asm_config._asm_enabled:
         return True, result_user
 
-    extended_userid_fields = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
-    userid_list = info_retriever.possible_user_id_fields if mode == "safe" else extended_userid_fields
+    userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
     for possible_key in userid_list:
         if possible_key in kwargs:
@@ -334,11 +333,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever):
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             if exists:
-                user_id, all_info = info_retriever.get_user_info()
-                print(
-                    f"user_id: {user_id}, all_info: {all_info}, mode: {mode},"
-                    " result_user: {result_user}, kwargs: {kwargs}"
-                )
+                user_id, _ = info_retriever.get_user_info()
                 track_user_login_failure_event(
                     pin.tracer,
                     user_id=user_id,
