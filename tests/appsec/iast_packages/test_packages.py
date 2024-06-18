@@ -656,15 +656,22 @@ PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting(
-        "pyarrow",
-        "16.1.0",
-        "some-value",
-        "Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}",
-        "",
-        extras=[("pandas", "1.1.5")],
-        skip_python_version=[(3, 12)],  # pandas 1.1.5 does not work with Python 3.12
-    ),
+    ## TODO: https://datadoghq.atlassian.net/browse/APPSEC-53659
+    ## Disabled due to a bug in CI:
+    ## >           assert content["result1"].startswith(package.expected_result1)
+    ## E           assert False
+    ## E            +  where False = <built-in method startswith of str object at 0x7f223bc9d240>("Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}")  # noqa: E501
+    ## E            +    where <built-in method startswith of str object at 0x7f223bc9d240> = 'Error: numpy.dtype size changed, may indicate binary incompatibility. Expected 96 from C header, got 88 from PyObject'.startswith  # noqa: E501
+    ## E            +    and   "Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}" = pyarrow==16.1.0: .expected_result1  # noqa: E501
+    # PackageForTesting(
+    #     "pyarrow",
+    #     "16.1.0",
+    #     "some-value",
+    #     "Table data: {'column1': {0: 'some-value'}, 'column2': {0: 1}}",
+    #     "",
+    #     extras=[("pandas", "1.1.5")],
+    #     skip_python_version=[(3, 12)],  # pandas 1.1.5 does not work with Python 3.12
+    # ),
     PackageForTesting("requests-oauthlib", "2.0.0", "", "", "", test_e2e=False, import_name="requests_oauthlib"),
     PackageForTesting(
         "pyparsing",
