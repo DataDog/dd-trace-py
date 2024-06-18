@@ -6,7 +6,8 @@ import pytest
 from ddtrace.contrib.futures import patch
 from ddtrace.contrib.futures import unpatch
 from tests.opentracer.utils import init_tracer
-from tests.utils import DummyTracer, TracerTestCase
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
 
 
 @pytest.fixture(autouse=True)
