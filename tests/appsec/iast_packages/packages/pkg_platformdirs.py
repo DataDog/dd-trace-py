@@ -41,3 +41,24 @@ def pkg_platformdirs_view():
         response.result1 = f"Error: {str(e)}"
 
     return response.json()
+
+
+@pkg_platformdirs.route("/platformdirs_propagation")
+def pkg_platformdirs_propagation_view():
+    from platformdirs import user_data_dir
+
+    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+    response = ResultResponse(request.args.get("package_param"))
+    if not is_pyobject_tainted(response.package_param):
+        response.result1 = "Error: package_param is not tainted"
+        return response.json()
+
+    try:
+        app_name = request.args.get("package_param", "default-app")
+        data_dir = user_data_dir(app_name)
+        response.result1 = "OK" if is_pyobject_tainted(data_dir) else f"Error: data_dir is not tainted: {data_dir}"
+    except Exception as e:
+        response.result1 = f"Error: {str(e)}"
+
+    return response.json()
