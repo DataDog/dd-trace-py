@@ -98,6 +98,7 @@ def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] 
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
     _appsec_rules_data(config, test_tracer)
+    _appsec_auto_user_mode(config, test_tracer)
 
 
 def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer]) -> bool:
@@ -224,17 +225,14 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
                     asm_config._asm_enabled = False
 
 
-def _appsec_api_security_settings(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
+def _appsec_auto_user_mode(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     """
-    Deprecated
-    Update API Security settings from remote config
-    Actually: Update sample rate
+    Update Auto User settings from remote config
     """
-    if config._remote_config_enabled and asm_config._api_security_enabled:
-        rc_api_security_sample_rate = features.get("api_security", {}).get("request_sample_rate", None)
-        if rc_api_security_sample_rate is not None:
+    if config._remote_config_enabled and asm_config._auto_user_instrumentation_enabled:
+        auto_user_instrum_mode = features.get("auto_user_instrum_mode", {}).get("auto_user_instrum_mode", None)
+        if auto_user_instrum_mode is not None:
             try:
-                sample_rate = max(0.0, min(1.0, float(rc_api_security_sample_rate)))
-                asm_config._api_security_sample_rate = sample_rate
+                asm_config._auto_user_instrumentation_mode = auto_user_instrum_mode
             except Exception:  # nosec
                 pass

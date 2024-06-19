@@ -184,18 +184,18 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe_is_default_if_wrong(client, test_spans, tracer):
+def test_django_login_sucess_disabled(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode="foobar")):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.DISABLED)):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
         client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
-        login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(user.ID) == "1"
+        with pytest.raises(AssertionError) as excl_info:
+            _ = test_spans.find_span(name="django.contrib.auth.login")
 
 
 @pytest.mark.django_db
@@ -203,7 +203,7 @@ def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode="foobar")):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.IDENT)):
         test_user = User.objects.create(username="AnonymousUser")
         test_user.set_password("secret")
         test_user.save()
@@ -214,7 +214,7 @@ def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, tracer):
+def test_django_login_sucess_ident_is_default_if_missing(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -226,6 +226,7 @@ def test_django_login_sucess_safe_is_default_if_missing(client, test_spans, trac
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span.get_tag(user.ID) == "1"
+        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
 
 
 @pytest.mark.django_db

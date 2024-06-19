@@ -231,6 +231,7 @@ class LOGIN_EVENTS_MODE(metaclass=Constant_Class):
     IDENT = "identification"
     ANON = "anonymization"
     SDK = "sdk"
+    AUTO = "auto"
 
 
 class DEFAULT(metaclass=Constant_Class):

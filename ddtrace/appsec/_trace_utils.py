@@ -54,12 +54,14 @@ def _track_user_login_common(
             span.set_tag_str(APPSEC.USER_LOGIN_EVENT_FAILURE_TRACK, "true")
 
         # This is used to mark if the call was done from the SDK of the automatic login events
-        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+        if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
             span.set_tag_str("%s.sdk" % tag_prefix, "true")
+            reported_mode = asm_config._user_event_mode
+        else:
+            reported_mode = login_events_mode
 
         mode_tag = APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE if success else APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE
-        auto_tag_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.SDK else asm_config._user_event_mode
-        span.set_tag_str(mode_tag, auto_tag_mode)
+        span.set_tag_str(mode_tag, reported_mode)
 
         tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
@@ -116,7 +118,8 @@ def track_user_login_success_event(
     if not span:
         return
 
-    if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+    if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
 
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
@@ -146,11 +149,13 @@ def track_user_login_failure_event(
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
+    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if user_id:
-        if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+        if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
-    if login_events_mode == LOGIN_EVENTS_MODE.SDK:
+    # if called from the SDK, set the login, email and name
+    if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
         if login:
             span.set_tag_str("%s.failure.login" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, login)
         if email:
