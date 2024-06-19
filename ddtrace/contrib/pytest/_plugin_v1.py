@@ -68,6 +68,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)
@@ -670,7 +671,8 @@ class _PytestDDTracePluginV1:
             if item.location and item.location[0]:
                 _CIVisibility.set_codeowners_of(item.location[0], span=span)
             if hasattr(item, "_obj"):
-                test_method_object = item._obj
+                item_path = Path(item.path if hasattr(item, "path") else item.fspath)
+                test_method_object = undecorated(item._obj, item.name, item_path)
                 _add_start_end_source_file_path_data_to_span(
                     span,
                     test_method_object,

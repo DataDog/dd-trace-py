@@ -33,6 +33,8 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     # The recursion is needed in case of multiple decorators. We make it BFS
     # to find the function as soon as possible.
 
+    print("UNDECORATED CALLED WITH", f, name, path)
+
     def match(g):
         return g.__code__.co_name == name and Path(g.__code__.co_filename).resolve() == path
 

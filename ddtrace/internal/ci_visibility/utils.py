@@ -2,7 +2,6 @@ import inspect
 import logging
 import os
 import re
-import sys
 import typing
 
 import ddtrace
@@ -58,34 +57,14 @@ def _add_start_end_source_file_path_data_to_span(
             test_name,
         )
         return
-
-    # Try and recursively identify the innermost function in cases where it is wrapped
-    final_object = inspect.unwrap(test_method_object)
-    for _ in range(sys.getrecursionlimit()):
-        # if not hasattr(final_object, "__wrapped__") and not hasattr(final_object, "__closure__"):
-        #     break
-        if hasattr(final_object, "__wrapped__"):
-            # functools.wraps sets __wrapped__ attribute
-            final_object = final_object.__wrapped__
-            continue
-        if hasattr(final_object, "__closure__") and final_object.__closure__ is not None:
-            if hasattr(final_object.__closure__[0], "cell_contents"):
-                if inspect.isfunction(final_object.__closure__[0].cell_contents):
-                    final_object = final_object.__closure__[0].cell_contents
-                    continue
-        break
-    else:
-        log.debug("Reached recursion limit while unwrapping test method %s", test_name)
-        return
-
-    source_file_path = get_source_file_path_for_test_method(final_object, repo_directory)
+    source_file_path = get_source_file_path_for_test_method(test_method_object, repo_directory)
     if not source_file_path:
         log.debug(
             "Tried to collect file path for test %s but it is a built-in Python function",
             test_name,
         )
         return
-    start_line, end_line = get_source_lines_for_test_method(final_object)
+    start_line, end_line = get_source_lines_for_test_method(test_method_object)
     if not start_line or not end_line:
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
     span.set_tag_str(test.SOURCE_FILE, source_file_path)
