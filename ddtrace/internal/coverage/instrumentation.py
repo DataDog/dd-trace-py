@@ -8,23 +8,26 @@ from ddtrace.internal.injection import INJECTION_ASSEMBLY
 from ddtrace.internal.injection import HookType
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, consts_map) -> t.Tuple[CodeType, t.Set[int]]:
     abstract_code = Bytecode.from_code(code)
+    print(code)
     # Avoid instrumenting the same code object multiple times
-    if code.co_name == "<module>" and (code.co_filename.endswith("acoverage/included_path/lib.py") or code.co_filename.endswith(
-        "coverage/included_path/import_time_lib.py")
+    if code.co_name == "<module>" and (code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
+        "coverage/included_path/import_time_lib.py") or code.co_filename.endswith("coverage/included_path/in_context_lib.py") or code.co_filename.endswith("coverage/included_path/nested_import_time_lib.py")
     ):
         print(code)
         import dis
         dis.dis(code)
-    #     # breakpoint()
+        # breakpoint()
     lines = set()
 
     is_module = code.co_name == "<module>"
     function_lines = set()
     instrumented_lines = set()
     module_consts_to_lines = {}
-    current_import_name = ""
+    module_consts_to_deps = {}
+    current_import_module_name = ""
+    current_import_remote_name = ""
 
     last_lineno = None
     for i, instr in enumerate(abstract_code):
@@ -35,6 +38,11 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
             if instr.lineno is None:
                 continue
 
+            # if instr.name != last_lineno:
+            #     current_import_module_name = ""
+            #     current_import_remote_name = ""
+
+
             # Store information about all module-level
             if is_module:
                 # If we're making a function, store the line number
@@ -43,11 +51,21 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str) -> t.Tuple[C
 
                 # If we're storing a name at and the current line is not a function, then we must be storing a module-
                 # level constant
-                if instr.name == "STORE_NAME" and instr.lineno not in function_lines:
+                if instr.name == "STORE_NAME" and instr.arg != "__doc__" and instr.lineno not in function_lines:
                     module_consts_to_lines[instr.arg] = instr.lineno
 
-            # If the current instruction is an import (regardless of where in the module that import is happening),
-            # transform that
+                # If the current instruction is an import (regardless of where in the module that import is happening),
+                # transform that
+                if instr.name == "IMPORT_NAME":
+                    current_import_module_name = instr.arg
+                    print("IMPORT_NAME ARG IS", instr.arg)
+                if instr.name == "IMPORT_FROM":
+                    current_import_remote_name = instr.arg
+                    print("IMPORT_FROM ARG IS", instr.arg)
+                if instr.name == "STORE_NAME" and current_import_module_name != "":
+                    # print(f"STORE_NAME ARG IS {instr.arg}, COMES FROM {consts_map[current_import_module_name][current_import_remote_name]}=")
+                    current_import_module_name = ""
+                    current_import_remote_name = ""
 
 
             if instr.lineno == last_lineno:

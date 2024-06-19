@@ -4,6 +4,11 @@ from tests.coverage.included_path.import_time_lib import OVERWRITTEN_CONSTANT
 from tests.coverage.included_path.import_time_lib import OVERWRITTEN_IN_FUNCTION_CONSTANT
 from tests.coverage.included_path.import_time_lib import ran_at_import_time
 from tests.coverage.included_path.import_time_lib import ran_and_assigned_at_import_time
+from tests.coverage.included_path.import_time_lib import NESTED_CONSTANT
+from tests.coverage.included_path.import_time_lib import NESTED_COMPUTED_CONSTANT
+from tests.coverage.included_path.import_time_lib import COMPUTED_NESTED_CONSTANT
+from tests.coverage.included_path.import_time_lib import _IMPORTED_AS_CONSTANT_1 as IMPORTED_AS_CONSTANT_1, _IMPORTED_AS_CONSTANT_2 as IMPORTED_AS_CONSTANT_2
+
 
 ran_at_import_time()
 
@@ -59,3 +64,15 @@ def uses_global_constant_in_function_in_session():
 def does_not_use_global_constant_in_function_in_session():
     GLOBAL_CONSTANT = "overwritten global constant"
     return GLOBAL_CONSTANT
+
+def uses_nested_constant():
+    str1 = NESTED_CONSTANT
+    return str1
+
+def uses_computed_nested_constant():
+    str1 = COMPUTED_NESTED_CONSTANT
+    return str1
+
+def uses_nested_computed_constant():
+    str1 = NESTED_COMPUTED_CONSTANT
+    return str1

@@ -66,8 +66,9 @@ def test_coverage_at_import_time():
     # if lines != expected_lines:
     #     print(f"Lines mismatch: {lines=} vs {expected_lines=}")
     #     assert False
-
-    print(f"{ModuleCodeCollector._instance._module_constants=}")
+    from pprint import pprint
+    pprint(f"{ModuleCodeCollector._instance._module_constants=}")
+    pprint(f"{ModuleCodeCollector._instance._module_import_names=}")
 
     import dis
     import sys

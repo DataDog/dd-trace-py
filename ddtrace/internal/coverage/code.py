@@ -62,6 +62,8 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         self.lines: t.DefaultDict[str, t.Set] = defaultdict(set)
         self.covered: t.DefaultDict[str, t.Set] = defaultdict(set)
         self._module_constants: t.DefaultDict[str, t.Any] = defaultdict(dict)
+        self._module_globals_coverage: t.DefaultDict[str, t.Set] = defaultdict(set)
+        self._module_import_names: t.DefaultDict[str, t.Dict] = defaultdict(dict)
         self._include_paths: t.List[Path] = []
         self.lines_by_context: t.DefaultDict[str, t.DefaultDict[str, t.Set]] = defaultdict(lambda: defaultdict(set))
 
@@ -276,7 +278,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             #         dis.dis(nested_code)
                     # breakpoint()
             # Instrument the code object
-            new_code = self.instrument_code(nested_code)
+            new_code = self.instrument_code(nested_code, _module)
 
             # If it has a parent, update the parent's co_consts to point to the
             # new code object.
@@ -292,7 +294,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
     def after_import(self, _module: ModuleType) -> None:
         pass
 
-    def instrument_code(self, code: CodeType) -> CodeType:
+    def instrument_code(self, code: CodeType, _module: ModuleType) -> CodeType:
         # Avoid instrumenting the same code object multiple times
         # if code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
         #     "coverage/included_path/import_time_lib.py"
@@ -303,16 +305,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             return code
         self.seen.add(code)
 
-        new_code, lines, module_consts_to_lines = instrument_all_lines(code, self.hook, code.co_filename)
+        new_code, lines, module_consts_to_lines = instrument_all_lines(code, self.hook, code.co_filename, self._module_constants)
         # Don't re-instrument the code that was just instrumented
         self.seen.add(new_code)
         if new_code.co_name == "<module>":
             # breakpoint()
-            self._module_constants[code.co_filename].update(module_consts_to_lines)
+            self._module_constants[_module.__name__].update(module_consts_to_lines)
 
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename] |= lines
+
+        # breakpoint()
 
         return new_code
 
