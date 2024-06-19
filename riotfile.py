@@ -1133,20 +1133,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="flask_login",
-            command="pytest {cmdargs} tests/contrib/flask_login",
-            pys="3.11",
-            pkgs={
-                "pytest-randomly": latest,
-                "flask": "~=1.0.4",
-                "flask-login": "~=0.6.2",
-                "Jinja2": "~=2.11.0",
-                "markupsafe": "<2.0",
-                "itsdangerous": "<2.0",
-                "werkzeug": "<2.0",
-            },
-        ),
-        Venv(
             name="mako",
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
@@ -1583,6 +1569,7 @@ venv = Venv(
                         "msgpack": latest,
                         "more_itertools": "<8.11.0",
                         "pytest-mock": "==2.0.0",
+                        "httpx": latest,
                     },
                     venvs=[
                         Venv(
@@ -1610,6 +1597,7 @@ venv = Venv(
                         "msgpack": latest,
                         "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                        "httpx": latest,
                     },
                 ),
             ],
@@ -2511,11 +2499,26 @@ venv = Venv(
                         "langchain-openai": "==0.1.6",
                         "langchain-anthropic": "==0.1.11",
                         "langchain-pinecone": "==0.1.0",
-                        "langsmith": "==0.1.58",
+                        "langchain-aws": "==0.1.3",
+                        "langchain-cohere": "==0.1.4",
                         "openai": "==1.30.3",
                         "pinecone-client": latest,
                         "botocore": latest,
+                        "cohere": "==5.4.0",
+                    }
+                ),
+                Venv(
+                    pkgs={
+                        "langchain": "==0.2.0",
+                        "langchain-core": "==0.2.0",
+                        "langchain-openai": latest,
+                        "langchain-pinecone": latest,
+                        "langchain-anthropic": latest,
                         "langchain-aws": latest,
+                        "langchain-cohere": latest,
+                        "openai": latest,
+                        "pinecone-client": latest,
+                        "botocore": latest,
                         "cohere": latest,
                     }
                 ),
@@ -2527,11 +2530,11 @@ venv = Venv(
                         "langchain-openai": latest,
                         "langchain-pinecone": latest,
                         "langchain-anthropic": latest,
-                        "langsmith": latest,
+                        "langchain-aws": latest,
+                        "langchain-cohere": latest,
                         "openai": latest,
                         "pinecone-client": latest,
                         "botocore": latest,
-                        "langchain-aws": latest,
                         "cohere": latest,
                     }
                 ),
