@@ -230,7 +230,7 @@ def _appsec_auto_user_mode(features: Mapping[str, Any], test_tracer: Optional[Tr
     Update Auto User settings from remote config
     """
     if config._remote_config_enabled and asm_config._auto_user_instrumentation_enabled:
-        auto_user_instrum_mode = features.get("auto_user_instrum_mode", {}).get("auto_user_instrum_mode", None)
+        auto_user_instrum_mode = features.get("auto_user_instrum_mode", {}).get("mode", None)
         if auto_user_instrum_mode is not None:
             try:
                 asm_config._auto_user_instrumentation_mode = auto_user_instrum_mode
