@@ -84,8 +84,8 @@ commands:
   setup_rust:
     description: "Install rust toolchain"
     steps:
-      - run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
-      - run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+      -  run: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+      -  run: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
 
   setup_hatch:
     description: "Install hatch"
@@ -142,7 +142,7 @@ commands:
             - lastsuccess-{{ .Environment.CIRCLE_BRANCH }}-<<parameters.pattern>>-{{ .Environment.CIRCLE_NODE_INDEX }}
       - when:
           condition:
-            << parameters.snapshot >>
+              << parameters.snapshot >>
           steps:
             - setup_riot
             - start_docker_services:
@@ -166,7 +166,7 @@ commands:
                 path: /tmp/core_dumps
       - unless:
           condition:
-            << parameters.snapshot >>
+              << parameters.snapshot >>
           steps:
             - setup_riot
             - when:
@@ -236,7 +236,7 @@ commands:
             - ./latest-success-commit
       - when:
           condition:
-            << parameters.run_agent_checks >>
+              << parameters.run_agent_checks >>
           steps:
             - run:
                 name: Get APM Test Agent Trace Check Results
@@ -273,7 +273,7 @@ commands:
       - setup_hatch
       - when:
           condition:
-            << parameters.snapshot >>
+              << parameters.snapshot >>
           steps:
             - start_docker_services:
                 env: SNAPSHOT_CI=1
@@ -296,7 +296,7 @@ commands:
                 path: /tmp/core_dumps
       - unless:
           condition:
-            << parameters.snapshot >>
+              << parameters.snapshot >>
           steps:
             - run:
                 name: Run tests
@@ -339,7 +339,7 @@ commands:
           destination: supported-integrations
       - when:
           condition:
-            << parameters.run_agent_checks >>
+              << parameters.run_agent_checks >>
           steps:
             - run:
                 name: Get APM Test Agent Trace Check Results
@@ -786,13 +786,13 @@ appsec_iast_packages:
       - image: *rabbitmq_image
       - image: *testagent_image
         environment:
-          - LOG_LEVEL=DEBUG
-          - SNAPSHOT_DIR=/snapshots
-          - PORT=9126
-          - SNAPSHOT_CI=1
-          - DD_POOL_TRACE_CHECK_FAILURES=true
-          - DD_DISABLE_ERROR_RESPONSES=true
-          - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
+        - LOG_LEVEL=DEBUG
+        - SNAPSHOT_DIR=/snapshots
+        - PORT=9126
+        - SNAPSHOT_CI=1
+        - DD_POOL_TRACE_CHECK_FAILURES=true
+        - DD_DISABLE_ERROR_RESPONSES=true
+        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service # disable flaky content length check
     steps:
       - run_test:
           pattern: 'celery'
@@ -1158,7 +1158,7 @@ appsec_iast_packages:
       - image: *moto_image
       - *testagent
     steps:
-      - run_test:
+       - run_test:
           pattern: 'aiobotocore'
 
   aiomysql:
@@ -1324,9 +1324,9 @@ appsec_iast_packages:
       - checkout
       - run:
           command: |
-            hatch run docs:build
-            mkdir -p /tmp/docs
-            cp -r docs/_build/html/* /tmp/docs
+             hatch run docs:build
+             mkdir -p /tmp/docs
+             cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
 
