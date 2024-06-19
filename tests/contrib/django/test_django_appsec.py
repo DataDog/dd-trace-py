@@ -194,7 +194,7 @@ def test_django_login_sucess_disabled(client, test_spans, tracer):
         test_user.save()
         client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
-        with pytest.raises(AssertionError) as excl_info:
+        with pytest.raises(AssertionError):
             _ = test_spans.find_span(name="django.contrib.auth.login")
 
 
