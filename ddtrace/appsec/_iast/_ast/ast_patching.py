@@ -26,6 +26,7 @@ _VISITOR = AstVisitor()
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
     "ddtrace",
+    "envier",
     "pkg_resources",
     "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
     "inspect",  # this package is used to get the stack frames, propagation is not needed
@@ -73,18 +74,10 @@ except ImportError:
     import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
-def _build_installed_package_names_list() -> Set[Text]:
-    return {
-        ilmd_d.metadata["name"] for ilmd_d in il_md.distributions() if ilmd_d is not None and ilmd_d.files is not None
-    }
+_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
 
 
-_NOT_PATCH_MODULE_NAMES = (
-    _build_installed_package_names_list() | _stdlib_for_python_version() | set(builtin_module_names)
-)
-
-
-def _in_python_stdlib_or_third_party(module_name: str) -> bool:
+def _in_python_stdlib(module_name: str) -> bool:
     return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
 
 
@@ -102,7 +95,7 @@ def _should_iast_patch(module_name: Text) -> bool:
         return True
     if module_name.startswith(IAST_DENYLIST):
         return False
-    return not _in_python_stdlib_or_third_party(module_name)
+    return not _in_python_stdlib(module_name)
 
 
 def visit_ast(
