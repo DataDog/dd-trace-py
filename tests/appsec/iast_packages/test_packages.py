@@ -399,7 +399,6 @@ PACKAGES = [
         "",
         import_module_to_validate="platformdirs.unix",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "pluggy",
@@ -481,7 +480,6 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
@@ -737,6 +735,7 @@ PACKAGES = [
         '(</span><span class="s1">&#39;Hello, world!&#39;</span><span class="p">)</span>\n</pre></div>\n',
         "",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
     PackageForTesting(
