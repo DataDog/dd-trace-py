@@ -54,6 +54,8 @@ def test_get_distributions():
             importlib_pkgs.add("pkgutil-resolve-name")
         elif pkg.name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib-metadata")
+        elif pkg.name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
+            importlib_pkgs.add("importlib_metadata")
         else:
             importlib_pkgs.add(pkg.name)
 

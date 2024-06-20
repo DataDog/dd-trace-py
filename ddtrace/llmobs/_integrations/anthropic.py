@@ -94,8 +94,8 @@ class AnthropicIntegration(BaseLLMIntegration):
                 log.warning("Anthropic message input must be a list of message param dicts.")
                 continue
 
-            content = message.get("content", None)
-            role = message.get("role", None)
+            content = _get_attr(message, "content", None)
+            role = _get_attr(message, "role", None)
 
             if role is None or content is None:
                 log.warning("Anthropic input message must have content and role.")
@@ -105,11 +105,32 @@ class AnthropicIntegration(BaseLLMIntegration):
 
             elif isinstance(content, list):
                 for block in content:
-                    if block.get("type") == "text":
-                        input_messages.append({"content": block.get("text", ""), "role": role})
-                    elif block.get("type") == "image":
+                    if _get_attr(block, "type", None) == "text":
+                        input_messages.append({"content": _get_attr(block, "text", ""), "role": role})
+
+                    elif _get_attr(block, "type", None) == "image":
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
+
+                    elif _get_attr(block, "type", None) == "tool_use":
+                        name = _get_attr(block, "name", "")
+                        inputs = _get_attr(block, "input", "")
+                        input_messages.append(
+                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
+                        )
+
+                    elif _get_attr(block, "type", None) == "tool_result":
+                        content = _get_attr(block, "content", None)
+                        if isinstance(content, str):
+                            input_messages.append({"content": "[tool result: {}]".format(content), "role": role})
+                        elif isinstance(content, list):
+                            input_messages.append({"content": [], "role": role})
+                            for tool_result_block in content:
+                                if _get_attr(tool_result_block, "text", "") != "":
+                                    input_messages[-1]["content"].append(_get_attr(tool_result_block, "text", ""))
+                                elif _get_attr(tool_result_block, "type", None) == "image":
+                                    # Store a placeholder for potentially enormous binary image data.
+                                    input_messages[-1]["content"].append("([IMAGE DETECTED])")
                     else:
                         input_messages.append({"content": str(block), "role": role})
 
@@ -129,6 +150,13 @@ class AnthropicIntegration(BaseLLMIntegration):
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append({"content": text, "role": role})
+                else:
+                    if _get_attr(completion, "type", None) == "tool_use":
+                        name = _get_attr(completion, "name", "")
+                        inputs = _get_attr(completion, "input", "")
+                        output_messages.append(
+                            {"content": "[tool: {}]\n\n{}".format(name, json.dumps(inputs)), "role": role}
+                        )
         return output_messages
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
