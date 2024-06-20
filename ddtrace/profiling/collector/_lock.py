@@ -90,10 +90,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
 
         for i in range(7):
-            frame = sys._getframe(i)
-            if frame is not None:
-                code = frame.f_code
-                print("Frame %d: %s:%d:%s" % (i, os.path.basename(code.co_filename), frame.f_lineno, code.co_name))
+            try:
+                frame = sys._getframe(i)
+                if frame is not None:
+                    code = frame.f_code
+                    print("Frame %d: %s:%d:%s" % (i, os.path.basename(code.co_filename), frame.f_lineno, code.co_name))
+            except ValueError:
+                break
 
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
