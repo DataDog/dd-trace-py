@@ -1,9 +1,12 @@
 import os
+import sqlite3
 
 from flask import Flask
 from flask import request
 
 from ddtrace import tracer
+
+# from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
 from tests.webclient import PingFilter
 
@@ -59,9 +62,16 @@ def new_service(service_name: str):
     return service_name
 
 
+DB = sqlite3.connect(":memory:")
+DB.execute("CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)")
+DB.execute("INSERT INTO users (id, name) VALUES ('1_secret_id', 'Alice')")
+DB.execute("INSERT INTO users (id, name) VALUES ('2_secret_id', 'Bob')")
+DB.execute("INSERT INTO users (id, name) VALUES ('3_secret_id', 'Christophe')")
+
+
 @app.route("/rasp/<string:endpoint>/", methods=["GET", "POST", "OPTIONS"])
 def rasp(endpoint: str):
-    query_params = request.args.to_dict()
+    query_params = request.args
     if endpoint == "lfi":
         res = ["lfi endpoint"]
         for param in query_params:
@@ -72,6 +82,7 @@ def rasp(endpoint: str):
                         res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
@@ -99,6 +110,20 @@ def rasp(endpoint: str):
                     res.append(f"Url: {r.text}")
             except Exception as e:
                 res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return "<\\br>\n".join(res)
+    elif endpoint == "sql_injection":
+        res = ["sql_injection endpoint"]
+        for param in query_params:
+            if param.startswith("user_id"):
+                user_id = query_params[param]
+            try:
+                if param.startswith("user_id"):
+                    cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
+                    res.append(f"Url: {list(cursor)}")
+            except Exception as e:
+                res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "shell":
         res = ["shell endpoint"]
@@ -112,5 +137,7 @@ def rasp(endpoint: str):
                         res.append(f"cmd stdout: {f.stdout.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
+    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
     return f"Unknown endpoint: {endpoint}"

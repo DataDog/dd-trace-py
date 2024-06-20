@@ -127,6 +127,7 @@ kwarg
 kwargs
 LLM
 langchain
+langchain_community
 lifecycle
 linters
 lockfiles

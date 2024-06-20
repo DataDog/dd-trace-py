@@ -3,6 +3,9 @@ import os
 import yaaredis
 
 from ddtrace import config
+from ddtrace._trace.utils_redis import _instrument_redis_cmd
+from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
+from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.vendor import wrapt
 
 from ...internal.schema import schematize_service_name
@@ -11,9 +14,6 @@ from ...internal.utils.formats import asbool
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ..trace_utils_redis import _run_redis_command_async
-from ..trace_utils_redis import _trace_redis_cmd
-from ..trace_utils_redis import _trace_redis_execute_pipeline
 
 
 config._add(
@@ -61,8 +61,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.yaaredis, instance, args) as span:
-        return await _run_redis_command_async(span=span, func=func, args=args, kwargs=kwargs)
+    with _instrument_redis_cmd(pin, config.yaaredis, instance, args) as ctx:
+        return await _run_redis_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
 
 async def traced_pipeline(func, instance, args, kwargs):
@@ -79,5 +79,5 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     cmds = [stringify_cache_args(c, cmd_max_len=config.yaaredis.cmd_max_length) for c, _ in instance.command_stack]
-    with _trace_redis_execute_pipeline(pin, config.yaaredis, cmds, instance):
+    with _instrument_redis_execute_pipeline(pin, config.yaaredis, cmds, instance):
         return await func(*args, **kwargs)

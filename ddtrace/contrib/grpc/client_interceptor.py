@@ -81,12 +81,7 @@ def _handle_response(span, response):
     # google-api-core which has its own future base class
     # https://github.com/googleapis/python-api-core/blob/49c6755a21215bbb457b60db91bab098185b77da/google/api_core/future/base.py#L23
     if hasattr(response, "_response"):
-        result = core.dispatch_with_results(
-            "grpc.response_message",
-            (response._response,),
-        )
-        if result and "response" in result:
-            response._response = result["response"].value
+        core.dispatch("grpc.response_message", (response._response,))
 
     if hasattr(response, "add_done_callback"):
         response.add_done_callback(_future_done_callback(span))
@@ -169,12 +164,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __next__(self):
         n = self._next()
         if n is not None:
-            result = core.dispatch_with_results(
-                "grpc.response_message",
-                (n,),
-            )
-            if result and "response" in result:
-                n = result["response"].value
+            core.dispatch("grpc.response_message", (n,))
         return n
 
     next = __next__

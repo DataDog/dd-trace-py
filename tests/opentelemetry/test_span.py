@@ -1,6 +1,8 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
 
+import mock
+from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.span import NonRecordingSpan
@@ -12,6 +14,7 @@ from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.opentelemetry._span import Span
 from tests.utils import flaky
 
 
@@ -44,6 +47,23 @@ def test_otel_span_attributes(oteltracer):
         span.set_attribute("should_not_be_set", "attributes can not be added after a span is ended")
 
 
+@pytest.mark.snapshot(wait_for_num_traces=1)
+def test_otel_span_events(oteltracer):
+    with oteltracer.start_span("webpage.load") as span1:
+        span1.add_event(
+            "Web page unresponsive", {"error.code": "403", "unknown values": [1, ["h", "a", [False]]]}, 1714536311886
+        )
+
+    with oteltracer.start_span("web.response") as span2:
+        # mock time_ns to ensure the event timestamp is consistent in snapshot files
+        with mock.patch("ddtrace._trace.span.time_ns", return_value=1714537311986000):
+            span2.add_event("Web page loaded")
+            span2.add_event("Button changed color", {"colors": [112, 215, 70], "response.time": 134.3, "success": True})
+
+    span1.add_event("Event on finished span, event will be ignored")
+    span2.add_event("Event on finished span, event won't be added")
+
+
 @pytest.mark.snapshot
 @pytest.mark.parametrize(
     "override",
@@ -53,6 +73,7 @@ def test_otel_span_attributes(oteltracer):
         ("resource.name", "resource-override"),
         ("span.type", "type-override"),
         ("analytics.event", 0.5),
+        ("http.response.status_code", 200),
     ],
 )
 def test_otel_span_attributes_overrides(oteltracer, override):
@@ -235,3 +256,22 @@ def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):
         assert child_context.is_remote is False  # parent_context.is_remote is True
         assert child_context.trace_flags == remote_context.trace_flags
         assert remote_context.trace_state.to_header() in child_context.trace_state.to_header()
+
+
+def test_otel_span_interoperability(oteltracer):
+    """Ensures that opentelemetry spans can be converted to ddtrace spans"""
+    # Start an otel span
+    otel_span_og = oteltracer.start_span(
+        "test-span-interop",
+        links=[Link(SpanContext(1, 2, False, None, None))],
+        kind=OtelSpanKind.CLIENT,
+        attributes={"start_span_tag": "start_span_val"},
+        start_time=1713118129,
+        record_exception=False,
+        set_status_on_exception=False,
+    )
+    # Creates a new otel span from the underlying datadog span
+    otel_span_clone = Span(otel_span_og._ddspan)
+    # Ensure all properties are consistent
+    assert otel_span_clone.__dict__ == otel_span_og.__dict__
+    assert otel_span_clone._ddspan._pprint() == otel_span_og._ddspan._pprint()

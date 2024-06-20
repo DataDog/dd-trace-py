@@ -22,7 +22,6 @@ to reduce the overhead.
 
 @WeakHash.wrap
 def wrapped_function(wrapped, instance, args, kwargs):
-    # type: (Callable, str, Any, Any, Any) -> Any
     WeakHash.report(
         evidence_value=evidence,
     )

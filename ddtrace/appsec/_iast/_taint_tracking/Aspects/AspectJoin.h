@@ -1,7 +1,5 @@
 #pragma once
 #include "Initializer/Initializer.h"
-#include "TaintTracking/TaintRange.h"
-#include "TaintTracking/TaintedObject.h"
 
 namespace py = pybind11;
 

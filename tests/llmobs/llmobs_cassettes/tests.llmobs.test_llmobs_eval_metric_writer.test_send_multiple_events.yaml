@@ -1,0 +1,39 @@
+interactions:
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
+      "12345678902", "trace_id": "98765432102", "metric_type": "score", "label": "sentiment",
+      "score_value": 0.9}, {"span_id": "12345678903", "trace_id": "98765432103", "metric_type":
+      "numerical", "label": "token_count", "numerical_value": 35}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/unstable/llm-obs/v1/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"ffe1e6ef-bfa4-4a7f-ae8e-2d184fc43fa5","type":"evaluation_metric","attributes":{"metrics":[{"id":"934b9d78-5734-4c8d-b7e2-9753a4b72fbc","trace_id":"98765432102","span_id":"12345678902","timestamp":1714076444671,"metric_type":"score","label":"sentiment","score_value":0.9},{"id":"44d9e3f1-4107-4fb9-a4e4-caaedca998c6","trace_id":"98765432103","span_id":"12345678903","timestamp":1714076444671,"metric_type":"numerical","label":"token_count","numerical_value":35}]}}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '479'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Thu, 25 Apr 2024 20:20:44 GMT
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

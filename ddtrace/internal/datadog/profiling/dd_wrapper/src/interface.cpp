@@ -112,10 +112,17 @@ ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::add_type(_type);
 }
+
 void
 ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
+}
+
+void
+ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
+{
+    Datadog::SampleManager::set_timeline(enabled);
 }
 
 bool
@@ -258,6 +265,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns)
+{
+    sample->push_monotonic_ns(monotonic_ns);
 }
 
 void

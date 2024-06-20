@@ -8,14 +8,21 @@ import typing
 
 import attr
 
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import compat
+from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
+from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.vendor import wrapt
+
+
+LOG = get_logger(__name__)
 
 
 @event.event_class
@@ -64,13 +71,23 @@ class _ProfiledLock(wrapt.ObjectProxy):
     ACQUIRE_EVENT_CLASS = LockAcquireEvent
     RELEASE_EVENT_CLASS = LockReleaseEvent
 
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
+    def __init__(
+        self,
+        wrapped: typing.Any,
+        recorder: Recorder,
+        tracer: typing.Optional[Tracer],
+        max_nframes: int,
+        capture_sampler: collector.CaptureSampler,
+        endpoint_collection_enabled: bool,
+        export_libdd_enabled: bool,
+    ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
         self._self_max_nframes = max_nframes
         self._self_capture_sampler = capture_sampler
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
+        self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
@@ -101,23 +118,41 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                 frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                event = self.ACQUIRE_EVENT_CLASS(
-                    lock_name=self._self_name,
-                    frames=frames,
-                    nframes=nframes,
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    task_id=task_id,
-                    task_name=task_name,
-                    wait_time_ns=end - start,
-                    sampling_pct=self._self_capture_sampler.capture_pct,
-                )
+                if self._self_export_libdd_enabled:
+                    thread_native_id = _threading.get_thread_native_id(thread_id)
 
-                if self._self_tracer is not None:
-                    event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                    handle = ddup.SampleHandle()
+                    handle.push_monotonic_ns(end)
+                    handle.push_lock_name(self._self_name)
+                    handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
+                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                    handle.push_task_id(task_id)
+                    handle.push_task_name(task_name)
 
-                self._self_recorder.push_event(event)
-            except Exception:
+                    if self._self_tracer is not None:
+                        handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                    for frame in frames:
+                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                    handle.flush_sample()
+                else:
+                    event = self.ACQUIRE_EVENT_CLASS(
+                        lock_name=self._self_name,
+                        frames=frames,
+                        nframes=nframes,
+                        thread_id=thread_id,
+                        thread_name=thread_name,
+                        task_id=task_id,
+                        task_name=task_name,
+                        wait_time_ns=end - start,
+                        sampling_pct=self._self_capture_sampler.capture_pct,
+                    )
+
+                    if self._self_tracer is not None:
+                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+
+                    self._self_recorder.push_event(event)
+            except Exception as e:
+                LOG.warning("Error recording lock acquire event: %s", e)
                 pass  # nosec
 
     def release(self, *args, **kwargs):
@@ -139,27 +174,49 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                         frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                        event = self.RELEASE_EVENT_CLASS(
-                            lock_name=self._self_name,
-                            frames=frames,
-                            nframes=nframes,
-                            thread_id=thread_id,
-                            thread_name=thread_name,
-                            task_id=task_id,
-                            task_name=task_name,
-                            locked_for_ns=end - self._self_acquired_at,
-                            sampling_pct=self._self_capture_sampler.capture_pct,
-                        )
+                        if self._self_export_libdd_enabled:
+                            thread_native_id = _threading.get_thread_native_id(thread_id)
 
-                        if self._self_tracer is not None:
-                            event.set_trace_info(
-                                self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                            handle = ddup.SampleHandle()
+                            handle.push_monotonic_ns(end)
+                            handle.push_lock_name(self._self_name)
+                            handle.push_release(
+                                end - self._self_acquired_at, 1
+                            )  # AFAICT, capture_pct does not adjust anything here
+                            handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                            handle.push_task_id(task_id)
+                            handle.push_task_name(task_name)
+
+                            if self._self_tracer is not None:
+                                handle.push_span(
+                                    self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                                )
+                            for frame in frames:
+                                handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                            handle.flush_sample()
+                        else:
+                            event = self.RELEASE_EVENT_CLASS(
+                                lock_name=self._self_name,
+                                frames=frames,
+                                nframes=nframes,
+                                thread_id=thread_id,
+                                thread_name=thread_name,
+                                task_id=task_id,
+                                task_name=task_name,
+                                locked_for_ns=end - self._self_acquired_at,
+                                sampling_pct=self._self_capture_sampler.capture_pct,
                             )
 
-                        self._self_recorder.push_event(event)
+                            if self._self_tracer is not None:
+                                event.set_trace_info(
+                                    self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                                )
+
+                            self._self_recorder.push_event(event)
                     finally:
                         del self._self_acquired_at
-            except Exception:
+            except Exception as e:
+                LOG.warning("Error recording lock release event: %s", e)
                 pass  # nosec
 
     acquire_lock = acquire
@@ -179,10 +236,15 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     nframes = attr.ib(type=int, default=config.max_frames)
     endpoint_collection_enabled = attr.ib(type=bool, default=config.endpoint_collection)
+    export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
 
     tracer = attr.ib(default=None)
 
     _original = attr.ib(init=False, repr=False, type=typing.Any, cmp=False)
+
+    # Check if libdd is available, if not, disable the feature
+    if export_libdd_enabled and not ddup.is_available:
+        export_libdd_enabled = False
 
     @abc.abstractmethod
     def _get_original(self):
@@ -219,7 +281,13 @@ class LockCollector(collector.CaptureSamplerCollector):
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
             return self.PROFILED_LOCK_CLASS(
-                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled
+                lock,
+                self.recorder,
+                self.tracer,
+                self.nframes,
+                self._capture_sampler,
+                self.endpoint_collection_enabled,
+                self.export_libdd_enabled,
             )
 
         self._set_original(FunctionWrapper(self.original, _allocate_lock))

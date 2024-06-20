@@ -25,12 +25,14 @@ W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
+DEFAULT_LAST_PARENT_ID = "0000000000000000"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
 SPAN_LINKS_KEY = "_dd.span_links"
+SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
 SPAN_API_OPENTRACING = "opentracing"
@@ -90,7 +92,9 @@ DEFAULT_TIMEOUT = 2.0
 
 class _PRIORITY_CATEGORY:
     USER = "user"
-    RULE = "rule"
+    RULE_DEF = "rule_default"
+    RULE_CUSTOMER = "rule_customer"
+    RULE_DYNAMIC = "rule_dynamic"
     AUTO = "auto"
     DEFAULT = "default"
 
@@ -99,7 +103,9 @@ class _PRIORITY_CATEGORY:
 # used to simplify code that selects sampling priority based on many factors
 _CATEGORY_TO_PRIORITIES = {
     _PRIORITY_CATEGORY.USER: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.RULE_DEF: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.RULE_CUSTOMER: (USER_KEEP, USER_REJECT),
+    _PRIORITY_CATEGORY.RULE_DYNAMIC: (USER_KEEP, USER_REJECT),
     _PRIORITY_CATEGORY.AUTO: (AUTO_KEEP, AUTO_REJECT),
     _PRIORITY_CATEGORY.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
 }
