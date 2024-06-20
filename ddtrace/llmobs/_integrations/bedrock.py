@@ -6,13 +6,16 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 
 
 log = get_logger(__name__)
@@ -31,6 +34,9 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if not self.llmobs_enabled:
             return
+        if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
+            parent_id = _get_llmobs_parent_id(span) or "undefined"
+            span.set_tag(PARENT_ID_KEY, parent_id)
         parameters = {"temperature": float(span.get_tag("bedrock.request.temperature") or 0.0)}
         max_tokens = int(span.get_tag("bedrock.request.max_tokens") or 0)
         if max_tokens:
@@ -41,7 +47,7 @@ class BedrockIntegration(BaseLLMIntegration):
         span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
         span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
         span.set_tag_str(INPUT_MESSAGES, json.dumps(input_messages))
-        span.set_tag_str(INPUT_PARAMETERS, json.dumps(parameters))
+        span.set_tag_str(METADATA, json.dumps(parameters))
         if err or formatted_response is None:
             span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
         else:

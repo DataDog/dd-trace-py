@@ -157,6 +157,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sync_mode=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        report_metrics=True,  # type: bool
     ):
         # type: (...) -> None
 
@@ -174,6 +175,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._clients = clients
         self.dogstatsd = dogstatsd
         self._metrics = defaultdict(int)  # type: Dict[str, int]
+        self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
@@ -210,6 +212,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _metrics_dist(self, name, count=1, tags=None):
         # type: (str, int, Optional[List]) -> None
+        if not self._report_metrics:
+            return
         if config.health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
@@ -454,7 +458,7 @@ class AgentWriter(HTTPWriter):
         max_payload_size=None,  # type: Optional[int]
         timeout=None,  # type: Optional[float]
         dogstatsd: Optional[DogStatsd] = None,
-        report_metrics=False,  # type: bool
+        report_metrics=True,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
@@ -515,6 +519,7 @@ class AgentWriter(HTTPWriter):
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
+        self._report_metrics = report_metrics
         super(AgentWriter, self).__init__(
             intake_url=agent_url,
             clients=[client],
@@ -526,6 +531,7 @@ class AgentWriter(HTTPWriter):
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
             headers=_headers,
+            report_metrics=report_metrics,
         )
 
     def recreate(self):
@@ -539,6 +545,8 @@ class AgentWriter(HTTPWriter):
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
             api_version=self._api_version,
+            headers=self._headers,
+            report_metrics=self._report_metrics,
         )
 
     @property

@@ -4,12 +4,15 @@ import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import SpanKind
@@ -62,6 +65,9 @@ def patch():
         _w("MySQLdb", "Connection", _connect)
     if hasattr(MySQLdb, "connect"):
         _w("MySQLdb", "connect", _connect)
+
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
 def unpatch():

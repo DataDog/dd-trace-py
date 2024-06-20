@@ -7,7 +7,8 @@ import weakref
 import attr
 from six.moves import _thread
 
-from ddtrace import _threading as ddtrace_threading
+from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
 
 from cpython cimport PyLong_FromLong
@@ -25,7 +26,6 @@ cdef extern from "<Python.h>":
 
 IF UNAME_SYSNAME == "Linux":
     from ddtrace.internal.module import ModuleWatchdog
-    from ddtrace.internal.wrapping import wrap
 
     cdef extern from "<sys/syscall.h>" nogil:
         int __NR_gettid
@@ -42,6 +42,7 @@ IF UNAME_SYSNAME == "Linux":
                     # DEV: args[0] == self
                     args[0].native_id = PyLong_FromLong(syscall(__NR_gettid))
 
+            from ddtrace.internal.wrapping import wrap
             wrap(threading.Thread._bootstrap, bootstrap_wrapper)
 
             # Assign the native thread ID to the main thread as well
@@ -70,8 +71,11 @@ cpdef get_thread_by_id(thread_id):
 
 
 cpdef get_thread_name(thread_id):
-    thread = get_thread_by_id(thread_id)
-    return thread.name if thread is not None else None
+    try:
+        return periodic_threads[thread_id].name
+    except KeyError:
+        thread = get_thread_by_id(thread_id)
+        return thread.name if thread is not None else None
 
 
 cpdef get_thread_native_id(thread_id):

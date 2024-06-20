@@ -4,6 +4,114 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.8.5
+
+
+### Known Issues
+
+- Code Security: Security tracing for the `builtins.open` function is experimental and may not be stable. This aspect is not replaced by default.
+- grpc: Tracing for the `grpc.aio` clients and servers is experimental and may not be stable. This integration is now disabled by default.
+
+### Bug Fixes
+
+- fix(grpc): This fix a bug in the grpc.aio support specific to streaming responses.
+- RemoteConfig: This fix resolves an issue where remote config did not work for the tracer when using an agent that would add a flare item to the remote config payload. With this fix, the tracer will now correctly pull out the lib_config we need from the payload in order to implement remote config changes properly.
+
+
+---
+
+## 2.8.4
+
+
+### Bug Fixes
+
+- telemetry: This fix resolves an issue when using `pytest` + `gevent` where the telemetry writer was eager initialized by `pytest` entrypoints loading of our plugin causing a potential dead lock.
+
+
+---
+
+## 2.7.10
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+---
+
+## 2.8.3
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+- logging: This fix resolves an issue where `tracer.get_log_correlation_context()` incorrectly returned a 128-bit trace_id even with `DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED` set to `False` (the default), breaking log correlation. It now returns a 64-bit trace_id.
+- profiling: Fixes a defect where the deprecated path to the Datadog span type was used by the profiler.
+
+
+---
+
+## 2.6.12
+
+
+### Bug Fixes
+
+- Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters
+
+
+---
+
+## 2.8.2
+
+
+### Bug Fixes
+
+- tracing: This fix resolves an issue where sampling rules were not matching correctly on float values that had a 0 decimal value. Sampling rules now evaluate such values as integers.
+
+- langchain: This fix resolves an issue where the LangChain integration always attempted to patch LangChain partner  
+  libraries, even if they were not available.
+
+- langchain: This fix resolves an issue where tracing `Chain.invoke()` instead of `Chain.__call__()` resulted in the an `ArgumentError` due to an argument name change for inputs between the two methods.
+
+- langchain: This fix adds error handling for checking if a traced LLM or chat model is an OpenAI instance, as the langchain_community package does not allow automatic submodule importing.
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+
+- profiling: fix a bug that caused the HTTP exporter to crash when attempting to serialize tags.
+
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+
+
+---
+
+## 2.7.9
+
+
+### Bug Fixes
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+- grpc: Resolves segfaults raised when grpc.aio interceptors are registered
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
+
+---
+
+## 2.6.11
+
+
+### Bug Fixes
+
+- internal: This fix resolves an error regarding the remote config module with payloads missing a `lib_config` entry
+- Code Security: Ensure that when tainting the headers of a Flask application, iterating over the headers (i.e., with <span class="title-ref">headers.items()</span>) does not duplicate them.
+- pymongo: this resolves an issue where the library raised an error in `pymongo.pool.validate_session`
+
+
+---
+
 ## 2.8.1
 
 

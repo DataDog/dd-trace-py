@@ -1,0 +1,44 @@
+FROM python:3.11.0b1-buster
+
+# set work directory
+WORKDIR /app
+
+
+# dependencies for psycopg2
+RUN apt-get update && apt-get install --no-install-recommends -y dnsutils git libpq-dev=11.16-0+deb10u1 python3-dev=3.7.3-1 \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Download pygoat
+RUN git clone https://github.com/adeyosemanputra/pygoat.git
+
+
+# copy project
+COPY . /app/
+
+# copy and install ddtrace
+WORKDIR /
+COPY ../../../../ ddtrace
+RUN pip install --no-cache-dir ddtrace
+
+WORKDIR /app/pygoat
+# Install dependencies
+RUN git checkout v2.0.1
+RUN python3 -m pip install --no-cache-dir pip==22.0.4
+RUN pip install --no-cache-dir -r requirements.txt
+# At some point, pyyaml started failing on CI with CBaseLoader import error, this
+# fixed the problem
+RUN pip --no-cache-dir install --force-reinstall -I pyyaml==6.0.1
+
+# install pygoat
+EXPOSE 8321
+
+# Note: admin login from the fixtures is "admin/adminpassword"
+RUN python3 manage.py migrate
+RUN python3 manage.py loaddata ../fixtures/*
+CMD ["ddtrace-run", "python", "manage.py", "runserver", "0.0.0.0:8321"]

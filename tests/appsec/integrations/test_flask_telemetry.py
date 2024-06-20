@@ -1,19 +1,17 @@
 from ddtrace.appsec._handlers import _on_flask_patch
 from tests.appsec.appsec_utils import flask_server
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
-@flaky(until=1706677200)
 def test_iast_span_metrics():
-    with flask_server(iast_enabled="true", token=None) as context:
+    # TODO: move tests/telemetry/conftest.py::test_agent_session into a common conftest
+    with flask_server(iast_enabled="true", token=None, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
 
         assert response.status_code == 200
         assert response.content == b"OK"
-    # TODO: move tests/telemetry/conftest.py::test_agent_session into a common conftest
 
 
 def test_flask_instrumented_metrics(telemetry_writer):

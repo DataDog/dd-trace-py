@@ -10,18 +10,21 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.constants import SAMPLING_LIMIT_DECISION
+
 from .constants import ENV_KEY
 from .internal.constants import _PRIORITY_CATEGORY
 from .internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from .internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
-from .internal.sampling import _apply_rate_limit
 from .internal.sampling import _get_highest_precedence_rule_matching
 from .internal.sampling import _set_sampling_tags
 from .sampling_rule import SamplingRule
 from .settings import _config as ddconfig
 
+
+PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
 try:
     from json.decoder import JSONDecodeError
@@ -158,7 +161,7 @@ class RateByServiceSampler(BasePrioritySampler):
         elif isinstance(sampler, _AgentRateSampler):
             return _PRIORITY_CATEGORY.AUTO
         else:
-            return _PRIORITY_CATEGORY.RULE
+            return _PRIORITY_CATEGORY.RULE_DEF
 
     def _make_sampling_decision(self, span):
         # type: (Span) -> Tuple[bool, BaseSampler]
@@ -204,7 +207,7 @@ class DatadogSampler(RateByServiceSampler):
     per second.
     """
 
-    __slots__ = ("limiter", "rules")
+    __slots__ = ("limiter", "rules", "default_sample_rate")
 
     NO_RATE_LIMIT = -1
     # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
@@ -228,7 +231,7 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
-
+        self.default_sample_rate = default_sample_rate
         if default_sample_rate is None:
             if ddconfig._get_source("_trace_sample_rate") != "default":
                 default_sample_rate = float(ddconfig._trace_sample_rate)
@@ -239,7 +242,7 @@ class DatadogSampler(RateByServiceSampler):
         if rules is None:
             env_sampling_rules = ddconfig._trace_sampling_rules
             if env_sampling_rules:
-                rules = self._parse_rules_from_env_variable(env_sampling_rules)
+                rules = self._parse_rules_from_str(env_sampling_rules)
             else:
                 rules = []
             self.rules = rules
@@ -268,7 +271,8 @@ class DatadogSampler(RateByServiceSampler):
 
     __repr__ = __str__
 
-    def _parse_rules_from_env_variable(self, rules):
+    @staticmethod
+    def _parse_rules_from_str(rules):
         # type: (str) -> List[SamplingRule]
         sampling_rules = []
         try:
@@ -283,13 +287,22 @@ class DatadogSampler(RateByServiceSampler):
             name = rule.get("name", SamplingRule.NO_RULE)
             resource = rule.get("resource", SamplingRule.NO_RULE)
             tags = rule.get("tags", SamplingRule.NO_RULE)
+            provenance = rule.get("provenance", "default")
             try:
                 sampling_rule = SamplingRule(
-                    sample_rate=sample_rate, service=service, name=name, resource=resource, tags=tags
+                    sample_rate=sample_rate,
+                    service=service,
+                    name=name,
+                    resource=resource,
+                    tags=tags,
+                    provenance=provenance,
                 )
             except ValueError as e:
                 raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
             sampling_rules.append(sampling_rule)
+
+        # Sort the sampling_rules list using a lambda function as the key
+        sampling_rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
         return sampling_rules
 
     def sample(self, span):
@@ -306,6 +319,11 @@ class DatadogSampler(RateByServiceSampler):
             sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
             if isinstance(sampler, RateSampler):
                 sample_rate = sampler.sample_rate
+        # Apply rate limit
+        if sampled:
+            sampled = self.limiter.is_allowed()
+        if self.limiter._has_been_configured:
+            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         _set_sampling_tags(
             span,
@@ -313,14 +331,22 @@ class DatadogSampler(RateByServiceSampler):
             sample_rate,
             self._choose_priority_category_with_rule(matched_rule, sampler),
         )
-        cleared_rate_limit = _apply_rate_limit(span, sampled, self.limiter)
 
-        return cleared_rate_limit and sampled
+        return sampled
 
     def _choose_priority_category_with_rule(self, rule, sampler):
         # type: (Optional[SamplingRule], BaseSampler) -> str
         if rule:
-            return _PRIORITY_CATEGORY.RULE
+            provenance = rule.provenance
+            if provenance == "customer":
+                return _PRIORITY_CATEGORY.RULE_CUSTOMER
+            if provenance == "dynamic":
+                return _PRIORITY_CATEGORY.RULE_DYNAMIC
+            return _PRIORITY_CATEGORY.RULE_DEF
+
         if self.limiter._has_been_configured:
+            # If the default rate limiter is NOT used to sample traces
+            # the sampling priority must be set to manual keep/drop.
+            # This will disable agent based sample rates.
             return _PRIORITY_CATEGORY.USER
         return super(DatadogSampler, self)._choose_priority_category(sampler)

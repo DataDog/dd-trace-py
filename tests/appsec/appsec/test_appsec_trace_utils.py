@@ -18,7 +18,7 @@ from ddtrace.internal import core
 from tests.appsec.appsec.test_processor import tracer_appsec  # noqa: F401
 import tests.appsec.rules as rules
 from tests.utils import TracerTestCase
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class EventsSDKTestCase(TracerTestCase):
@@ -156,6 +156,9 @@ class EventsSDKTestCase(TracerTestCase):
                 "1234",
                 True,
                 metadata={"foo": "bar"},
+                login="johntest",
+                name="John Test",
+                email="john@test.net",
             )
             root_span = self.tracer.current_root_span()
 
@@ -171,6 +174,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
             assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
             assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "login")) == "johntest"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "username")) == "John Test"
+            assert root_span.get_tag("%s.%s" % (failure_prefix, "email")) == "john@test.net"
+
             assert root_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
@@ -210,7 +217,7 @@ class EventsSDKTestCase(TracerTestCase):
 
     def test_set_user_blocked(self):
         tracer = self._tracer_appsec
-        with override_env(dict(DD_APPSEC_RULES=rules.RULES_GOOD_PATH)):
+        with override_global_config(dict(_asm_enabled="true", _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             tracer.configure(api_version="v0.4")
             with tracer.trace("fake_span", span_type=SpanTypes.WEB) as span:
                 set_user(

@@ -18,7 +18,6 @@ from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._capabilities import _appsec_rc_file_is_not_static
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -38,6 +37,7 @@ from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
@@ -65,7 +65,7 @@ def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Di
 
 
 def get_rules() -> str:
-    return os.getenv("DD_APPSEC_RULES", default=DEFAULT.RULES)
+    return asm_config._asm_static_rule_file or DEFAULT.RULES
 
 
 def get_appsec_obfuscation_parameter_key_regexp() -> bytes:
@@ -124,9 +124,13 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             key, value = k
         else:
             key, value = k, headers[k]
+        if isinstance(key, bytes):
+            key = key.decode()
+        if isinstance(value, bytes):
+            value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name(kind, key), value)
+            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def _get_rate_limiter() -> RateLimiter:
@@ -199,7 +203,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
         result = False
-        if not _appsec_rc_file_is_not_static():
+        if asm_config._asm_static_rule_file is not None:
             return result
         try:
             result = self._ddwaf.update_rules(new_rules)
@@ -260,7 +264,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 _asm_request_context.call_waf_callback({"REQUEST_HTTP_IP": None})
 
     def _waf_action(
-        self, span: Span, ctx: ddwaf_context_capsule, custom_data: Optional[Dict[str, Any]] = None, **kwargs
+        self,
+        span: Span,
+        ctx: ddwaf_context_capsule,
+        custom_data: Optional[Dict[str, Any]] = None,
+        crop_trace: Optional[str] = None,
+        rule_type: Optional[str] = None,
     ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
@@ -327,7 +336,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 
                 stack_trace_id = parameters["stack_id"]
-                report_stack("exploit detected", span, kwargs.get("crop_trace"), stack_id=stack_trace_id)
+                report_stack("exploit detected", span, crop_trace, stack_id=stack_trace_id)
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
@@ -335,7 +344,13 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
         _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version, bool(waf_results.data), bool(blocked), waf_results.timeout
+            self._ddwaf.info.version,
+            bool(waf_results.data),
+            bool(blocked),
+            waf_results.timeout,
+            rule_type,
+            waf_results.runtime,
+            waf_results.total_runtime,
         )
         if blocked:
             core.set_item(WAF_CONTEXT_NAMES.BLOCKED, blocked, span=span)
@@ -348,21 +363,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, errors)
                 log.debug("Error in ASM In-App WAF: %s", errors)
             span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            from ddtrace.appsec._ddwaf import version
-
-            span.set_tag_str(APPSEC.WAF_VERSION, version())
-
-            def update_metric(name, value):
-                old_value = span.get_metric(name)
-                if old_value is None:
-                    old_value = 0.0
-                span.set_metric(name, value + old_value)
-
             span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-            if waf_results.runtime:
-                update_metric(APPSEC.WAF_DURATION, waf_results.runtime)
-                update_metric(APPSEC.WAF_DURATION_EXT, waf_results.total_runtime)
         except (JSONDecodeError, ValueError):
             log.warning("Error parsing data ASM In-App WAF metrics report %s", info.errors)
         except Exception:
@@ -371,7 +373,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
-            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            allowed = self._rate_limiter.is_allowed()
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return waf_results
@@ -417,7 +419,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
                 if headers_req:
-                    _set_headers(span, headers_req, kind="request", only_asm_enabled=True)
+                    _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
                 # this call is only necessary for tests or frameworks that are not using blocking
                 if not has_triggers(span) and _asm_request_context.in_context():

@@ -22,6 +22,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -467,7 +468,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         def blocked_response():
             from django.http import HttpResponse
 
-            block_config = core.get_item(HTTP_REQUEST_BLOCKED)
+            block_config = core.get_item(HTTP_REQUEST_BLOCKED) or {}
             desired_type = block_config.get("type", "auto")
             status = block_config.get("status_code", 403)
             if desired_type == "none":
@@ -483,6 +484,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 content = http_utils._get_blocked_template(ctype)
                 response = HttpResponse(content, content_type=ctype, status=status)
                 response.content = content
+                response["Content-Length"] = len(content.encode())
             utils._after_request_tags(pin, ctx["call"], request, response)
             return response
 
@@ -510,7 +512,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 response = blocked_response()
                 return response
 
-            response = func(*args, **kwargs)
+            try:
+                response = func(*args, **kwargs)
+            except BlockingException as e:
+                core.set_item(HTTP_REQUEST_BLOCKED, e.args[0])
+                response = blocked_response()
+                return response
 
             if core.get_item(HTTP_REQUEST_BLOCKED):
                 response = blocked_response()
@@ -656,6 +663,53 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
+    def __init__(self, user, credentials=None):
+        super(_DjangoUserInfoRetriever, self).__init__(user)
+
+        self.credentials = credentials if credentials else {}
+        if self.credentials and not user:
+            self._try_load_user()
+
+    def _try_load_user(self):
+        self.user_model = None
+
+        try:
+            from django.contrib.auth import get_user_model
+        except ImportError:
+            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
+            return
+
+        try:
+            self.user_model = get_user_model()
+            if not self.user_model:
+                return
+        except Exception:
+            log.debug("user_exist: Could not get the user model", exc_info=True)
+            return
+
+        login_field = asm_config._user_model_login_field
+        login_field_value = self.credentials.get(login_field, None) if login_field else None
+
+        if not login_field or not login_field_value:
+            # Try to get the username from the credentials
+            for possible_login_field in self.possible_login_fields:
+                if possible_login_field in self.credentials:
+                    login_field = possible_login_field
+                    login_field_value = self.credentials[login_field]
+                    break
+            else:
+                # Could not get what the login field, so we can't check if the user exists
+                log.debug("try_load_user_model: could not get the login field from the credentials")
+                return
+
+        try:
+            self.user = self.user_model.objects.get(**{login_field: login_field_value})
+        except self.user_model.DoesNotExist:
+            log.debug("try_load_user_model: could not load user model", exc_info=True)
+
+    def user_exists(self):
+        return self.user is not None
+
     def get_username(self):
         if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
             user_type = type(self.user)
@@ -725,7 +779,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
                 mode,
                 kwargs,
                 pin,
-                _DjangoUserInfoRetriever(result_user),
+                _DjangoUserInfoRetriever(result_user, credentials=kwargs),
             ),
         ).user
         if result and result.value[0]:

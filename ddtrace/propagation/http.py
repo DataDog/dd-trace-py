@@ -25,6 +25,8 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
+from ddtrace.appsec._constants import APPSEC
+from ddtrace.settings.asm import config as asm_config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -38,6 +40,7 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import DEFAULT_LAST_PARENT_ID
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -229,6 +232,11 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
+        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+        # are propagated. If the tag is not present, we should not propagate downstream.
+        if asm_config._appsec_standalone_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+            return
+
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
             # bits should be converted to a base 10 integer.
@@ -341,6 +349,16 @@ class _DatadogMultiHeader:
 
             if meta:
                 meta = validate_sampling_decision(meta)
+
+            if asm_config._appsec_standalone_enabled:
+                # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+                # are propagated downstream, however we need 1 trace per minute sent to the backend, so
+                # we unset sampling priority so the rate limiter decides.
+                if not meta or APPSEC.PROPAGATION_HEADER not in meta:
+                    sampling_priority = None
+                # If the trace has appsec propagation tag, the default priority is user keep
+                elif meta and APPSEC.PROPAGATION_HEADER in meta:
+                    sampling_priority = 2  # type: ignore[assignment]
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
@@ -904,7 +922,7 @@ class HTTPPropagator(object):
                     SpanLink(
                         context.trace_id,
                         context.span_id,
-                        flags=1 if context.sampling_priority else 0,
+                        flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
                         tracestate=context._meta.get(W3C_TRACESTATE_KEY, "")
                         if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
                         else None,
@@ -921,6 +939,18 @@ class HTTPPropagator(object):
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
+                if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
+                    dd_context = None
+                    if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
+                        dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
+                    if context._meta.get(LAST_DD_PARENT_ID_KEY, DEFAULT_LAST_PARENT_ID) != DEFAULT_LAST_PARENT_ID:
+                        # tracecontext headers contain a p value, ensure this value is sent to backend
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
+                    elif dd_context:
+                        # if p value is not present in tracestate, use the parent id from the datadog headers
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
+                    # the span_id in tracecontext takes precedence over the first extracted propagation style
+                    primary_context.span_id = context.span_id
         primary_context._span_links = links
         return primary_context
 
@@ -975,6 +1005,11 @@ class HTTPPropagator(object):
         if config.propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
+
+        if config._llmobs_enabled:
+            from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+
+            _inject_llmobs_parent_id(span_context)
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)

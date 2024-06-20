@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+from typing import Optional
 
 from envier import Env
 
@@ -45,8 +46,12 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(Env):
     _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
-    _asm_can_be_enabled = (APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled) or _asm_enabled
+    _asm_static_rule_file = Env.var(Optional[str], APPSEC.RULE_FILE, default=None)
+    # prevent empty string
+    if _asm_static_rule_file == "":
+        _asm_static_rule_file = None
     _iast_enabled = Env.var(bool, IAST_ENV, default=False)
+    _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
     _use_metastruct_for_triggers = False
 
     _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="safe")
@@ -92,8 +97,7 @@ class ASMConfig(Env):
     _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA. For now it's always False
-    # _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=False)
-    _ep_enabled = False
+    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
     _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
     # for max_stack_traces, 0 == unlimited
     _ep_max_stack_traces = Env.var(
@@ -107,6 +111,9 @@ class ASMConfig(Env):
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
+        "_asm_can_be_enabled",
+        "_asm_static_rule_file",
+        "_appsec_standalone_enabled",
         "_iast_enabled",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
@@ -135,6 +142,19 @@ class ASMConfig(Env):
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+
+    def __init__(self):
+        super().__init__()
+        # Is one click available?
+        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+
+    def reset(self):
+        """For testing puposes, reset the configuration to its default values given current environment variables."""
+        self.__init__()
+
+    @property
+    def _api_security_feature_active(self) -> bool:
+        return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
 
 
 config = ASMConfig()

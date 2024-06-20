@@ -1,0 +1,90 @@
+interactions:
+- request:
+    body: '{"max_tokens": 200, "messages": [{"role": "user", "content": "What is the
+      weather in San Francisco, CA?"}], "model": "claude-3-opus-20240229", "tools":
+      [{"name": "get_weather", "description": "Get the weather for a specific location",
+      "input_schema": {"type": "object", "properties": {"location": {"type": "string"}}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '320'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - AsyncAnthropic/Python 0.28.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RS0Y7TMBD8ldU+p6XtUR2NTkhVDyQQQiAKJyAoMs4msZp4U3vd0qv678gpDUXA
+        k2Xv7Mx4do9oCkyx9VU+mb5f3u7uq91j+WXafpzzM7svN85ggnLoKKLIe1URJui4iQ/Ke+NFWcEE
+        Wy6owRR1o0JBo5sRd8GPZpPZ08lstsAENVshK5h+PV4IhX7E1v5I8U5qYzfGVs8zu64JKpJ8T0pq
+        ciDMDRgPhXGkpTmAo4Z2ygqU7EBZvydnbAVSGw/bQF4MW1DfOQhITXDhMRYU+I60KY2GhrWKwDFk
+        9j+ajrbBOPKgIMMLPkPolFMtCbkxxL7gyUGtPHSOd6agole94IFLyPCDsvDSKauN15zAaplh9CM1
+        GTd4TsAz7AlqtaOew5KOsbsDGFuya8+EwtCqzRmxfPcKtGqacfzEWwYe3HtQLjJQb4h/5fRnSGN4
+        INDKRueaqIC9kbrnO+f5j0x6RKwMnx2CzOzdk2GMeEp+j5q5yYOPy9NvXLyHfDK9//yab275xfqT
+        XxVv1mu9etDFFhO0qo19V+Kx1XZBMD0Ok8D071jxdPqWoBfuckfK96Ar+b7gaRvIasLUhqZJMPSL
+        nR7PCrnwhqzHdL5YJMhBrt+m89np9BMAAP//AwBjBTfEOAMAAA==
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 892a69eb7ebc0ce1-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 12 Jun 2024 14:08:42 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      anthropic-ratelimit-requests-limit:
+      - '4000'
+      anthropic-ratelimit-requests-remaining:
+      - '3999'
+      anthropic-ratelimit-requests-reset:
+      - '2024-06-12T14:09:35Z'
+      anthropic-ratelimit-tokens-limit:
+      - '400000'
+      anthropic-ratelimit-tokens-remaining:
+      - '399000'
+      anthropic-ratelimit-tokens-reset:
+      - '2024-06-12T14:09:35Z'
+      request-id:
+      - req_015akRKY3h8vWcdrDH9q9Q5B
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 20d8935e80f02155df3bb6198c9a09a4
+    status:
+      code: 200
+      message: OK
+version: 1

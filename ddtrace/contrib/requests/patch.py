@@ -4,6 +4,9 @@ import requests
 
 from ddtrace import config
 from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...internal.schema import schematize_service_name
@@ -40,6 +43,9 @@ def patch():
     # IAST needs to wrap this function because `Session.send` is too late
     _w("requests", "Session.request", _wrap_request)
     Pin(_config=config.requests).onto(requests.Session)
+
+    if asm_config._iast_enabled:
+        _set_metric_iast_instrumented_sink(VULN_SSRF)
 
 
 def unpatch():

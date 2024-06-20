@@ -21,31 +21,46 @@ jobs:
         include:
          - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-latest
+         - os: arm-4core-linux
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
          - os: macos-12
            archs: x86_64 universal2
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         # Include all history and tags
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
           python-version: '3.8'
 
+      - name: Install docker and pipx
+        if: matrix.os == 'arm-4core-linux'
+        # The ARM64 Ubuntu has less things installed by default
+        # We need docker, pip and venv for cibuildwheel
+        # acl allows us to use docker in the same session
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
+          sudo usermod -a -G docker $USER
+          sudo apt install -y acl python3.10-venv python3-pip
+          sudo setfacl --modify user:runner:rw /var/run/docker.sock
+          python3 -m pip install pipx
+
       - name: Set up QEMU
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
         uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+      - name: Build wheels arm64
+        if: matrix.os == 'arm-4core-linux'
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --platform linux
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -54,6 +69,15 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
           CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_BEFORE_ALL: >
+            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
+            then
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
+            fi
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -73,6 +97,55 @@ jobs:
             move "{wheel}" "{dest_dir}"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
-      - uses: actions/upload-artifact@v3
+
+      - name: Build wheels
+        if: matrix.os != 'arm-4core-linux'
+        uses: pypa/cibuildwheel@v2.16.5
+        env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_BUILD: ${{ inputs.cibw_build }}
+          CIBW_SKIP: ${{ inputs.cibw_skip }}
+          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_BEFORE_ALL: >
+            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
+            then
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
+            fi
+          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+          CIBW_ENVIRONMENT_LINUX: "PATH=$HOME/.cargo/bin:$PATH"
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+            mkdir ./tempwheelhouse &&
+            unzip -l {wheel} | grep '\.so' &&
+            auditwheel repair -w ./tempwheelhouse {wheel} &&
+            (yum install -y zip || apk add zip) &&
+            for w in ./tempwheelhouse/*.whl; do
+              zip -d $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              mv $w {dest_dir}
+            done &&
+            rm -rf ./tempwheelhouse
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
+            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
+            choco install -y 7zip &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            move "{wheel}" "{dest_dir}"
+          # DEV: Uncomment to debug MacOS
+          # CIBW_BUILD_VERBOSITY_MACOS: 3
+
+      - if: runner.os != 'Windows'
+        run: |
+          echo "ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-$(echo "${{ inputs.cibw_build }}" | tr -cd '[:alnum:]_-')" >> $GITHUB_ENV
+      - if: runner.os == 'Windows'
+        run: |
+          chcp 65001 #set code page to utf-8
+          echo ("ARTIFACT_NAME=${{ matrix.os }}-${{ matrix.archs }}-${{ inputs.cibw_build }}".replace('*', '').replace(' ', '_')) >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
         with:
+          name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
