@@ -7,7 +7,6 @@ import re
 from sys import builtin_module_names
 from types import ModuleType
 from typing import Optional
-from typing import Set
 from typing import Text
 from typing import Tuple
 
@@ -39,6 +38,26 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "freezegun",  # Testing utilities for time manipulation
     "sklearn",  # Machine learning library
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "Deprecated",
+    "blinker",
+    "bytecode",
+    "click",
+    "cattrs",
+    "ddsketch",
+    "exceptiongroup",
+    "importlib_metadata",
+    "iniconfig",
+    "itsdangerous",
+    "opentelemetry-api",
+    "packaging",
+    "pip",
+    "pluggy",
+    "protobuf",
+    "setuptools",
+    "tomli",
+    "typing_extensions",
+    "wrapt",
+    "zipp",
 )
 
 
@@ -66,12 +85,6 @@ def get_encoding(module_path: Text) -> Text:
         except LookupError:
             ENCODING = codecs.lookup("utf-8").name
     return ENCODING
-
-
-try:
-    import importlib.metadata as il_md
-except ImportError:
-    import importlib_metadata as il_md  # type: ignore[no-redef]
 
 
 _NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
