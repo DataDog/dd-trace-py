@@ -299,11 +299,14 @@ class _ProfilerInstance(service.Service):
                         # The profiler is already running so we need to start the collector
                         try:
                             col.start()
+                            print("Started collector %r" % col)
                             LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
+                            print("Collector %r is unavailable, disabling" % col)
                             LOG.debug("Collector %r is unavailable, disabling", col)
                             return
                         except Exception:
+                            print("Failed to start collector %r, disabling." % col)
                             LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
                             return
 
