@@ -43,6 +43,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
 from ...internal.utils import get_argument_value
+from ...propagation._database_monitoring import _DBM_Propagator
 from .. import trace_utils
 from ..trace_utils import _get_request_header_user_agent
 
@@ -146,6 +147,7 @@ def patch_conn(django, conn):
             trace_fetch_methods=config.django.trace_fetch_methods,
             analytics_enabled=config.django.analytics_enabled,
             analytics_sample_rate=config.django.analytics_sample_rate,
+            _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
 
