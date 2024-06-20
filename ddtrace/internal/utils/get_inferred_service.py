@@ -39,7 +39,7 @@ def _get_entrypoint_path_and_module():
                 module_name = potential_module_name
                 module_path = spec.origin
             else:
-                log.debug(f"'{potential_module_name}' is not a valid Python module")
+                log.debug("'%s' is not a valid Python module", potential_module_name)
     else:
         for i, arg in enumerate(cmdline):
             if "python" in arg.lower():
