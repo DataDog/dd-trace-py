@@ -65,6 +65,7 @@ class CaptureSampler(object):
 
     def capture(self):
         self._counter += self.capture_pct
+        print(self._counter, self.capture_pct)
         if self._counter >= 100:
             self._counter -= 100
             return True
