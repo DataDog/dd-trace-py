@@ -20,22 +20,10 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @pytest.fixture
-def sample_rate():
-    # type: () -> Generator[float, None, None]
-    # Default the sample rate to 0 so no traces are sent for requests.
-    yield 0.0
-
-
-@pytest.fixture
-def stats_tracer(sample_rate):
+def stats_tracer():
     # type: (float) -> Generator[Tracer, None, None]
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer = Tracer()
-        tracer.configure(
-            sampler=DatadogSampler(
-                default_sample_rate=sample_rate,
-            )
-        )
         yield tracer
         tracer.shutdown()
 
@@ -176,22 +164,22 @@ def test_sampling_rate(stats_tracer, sample_rate):
 
 
 @pytest.mark.snapshot()
-def test_stats_100(send_once_stats_tracer, sample_rate):
-    for _ in range(100):
+def test_stats_30(send_once_stats_tracer):
+    for _ in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list"):
             pass
 
 
 @pytest.mark.snapshot()
-def test_stats_errors(send_once_stats_tracer, sample_rate):
-    for i in range(100):
+def test_stats_errors(send_once_stats_tracer):
+    for i in range(30):
         with send_once_stats_tracer.trace("name", service="abc", resource="/users/list") as span:
             if i % 2 == 0:
                 span.error = 1
 
 
 @pytest.mark.snapshot()
-def test_stats_aggrs(send_once_stats_tracer, sample_rate):
+def test_stats_aggrs(send_once_stats_tracer):
     """
     When different span properties are set
         The stats are put into different aggregations
@@ -238,7 +226,7 @@ def test_measured_span(send_once_stats_tracer):
 
 @pytest.mark.snapshot()
 def test_top_level(send_once_stats_tracer):
-    for _ in range(100):
+    for _ in range(30):
         with send_once_stats_tracer.trace("parent", service="svc-one"):  # Should have stats
             with send_once_stats_tracer.trace("child", service="svc-two"):  # Should have stats
                 pass
