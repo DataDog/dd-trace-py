@@ -10,20 +10,8 @@ def _wrap_submit(func, args, kwargs):
     thread. This wrapper ensures that a new `Context` is created and
     properly propagated using an intermediate function.
     """
-    # If there isn't a currently active context, then do not create one
-    # DEV: Calling `.active()` when there isn't an active context will create a new context
-    # DEV: We need to do this in case they are either:
-    #        - Starting nested futures
-    #        - Starting futures from outside of an existing context
-    #
-    #      In either of these cases we essentially will propagate the wrong context between futures
-    #
-    #      The resolution is to not create/propagate a new context if one does not exist, but let the
-    #      future's thread create the context instead.
     # DEV: Be sure to propagate a Context and not a Span since we are crossing thread boundaries
-    current_ctx: Optional[Context] = None
-    if ddtrace.tracer.context_provider._has_active_context():
-        current_ctx = ddtrace.tracer.current_trace_context()
+    current_ctx: Optional[Context] = ddtrace.tracer.current_trace_context()
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]
