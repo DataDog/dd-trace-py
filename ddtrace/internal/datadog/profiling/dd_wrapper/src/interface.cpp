@@ -1,4 +1,5 @@
 #include "interface.hpp"
+#include "receiver_interface.h"
 #include "crash_tracker.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
@@ -329,21 +330,21 @@ ddup_config_crashtracker_alt_stack(bool alt_stack)
 }
 
 void
-ddup_config_crashtracker_resolve_frames_never()
+ddup_config_crashtracker_resolve_frames_disable()
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_NEVER);
+    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_DISABLED);
 }
 
 void
-ddup_config_crashtracker_resolve_frames_self()
+ddup_config_crashtracker_resolve_frames_fast()
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_EXPERIMENTAL_IN_PROCESS);
+    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
 }
 
 void
-ddup_config_crashtracker_resolve_frames_receiver()
+ddup_config_crashtracker_resolve_frames_full()
 {
-    crashtracker.set_resolve_frames(DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_IN_RECEIVER);
+    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED);
 }
 
 bool
@@ -361,4 +362,24 @@ ddup_crashtracker_start()
     }();
 
     (void)initialized;
+}
+
+bool
+ddup_crashtracker_receiver_entry()
+{
+  // Assumes that this will be called only in the receiver binary, which is a
+  // fresh process
+  ddog_prof_CrashtrackerResult new_result = ddog_prof_Crashtracker_receiver_entry_point();
+  if (new_result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) {
+      ddog_CharSlice message = ddog_Error_message(&new_result.err);
+
+      //`write` may not write what we want it to write, but there's nothing we can do about it,
+      // so ignore the return
+      int n = write(STDERR_FILENO, message.ptr, message.len);
+      (void)n;
+
+      ddog_Error_drop(&new_result.err);
+      return false;
+  }
+  return true;
 }

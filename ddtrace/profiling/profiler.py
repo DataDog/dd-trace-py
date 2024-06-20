@@ -226,10 +226,10 @@ class _ProfilerInstance(service.Service):
 
                     # Set the resolver if a valid configuration is sent
                     ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
-                    if self._crashtracker_stacktrace_resolver == "safe":
-                        ddup.set_crashtracker_resolve_frames_receiver()
+                    if self._crashtracker_stacktrace_resolver == "fast":
+                        ddup.set_crashtracker_resolve_frames_fast()
                     elif self._crashtracker_stacktrace_resolver == "full":
-                        ddup.set_crashtracker_resolve_frames_self()
+                        ddup.set_crashtracker_resolve_frames_full()
 
                 # Canonize the configuration.  This sets both the crashtracker and ddup configs.
                 ddup.config(

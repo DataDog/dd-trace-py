@@ -14,6 +14,7 @@ root_dir = "files"
 shutil.rmtree(root_dir, ignore_errors=True)
 os.makedirs(root_dir, exist_ok=True)
 
+
 @app.route("/telemetry/proxy/api/v2/apmtelemetry", methods=["POST"])
 def telemetry():
     if not hasattr(telemetry, "seq"):
@@ -42,6 +43,12 @@ def profiling_input():
         filename = secure_filename(file.filename)
         file.save(dir_name + "/" + filename)
     return jsonify({"message": "Files received"}), 200
+
+# Catch-all route, prints the route
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def catch_all(path):
+    return jsonify({"path": path}), 200
 
 
 if __name__ == "__main__":

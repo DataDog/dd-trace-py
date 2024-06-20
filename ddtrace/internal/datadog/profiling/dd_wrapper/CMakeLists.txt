@@ -62,6 +62,7 @@ add_cppcheck_target(dd_wrapper
     SRC ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Static analysis
 add_infer_target(dd_wrapper)
 add_clangtidy_target(dd_wrapper)
 

@@ -73,7 +73,7 @@ Datadog::Crashtracker::set_stdout_filename(std::string_view _stdout_filename)
 }
 
 void
-Datadog::Crashtracker::set_resolve_frames(ddog_prof_CrashtrackerResolveFrames _resolve_frames)
+Datadog::Crashtracker::set_resolve_frames(ddog_prof_StacktraceCollection _resolve_frames)
 {
     resolve_frames = _resolve_frames;
 }
@@ -105,20 +105,17 @@ Datadog::Crashtracker::get_config()
     ddog_prof_CrashtrackerConfiguration config{};
     config.create_alt_stack = create_alt_stack;
     config.endpoint = ddog_prof_Endpoint_agent(to_slice(url)),
-    config.path_to_receiver_binary = to_slice(path_to_receiver_binary);
     config.resolve_frames = resolve_frames;
+    config.timeout_secs = timeout_secs;
 
-    // collect_stacktrace depends on the value of resolve_frames
-    switch (resolve_frames) {
-        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_EXPERIMENTAL_IN_PROCESS:
-        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_IN_RECEIVER:
-            config.collect_stacktrace = true;
-            break;
-        case DDOG_PROF_CRASHTRACKER_RESOLVE_FRAMES_NEVER:
-        default:
-            config.collect_stacktrace = false;
-            break;
-    }
+    return config;
+}
+
+ddog_prof_CrashtrackerReceiverConfig
+Datadog::Crashtracker::get_receiver_config()
+{
+    ddog_prof_CrashtrackerReceiverConfig config{};
+    config.path_to_receiver_binary = to_slice(path_to_receiver_binary);
 
     if (stderr_filename.has_value()) {
         config.optional_stderr_filename = to_slice(stderr_filename.value());
@@ -171,12 +168,13 @@ bool
 Datadog::Crashtracker::start()
 {
     auto config = get_config();
+    auto receiver_config = get_receiver_config();
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
     std::cerr << "Starting crash tracker" << std::endl;
 
-    auto result = ddog_prof_Crashtracker_init(config, metadata);
+    auto result = ddog_prof_Crashtracker_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                            // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -196,10 +194,11 @@ bool
 Datadog::Crashtracker::atfork_child()
 {
     auto config = get_config();
+    auto receiver_config = get_receiver_config();
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
-    auto result = ddog_prof_Crashtracker_update_on_fork(config, metadata);
+    auto result = ddog_prof_Crashtracker_update_on_fork(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                            // NOLINT (cppcoreguidelines-pro-type-union-access)

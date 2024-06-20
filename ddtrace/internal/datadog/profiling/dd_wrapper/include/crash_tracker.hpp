@@ -1,5 +1,6 @@
 #pragma once
 
+#include "constants.hpp"
 #include "libdatadog_helpers.hpp"
 
 #include <optional>
@@ -14,7 +15,8 @@ class Crashtracker
     std::optional<std::string> stderr_filename{ std::nullopt };
     std::optional<std::string> stdout_filename{ std::nullopt };
     std::string path_to_receiver_binary;
-    ddog_prof_CrashtrackerResolveFrames resolve_frames;
+    ddog_prof_StacktraceCollection resolve_frames;
+    uint64_t timeout_secs = g_crashtracker_timeout_secs;
 
     std::string env;
     std::string service;
@@ -31,6 +33,7 @@ class Crashtracker
     ddog_Vec_Tag get_tags();
     ddog_prof_CrashtrackerConfiguration get_config();
     ddog_prof_CrashtrackerMetadata get_metadata(ddog_Vec_Tag& tags);
+    ddog_prof_CrashtrackerReceiverConfig get_receiver_config();
 
   public:
     // Setters
@@ -48,7 +51,7 @@ class Crashtracker
     void set_stdout_filename(std::string_view _stdout_filename);
     bool set_receiver_binary_path(std::string_view _path_to_receiver_binary);
 
-    void set_resolve_frames(ddog_prof_CrashtrackerResolveFrames _resolve_frames);
+    void set_resolve_frames(ddog_prof_StacktraceCollection _resolve_frames);
 
     // Helpers
     bool start();

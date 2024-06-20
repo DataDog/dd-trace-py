@@ -66,7 +66,7 @@ def _derive_stacktrace_resolver(config):
     # type: ProfilingConfig.Crashtracker -> t.Optional[str]
     resolver = config._stacktrace_resolver or ""
     resolver = resolver.lower()
-    if resolver in ("safe", "full"):
+    if resolver in ("fast", "full"):
         return resolver
     return None
 
@@ -156,7 +156,7 @@ class CrashtrackerConfig(En):
         "stacktrace_resolver",
         default=None,
         help_type="String",
-        help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'safe',"
+        help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'fast',"
         " and 'full'.  The default value is 'none' (no stack traces).",
     )
     stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)

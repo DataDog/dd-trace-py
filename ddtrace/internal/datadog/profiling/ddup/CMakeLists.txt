@@ -105,7 +105,7 @@ add_executable(crashtracker_exe
     src/crashtracker.c
 )
 target_include_directories(crashtracker_exe PRIVATE
-    ${Datadog_INCLUDE_DIRS}
+    ..
 )
 set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_link_libraries(crashtracker_exe PRIVATE

@@ -73,9 +73,9 @@ cdef extern from "interface.hpp":
     void ddup_config_crashtracker_stdout_filename(string_view filename)
     void ddup_config_crashtracker_stderr_filename(string_view filename)
     void ddup_config_crashtracker_alt_stack(bint alt_stack)
-    void ddup_config_crashtracker_resolve_frames_never()
-    void ddup_config_crashtracker_resolve_frames_self()
-    void ddup_config_crashtracker_resolve_frames_receiver()
+    void ddup_config_crashtracker_resolve_frames_disable()
+    void ddup_config_crashtracker_resolve_frames_fast()
+    void ddup_config_crashtracker_resolve_frames_full()
     bint ddup_config_crashtracker_receiver_binary_path(string_view path)
     void ddup_crashtracker_start()
 
@@ -146,8 +146,7 @@ def config(
     service = service or DEFAULT_SERVICE_NAME
     call_ddup_config_service(ensure_binary_or_empty(service))
 
-    # If otherwise no values are provided, the uploader will omit the fields
-    # and they will be auto-populated in the backend
+    # Empty values are auto-populated in the backend (omitted in client)
     if env:
         call_ddup_config_env(ensure_binary_or_empty(env))
     if version:
@@ -191,16 +190,16 @@ def set_crashtracker_alt_stack(alt_stack: bool) -> None:
     ddup_config_crashtracker_alt_stack(alt_stack)
 
 
-def set_crashtracker_resolve_frames_never() -> None:
-    ddup_config_crashtracker_resolve_frames_never()
+def set_crashtracker_resolve_frames_disable() -> None:
+    ddup_config_crashtracker_resolve_frames_disable()
 
 
-def set_crashtracker_resolve_frames_self() -> None:
-    ddup_config_crashtracker_resolve_frames_self()
+def set_crashtracker_resolve_frames_fast() -> None:
+    ddup_config_crashtracker_resolve_frames_fast()
 
 
-def set_crashtracker_resolve_frames_receiver() -> None:
-    ddup_config_crashtracker_resolve_frames_receiver()
+def set_crashtracker_resolve_frames_full() -> None:
+    ddup_config_crashtracker_resolve_frames_full()
 
 
 def start_crashtracker() -> None:
