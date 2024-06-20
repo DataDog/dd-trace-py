@@ -19,6 +19,17 @@ def mock_psutil_process(mocker):
     return _mock_psutil_process
 
 
+@pytest.fixture
+def mock_search_files(mocker):
+    def _mock_search_files(file_names, start_path):
+        files = []
+        for file_name in file_names:
+            files.append(Path(f"/fake/path/{file_name}"))
+        return files
+
+    mocker.patch("ddtrace.internal.utils.get_inferred_service._search_files", side_effect=_mock_search_files)
+
+
 @pytest.mark.parametrize(
     "cmdline, expected_entrypoint",
     [
@@ -49,25 +60,13 @@ def test_get_entrypoint_path(mock_psutil_process, cmdline, expected_entrypoint):
         assert entrypoint_module == expected_entrypoint
 
 
-@pytest.fixture
-def mock_search_files(mocker):
-    def _mock_search_files(file_names, start_path):
-        if "setup.py" in file_names:
-            return Path("/fake/path/setup.py")
-        elif "pyproject.toml" in file_names:
-            return Path("/fake/path/pyproject.toml")
-        return None
-
-    mocker.patch("ddtrace.internal.utils.get_inferred_service._search_files", side_effect=_mock_search_files)
-
-
 def test_find_package_name_setup_py(mock_search_files, mocker):
     setup_py_content = """
 import hashlib
 import os
 import platform
 
-if:
+if True:
     something()
 else:
     something_else()
@@ -118,11 +117,11 @@ description = "A sample Python project"
 authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python == "^3.7"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
-pytest-mock = "^3.6"
+pytest == "^6.2"
+pytest-mock == "^3.6"
 
 """
 
@@ -139,15 +138,15 @@ def test_search_files(mocker):
     file_names = ["setup.py"]
     start_path = "/start/path"
     found_path = _search_files(file_names, start_path)
-    assert found_path == Path("/start/path/setup.py")
+    assert found_path and found_path[0] == Path("/start/path/setup.py")
 
     file_names = ["pyproject.toml"]
     start_path = "/start/path"
     found_path = _search_files(file_names, start_path)
-    assert found_path == Path("/start/path/pyproject.toml")
+    assert found_path and found_path[0] == Path("/start/path/pyproject.toml")
 
     mocker.patch("pathlib.Path.exists", return_value=False)
     file_names = ["setup.py"]
     start_path = "/start/path"
     found_path = _search_files(file_names, start_path)
-    assert found_path is None
+    assert not found_path
