@@ -88,6 +88,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_capture_sampler = capture_sampler
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
         self._self_export_libdd_enabled = export_libdd_enabled
+
+        for i in range(7):
+            frame = sys._getframe(i)
+            if frame is not None:
+                code = frame.f_code
+                print("Frame %d: %s:%d" % (i, os.path.basename(code.co_filename), frame.f_lineno))
+
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
