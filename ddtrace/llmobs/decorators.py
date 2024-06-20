@@ -1,4 +1,5 @@
 from functools import wraps
+from inspect import signature
 from typing import Callable
 from typing import Optional
 
@@ -34,7 +35,7 @@ def _model_decorator(operation_kind):
                     span_name = func.__name__
                 traced_operation = getattr(LLMObs, operation_kind, "llm")
                 with traced_operation(
-                    model_name=model_name,
+                    model_name=traced_model_name,
                     model_provider=model_provider,
                     name=span_name,
                     session_id=session_id,
@@ -66,8 +67,15 @@ def _llmobs_decorator(operation_kind):
                 if span_name is None:
                     span_name = func.__name__
                 traced_operation = getattr(LLMObs, operation_kind, "workflow")
-                with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app):
-                    return func(*args, **kwargs)
+                with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
+                    resp = func(*args, **kwargs)
+                    func_signature = signature(func)
+                    bound_args = func_signature.bind_partial(*args, **kwargs)
+                    if bound_args.arguments:
+                        LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                    if resp:
+                        LLMObs.annotate(span=span, output_data=resp)
+                    return resp
 
             return wrapper
 
