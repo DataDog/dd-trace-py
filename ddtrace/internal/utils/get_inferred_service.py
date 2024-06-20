@@ -101,7 +101,7 @@ def _find_package_name(start_path):
             with open(pkg_metadata, "r") as f:
                 try:
                     pyproject_data = toml.load(f)
-                except toml.decoder.TomlDecodeError as e:
+                except toml.decoder.TomlDecodeError:
                     log.debug("Error while attempting to load %s as a toml file", pkg_metadata, exc_info=True)
                     return
 
@@ -120,6 +120,6 @@ def get_inferred_service(default):
             return inferred_pkg
         elif inferred_module:
             return inferred_module
-    except Exception as e:
+    except Exception:
         log.debug("Encountered an error inferring services, returning default", exc_info=True)
     return default
