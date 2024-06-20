@@ -56,7 +56,7 @@ class CaptureSampler(object):
     """Determine the events that should be captured based on a sampling percentage."""
 
     capture_pct = attr.ib(default=100)
-    _counter = attr.ib(default=0, init=False)
+    _counter = attr.ib(default=100, init=False)
 
     @capture_pct.validator
     def capture_pct_validator(self, attribute, value):
