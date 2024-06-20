@@ -78,8 +78,9 @@ def _extract_setup_py_service_name(setup_file):
             if isinstance(node.func, ast.Name) and node.func.id == "setup":
                 for keyword in node.keywords:
                     if keyword.arg == "name":
-                        if isinstance(keyword.value, ast.Constant):
-                            self.package_name = self.package_name or keyword.value.value
+                        if isinstance(keyword.value, ast.Str):
+                            self.package_name = self.package_name or keyword.value.s
+
             self.generic_visit(node)
 
     visitor = SetupVisitor()
@@ -98,7 +99,12 @@ def _find_package_name(start_path):
         elif getattr(pkg_metadata, "name", "") == files[1]:
             # Parse pyproject.toml file to get package name
             with open(pkg_metadata, "r") as f:
-                pyproject_data = toml.load(f)
+                try:
+                    pyproject_data = toml.load(f)
+                except toml.decoder.TomlDecodeError as e:
+                    log.debug("Error while attempting to load %s as a toml file", pkg_metadata, exc_info=True)
+                    return
+
                 if "project" in pyproject_data and "name" in pyproject_data["project"]:
                     return re.sub(pattern, "", pyproject_data["project"].get("name"))
 
@@ -107,10 +113,13 @@ def _find_package_name(start_path):
 
 
 def get_inferred_service(default):
-    inferred_path, inferred_module = _get_entrypoint_path_and_module()
-    inferred_pkg = _find_package_name(inferred_path if inferred_path else os.getcwd())
-    if inferred_pkg:
-        return inferred_pkg
-    elif inferred_module:
-        return inferred_module
+    try:
+        inferred_path, inferred_module = _get_entrypoint_path_and_module()
+        inferred_pkg = _find_package_name(inferred_path if inferred_path else os.getcwd())
+        if inferred_pkg:
+            return inferred_pkg
+        elif inferred_module:
+            return inferred_module
+    except Exception as e:
+        log.debug("Encountered an error inferring services, returning default", exc_info=True)
     return default
