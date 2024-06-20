@@ -93,7 +93,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
             frame = sys._getframe(i)
             if frame is not None:
                 code = frame.f_code
-                print("Frame %d: %s:%d" % (i, os.path.basename(code.co_filename), frame.f_lineno, code.co_name))
+                print("Frame %d: %s:%d:%s" % (i, os.path.basename(code.co_filename), frame.f_lineno, code.co_name))
 
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
