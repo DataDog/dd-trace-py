@@ -83,7 +83,7 @@ dependencies = [  # copied from library dependencies
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
-    "six>=1.12.0"
+    "six>=1.12.0",
 ]
 extra-dependencies = [
     "reno[sphinx]~=3.5.0",
