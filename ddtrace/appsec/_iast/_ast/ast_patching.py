@@ -24,38 +24,39 @@ _VISITOR = AstVisitor()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "ddtrace",
-    "envier",
-    "pkg_resources",
-    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
-    "inspect",  # this package is used to get the stack frames, propagation is not needed
-    "pycparser",  # this package is called when a module is imported, propagation is not needed
     "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "Deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
-    "unittest.mock",
-    "pytest",  # Testing framework
-    "freezegun",  # Testing utilities for time manipulation
-    "sklearn",  # Machine learning library
-    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
-    "Deprecated",
     "blinker",
     "bytecode",
-    "click",
     "cattrs",
+    "click",
     "ddsketch",
+    "ddtrace",
+    "encodings",  # this package is used to load encodings when a module is imported, propagation is not needed
+    "envier",
     "exceptiongroup",
+    "freezegun",  # Testing utilities for time manipulation
+    "hypothesis",
     "importlib_metadata",
     "iniconfig",
+    "inspect",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous",
     "opentelemetry-api",
     "packaging",
     "pip",
+    "pkg_resources",
     "pluggy",
     "protobuf",
+    "pycparser",  # this package is called when a module is imported, propagation is not needed
+    "pytest",  # Testing framework
     "setuptools",
+    "sklearn",  # Machine learning library
     "tomli",
     "typing_extensions",
+    "unittest.mock",
+    "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
     "wrapt",
     "zipp",
 )
