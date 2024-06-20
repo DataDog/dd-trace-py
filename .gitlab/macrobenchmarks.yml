@@ -60,6 +60,7 @@ baseline:
   variables:
     DD_BENCHMARKS_CONFIGURATION: baseline
     BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
 
