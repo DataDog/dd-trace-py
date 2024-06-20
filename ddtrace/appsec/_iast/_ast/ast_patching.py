@@ -24,8 +24,10 @@ _VISITOR = AstVisitor()
 # Prefixes for modules where IAST patching is allowed
 IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast",)
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "Crypto",  # This module is patched by the IAST patch methods, propagation is not needed
-    "Deprecated",
+    "flask",
+    "werkzeug",
+    "crypto",  # This module is patched by the IAST patch methods, propagation is not needed
+    "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
     "blinker",
@@ -105,9 +107,9 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    if module_name.startswith(IAST_ALLOWLIST):
+    if module_name.lower().startswith(IAST_ALLOWLIST):
         return True
-    if module_name.startswith(IAST_DENYLIST):
+    if module_name.lower().startswith(IAST_DENYLIST):
         return False
     return not _in_python_stdlib(module_name)
 
