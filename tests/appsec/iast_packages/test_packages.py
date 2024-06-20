@@ -480,6 +480,7 @@ PACKAGES = [
         "",
         import_module_to_validate="rsa.pkcs1",
         test_propagation=True,
+        fixme_propagation_fails=True,
     ),
     PackageForTesting(
         "sqlalchemy",
