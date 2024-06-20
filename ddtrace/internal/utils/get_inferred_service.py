@@ -7,6 +7,8 @@ import re
 import toml  # type: ignore
 
 from ddtrace.vendor import psutil
+from ddtrace.internal.logger import get_logger
+log = get_logger(__name__)
 
 
 pattern = r"[\"':;,]"
@@ -35,7 +37,7 @@ def _get_entrypoint_path_and_module():
                 module_name = potential_module_name
                 module_path = spec.origin
             else:
-                print(f"Error: '{potential_module_name}' is not a valid Python module")
+                log.debug(f"'{potential_module_name}' is not a valid Python module")
     else:
         for i, arg in enumerate(cmdline):
             if "python" in arg.lower():
@@ -54,15 +56,15 @@ def _get_entrypoint_path_and_module():
 def _search_files(file_names, start_path):
     current_path = Path(start_path).resolve()
 
+    files = []
     for parent in [current_path] + list(current_path.parents):
         for file_name in file_names:
             if (parent / file_name).exists():
-                return parent / file_name
-    return None
+                files.append(parent / file_name)
+    return files
 
 
 def _extract_setup_py_service_name(setup_file):
-    breakpoint()
     with open(setup_file, "r") as f:
         tree = ast.parse(f.read(), filename=setup_file)
 
@@ -75,7 +77,7 @@ def _extract_setup_py_service_name(setup_file):
                 for keyword in node.keywords:
                     if keyword.arg == "name":
                         if isinstance(keyword.value, ast.Constant):
-                            self.package_name = keyword.value.value
+                            self.package_name = self.package_name or keyword.value.value
             self.generic_visit(node)
 
     visitor = SetupVisitor()
@@ -85,9 +87,8 @@ def _extract_setup_py_service_name(setup_file):
 
 def _find_package_name(start_path):
     files = ["setup.py", "pyproject.toml"]
-    breakpoint()
-    pkg_metadata = _search_files(files, start_path)
-    if pkg_metadata:
+    pkg_files = _search_files(files, start_path)
+    for pkg_metadata in pkg_files:
         if getattr(pkg_metadata, "name", "") == files[0]:
             package_name = _extract_setup_py_service_name(pkg_metadata)
             if package_name:

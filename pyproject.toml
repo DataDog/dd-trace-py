@@ -40,7 +40,6 @@ dependencies = [
     "typing_extensions",
     "xmltodict>=0.12",
     "toml",
-    "psutil"
 ]
 
 [project.optional-dependencies]
