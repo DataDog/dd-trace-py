@@ -6,8 +6,10 @@ import re
 
 import toml  # type: ignore
 
-from ddtrace.vendor import psutil
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor import psutil
+
+
 log = get_logger(__name__)
 
 
