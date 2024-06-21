@@ -4,7 +4,6 @@ from ddtrace import Pin
 # DBM Shared Tests
 async def _test_execute(dbm_comment, cursor, wrapped_instance):
     # test string queries
-    breakpoint()
     await cursor.execute("select 'blah'")
     wrapped_instance.execute.assert_called_once_with(dbm_comment + "select 'blah'")
     wrapped_instance.reset_mock()

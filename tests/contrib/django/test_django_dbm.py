@@ -21,7 +21,6 @@ core.on("django-postgres.execute", handle_dbm_injection, "result")
 
 
 def get_cursor(tracer, service=None, propagation_mode="service", tags={}):
-    breakpoint()
     conn = connections["postgres"]
     cursor = conn.cursor()
 
@@ -86,7 +85,6 @@ def test_django_postgres_dbm_propagation_comment_pin_service_name_override(trace
 def test_django_postgres_dbm_propagation_comment_peer_service_enabled(tracer, transactional_db):
     """tests if dbm comment is set in postgres"""
     with override_global_config({"service": "orders-app", "env": "staging", "version": "v7343437-d7ac743"}):
-        breakpoint()
         with override_env({"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": "True"}):
             with override_config("django", {"database_service_name": "service-name-override"}):
                 with override_dbm_config({"propagation_mode": "service"}):
