@@ -448,7 +448,6 @@ class TelemetryTestSession(object):
         self.token = token
         self.telemetry_writer = telemetry_writer
         self.filter_heartbeats = filter_heartbeats
-        self.gotten_events = dict()
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
@@ -475,7 +474,6 @@ class TelemetryTestSession(object):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to clear session: %s" % self.token)
-        self.gotten_events = dict()
         return True
 
     def get_requests(self, request_type=None):
@@ -489,8 +487,10 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to fetch session requests: %s %s %s" % (self.create_connection(), status, self.token))
         requests = []
         for req in json.loads(body.decode("utf-8")):
-            body_str = base64.b64decode(req["body"]).decode("utf-8")
-            req["body"] = json.loads(body_str)
+            if "api/v2/apmtelemetry" not in req["url"]:
+                # /test/session/requests captures non telemetry payloads, ignore these requests
+                continue
+            req["body"] = json.loads(base64.b64decode(req["body"]))
             # filter heartbeat requests to reduce noise
             if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
                 continue
@@ -504,19 +504,8 @@ class TelemetryTestSession(object):
 
         Results are in reverse order by ``seq_id``
         """
-        status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
-        if status != 200:
-            pytest.fail("Failed to fetch session events: %s" % self.token)
-
-        for req in json.loads(body.decode("utf-8")):
-            # filter heartbeat events to reduce noise
-            if req.get("request_type") == "app-heartbeat" and self.filter_heartbeats:
-                continue
-            if (req["tracer_time"], req["seq_id"]) in self.gotten_events:
-                continue
-            if event_type is None or req["request_type"] == event_type:
-                self.gotten_events[(req["tracer_time"], req["seq_id"])] = req
-        return sorted(self.gotten_events.values(), key=lambda e: e["seq_id"], reverse=True)
+        requests = self.get_requests(event_type)
+        return [req["body"] for req in requests]
 
 
 @pytest.fixture

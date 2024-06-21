@@ -784,6 +784,8 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
+        self._imported_dependencies = {}
+        self._configuration_queue = {}
 
     def _flush_events_queue(self):
         # type: () -> List[Dict]

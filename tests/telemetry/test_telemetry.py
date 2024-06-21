@@ -81,7 +81,6 @@ span.finish()
     assert events[3]["request_type"] == "generate-metrics"
 
 
-@flaky(1735812000)
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
@@ -94,10 +93,7 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.settings import _config
 
-# We have to start before forking since fork hooks are not enabled until after enabling
-_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
 telemetry_writer._app_started_event()
 
@@ -117,19 +113,17 @@ else:
 
     runtime_id = stdout.strip().decode("utf-8")
 
-    requests = test_agent_session.get_requests()
+    # Validate that one app-closing event was sent and it was queued in the parent process
+    app_closing = test_agent_session.get_events("app-closing")
+    assert len(app_closing) == 1
+    assert app_closing[0]["runtime_id"] == runtime_id
 
-    # We expect 2 events from the parent process to get sent (without dependencies), but none from the child process
-    # flaky
-    # assert len(requests) == 2
-    # Validate that the runtime id sent for every event is the parent processes runtime id
-    assert requests[0]["body"]["runtime_id"] == runtime_id
-    assert requests[0]["body"]["request_type"] == "app-closing"
-    assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[1]["body"]["request_type"] == "app-started"
+    # Validate that one app-started event was sent and it was queued in the parent process
+    app_started = test_agent_session.get_events("app-started")
+    assert len(app_started) == 1
+    assert app_started[0]["runtime_id"] == runtime_id
 
 
-@flaky(1735812000)
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
@@ -142,37 +136,34 @@ import os
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.settings import _config
 
-_config._telemetry_dependency_collection = False
 telemetry_writer.enable()
-# Reset queue to avoid sending app-started event
-telemetry_writer.reset_queues()
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
 
-# Call periodic to send heartbeat event
+# Heartbeat events are only sent if no other events are queued
+telemetry_writer.reset_queues()
 telemetry_writer.periodic(True)
-# Disable telemetry writer to avoid sending app-closed event
-telemetry_writer.disable()
     """
 
-    initial_requests_count = len(test_agent_session.get_requests())
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=get_default_telemetry_env())
+    # Allow test agent session to capture all heartbeat events
+    test_agent_session.filter_heartbeats = False
+
+    env = get_default_telemetry_env()
+    # Prevents dependencies loaded event from being generated
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
     runtime_id = stdout.strip().decode("utf-8")
 
-    requests = test_agent_session.get_requests()
-
-    # We expect events from the parent process to get sent, but none from the child process
-    assert len(requests) == initial_requests_count + 1
-    matching_requests = [r for r in requests if r["body"]["runtime_id"] == runtime_id]
-    assert len(matching_requests) == 1
-    assert matching_requests[0]["body"]["request_type"] == "app-heartbeat"
+    app_heartbeats = test_agent_session.get_events("app-heartbeat")
+    assert len(app_heartbeats) > 0
+    for hb in app_heartbeats:
+        assert hb["runtime_id"] == runtime_id
 
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
