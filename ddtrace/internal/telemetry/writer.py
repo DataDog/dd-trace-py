@@ -734,7 +734,7 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
-    def periodic(self, force_flush=False):
+    def periodic(self, force_flush=False, shutting_down=False):
         namespace_metrics = self._namespace.flush()
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
@@ -766,6 +766,9 @@ class TelemetryWriter(PeriodicService):
             if newly_imported_deps:
                 self._update_dependencies_event(newly_imported_deps)
 
+        if shutting_down:
+            self._app_closing_event()
+
         # Send a heartbeat event to the agent, this is required to keep RC connections alive
         self._app_heartbeat_event()
 
@@ -774,8 +777,7 @@ class TelemetryWriter(PeriodicService):
             self._client.send_event(telemetry_event)
 
     def app_shutdown(self):
-        self._app_closing_event()
-        self.periodic(force_flush=True)
+        self.periodic(force_flush=True, shutting_down=True)
         self.disable()
 
     def reset_queues(self):

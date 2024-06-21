@@ -420,11 +420,6 @@ def remote_config_worker():
 
 
 @pytest.fixture
-def filter_heartbeat_events():
-    yield True
-
-
-@pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
@@ -444,10 +439,9 @@ def telemetry_writer():
 
 
 class TelemetryTestSession(object):
-    def __init__(self, token, telemetry_writer, filter_heartbeats) -> None:
+    def __init__(self, token, telemetry_writer) -> None:
         self.token = token
         self.telemetry_writer = telemetry_writer
-        self.filter_heartbeats = filter_heartbeats
 
     def create_connection(self):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
@@ -476,7 +470,7 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to clear session: %s" % self.token)
         return True
 
-    def get_requests(self, request_type=None):
+    def get_requests(self, request_type=None, filter_heartbeats=True):
         """Get a list of the requests sent to the test agent
 
         Results are in reverse order by ``seq_id``
@@ -492,30 +486,30 @@ class TelemetryTestSession(object):
                 continue
             req["body"] = json.loads(base64.b64decode(req["body"]))
             # filter heartbeat requests to reduce noise
-            if req["body"]["request_type"] == "app-heartbeat" and self.filter_heartbeats:
+            if req["body"]["request_type"] == "app-heartbeat" and filter_heartbeats:
                 continue
             if request_type is None or req["body"]["request_type"] == request_type:
                 requests.append(req)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
-    def get_events(self, event_type=None):
+    def get_events(self, event_type=None, filter_heartbeats=True):
         """Get a list of the event payloads sent to the test agent
 
         Results are in reverse order by ``seq_id``
         """
-        requests = self.get_requests(event_type)
+        requests = self.get_requests(event_type, filter_heartbeats)
         return [req["body"] for req in requests]
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
-    # type: (TelemetryWriter, bool, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer, request):
+    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
 
-    requests = TelemetryTestSession(token, telemetry_writer, filter_heartbeat_events)
+    requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
     MAX_RETRY = 9

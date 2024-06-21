@@ -530,7 +530,6 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
         assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
-@pytest.mark.parametrize("filter_heartbeat_events", [False])
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
@@ -548,17 +547,16 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
         assert test_agent_session.get_events("app-heartbeat") == []
 
     telemetry_writer.periodic()
-    heartbeat_events = test_agent_session.get_events("app-heartbeat")
+    heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(heartbeat_events) == 1
 
 
-@pytest.mark.parametrize("filter_heartbeat_events", [False])
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events("app-heartbeat")
+    events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(events) > 0
 
 

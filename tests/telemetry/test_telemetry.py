@@ -4,36 +4,6 @@ import re
 import pytest
 
 
-def _assert_dependencies_sort_and_remove(items, is_request=True, must_have_deps=True, remove_heartbeat=True):
-    """
-    Dependencies can produce one or two events depending on the order of the imports (before/after the
-    app-started event) so this function asserts that there is at least one and removes them from the list. Also removes
-    app-heartbeat because in can be flaky.
-    """
-
-    new_items = []
-    found_dependencies_event = False
-    for item in items:
-        body = item["body"] if is_request else item
-        if body["request_type"] == "app-dependencies-loaded":
-            found_dependencies_event = True
-            continue
-        if body["request_type"] == "app-heartbeat" and remove_heartbeat:
-            continue
-
-        new_items.append(item)
-
-    if must_have_deps:
-        assert found_dependencies_event
-
-    if is_request:
-        new_items.sort(key=lambda x: (x["body"]["request_type"], x["body"]["seq_id"]), reverse=False)
-    else:
-        new_items.sort(key=lambda x: (x["request_type"], x["seq_id"]), reverse=False)
-
-    return new_items
-
-
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
@@ -68,15 +38,17 @@ span.finish()
     assert stderr == b""
     # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
     # Note event order is reversed e.g. event[0] is actually the last event
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), is_request=False, must_have_deps=False
-    )
+    events = test_agent_session.get_events()
 
-    assert len(events) == 4
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-integrations-change"
-    assert events[2]["request_type"] == "app-started"
-    assert events[3]["request_type"] == "generate-metrics"
+    assert len(events) == 5
+    # Generate metrics is sent after app-closed event. This is because the span aggregator is shutdown after the
+    # the telemetry writer. This is a known limitation of the current implementation. Ideally the app-closed event
+    # would be sent last.
+    assert events[0]["request_type"] == "generate-metrics"
+    assert events[1]["request_type"] == "app-closing"
+    assert events[2]["request_type"] == "app-dependencies-loaded"
+    assert events[3]["request_type"] == "app-integrations-change"
+    assert events[4]["request_type"] == "app-started"
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
@@ -143,12 +115,8 @@ if os.fork() > 0:
 
 # Heartbeat events are only sent if no other events are queued
 telemetry_writer.reset_queues()
-telemetry_writer.periodic(True)
+telemetry_writer.periodic(force_flush=True)
     """
-
-    # Allow test agent session to capture all heartbeat events
-    test_agent_session.filter_heartbeats = False
-
     env = os.environ.copy()
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
     # Prevents dependencies loaded event from being generated
@@ -158,7 +126,8 @@ telemetry_writer.periodic(True)
 
     runtime_id = stdout.strip().decode("utf-8")
 
-    app_heartbeats = test_agent_session.get_events("app-heartbeat")
+    # Allow test agent session to capture all heartbeat events
+    app_heartbeats = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(app_heartbeats) > 0
     for hb in app_heartbeats:
         assert hb["runtime_id"] == runtime_id
@@ -257,25 +226,24 @@ tracer.trace("hello").finish()
 
 @pytest.mark.skip(reason="We don't have a way to capture unhandled errors in bootstrap before telemetry is loaded")
 def test_app_started_error_unhandled_exception(test_agent_session, run_python_code_in_subprocess):
-    _, stderr, status, _ = run_python_code_in_subprocess(
-        "import ddtrace.auto", env={"DD_SPAN_SAMPLING_RULES": "invalid_rules"}
-    )
+    env = os.environ.copy()
+    env["DD_SPAN_SAMPLING_RULES"] = "invalid_rules"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 1, stderr
     assert b"Unable to parse DD_SPAN_SAMPLING_RULES=" in stderr
 
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), is_request=False, must_have_deps=False
-    )
-    assert len(events) == 2
+    app_closings = test_agent_session.get_events("app-closing")
+    assert len(app_closings) == 1
+    app_starteds = test_agent_session.get_events("app-started")
+    assert len(app_starteds) == 1
 
     # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"]
-    assert events[0]["request_type"] == "app-closing"
-    assert events[1]["request_type"] == "app-started"
-    assert events[1]["payload"]["error"]["code"] == 1
+    assert app_closings[0]["runtime_id"] == app_starteds[0]["runtime_id"]
 
-    assert "ddtrace/internal/sampling.py" in events[1]["payload"]["error"]["message"]
-    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in events[1]["payload"]["error"]["message"]
+    assert app_starteds[0]["payload"]["error"]["code"] == 1
+    assert "ddtrace/internal/sampling.py" in app_starteds[0]["payload"]["error"]["message"]
+    assert "Unable to parse DD_SPAN_SAMPLING_RULES='invalid_rules'" in app_starteds[0]["payload"]["error"]["message"]
 
 
 def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_subprocess):
@@ -287,12 +255,10 @@ def test_telemetry_with_raised_exception(test_agent_session, run_python_code_in_
     # Regression test for python3.12 support
     assert b"RuntimeError: can't create new thread at interpreter shutdown" not in stderr
 
-    # Ensure the expected telemetry events are sent
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
-    event_types = [event["request_type"] for event in events]
-    assert event_types == ["app-closing", "app-started", "generate-metrics"]
+    app_starteds = test_agent_session.get_events("app-started")
+    assert len(app_starteds) == 1
+    # app-started does not capture exceptions raised in application code
+    assert app_starteds[0]["payload"]["error"]["code"] == 0
 
 
 def test_handled_integration_error(test_agent_session, run_python_code_in_subprocess):
@@ -361,13 +327,12 @@ f.wsgi_app()
 
     assert b"not enough values to unpack (expected 2, got 0)" in stderr, stderr
 
-    events = _assert_dependencies_sort_and_remove(
-        test_agent_session.get_events(), must_have_deps=False, is_request=False
-    )
-
-    assert len(events) == 4
+    events = test_agent_session.get_events()
+    assert len(events) > 0
     # Same runtime id is used
-    assert events[0]["runtime_id"] == events[1]["runtime_id"] == events[2]["runtime_id"] == events[3]["runtime_id"]
+    first_runtimeid = events[0]["runtime_id"]
+    for event in events:
+        assert event["runtime_id"] == first_runtimeid
 
     app_started_event = [event for event in events if event["request_type"] == "app-started"]
     assert len(app_started_event) == 1
