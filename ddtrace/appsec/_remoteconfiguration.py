@@ -97,8 +97,8 @@ def _add_rules_to_list(features: Mapping[str, Any], feature: str, message: str, 
 def _appsec_callback(features: Mapping[str, Any], test_tracer: Optional[Tracer] = None) -> None:
     config = features.get("config", {})
     _appsec_1click_activation(config, test_tracer)
-    _appsec_rules_data(config, test_tracer)
     _appsec_auto_user_mode(config, test_tracer)
+    _appsec_rules_data(config, test_tracer)
 
 
 def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer]) -> bool:
@@ -144,9 +144,7 @@ def _preprocess_results_appsec_1click_activation(
             if features == {}:
                 rc_asm_enabled = False
             else:
-                asm_features = features.get("asm", {})
-                if asm_features is not None:
-                    rc_asm_enabled = asm_features.get("enabled")
+                rc_asm_enabled = features.get("asm", {}).get("enabled")
             log.debug(
                 "[%s][P: %s] ASM Remote Configuration ASM_FEATURES. Appsec enabled: %s",
                 os.getpid(),
