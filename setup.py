@@ -449,14 +449,14 @@ if not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
-#    if platform.system() not in ("Windows", ""):
-#                    "ddtrace/appsec/_iast/_stacktrace.c",
-#                ],
-#                extra_compile_args=debug_compile_args,
-#            )
-#        )
-#
-#        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+    #    if platform.system() not in ("Windows", ""):
+    #                    "ddtrace/appsec/_iast/_stacktrace.c",
+    #                ],
+    #                extra_compile_args=debug_compile_args,
+    #            )
+    #        )
+    #
+    #        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
     if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
