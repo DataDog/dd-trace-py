@@ -176,12 +176,12 @@ jobs:
             iast: 0
             appsec: 0
           # Disabled while the bug is investigated: APPSEC-53222
-          # - suffix: IAST
-          #   expl_profiler: 0
-          #   expl_coverage: 0
-          #   profiling: 0
-          #   iast: 1
-          #   appsec: 0
+          - suffix: IAST
+            expl_profiler: 0
+            expl_coverage: 0
+            profiling: 0
+            iast: 1
+            appsec: 0
           - suffix: APPSEC
             expl_profiler: 0
             expl_coverage: 0
@@ -630,10 +630,10 @@ jobs:
             iast: 0
             appsec: 0
           # Disabled while the bug is investigated: APPSEC-53221
-          # - suffix: APPSEC
-          #   profiling: 0
-          #   iast: 0
-          #   appsec: 1
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
     name: Starlette 0.37.1 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
