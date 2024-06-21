@@ -23,7 +23,6 @@ extern "C"
     void crashtracker_set_resolve_frames_full();
     bool crashtracker_set_receiver_binary_path(std::string_view path);
     void crashtracker_start();
-    bool crashtracker_receiver_entry();
 #ifdef __cplusplus
 } // extern "C"
 #endif

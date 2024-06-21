@@ -24,46 +24,6 @@ def config(
 
 
 @not_implemented
-def set_crashtracker_url(url: Optional[str]) -> None:
-    pass
-
-
-@not_implemented
-def set_crashtracker_stdout_filename(filename: Optional[str]) -> None:
-    pass
-
-
-@not_implemented
-def set_crashtracker_stderr_filename(filename: Optional[str]) -> None:
-    pass
-
-
-@not_implemented
-def set_crashtracker_alt_stack(alt_stack: bool) -> None:
-    pass
-
-
-@not_implemented
-def set_crashtracker_resolve_frames_never() -> None:
-    pass
-
-
-@not_implemented
-def set_crashtracker_resolve_frames_self() -> None:
-    pass
-
-
-@not_implemented
-def start():  # type: () -> None
-    pass
-
-
-@not_implemented
-def start_crashtracker():  # type: () -> None
-    pass
-
-
-@not_implemented
 def upload():  # type: () -> None
     pass
 
