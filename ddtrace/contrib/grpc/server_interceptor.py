@@ -14,6 +14,7 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
+from ...internal import core
 from .. import trace_utils
 from . import constants
 from .utils import set_grpc_method_meta
@@ -50,6 +51,7 @@ def _handle_server_exception(server_context, span):
 def _wrap_response_iterator(response_iterator, server_context, span):
     try:
         for response in response_iterator:
+            core.dispatch("grpc.response_message", (response,))
             yield response
     except Exception:
         span.set_traceback()
@@ -104,6 +106,9 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
             if self.__wrapped__.response_streaming:
                 response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)
+            else:
+                # not iterator
+                core.dispatch("grpc.response_message", (response_or_iterator,))
         except Exception:
             span.set_traceback()
             _handle_server_exception(server_context, span)
