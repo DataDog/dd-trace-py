@@ -6,7 +6,7 @@ from ddtrace.internal.coverage.multiprocessing_coverage import _patch_multiproce
 from ddtrace.internal.coverage.threading_coverage import _patch_threading
 
 
-def install(include_paths: t.Optional[t.List[Path]] = None) -> None:
-    ModuleCodeCollector.install(include_paths=include_paths)
+def install(include_paths: t.Optional[t.List[Path]] = None, collect_module_dependencies: bool = False) -> None:
+    ModuleCodeCollector.install(include_paths=include_paths, collect_module_dependencies=collect_module_dependencies)
     _patch_multiprocessing()
     _patch_threading()

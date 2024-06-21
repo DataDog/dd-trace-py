@@ -127,7 +127,7 @@ def _report_coverage_to_span(
     if isinstance(coverage_data, ModuleCodeCollector.CollectInContext):
         if USE_DD_COVERAGE:
             # In this case, coverage_data is the context manager supplied by ModuleCodeCollector.CollectInContext
-            files = ModuleCodeCollector.report_seen_lines()
+            files = ModuleCodeCollector.report_seen_lines(include_imported=True)
             if not files:
                 return
             span.set_tag_str(

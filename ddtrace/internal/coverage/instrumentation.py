@@ -8,26 +8,20 @@ from ddtrace.internal.injection import INJECTION_ASSEMBLY
 from ddtrace.internal.injection import HookType
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, consts_map) -> t.Tuple[CodeType, t.Set[int]]:
+def instrument_all_lines(
+    code: CodeType,
+    hook: HookType,
+    path: str,
+    module_dependency_hook: t.Optional[HookType],
+) -> t.Tuple[CodeType, t.Set[int]]:
     abstract_code = Bytecode.from_code(code)
-    print(code)
-    # Avoid instrumenting the same code object multiple times
-    if code.co_name == "<module>" and (code.co_filename.endswith("coverage/included_path/lib.py") or code.co_filename.endswith(
-        "coverage/included_path/import_time_lib.py") or code.co_filename.endswith("coverage/included_path/in_context_lib.py") or code.co_filename.endswith("coverage/included_path/nested_import_time_lib.py")
-    ):
-        print(code)
-        import dis
-        dis.dis(code)
-        # breakpoint()
     lines = set()
 
     is_module = code.co_name == "<module>"
-    function_lines = set()
-    instrumented_lines = set()
-    module_consts_to_lines = {}
-    module_consts_to_deps = {}
-    current_import_module_name = ""
-    current_import_remote_name = ""
+    instrument_imports = module_dependency_hook is not None and is_module
+
+    line_start_instr_index = 0
+    import_instrumented_lines = set()
 
     last_lineno = None
     for i, instr in enumerate(abstract_code):
@@ -38,48 +32,30 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, consts_map) 
             if instr.lineno is None:
                 continue
 
-            # if instr.name != last_lineno:
-            #     current_import_module_name = ""
-            #     current_import_remote_name = ""
-
-
-            # Store information about all module-level
-            if is_module:
-                # If we're making a function, store the line number
-                if instr.name == "MAKE_FUNCTION":
-                    function_lines.add(instr.lineno)
-
-                # If we're storing a name at and the current line is not a function, then we must be storing a module-
-                # level constant
-                if instr.name == "STORE_NAME" and instr.arg != "__doc__" and instr.lineno not in function_lines:
-                    module_consts_to_lines[instr.arg] = instr.lineno
-
-                # If the current instruction is an import (regardless of where in the module that import is happening),
-                # transform that
+            # Collect module-level imports to be able to rebuild module dependencies when computing coverage
+            # Note that, for module-level imports, all instructions need to be processed (since the import is not the
+            # only instruction on the line)
+            if instrument_imports and instr.lineno not in import_instrumented_lines:
                 if instr.name == "IMPORT_NAME":
-                    current_import_module_name = instr.arg
-                    print("IMPORT_NAME ARG IS", instr.arg)
-                if instr.name == "IMPORT_FROM":
-                    current_import_remote_name = instr.arg
-                    print("IMPORT_FROM ARG IS", instr.arg)
-                if instr.name == "STORE_NAME" and current_import_module_name != "":
-                    # print(f"STORE_NAME ARG IS {instr.arg}, COMES FROM {consts_map[current_import_module_name][current_import_remote_name]}=")
-                    current_import_module_name = ""
-                    current_import_remote_name = ""
-
+                    abstract_code[line_start_instr_index + 4 : line_start_instr_index + 4] = INJECTION_ASSEMBLY.bind(
+                        dict(hook=module_dependency_hook, arg=(path, instr.arg), lineno=last_lineno)
+                    )
+                    import_instrumented_lines.add(instr.lineno)
 
             if instr.lineno == last_lineno:
                 continue
-
             last_lineno = instr.lineno
+
+            # Keep track of the index of the first instruction in a line as a place to insert instrumentation hooks
+            line_start_instr_index = i
 
             if instr.name == "RESUME":
                 continue
 
             # Only inject the hook at the beginning of the line if we have not already done so
-            if instr.lineno not in instrumented_lines:
-                abstract_code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=(path, last_lineno)), lineno=last_lineno)
-                instrumented_lines.add(instr.lineno)
+            abstract_code[line_start_instr_index:line_start_instr_index] = INJECTION_ASSEMBLY.bind(
+                dict(hook=hook, arg=(path, last_lineno, is_module)), lineno=last_lineno
+            )
 
             # Track the line number
             lines.add(last_lineno)
@@ -87,4 +63,4 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, consts_map) 
             # pseudo-instruction (e.g. label)
             pass
 
-    return abstract_code.to_code(), lines, module_consts_to_lines
+    return abstract_code.to_code(), lines  # , module_consts_to_lines
