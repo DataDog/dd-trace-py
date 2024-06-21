@@ -7,8 +7,8 @@ import pytest
 from six.moves import _thread
 
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import threading as collector_threading
 from ddtrace.profiling.collector import _lock
+from ddtrace.profiling.collector import threading as collector_threading
 from tests.utils import flaky
 
 from . import test_collector
