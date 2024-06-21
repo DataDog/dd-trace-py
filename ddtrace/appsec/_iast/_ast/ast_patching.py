@@ -30,6 +30,7 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "deprecated",
     "api_pb2",  # Patching crashes with these auto-generated modules, propagation is not needed
     "api_pb2_grpc",  # ditto
+    "asyncpg.pgproto",
     "blinker",
     "bytecode",
     "cattrs",
