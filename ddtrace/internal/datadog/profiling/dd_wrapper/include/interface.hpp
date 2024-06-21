@@ -60,16 +60,6 @@ extern "C"
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
-    void ddup_config_crashtracker_url(std::string_view url);
-    void ddup_config_crashtracker_stdout_filename(std::string_view filename);
-    void ddup_config_crashtracker_stderr_filename(std::string_view filename);
-    void ddup_config_crashtracker_alt_stack(bool alt_stack);
-    void ddup_config_crashtracker_resolve_frames_disable();
-    void ddup_config_crashtracker_resolve_frames_fast();
-    void ddup_config_crashtracker_resolve_frames_full();
-    bool ddup_config_crashtracker_receiver_binary_path(std::string_view path);
-    void ddup_crashtracker_start();
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

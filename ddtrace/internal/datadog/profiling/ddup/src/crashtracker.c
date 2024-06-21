@@ -6,7 +6,7 @@
 int
 main(void)
 {
-    if (!ddup_crashtracker_receiver_entry()) {
+    if (!crashtracker_receiver_entry()) {
         exit(EXIT_FAILURE);
     }
     return 0;

@@ -1,0 +1,29 @@
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+#include <string_view>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    void crashtracker_set_url(std::string_view url);
+    void crashtracker_set_service(std::string_view service);
+    void crashtracker_set_env(std::string_view env);
+    void crashtracker_set_version(std::string_view version);
+    void crashtracker_set_runtime(std::string_view runtime);
+    void crashtracker_set_runtime_version(std::string_view runtime_version);
+    void crashtracker_set_library_version(std::string_view profiler_version);
+    void crashtracker_set_stdout_filename(std::string_view filename);
+    void crashtracker_set_stderr_filename(std::string_view filename);
+    void crashtracker_set_alt_stack(bool alt_stack);
+    void crashtracker_set_resolve_frames_disable();
+    void crashtracker_set_resolve_frames_fast();
+    void crashtracker_set_resolve_frames_full();
+    bool crashtracker_set_receiver_binary_path(std::string_view path);
+    void crashtracker_start();
+    bool crashtracker_receiver_entry();
+#ifdef __cplusplus
+} // extern "C"
+#endif

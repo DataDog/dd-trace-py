@@ -1,6 +1,4 @@
 #include "interface.hpp"
-#include "receiver_interface.h"
-#include "crash_tracker.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "sample.hpp"
@@ -16,17 +14,14 @@
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
-// A global instance of the crashtracker is created here.
-Datadog::Crashtracker crashtracker;
-
 // When a fork is detected, we need to reinitialize this state.
 // This handler will be called in the single thread of the child process after the fork
+
 void
 ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
-    crashtracker.atfork_child();
 }
 
 void
@@ -50,49 +45,42 @@ void
 ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_env(dd_env);
-    crashtracker.set_env(dd_env);
 }
 
 void
 ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_service(service);
-    crashtracker.set_service(service);
 }
 
 void
 ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_version(version);
-    crashtracker.set_version(version);
 }
 
 void
 ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime(runtime);
-    crashtracker.set_runtime(runtime);
 }
 
 void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
-    crashtracker.set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_profiler_version(profiler_version);
-    crashtracker.set_library_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_url(url);
-    crashtracker.set_url(url);
 }
 
 void
@@ -105,7 +93,6 @@ void
 ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_id(runtime_id);
-    crashtracker.set_runtime_id(runtime_id);
 }
 
 void
@@ -315,84 +302,4 @@ ddup_upload() // cppcheck-suppress unusedFunction
         std::visit(visitor, uploader);
     }
     return success;
-}
-
-// Crashtracker
-void
-ddup_config_crashtracker_url(std::string_view url)
-{
-    crashtracker.set_url(url);
-}
-
-void
-ddup_config_crashtracker_stdout_filename(std::string_view filename)
-{
-    crashtracker.set_stdout_filename(filename);
-}
-
-void
-ddup_config_crashtracker_stderr_filename(std::string_view filename)
-{
-    crashtracker.set_stderr_filename(filename);
-}
-
-void
-ddup_config_crashtracker_alt_stack(bool alt_stack)
-{
-    crashtracker.set_create_alt_stack(alt_stack);
-}
-
-void
-ddup_config_crashtracker_resolve_frames_disable()
-{
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_DISABLED);
-}
-
-void
-ddup_config_crashtracker_resolve_frames_fast()
-{
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_WITHOUT_SYMBOLS);
-}
-
-void
-ddup_config_crashtracker_resolve_frames_full()
-{
-    crashtracker.set_resolve_frames(DDOG_PROF_STACKTRACE_COLLECTION_ENABLED);
-}
-
-bool
-ddup_config_crashtracker_receiver_binary_path(std::string_view path)
-{
-    return crashtracker.set_receiver_binary_path(path);
-}
-
-void
-ddup_crashtracker_start()
-{
-    const static bool initialized = []() {
-        crashtracker.start();
-        return true;
-    }();
-
-    (void)initialized;
-}
-
-bool
-ddup_crashtracker_receiver_entry()
-{
-  // Assumes that this will be called only in the receiver binary, which is a
-  // fresh process
-  ddog_prof_CrashtrackerResult new_result = ddog_prof_Crashtracker_receiver_entry_point();
-  if (new_result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) {
-      ddog_CharSlice message = ddog_Error_message(&new_result.err);
-
-      //`write` may not write what we want it to write, but there's nothing we can do about it,
-      // so ignore the return
-      int n = write(STDERR_FILENO, message.ptr, message.len);
-      (void)n;
-
-      ddog_Error_drop(&new_result.err);
-      return false;
-  }
-  return true;
 }
