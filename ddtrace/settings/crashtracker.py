@@ -2,9 +2,11 @@ import typing as t
 
 from envier import En
 
+from ddtrace.internal.datadog.profiling.crashtracker import _crashtracker
+
 
 def _derive_stacktrace_resolver(config):
-    # type: ProfilingConfig.Crashtracker -> t.Optional[str]
+    # type: (CrashtrackerConfig) -> t.Optional[str]
     resolver = config._stacktrace_resolver or ""
     resolver = resolver.lower()
     if resolver in ("fast", "full"):
@@ -13,12 +15,11 @@ def _derive_stacktrace_resolver(config):
 
 
 def _check_for_crashtracker_available():
-    # TODO
-    return False
+    return _crashtracker.is_available
 
 
 def _derive_crashtracker_enabled(config):
-    # type: CrashtrackerConfig -> bool
+    # type: (CrashtrackerConfig) -> bool
     if not _check_for_crashtracker_available():
         return False
     return config._enabled

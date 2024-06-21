@@ -63,7 +63,7 @@ def _check_for_stack_v2_available():
 
 
 def _derive_libdd_enabled(config):
-    # type: ProfilingConfig.Export -> bool
+    # type: (ProfilingConfig.Export) -> bool
     if not _check_for_ddup_available():
         return False
     if not config._libdd_enabled and config.libdd_required:
@@ -74,7 +74,7 @@ def _derive_libdd_enabled(config):
 # We don't check for the availability of the ddup module when determining whether libdd is _required_,
 # since it's up to the application code to determine what happens in that failure case.
 def _derive_libdd_required(config):
-    # type: ProfilingConfig.Export -> bool
+    # type: (ProfilingConfig.Export) -> bool
     if not config._libdd_required and config.stack.v2.enabled:
         logger.debug("Requiring libdd because stack v2 is enabled")
     return config.stack.v2.enabled or config._libdd_required
