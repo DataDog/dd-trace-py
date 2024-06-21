@@ -91,19 +91,45 @@ class _ProfiledLock(wrapt.ObjectProxy):
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
 
-        var_name = None
-        for name, value in frame.f_globals.items():
-            if value is self.__wrapped__:
-                var_name = name
-        for name, value in frame.f_locals.items():
-            if value is self.__wrapped__:
-                var_name = name
+        var_name = self._get_var_name()
+
+        # for i in range(0, 4):
+        #     fr = sys._getframe(i)
+        #     co = fr.f_code
+        #     print("Frame %s" %  co.co_name)
+        #     globals = []
+        #     locals = []
+
+        #     for name, value in fr.f_globals.items():
+        #         globals.append(name)
+        #         if value == self.__wrapped__:
+        #             print("Found %s in globals of %s, which is %d frame above" % (name, co.co_name, i))
+        #             var_name = name
+        #     for name, value in fr.f_locals.items():
+        #         locals.append(name)
+        #         if value == self.__wrapped__:
+        #             print("Found %s in locals of %s, which is %d frame above" % (name, co.co_name, i))
+        #             var_name = name
+
+        #     print("Globals: %s" % globals)
+        #     print("Locals: %s" % locals)
 
         self._self_name = "%s:%d:%s" % (
             os.path.basename(code.co_filename),
             frame.f_lineno,
-            var_name if var_name else "<anonymous>",
+            var_name,
         )
+
+    def _get_var_name(self):
+        frame = sys._getframe(2 if WRAPT_C_EXT else 3)
+        var_name = None
+        for name, value in frame.f_globals.items():
+            if value == self.__wrapped__:
+                var_name = name
+        for name, value in frame.f_locals.items():
+            if value == self.__wrapped__:
+                var_name = name
+        return var_name if var_name else "<anonymous>"
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
