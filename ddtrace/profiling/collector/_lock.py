@@ -98,7 +98,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def __aexit__(self, *args, **kwargs):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
-    def __acquire(self, inner_func, *args, **kwargs):
+    def _acquire(self, inner_func, *args, **kwargs):
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
@@ -156,9 +156,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 pass  # nosec
 
     def acquire(self, *args, **kwargs):
-        return self.__acquire(self.__wrapped__.acquire, *args, **kwargs)
+        return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
-    def __release(self, inner_func, *args, **kwargs):
+    def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
         try:
             return inner_func(*args, **kwargs)
@@ -223,15 +223,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 pass  # nosec
 
     def release(self, *args, **kwargs):
-        return self.__release(self.__wrapped__.release, *args, **kwargs)
+        return self._release(self.__wrapped__.release, *args, **kwargs)
 
     acquire_lock = acquire
 
     def __enter__(self, *args, **kwargs):
-        return self.__acquire(self.__wrapped__.__enter__, *args, **kwargs)
+        return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
     def __exit__(self, *args, **kwargs):
-        self.__release(self.__wrapped__.__exit__, *args, **kwargs)
+        self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
 
 class FunctionWrapper(wrapt.FunctionWrapper):
