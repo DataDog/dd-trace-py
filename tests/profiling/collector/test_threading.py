@@ -373,11 +373,21 @@ def test_lock_enter_exit_events():
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
     acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
-    assert acquire_event.lock_name == "test_threading.py:371"
+    assert acquire_event.lock_name == "test_threading.py:370"
     assert acquire_event.thread_id == _thread.get_ident()
     assert acquire_event.wait_time_ns >= 0
-    # It's called through pytest so I'm sure it's gonna be that long, right?
-    assert len(acquire_event.frames) > 3
-    assert acquire_event.nframes > 3
-    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), 62, "test_lock_acquire_events", "")
+    # We know that at least __enter__, this function, and pytest should be
+    # in the stack.
+    assert len(acquire_event.frames) >= 3
+    assert acquire_event.nframes >= 3
+    # To implement 'with lock:', _lock._ProfiledLock implements __enter__ and
+    # __exit__. So frames[0] is __enter__ and __exit__ respectively.
+    assert acquire_event.frames[1] == (__file__.replace(".pyc", ".py"), 371, "test_lock_enter_exit_events", "")
     assert acquire_event.sampling_pct == 100
+
+    release_event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
+    assert release_event.lock_name == "test_threading.py:370"
+    assert release_event.thread_id == _thread.get_ident()
+    assert release_event.locked_for_ns >= 0
+    assert release_event.frames[1:] == acquire_event.frames[1:]
+    assert release_event.sampling_pct == 100
