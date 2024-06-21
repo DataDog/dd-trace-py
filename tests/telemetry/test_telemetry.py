@@ -320,16 +320,7 @@ tracer.trace("hi").finish()
     expected_stderr = b"failed to import"
     assert expected_stderr in stderr
 
-    events = test_agent_session.get_events()
-
-    assert len(events) > 1
-    # flaky
-    # for event in events:
-    #     # Same runtime id is used
-    #     assert event["runtime_id"] == events[0]["runtime_id"]
-
-    integrations_events = [event for event in events if event["request_type"] == "app-integrations-change"]
-
+    integrations_events = test_agent_session.get_events("app-integrations-change")
     assert len(integrations_events) == 1
     assert (
         integrations_events[0]["payload"]["integrations"][0]["error"]
@@ -338,12 +329,12 @@ tracer.trace("hi").finish()
 
     # Get metric containing the integration error
     integration_error = {}
-    for event in events:
-        if event["request_type"] == "generate-metrics":
-            for metric in event["payload"]["series"]:
-                if metric["metric"] == "integration_errors":
-                    integration_error = metric
-                    break
+    metric_events = test_agent_session.get_events("generate-metrics")
+    for event in metric_events:
+        for metric in event["payload"]["series"]:
+            if metric["metric"] == "integration_errors":
+                integration_error = metric
+                break
 
     # assert the integration metric has the correct type, count, and tags
     assert integration_error
@@ -417,8 +408,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace; ddtrace.tracer.trace('s1').finish()", env=env)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
-    app_started_event = [event for event in events if event["request_type"] == "app-started"]
+    app_started_event = test_agent_session.get_events("app-started")
     assert len(app_started_event) == 1
     assert app_started_event[0]["payload"]["install_signature"] == {
         "install_id": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
@@ -429,8 +419,6 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
 
 def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
     """Ensure no telemetry events are sent when telemetry is disabled"""
-    initial_event_count = len(test_agent_session.get_events())
-
     env = get_default_telemetry_env({"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
 
     code = """
@@ -446,7 +434,7 @@ assert "ddtrace.internal.telemetry" not in sys.modules
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     events = test_agent_session.get_events()
-    assert len(events) == initial_event_count
+    assert len(events) == 0
 
     assert status == 0, stderr
     assert stderr == b""

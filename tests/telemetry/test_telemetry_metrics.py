@@ -19,16 +19,12 @@ def _assert_metric(
     seq_id=1,
 ):
     test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
-
-    filtered_events = [event for event in events if event["request_type"] != "app-dependencies-loaded"]
+    filtered_events = test_agent.get_events(type_paypload)
 
     payload = {
         "namespace": namespace,
         "series": expected_series,
     }
-    assert filtered_events[0]["request_type"] == type_paypload
-
     # Python 2.7 and Python 3.5 fail with dictionaries and lists order
     expected_body = _get_request_body(payload, type_paypload, seq_id)
     expected_body_sorted = expected_body["payload"]["series"]

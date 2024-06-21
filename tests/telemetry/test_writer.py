@@ -249,8 +249,7 @@ import ddtrace.auto
 
     assert status == 0, stderr
 
-    events = test_agent_session.get_events()
-    app_started_events = [event for event in events if event["request_type"] == "app-started"]
+    app_started_events = test_agent_session.get_events("app-started")
     assert len(app_started_events) == 1
 
     app_started_events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
@@ -339,11 +338,8 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) >= 1
-    assert "payload" in events[-1]
-    assert "dependencies" in events[-1]["payload"]
-    assert len(events[-1]["payload"]["dependencies"]) >= 1
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
     assert len(xmltodict_events) == 1
     assert "xmltodict" in telemetry_writer._imported_dependencies
@@ -353,7 +349,6 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
 
 def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events())
         TelemetryWriterModuleWatchdog._initial = False
         TelemetryWriterModuleWatchdog._new_imported.clear()
 
@@ -364,9 +359,8 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
         # force a flush
         telemetry_writer.periodic()
         events = test_agent_session.get_events()
-        assert initial_event_count <= len(events) <= initial_event_count + 1  # could have a heartbeat
-        if events:
-            assert events[0]["request_type"] != "app-dependencies-loaded"
+        for event in events:
+            assert event["request_type"] != "app-dependencies-loaded"
 
 
 @pytest.mark.skip(reason="FIXME: This test does not generate a dependencies event")
@@ -394,13 +388,13 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-dependencies-loaded")
     assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
 
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
     telemetry_writer.periodic()
-    events = test_agent_session.get_events()
+    events = test_agent_session.get_events("app-dependencies-loaded")
 
     assert events[0]["seq_id"] == 1
     # only one event must be sent with a non empty payload
@@ -522,7 +516,6 @@ def test_send_failing_request(mock_status, telemetry_writer):
 
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events())
         try:
             telemetry_writer.start()
         except ServiceStatusError:
@@ -532,11 +525,8 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session, mock_
         # mocks calling sys.atexit hooks
         telemetry_writer.app_shutdown()
 
-        events = test_agent_session.get_events()
-        assert len(events) == initial_event_count + 1
-
-        # Reverse chronological order
-        assert events[0]["request_type"] == "app-closing"
+        events = test_agent_session.get_events("app-closing")
+        assert len(events) == 1
         assert events[0] == _get_request_body({}, "app-closing", 1)
 
 
