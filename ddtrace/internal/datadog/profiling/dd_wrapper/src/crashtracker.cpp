@@ -1,7 +1,9 @@
 #include "crashtracker.hpp"
 
-#include <filesystem>
 #include <iostream>
+#include <string>
+#include <string_view>
+#include <sys/stat.h>
 #include <vector>
 
 void
@@ -87,12 +89,15 @@ Datadog::Crashtracker::set_library_version(std::string_view _library_version)
 bool
 Datadog::Crashtracker::set_receiver_binary_path(std::string_view _path)
 {
-    // First, check that the path is valid
-    if (!std::filesystem::exists(_path)) {
-        // TODO in the future, we could verify that this object has executable permissions
-        // and possibly check the header or run the binary in some kind of diagnostic mode to get
-        // output, but existence is fine for now.
+    // First, check that the path is valid and executable
+    // We can't use C++ filesystem here because of limitations in manylinux, so we'll use the C API
+    struct stat sa;
+    if (stat(_path.data(), &sa) != 0) {
         std::cerr << "Receiver binary path does not exist: " << _path << std::endl;
+        return false;
+    }
+    if (!(sa.st_mode & S_IXUSR)) {
+        std::cerr << "Receiver binary path is not executable: " << _path << std::endl;
         return false;
     }
     path_to_receiver_binary = std::string(_path);
