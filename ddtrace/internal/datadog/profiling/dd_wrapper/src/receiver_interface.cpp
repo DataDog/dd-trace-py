@@ -7,7 +7,8 @@
 // This has to be a .cpp instead of a .c file because
 // * crashtracker.c, which builds the receiver binary, has to link to libdatadog-internal interfaces
 // * Those interfaces are C interfaces, but they are not exposed in libdd_wrapper.so
-// * Exposing them separately takes up a lot of space, which forces crashtracker_receiver_entry to be within the same .so
+// * Exposing them separately increases dist size
+// * This forces crashtracker_receiver_entry to be within the same .so
 // * The build for libdd_wrapper.so uses C++-specific flags which are incompatible with C
 // * It's annoying to split the build into an object library for just one file
 
@@ -30,4 +31,3 @@ crashtracker_receiver_entry()
     }
     return true;
 }
-

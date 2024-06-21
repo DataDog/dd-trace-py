@@ -1,11 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 
-# This builds a C-extension for Python using Cython and a native dependency.  The exact
-# name of the extension has consequences for the build path, which is in turn used by
-# setup.py to build the wheel. Otherwise, we have to propagate a lot of state all around.
-# Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
-# ddup is used by a default for standalone/test builds.
-set(EXTENSION_NAME "_ddup.so" CACHE STRING "Name of the extension")
+# See ../ddup/CMakeLists.txt for a more detailed explanation of why we do what we do.
+set(EXTENSION_NAME "_crashtracker.so" CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
@@ -17,8 +13,6 @@ include(FetchContent)
 include(ExternalProject)
 include(FindLibdatadog)
 
-# Technically, this should be its own project which we `include()`, but I don't
-# want to deal with that when so many things may yet be factored differently.
 add_subdirectory(../dd_wrapper ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build)
 
 # Make sure we have necessary Python variables
@@ -42,16 +36,16 @@ if (NOT PYTHON_EXECUTABLE)
 endif()
 
 # Cythonize the .pyx file
-set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
+set(CRASHTRACKER_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_crashtracker.cpp)
 add_custom_command(
-    OUTPUT ${DDUP_CPP_SRC}
-    COMMAND ${PYTHON_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx
+    OUTPUT ${CRASHTRACKER_CPP_SRC}
+    COMMAND ${PYTHON_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_crashtracker.pyx -o ${CRASHTRACKER_CPP_SRC}
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_crashtracker.pyx
 )
 
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED
-    ${DDUP_CPP_SRC}
+    ${CRASHTRACKER_CPP_SRC}
 )
 
 # We can't add common Profiling configuration because cython generates messy code, so we just setup some
@@ -94,6 +88,26 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Set the output directory for the built library
 if (LIB_INSTALL_DIR)
     install(TARGETS ${EXTENSION_NAME}
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+    )
+endif()
+
+# Crashtracker receiver binary
+add_executable(crashtracker_exe
+    src/crashtracker.c
+)
+target_include_directories(crashtracker_exe PRIVATE
+    ..
+    ${Datadog_INCLUDE_DIRS}
+)
+set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+target_link_libraries(crashtracker_exe PRIVATE
+    dd_wrapper
+)
+if (LIB_INSTALL_DIR)
+    install(TARGETS crashtracker_exe
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}

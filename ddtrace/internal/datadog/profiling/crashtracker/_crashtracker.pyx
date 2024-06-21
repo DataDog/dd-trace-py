@@ -4,6 +4,8 @@
 import os
 from functools import wraps
 
+from ddtrace.internal.compat import ensure_binary
+
 
 def not_implemented(func):
     @wraps(func)
@@ -21,7 +23,7 @@ cdef extern from "<string_view>" namespace "std" nogil:
 
 # For now, the crashtracker code is bundled in the libdatadog Profiling FFI.
 # This is primarily to reduce binary size.
-cdef extern from "interface.hpp":
+cdef extern from "crashtracker_interface.hpp":
     void crashtracker_set_url(string_view url)
     void crashtracker_set_service(string_view service)
     void crashtracker_set_env(string_view env)
@@ -31,12 +33,21 @@ cdef extern from "interface.hpp":
     void crashtracker_set_library_version(string_view profiler_version)
     void crashtracker_set_stdout_filename(string_view filename)
     void crashtracker_set_stderr_filename(string_view filename)
-    void crashtracker_set_alt_stack(bool alt_stack)
+    void crashtracker_set_alt_stack(bint alt_stack)
     void crashtracker_set_resolve_frames_disable()
     void crashtracker_set_resolve_frames_fast()
     void crashtracker_set_resolve_frames_full()
     bint crashtracker_set_receiver_binary_path(string_view path)
     void crashtracker_start()
+
+
+# String conversion helper
+def ensure_binary_or_empty(s: StringType) -> bytes:
+    try:
+        return ensure_binary(s)
+    except Exception:
+        pass
+    return b""
 
 
 @not_implemented
@@ -115,8 +126,7 @@ def set_resolve_frames_full() -> None:
 
 @not_implemented
 def start() -> None:
-    # The file is "crashtracker_exe" in the same directory as this .so
-    # TODO this is all wrong
+    # The file is "crashtracker_exe" in the same directory as the libdd_wrapper.so
     exe_dir = os.path.dirname(__file__)
     crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
     crashtracker_path_bytes = ensure_binary_or_empty(crashtracker_path)
