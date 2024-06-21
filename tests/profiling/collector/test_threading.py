@@ -399,5 +399,10 @@ def test_lock_enter_exit_events():
     assert release_event.locked_for_ns >= 0
     assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 234, "__exit__", "_ProfiledThreadingLock")
     release_lineno = 372 if sys.version_info >= (3, 10) else 373
-    assert release_event.frames[1] == (__file__.replace(".pyc", ".py"), release_lineno, "test_lock_enter_exit_events", "")
+    assert release_event.frames[1] == (
+        __file__.replace(".pyc", ".py"),
+        release_lineno,
+        "test_lock_enter_exit_events",
+        "",
+    )
     assert release_event.sampling_pct == 100
