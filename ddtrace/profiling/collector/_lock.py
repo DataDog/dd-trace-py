@@ -91,7 +91,20 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+
+        var_name = None
+        for name, value in frame.f_globals.items():
+            if value is self.__wrapped__:
+                var_name = name
+        for name, value in frame.f_locals.items():
+            if value is self.__wrapped__:
+                var_name = name
+
+        self._self_name = "%s:%d:%s" % (
+            os.path.basename(code.co_filename),
+            frame.f_lineno,
+            var_name if var_name else "<anonymous>",
+        )
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
