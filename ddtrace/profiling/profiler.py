@@ -128,12 +128,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
     _export_libdd_enabled = attr.ib(type=bool, default=config.export.libdd_enabled)
-#    _crashtracker_enabled = attr.ib(type=bool, default=config.crashtracker.enabled)
-#    _crashtracker_stdout_filename = attr.ib(type=Optional[str], default=config.crashtracker.stdout_filename)
-#    _crashtracker_stderr_filename = attr.ib(type=Optional[str], default=config.crashtracker.stderr_filename)
-#    _crashtracker_alt_stack = attr.ib(type=bool, default=config.crashtracker.alt_stack)
-#    _crashtracker_stacktrace_resolver = attr.ib(type=Optional[str], default=config.crashtracker.stacktrace_resolver)
-#    _crashtracker_debug_url = attr.ib(type=Optional[str], default=config.crashtracker.debug_url)
     _export_libdd_required = attr.ib(type=bool, default=config.export.libdd_required)
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
@@ -216,22 +210,6 @@ class _ProfilerInstance(service.Service):
         # * If initialization fails and libdd is required, disable everything and return (error)
         if self._export_libdd_enabled:
             try:
-#                # If crashtracker is enabled, propagate the configuration
-#                if self._crashtracker_enabled:
-#                    # We don't check file writability, we leave that to the crashtracker
-#                    if self._crashtracker_stdout_filename:
-#                        ddup.set_crashtracker_stdout_filename(self._crashtracker_stdout_filename)
-#                    if self._crashtracker_stderr_filename:
-#                        ddup.set_crashtracker_stderr_filename(self._crashtracker_stderr_filename)
-#
-#                    # Set the resolver if a valid configuration is sent
-#                    ddup.set_crashtracker_alt_stack(self._crashtracker_alt_stack)
-#                    if self._crashtracker_stacktrace_resolver == "fast":
-#                        ddup.set_crashtracker_resolve_frames_fast()
-#                    elif self._crashtracker_stacktrace_resolver == "full":
-#                        ddup.set_crashtracker_resolve_frames_full()
-
-                # Canonize the configuration.  This sets both the crashtracker and ddup configs.
                 ddup.config(
                     env=self.env,
                     service=self.service,
@@ -242,21 +220,6 @@ class _ProfilerInstance(service.Service):
                     timeline_enabled=config.timeline_enabled,
                 )
                 ddup.start()
-
-                # Start the crashtracker only after libddup has been configured and started.
-                # Conceptually, the crashtracker can work without ddup.start() succeeding, but in practice we don't
-                # want to optimize for that case, so just do it here.
-                # Don't allow this to fail the outer call
-#                if self._crashtracker_enabled:
-#                    LOG.debug("Starting the crashtracker")
-#                    try:
-#                        # Normally the crashtracker inherits the configuration from ddup, but we allow overriding the
-#                        # configuration with certain debug parameters.  Perform that override now.
-#                        if self._crashtracker_debug_url:
-#                            ddup.set_crashtracker_url(self._crashtracker_debug_url)
-#                        ddup.start_crashtracker()
-#                    except Exception as e:
-#                        LOG.error("Failed to start the crashtracker (%s)", e)
 
                 return []
             except Exception as e:

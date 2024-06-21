@@ -10,7 +10,7 @@ cause_segfault(PyObject* self, PyObject* args)
 static PyMethodDef Methods[] = { { "cause_segfault", cause_segfault, METH_VARARGS, "Causes a segfault" },
                                  { NULL, NULL, 0, NULL } };
 
-static struct PyModuleDef Module = { PyModuleDef_HEAD_INIT, MOD_STR(LIB_NAME), NULL, -1, Methods};
+static struct PyModuleDef Module = { PyModuleDef_HEAD_INIT, MOD_STR(LIB_NAME), NULL, -1, Methods };
 
 PyMODINIT_FUNC
 PYINIT_NAME(LIB_NAME)(void)

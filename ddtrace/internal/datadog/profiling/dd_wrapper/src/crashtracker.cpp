@@ -104,7 +104,7 @@ Datadog::Crashtracker::get_config()
 {
     ddog_prof_CrashtrackerConfiguration config{};
     config.create_alt_stack = create_alt_stack;
-    config.endpoint = ddog_prof_Endpoint_agent(to_slice(url)),
+    config.endpoint = ddog_prof_Endpoint_agent(to_slice(url));
     config.resolve_frames = resolve_frames;
     config.timeout_secs = timeout_secs;
 

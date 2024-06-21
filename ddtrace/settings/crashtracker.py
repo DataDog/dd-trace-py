@@ -1,5 +1,8 @@
 import typing as t
 
+from envier import En
+
+
 def _derive_stacktrace_resolver(config):
     # type: ProfilingConfig.Crashtracker -> t.Optional[str]
     resolver = config._stacktrace_resolver or ""
@@ -7,6 +10,7 @@ def _derive_stacktrace_resolver(config):
     if resolver in ("fast", "full"):
         return resolver
     return None
+
 
 def _check_for_crashtracker_available():
     # TODO

@@ -1,7 +1,6 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import os
 import platform
 from typing import Dict
 from typing import Optional

@@ -1,7 +1,9 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import os
 from functools import wraps
+
 
 def not_implemented(func):
     @wraps(func)
@@ -20,21 +22,21 @@ cdef extern from "<string_view>" namespace "std" nogil:
 # For now, the crashtracker code is bundled in the libdatadog Profiling FFI.
 # This is primarily to reduce binary size.
 cdef extern from "interface.hpp":
-    void crashtracker_set_url(string_view url);
-    void crashtracker_set_service(string_view service);
-    void crashtracker_set_env(string_view env);
-    void crashtracker_set_version(string_view version);
-    void crashtracker_set_runtime(string_view runtime);
-    void crashtracker_set_runtime_version(string_view runtime_version);
-    void crashtracker_set_library_version(string_view profiler_version);
-    void crashtracker_set_stdout_filename(string_view filename);
-    void crashtracker_set_stderr_filename(string_view filename);
-    void crashtracker_set_alt_stack(bool alt_stack);
-    void crashtracker_set_resolve_frames_disable();
-    void crashtracker_set_resolve_frames_fast();
-    void crashtracker_set_resolve_frames_full();
-    bint crashtracker_set_receiver_binary_path(string_view path);
-    void crashtracker_start();
+    void crashtracker_set_url(string_view url)
+    void crashtracker_set_service(string_view service)
+    void crashtracker_set_env(string_view env)
+    void crashtracker_set_version(string_view version)
+    void crashtracker_set_runtime(string_view runtime)
+    void crashtracker_set_runtime_version(string_view runtime_version)
+    void crashtracker_set_library_version(string_view profiler_version)
+    void crashtracker_set_stdout_filename(string_view filename)
+    void crashtracker_set_stderr_filename(string_view filename)
+    void crashtracker_set_alt_stack(bool alt_stack)
+    void crashtracker_set_resolve_frames_disable()
+    void crashtracker_set_resolve_frames_fast()
+    void crashtracker_set_resolve_frames_full()
+    bint crashtracker_set_receiver_binary_path(string_view path)
+    void crashtracker_start()
 
 
 @not_implemented

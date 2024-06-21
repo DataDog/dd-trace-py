@@ -44,6 +44,7 @@ def profiling_input():
         file.save(dir_name + "/" + filename)
     return jsonify({"message": "Files received"}), 200
 
+
 # Catch-all route, prints the route
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")

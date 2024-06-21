@@ -1,15 +1,9 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 #include <stdbool.h>
 #include <unistd.h>
 
 #include "datadog/profiling.h"
-
 
 bool
 crashtracker_receiver_entry()
@@ -30,7 +24,3 @@ crashtracker_receiver_entry()
     }
     return true;
 }
-
-#ifdef __cplusplus
-}
-#endif

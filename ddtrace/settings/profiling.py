@@ -61,6 +61,7 @@ def _check_for_stack_v2_available():
         pass  # nosec
     return stack_v2_is_available
 
+
 def _derive_libdd_enabled(config):
     # type: ProfilingConfig.Export -> bool
     if not _check_for_ddup_available():
@@ -84,6 +85,7 @@ def _derive_libdd_required(config):
 # the parent, then include them in the inner class.
 # This is fine, except we want the prefixes to line up
 profiling_prefix = "dd.profiling"
+
 
 class StackConfig(En):
     __prefix__ = profiling_prefix + ".stack"
