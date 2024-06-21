@@ -88,7 +88,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_capture_sampler = capture_sampler
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
         self._self_export_libdd_enabled = export_libdd_enabled
-
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
 
@@ -113,17 +112,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
     def _acquire(self, inner_func, *args, **kwargs):
-        print("In ProfiledLock.acquire")
-
-        for i in range(7):
-            try:
-                frame = sys._getframe(i)
-                if frame is not None:
-                    code = frame.f_code
-                    print("Frame %d: %s:%d:%s" % (i, os.path.basename(code.co_filename), frame.f_lineno, code.co_name))
-            except ValueError:
-                break
-
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
@@ -144,7 +132,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 if self._self_export_libdd_enabled:
-                    print("Exporting using libdd")
                     thread_native_id = _threading.get_thread_native_id(thread_id)
 
                     handle = ddup.SampleHandle()
@@ -154,9 +141,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                     handle.push_task_id(task_id)
                     handle.push_task_name(task_name)
-                    print(
-                        end, self._self_name, end - start, thread_id, thread_native_id, thread_name, task_id, task_name
-                    )
 
                     if self._self_tracer is not None:
                         handle.push_span(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
