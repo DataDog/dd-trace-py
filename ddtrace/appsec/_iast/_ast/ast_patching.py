@@ -59,9 +59,12 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "tomli",
     "typing_extensions",
     "unittest.mock",
+    "uvloop",
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
     "wrapt",
     "zipp",
+    ## This is a workaround for Sanic failures:
+    "sanic",
 )
 
 
