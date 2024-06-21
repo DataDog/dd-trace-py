@@ -221,6 +221,13 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
     acquire_lock = acquire
 
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.release()
+
 
 class FunctionWrapper(wrapt.FunctionWrapper):
     # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
