@@ -29,7 +29,7 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
     # add event to the queue
     telemetry_writer.add_event(payload, payload_type)
     # send request to the agent
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
 
     requests = test_agent_session.get_requests(payload_type)
     assert len(requests) == 1
@@ -50,7 +50,7 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     telemetry_writer.add_event(payload, payload_type)
 
     # ensure no request were sent
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     assert len(test_agent_session.get_requests(payload_type)) == 1
 
 
@@ -60,7 +60,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         # queue an app started event
         telemetry_writer._app_started_event()
         # force a flush
-        telemetry_writer.periodic()
+        telemetry_writer.periodic(force_flush=True)
 
         requests = test_agent_session.get_requests("app-started")
         assert len(requests) == 1
@@ -337,7 +337,7 @@ def test_update_dependencies_event(telemetry_writer, test_agent_session, mock_ti
     new_deps = [str(origin(xmltodict))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) >= 1
     xmltodict_events = [e for e in events if e["payload"]["dependencies"][0]["name"] == "xmltodict"]
@@ -357,7 +357,7 @@ def test_update_dependencies_event_when_disabled(telemetry_writer, test_agent_se
         new_deps = [str(origin(xmltodict))]
         telemetry_writer._update_dependencies_event(new_deps)
         # force a flush
-        telemetry_writer.periodic()
+        telemetry_writer.periodic(force_flush=True)
         events = test_agent_session.get_events()
         for event in events:
             assert event["request_type"] != "app-dependencies-loaded"
@@ -373,7 +373,7 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     new_deps = [str(origin(string))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 1
 
@@ -387,13 +387,13 @@ def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_s
     new_deps = [str(origin(xmltodict))]
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert events[0]["payload"]["dependencies"][0]["name"] == "xmltodict"
 
     telemetry_writer._update_dependencies_event(new_deps)
     # force a flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-dependencies-loaded")
 
     assert events[0]["seq_id"] == 1
@@ -421,7 +421,7 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
         telemetry_writer.add_integration("integration-t", True, True, "")
         telemetry_writer.add_integration("integration-f", False, False, "terrible failure")
         # send integrations to the agent
-        telemetry_writer.periodic()
+        telemetry_writer.periodic(force_flush=True)
 
         requests = test_agent_session.get_requests("app-integrations-change")
         # assert integration change telemetry request was sent
@@ -460,7 +460,7 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
         telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
 
-        telemetry_writer.periodic()
+        telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
         assert len(events) >= initial_event_count + 1
@@ -489,7 +489,7 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     telemetry_writer.disable()
 
     telemetry_writer.add_integration("integration-name", True, False, "")
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     assert len(test_agent_session.get_requests("app-integrations-change")) == 0
 
 
@@ -502,7 +502,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
             httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
             with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
                 # sends failing app-heartbeat event
-                telemetry_writer.periodic()
+                telemetry_writer.periodic(force_flush=True)
                 # asserts unsuccessful status code was logged
                 log.debug.assert_called_with(
                     "failed to send telemetry to the %s at %s. response: %s",
@@ -543,10 +543,10 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
 
     # Assert next flush contains app-heartbeat event
     for _ in range(telemetry_writer._periodic_threshold):
-        telemetry_writer.periodic()
+        telemetry_writer.periodic(force_flush=True)
         assert test_agent_session.get_events("app-heartbeat") == []
 
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     heartbeat_events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(heartbeat_events) == 1
 
@@ -555,7 +555,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
-    telemetry_writer.periodic()
+    telemetry_writer.periodic(force_flush=True)
     events = test_agent_session.get_events("app-heartbeat", filter_heartbeats=False)
     assert len(events) > 0
 

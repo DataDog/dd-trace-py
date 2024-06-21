@@ -18,7 +18,7 @@ def _assert_metric(
     type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
     seq_id=1,
 ):
-    test_agent.telemetry_writer.periodic()
+    test_agent.telemetry_writer.periodic(force_flush=True)
     filtered_events = test_agent.get_events(type_paypload)
 
     payload = {
@@ -46,7 +46,7 @@ def _assert_logs(
     expected_payload,
     seq_id=1,
 ):
-    test_agent.telemetry_writer.periodic()
+    test_agent.telemetry_writer.periodic(force_flush=True)
     events = test_agent.get_events("logs")
 
     expected_body = _get_request_body({"logs": expected_payload}, TELEMETRY_TYPE_LOGS, seq_id)
