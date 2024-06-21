@@ -62,10 +62,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "urlpatterns_reverse.tests",  # assertRaises eat exceptions in native code, so we don't call the original function
     "wrapt",
     "zipp",
-    ## These are workaround for Sanic failures:
-    "sanic",
-    "uvloop",
-    "websockets",
 )
 
 
