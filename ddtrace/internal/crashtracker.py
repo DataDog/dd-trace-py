@@ -1,7 +1,10 @@
+# See ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx or .pyi for a summary of
+# the available interfaces
+
 is_available = False
 
 try:
-    from ._crashtracker import *  # noqa: F403, F401
+    from .datadog.profiling.crashtracker._crashtracker import *  # noqa: F403, F401
 
     is_available = True
 
