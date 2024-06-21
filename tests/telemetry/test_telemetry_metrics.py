@@ -47,7 +47,7 @@ def _assert_logs(
     seq_id=1,
 ):
     test_agent.telemetry_writer.periodic()
-    events = test_agent.get_events()
+    events = test_agent.get_events("logs")
 
     expected_body = _get_request_body({"logs": expected_payload}, TELEMETRY_TYPE_LOGS, seq_id)
     expected_body["payload"]["logs"].sort(key=lambda x: x["message"], reverse=False)

@@ -1,3 +1,4 @@
+import os
 import sysconfig
 import time
 from typing import Any  # noqa:F401
@@ -18,7 +19,6 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
-from tests.telemetry.utils import get_default_telemetry_env
 from tests.utils import override_global_config
 
 
@@ -189,7 +189,7 @@ logging.basicConfig()
 import ddtrace.auto
     """
 
-    env = get_default_telemetry_env()
+    env = os.environ.copy()
     # Change configuration default values
     env["DD_EXCEPTION_DEBUGGING_ENABLED"] = "True"
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"

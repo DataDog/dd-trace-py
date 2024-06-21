@@ -531,7 +531,14 @@ def test_agent_session(telemetry_writer, filter_heartbeat_events, request):
             time.sleep(pow(exp_time, try_nb))
         finally:
             conn.close()
+
+    p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
+        # The default environment for the telemetry writer tests disables agentless mode
+        # because the behavior is identical except for the trace URL, endpoint, and
+        # presence of an API key header.
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "0"
         yield requests
     finally:
+        os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
