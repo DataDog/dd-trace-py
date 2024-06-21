@@ -362,3 +362,22 @@ def test_user_threads_have_native_id():
         raise AssertionError("Thread.native_id not set")
 
     t.join()
+
+
+def test_lock_enter_exit_events():
+    r = recorder.Recorder()
+    with collector_threading.ThreadingLockCollector(r, capture_pct=100):
+        lock = threading.Lock()
+        with lock:
+            pass
+    assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
+    assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1
+    acquire_event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
+    assert acquire_event.lock_name == "test_threading.py:371"
+    assert acquire_event.thread_id == _thread.get_ident()
+    assert acquire_event.wait_time_ns >= 0
+    # It's called through pytest so I'm sure it's gonna be that long, right?
+    assert len(acquire_event.frames) > 3
+    assert acquire_event.nframes > 3
+    assert acquire_event.frames[0] == (__file__.replace(".pyc", ".py"), 62, "test_lock_acquire_events", "")
+    assert acquire_event.sampling_pct == 100
