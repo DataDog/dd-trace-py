@@ -90,29 +90,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-
         var_name = self._get_var_name()
-
-        # for i in range(0, 4):
-        #     fr = sys._getframe(i)
-        #     co = fr.f_code
-        #     print("Frame %s" %  co.co_name)
-        #     globals = []
-        #     locals = []
-
-        #     for name, value in fr.f_globals.items():
-        #         globals.append(name)
-        #         if value == self.__wrapped__:
-        #             print("Found %s in globals of %s, which is %d frame above" % (name, co.co_name, i))
-        #             var_name = name
-        #     for name, value in fr.f_locals.items():
-        #         locals.append(name)
-        #         if value == self.__wrapped__:
-        #             print("Found %s in locals of %s, which is %d frame above" % (name, co.co_name, i))
-        #             var_name = name
-
-        #     print("Globals: %s" % globals)
-        #     print("Locals: %s" % locals)
 
         self._self_name = "%s:%d:%s" % (
             os.path.basename(code.co_filename),
