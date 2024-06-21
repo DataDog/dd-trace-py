@@ -49,12 +49,10 @@ set_target_properties(dd_wrapper PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.
 # However, for an inplace build, setup.py will pass a temporary path as the extension output directory, so while it
 # will handle the extension artifacts themselves, supplementary files like this one will be left uncopied.
-# One way around this is to anticipate this in the case of an inplace build and copy the file to its final
-# location ourselves.
-if (INPLACE_BUILD)
-    # Modify the install directory to be the same directory as this CMakelists.txt file.
-    # This will ensure that the installation logic is consistent for inplace builds
-    set(LIB_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+# One way around this is to propagate the original source dir of the extension, which can be used to deduce the
+# ideal install directory.
+if (INPLACE_LIB_INSTALL_DIR)
+    set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
 endif()
 
 # If LIB_INSTALL_DIR is set, install the library.

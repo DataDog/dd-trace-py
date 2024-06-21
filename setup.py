@@ -43,6 +43,7 @@ HERE = Path(__file__).resolve().parent
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
+IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
@@ -231,6 +232,13 @@ class LibDDWafDownload(LibraryDownload):
 
 class LibraryDownloader(BuildPyCommand):
     def run(self):
+        # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
+        # is set to True when the package is being installed in editable mode, which we need to know
+        # for some extensions
+        global IS_EDITABLE
+        if self.editable_mode:
+            IS_EDITABLE = True
+
         CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
@@ -313,8 +321,9 @@ class CMakeBuild(build_ext):
         ]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful (for dd_wrapper)
-        if self.inplace:
-            cmake_args.append("-DINPLACE_BUILD=ON")
+        if IS_EDITABLE:
+            # the INPLACE_LIB_INSTALL_DIR should be the source dir of the extension
+            cmake_args.append("-DINPLACE_LIB_INSTALL_DIR={}".format(ext.source_dir))
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
@@ -440,19 +449,14 @@ if not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
-    if platform.system() not in ("Windows", ""):
-        ext_modules.append(
-            Extension(
-                "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
-                sources=[
-                    "ddtrace/appsec/_iast/_stacktrace.c",
-                ],
-                extra_compile_args=debug_compile_args,
-            )
-        )
-
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+#    if platform.system() not in ("Windows", ""):
+#                    "ddtrace/appsec/_iast/_stacktrace.c",
+#                ],
+#                extra_compile_args=debug_compile_args,
+#            )
+#        )
+#
+#        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
 
     if platform.system() == "Linux" and is_64_bit_python():
         ext_modules.append(
