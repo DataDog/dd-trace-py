@@ -63,4 +63,4 @@ def instrument_all_lines(
             # pseudo-instruction (e.g. label)
             pass
 
-    return abstract_code.to_code(), lines  # , module_consts_to_lines
+    return abstract_code.to_code(), lines

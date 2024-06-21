@@ -257,7 +257,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         return cls._instance is not None and ctx_coverage_enabled.get()
 
     @classmethod
-    def report_seen_lines(cls, include_imported: bool = False):
+    def report_seen_lines(cls, workspace_path: Path, include_imported: bool = False):
         """Generate the same data as expected by ddtrace.ci_visibility.coverage.build_payload:
 
         if input_path is provided, filter files to only include that path, and make it relative to said path
@@ -277,13 +277,18 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         files = []
         covered = cls._instance._get_covered_lines(include_imported=True)
 
-        for path, lines in covered.items():
+        for abs_path_str, lines in covered.items():
+            abs_path = Path(abs_path_str)
+            path_str = (
+                str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
+            )
+
             sorted_lines = sorted(lines)
             collapsed_ranges = collapse_ranges(sorted_lines)
             file_segments = []
             for file_segment in collapsed_ranges:
                 file_segments.append([file_segment[0], 0, file_segment[1], 0, -1])
-            files.append({"filename": path, "segments": file_segments})
+            files.append({"filename": path_str, "segments": file_segments})
 
         return files
 
