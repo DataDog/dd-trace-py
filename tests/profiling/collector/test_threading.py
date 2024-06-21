@@ -8,6 +8,7 @@ from six.moves import _thread
 
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import threading as collector_threading
+from ddtrace.profiling.collector import _lock
 from tests.utils import flaky
 
 from . import test_collector
@@ -382,6 +383,13 @@ def test_lock_enter_exit_events():
     assert acquire_event.nframes >= 3
     # To implement 'with lock:', _lock._ProfiledLock implements __enter__ and
     # __exit__. So frames[0] is __enter__ and __exit__ respectively.
+
+    assert acquire_event.frames[0] == (
+        _lock.__file__.replace(".pyc", ".py"),
+        225,
+        "__enter__",
+        "_ProfiledThreadingLock",
+    )
     assert acquire_event.frames[1] == (__file__.replace(".pyc", ".py"), 371, "test_lock_enter_exit_events", "")
     assert acquire_event.sampling_pct == 100
 
@@ -389,5 +397,6 @@ def test_lock_enter_exit_events():
     assert release_event.lock_name == "test_threading.py:370"
     assert release_event.thread_id == _thread.get_ident()
     assert release_event.locked_for_ns >= 0
+    assert release_event.frames[0] == (_lock.__file__.replace(".pyc", ".py"), 229, "__exit__", "_ProfiledThreadingLock")
     assert release_event.frames[1:] == acquire_event.frames[1:]
     assert release_event.sampling_pct == 100
