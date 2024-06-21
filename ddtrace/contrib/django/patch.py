@@ -42,6 +42,8 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from ...appsec._utils import _UserInfoRetriever
+from ...ext import db
+from ...ext import net
 from ...internal.utils import get_argument_value
 from ...propagation._database_monitoring import _DBM_Propagator
 from .. import trace_utils
@@ -105,6 +107,20 @@ def patch_conn(django, conn):
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
 
+    CONN_ATTR_BY_TAG = {
+        net.TARGET_HOST: "HOST",
+        net.TARGET_PORT: "PORT",
+        db.USER: "USER",
+        db.NAME: "NAME",
+    }
+
+    tags = {}
+    for tag, attr in CONN_ATTR_BY_TAG.items():
+        if attr in getattr(conn, "settings_dict", {}):
+            tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+
+    conn._datadog_tags = tags
+
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
@@ -117,10 +133,7 @@ def patch_conn(django, conn):
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
-        tags = {
-            "django.db.vendor": vendor,
-            "django.db.alias": alias,
-        }
+        tags = {"django.db.vendor": vendor, "django.db.alias": alias, **getattr(conn, "_datadog_tags", {})}
         pin = Pin(service, tags=tags, tracer=pin.tracer)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor

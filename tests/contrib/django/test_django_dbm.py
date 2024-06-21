@@ -1,84 +1,98 @@
-import contextlib
 from django.db import connections
 import mock
-import pytest
 
-from ddtrace.contrib.django.patch import patch as django_patch
-from ddtrace.contrib.django.patch import unpatch as django_unpatch
+from ddtrace import Pin
+from ddtrace.internal import core
+from ddtrace.propagation._database_monitoring import handle_dbm_injection
 from tests.contrib import shared_tests
 from tests.utils import DummyTracer
+from tests.utils import override_config
+from tests.utils import override_dbm_config
 from tests.utils import override_env
-from tests.utils import TracerTestCase
+from tests.utils import override_global_config
 
 from ...contrib.config import POSTGRES_CONFIG
 
 
-POSTGRES_CONFIG["db"] = POSTGRES_CONFIG["dbname"]
+POSTGRES_CONFIG["db"] = "test_postgres"
 
 
-@contextlib.contextmanager
-def override_global_tracer(tracer=None):
-    import ddtrace
-    original = ddtrace.tracer
-    ddtrace.tracer = tracer
-    try:
-        yield
-    finally:
-        ddtrace.tracer = original
+core.on("django-postgres.execute", handle_dbm_injection, "result")
 
 
-@pytest.mark.usefixtures("transactional_db", "tracer")
-class PsycopgCore(TracerTestCase):
-    # default service
-    TEST_SERVICE = "postgres"
+def get_cursor(tracer, service=None, propagation_mode="service", tags={}):
+    breakpoint()
+    conn = connections["postgres"]
+    cursor = conn.cursor()
 
-    def setUp(self):
-        super(PsycopgCore, self).setUp()
+    pin = Pin.get_from(cursor)
+    assert pin is not None
 
-        django_patch()
+    pin.clone(tracer=tracer, tags={**pin.tags, **tags}).onto(cursor)
 
-        # # If Django version >= 4.2.0, check if psycopg3 is installed,
-        # # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
-        # if django.VERSION < (4, 2, 0):
-        #     pytest.skip(reason="Psycopg3 not supported in django<4.2")
-        # else:
-        from django.db import connections
-        from ddtrace.contrib.psycopg.patch import patch
+    return cursor
 
-        patch()
 
-        # # force recreate connection to ensure psycopg3 patching has occurred
-        print(connections.all())
-        del connections["postgres"]
-        connections["postgres"].close()
-        # breakpoint()
-        connections["postgres"].connect()
-
-    def tearDown(self):
-        super(PsycopgCore, self).tearDown()
-
-        from ddtrace.contrib.psycopg.patch import unpatch
-
-        django_unpatch()
-        unpatch()
-
-    def get_cursor(self, service=None):
-        conn = connections["postgres"]
-        cursor = conn.cursor()
-
-        return cursor
-
-    def test_django_postgres_dbm_propagation_enabled(self):
+def test_django_postgres_dbm_propagation_enabled(tracer, transactional_db):
+    with override_dbm_config({"propagation_mode": "full"}):
         tracer = DummyTracer()
-        with override_env(dict(DD_DBM_PROPAGATION_MODE="full")):
-            with override_global_tracer(tracer):
-                from ddtrace.internal import core
-                from ddtrace.propagation._database_monitoring import handle_dbm_injection
-                from ddtrace.settings._database_monitoring import DatabaseMonitoringConfig, dbm_config
-                dbm_config.propagation_mode = "full"
 
-                core.on("dbapi.execute", handle_dbm_injection, "result")
-                core.on("psycopg.execute", handle_dbm_injection, "result")
+        cursor = get_cursor(tracer)
+        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgres")
 
-                cursor = self.get_cursor()
-                shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgres")
+
+def test_django_postgres_dbm_propagation_comment_with_global_service_name_configured(tracer, transactional_db):
+    """tests if dbm comment is set in postgres"""
+    with override_global_config({"service": "orders-app", "env": "staging", "version": "v7343437-d7ac743"}):
+        with override_dbm_config({"propagation_mode": "service"}):
+            cursor = get_cursor(tracer)
+            cursor.__wrapped__ = mock.Mock()
+
+            shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
+                config=POSTGRES_CONFIG, db_system="postgresdb", cursor=cursor, wrapped_instance=cursor.__wrapped__
+            )
+
+
+def test_django_postgres_dbm_propagation_comment_integration_service_name_override(tracer, transactional_db):
+    """tests if dbm comment is set in postgres"""
+    with override_global_config({"service": "orders-app", "env": "staging", "version": "v7343437-d7ac743"}):
+        with override_config("django", {"database_service_name": "service-name-override"}):
+            with override_dbm_config({"propagation_mode": "service"}):
+                cursor = get_cursor(tracer)
+                cursor.__wrapped__ = mock.Mock()
+
+                shared_tests._test_dbm_propagation_comment_integration_service_name_override(
+                    config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+                )
+
+
+def test_django_postgres_dbm_propagation_comment_pin_service_name_override(tracer, transactional_db):
+    """tests if dbm comment is set in postgres"""
+    with override_global_config({"service": "orders-app", "env": "staging", "version": "v7343437-d7ac743"}):
+        with override_config("django", {"database_service_name": "service-name-override"}):
+            with override_dbm_config({"propagation_mode": "service"}):
+                cursor = get_cursor(tracer)
+                cursor.__wrapped__ = mock.Mock()
+
+                shared_tests._test_dbm_propagation_comment_pin_service_name_override(
+                    config=POSTGRES_CONFIG,
+                    cursor=cursor,
+                    tracer=tracer,
+                    wrapped_instance=cursor.__wrapped__,
+                    conn=connections["postgres"],
+                )
+
+
+def test_django_postgres_dbm_propagation_comment_peer_service_enabled(tracer, transactional_db):
+    """tests if dbm comment is set in postgres"""
+    with override_global_config({"service": "orders-app", "env": "staging", "version": "v7343437-d7ac743"}):
+        breakpoint()
+        with override_env({"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": "True"}):
+            with override_config("django", {"database_service_name": "service-name-override"}):
+                with override_dbm_config({"propagation_mode": "service"}):
+                    cursor = get_cursor(tracer)
+                    cursor.__wrapped__ = mock.Mock()
+
+                    shared_tests._test_dbm_propagation_comment_peer_service_enabled(
+                        config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+                    )

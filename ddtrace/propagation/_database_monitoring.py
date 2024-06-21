@@ -151,6 +151,7 @@ if dbm_config.propagation_mode in ["full", "service"]:
     core.on("aiomysql.execute", handle_dbm_injection, "result")
     core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
     core.on("dbapi.execute", handle_dbm_injection, "result")
+    core.on("django-postgres.execute", handle_dbm_injection, "result")
     core.on("mysql.execute", handle_dbm_injection, "result")
     core.on("mysqldb.execute", handle_dbm_injection, "result")
     core.on("psycopg.execute", handle_dbm_injection, "result")

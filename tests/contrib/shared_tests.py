@@ -32,7 +32,6 @@ def _test_dbm_propagation_enabled(tracer, cursor, service):
     assert len(spans) == 1
     span = spans[0]
     assert span.name == f"{service}.query"
-    breakpoint()
 
     assert span.get_tag("_dd.dbm_trace_injected") == "true"
 
@@ -90,7 +89,8 @@ def _test_dbm_propagation_comment_peer_service_enabled(config, cursor, wrapped_i
     db_name = config["db"]
 
     dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddps='orders-app'," "ddpv='v7343437-d7ac743'*/ "
+        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
+        "ddpv='v7343437-d7ac743'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
     if execute_many:
@@ -104,7 +104,7 @@ def _test_dbm_propagation_comment_with_peer_service_tag(
     db_name = config["db"]
 
     dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='test',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
+        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
         "ddpv='v7343437-d7ac743'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)
