@@ -37,10 +37,10 @@ jobs:
             profiling: 0
             iast: 1
             appsec: 0
-          # - suffix: APPSEC
-          #   profiling: 0
-          #   iast: 0
-          #   appsec: 1
+          - suffix: APPSEC
+            profiling: 0
+            iast: 0
+            appsec: 1
           - suffix: Tracer only
             profiling: 0
             iast: 0
