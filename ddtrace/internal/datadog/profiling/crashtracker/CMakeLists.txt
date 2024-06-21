@@ -96,7 +96,7 @@ endif()
 
 # Crashtracker receiver binary
 add_executable(crashtracker_exe
-    src/crashtracker.c
+    src/crashtracker.cpp
 )
 target_include_directories(crashtracker_exe PRIVATE
     ..

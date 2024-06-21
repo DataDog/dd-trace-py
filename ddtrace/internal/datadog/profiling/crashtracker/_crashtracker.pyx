@@ -6,8 +6,11 @@
 
 import os
 from functools import wraps
+from typing import Union
 
 from ddtrace.internal.compat import ensure_binary
+
+StringType = Union[str, bytes]
 
 
 def not_implemented(func):
