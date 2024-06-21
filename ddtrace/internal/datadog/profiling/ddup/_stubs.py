@@ -2,6 +2,8 @@ from functools import wraps
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
+from ddtrace.span import Span  # noqa:F401
+
 
 def not_implemented(func):
     @wraps(func)
