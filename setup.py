@@ -314,7 +314,7 @@ class CMakeBuild(build_ext):
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful (for dd_wrapper)
         if self.inplace:
-            cmake_args.append("-DINPLACE_BUILD")
+            cmake_args.append("-DINPLACE_BUILD=ON")
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
