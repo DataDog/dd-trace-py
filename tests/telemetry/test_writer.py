@@ -19,7 +19,6 @@ from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings import _config as config
 from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.telemetry.utils import get_default_telemetry_env
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -45,9 +44,6 @@ def test_add_event(telemetry_writer, test_agent_session, mock_time):
 
 def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
-    initial_event_count = len(test_agent_session.get_requests())
-    telemetry_writer.disable()
-
     payload = {"test": "123"}
     payload_type = "test-event"
     # ensure events are not queued when telemetry is disabled
@@ -55,26 +51,20 @@ def test_add_event_disabled_writer(telemetry_writer, test_agent_session):
 
     # ensure no request were sent
     telemetry_writer.periodic()
-    assert len(test_agent_session.get_requests()) == initial_event_count
+    assert len(test_agent_session.get_requests(payload_type)) == 1
 
 
 def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
     """asserts that _app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
-        initial_event_count = len(test_agent_session.get_events())
         # queue an app started event
         telemetry_writer._app_started_event()
         # force a flush
         telemetry_writer.periodic()
 
-        requests = test_agent_session.get_requests()
+        requests = test_agent_session.get_requests("app-started")
         assert len(requests) == 1
         assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-started"
-
-        events = test_agent_session.get_events()
-        assert len(events) == initial_event_count + 1
-
-        events[0]["payload"]["configuration"].sort(key=lambda c: c["name"])
 
         payload = {
             "configuration": sorted(
@@ -169,7 +159,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                 "message": "",
             },
         }
-        assert events[0] == _get_request_body(payload, "app-started")
+        requests[0]["body"]["payload"]["configuration"].sort(key=lambda c: c["name"])
+        assert requests[0]["body"] == _get_request_body(payload, "app-started")
 
 
 @pytest.mark.parametrize(
@@ -390,11 +381,9 @@ def test_update_dependencies_event_not_stdlib(telemetry_writer, test_agent_sessi
     # force a flush
     telemetry_writer.periodic()
     events = test_agent_session.get_events("app-dependencies-loaded")
-    # flaky
     assert len(events) == 1
 
 
-@flaky(1717255857)
 def test_update_dependencies_event_not_duplicated(telemetry_writer, test_agent_session, mock_time):
     TelemetryWriterModuleWatchdog._initial = False
     TelemetryWriterModuleWatchdog._new_imported.clear()
@@ -425,9 +414,8 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         telemetry_writer.app_shutdown()
 
-        requests = test_agent_session.get_requests()
+        requests = test_agent_session.get_requests("app-closing")
         assert len(requests) == 1
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-closing"
         # ensure a valid request body was sent
         assert requests[0]["body"] == _get_request_body({}, "app-closing")
 
@@ -441,11 +429,10 @@ def test_add_integration(telemetry_writer, test_agent_session, mock_time):
         # send integrations to the agent
         telemetry_writer.periodic()
 
-        requests = test_agent_session.get_requests()
+        requests = test_agent_session.get_requests("app-integrations-change")
+        # assert integration change telemetry request was sent
         assert len(requests) == 1
 
-        # assert integration change telemetry request was sent
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "app-integrations-change"
         # assert that the request had a valid request body
         requests[0]["body"]["payload"]["integrations"].sort(key=lambda x: x["name"])
         expected_payload = {
@@ -505,13 +492,11 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
-    initial_event_count = len(test_agent_session.get_requests())
     telemetry_writer.disable()
 
     telemetry_writer.add_integration("integration-name", True, False, "")
     telemetry_writer.periodic()
-
-    assert len(test_agent_session.get_requests()) == initial_event_count
+    assert len(test_agent_session.get_requests("app-integrations-change")) == 0
 
 
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])

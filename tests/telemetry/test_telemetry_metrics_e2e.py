@@ -6,7 +6,6 @@ import sys
 
 from ddtrace.internal.utils.retry import RetryError
 from tests.telemetry.utils import get_default_telemetry_env
-from tests.utils import flaky
 from tests.webclient import Client
 
 
@@ -73,7 +72,6 @@ def parse_payload(data):
     return json.loads(data)
 
 
-@flaky(1717255857)
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
     token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
     initial_event_count = len(test_agent_session.get_events())
