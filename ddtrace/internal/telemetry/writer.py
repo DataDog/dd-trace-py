@@ -588,7 +588,7 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _update_dependencies_event(self, newly_imported_deps: List[str]):
+    def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
 
         if not config._telemetry_dependency_collection or not self._enabled:
@@ -764,7 +764,7 @@ class TelemetryWriter(PeriodicService):
         if config._telemetry_dependency_collection:
             newly_imported_deps = self._flush_new_imported_dependencies()
             if newly_imported_deps:
-                self._update_dependencies_event(newly_imported_deps)
+                self._app_dependencies_loaded_event(newly_imported_deps)
 
         if shutting_down:
             self._app_closing_event()
