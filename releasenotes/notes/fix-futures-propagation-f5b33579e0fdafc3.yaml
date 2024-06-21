@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    futures: Fixes inconsistent behavior with ``concurrent.futures.ThreadPoolExecutor`` context propagation by passing the current trace context instead of the currently active span to tasks. This prevents edge cases of disconnected spans when the task executes after the parent span has finished.
