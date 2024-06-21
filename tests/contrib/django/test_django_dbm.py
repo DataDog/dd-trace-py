@@ -14,14 +14,13 @@ from tests.utils import override_global_config
 from ...contrib.config import POSTGRES_CONFIG
 
 
-POSTGRES_CONFIG["db"] = "test_postgres"
-
-
 core.on("django-postgres.execute", handle_dbm_injection, "result")
 
 
 def get_cursor(tracer, service=None, propagation_mode="service", tags={}):
     conn = connections["postgres"]
+    POSTGRES_CONFIG["db"] = conn.settings_dict["NAME"]
+
     cursor = conn.cursor()
 
     pin = Pin.get_from(cursor)
