@@ -288,11 +288,6 @@ class CMakeBuild(build_ext):
     def build_extension_cmake(self, ext):
         # Define the build and output directories
         output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
-
-        # If this is an inplace build (-e), the output directory needs to be adjusted a bit
-        if self.inplace:
-            ext_path = Path(self.get_ext_fullname(ext.name)).with_suffix(self.get_ext_filename(ext.name))
-            output_dir = Path(os.path.abspath(os.path.dirname(__file__))).joinpath(ext_path).parent.resolve()
         extension_basename = Path(self.get_ext_fullpath(ext.name)).name
 
         # We derive the cmake build directory from the output directory, but put it in
@@ -316,6 +311,10 @@ class CMakeBuild(build_ext):
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
         ]
+
+        # If this is an inplace build, propagate this fact to CMake in case it's helpful (for dd_wrapper)
+        if self.inplace:
+            cmake_args.append("-DINPLACE_BUILD")
 
         # Arguments to the cmake --build command
         build_args = ext.build_args or []
