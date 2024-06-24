@@ -1,3 +1,5 @@
+import json
+
 import mock
 import pytest
 
@@ -403,3 +405,64 @@ def test_ml_app_override(LLMObs, mock_llmobs_span_writer):
             span, "embedding", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
         )
     )
+
+
+def test_automatic_annotation_non_llm_decorators(LLMObs, mock_llmobs_span_writer):
+    """Test that automatic input/output annotation works for non-LLM decorators."""
+    for decorator_name, decorator in (("task", task), ("workflow", workflow), ("tool", tool), ("agent", agent)):
+
+        @decorator(name="test_function", session_id="test_session_id")
+        def f(prompt, arg_2, kwarg_1=None, kwarg_2=None):
+            return prompt
+
+        f("test_prompt", "arg_2", kwarg_2=12345)
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                decorator_name,
+                input_value=json.dumps({"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}),
+                output_value="test_prompt",
+                session_id="test_session_id",
+            )
+        )
+
+
+def test_automatic_annotation_retrieval_decorator(LLMObs, mock_llmobs_span_writer):
+    """Test that automatic input annotation works for retrieval decorators."""
+
+    @retrieval(session_id="test_session_id")
+    def test_retrieval(query, arg_2, kwarg_1=None, kwarg_2=None):
+        return [{"name": "name", "id": "1234567890", "score": 0.9}]
+
+    test_retrieval("test_query", "arg_2", kwarg_2=12345)
+    span = LLMObs._instance.tracer.pop()[0]
+    mock_llmobs_span_writer.enqueue.assert_called_with(
+        _expected_llmobs_non_llm_span_event(
+            span,
+            "retrieval",
+            input_value=json.dumps({"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}),
+            session_id="test_session_id",
+        )
+    )
+
+
+def test_automatic_annotation_off_non_llm_decorators(LLMObs, mock_llmobs_span_writer):
+    """Test disabling automatic input/output annotation for non-LLM decorators."""
+    for decorator_name, decorator in (
+        ("task", task),
+        ("workflow", workflow),
+        ("tool", tool),
+        ("retrieval", retrieval),
+        ("agent", agent),
+    ):
+
+        @decorator(name="test_function", session_id="test_session_id", _automatic_io_annotation=False)
+        def f(prompt, arg_2, kwarg_1=None, kwarg_2=None):
+            return prompt
+
+        f("test_prompt", "arg_2", kwarg_2=12345)
+        span = LLMObs._instance.tracer.pop()[0]
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(span, decorator_name, session_id="test_session_id")
+        )

@@ -14,7 +14,6 @@ log = get_logger(__name__)
 def _model_decorator(operation_kind):
     def decorator(
         model_name: str,
-        original_func: Optional[Callable] = None,
         model_provider: Optional[str] = None,
         name: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -56,6 +55,7 @@ def _llmobs_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        _automatic_io_annotation: bool = True,
     ):
         def inner(func):
             @wraps(func)
@@ -68,12 +68,12 @@ def _llmobs_decorator(operation_kind):
                     span_name = func.__name__
                 traced_operation = getattr(LLMObs, operation_kind, "workflow")
                 with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
-                    resp = func(*args, **kwargs)
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
-                    if bound_args.arguments:
+                    if _automatic_io_annotation and bound_args.arguments:
                         LLMObs.annotate(span=span, input_data=bound_args.arguments)
-                    if resp:
+                    resp = func(*args, **kwargs)
+                    if _automatic_io_annotation and resp and operation_kind != "retrieval":
                         LLMObs.annotate(span=span, output_data=resp)
                     return resp
 
