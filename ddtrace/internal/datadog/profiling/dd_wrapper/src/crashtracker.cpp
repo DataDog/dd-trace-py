@@ -228,7 +228,7 @@ Datadog::Crashtracker::start_not_profiling()
 void
 Datadog::Crashtracker::stop_not_profiling()
 {
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
+    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
     (void)res; // ignore for now
 }
 
@@ -242,7 +242,7 @@ Datadog::Crashtracker::start_sampling()
 void
 Datadog::Crashtracker::stop_sampling()
 {
-    auto res = ddog_prof_Crashtracker_begin_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
+    auto res = ddog_prof_Crashtracker_end_profiling_op(DDOG_PROF_PROFILING_OP_TYPES_NOT_PROFILING);
     (void)res; // ignore for now
 }
 
