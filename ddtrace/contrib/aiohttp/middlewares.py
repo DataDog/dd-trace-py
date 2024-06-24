@@ -164,10 +164,14 @@ def trace_app(app, tracer, service="aiohttp-web"):
         return
     app.__datadog_trace = True
 
+    app_service = config._get_service(default=service)
+    if app_service == config._inferred_service:
+        app_service = service
+
     # configure datadog settings
     app[CONFIG_KEY] = {
         "tracer": tracer,
-        "service": config._get_service(default=service),
+        "service": app_service,
         "distributed_tracing_enabled": None,
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,

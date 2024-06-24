@@ -1,7 +1,7 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": "ddtrace",
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
@@ -25,7 +25,7 @@
   },
      {
        "name": "aiohttp.request",
-       "service": "",
+       "service": "ddtrace",
        "resource": "aiohttp.request",
        "trace_id": 0,
        "span_id": 2,
@@ -47,7 +47,7 @@
      },
         {
           "name": "TCPConnector.connect",
-          "service": "",
+          "service": "ddtrace",
           "resource": "TCPConnector.connect",
           "trace_id": 0,
           "span_id": 3,
