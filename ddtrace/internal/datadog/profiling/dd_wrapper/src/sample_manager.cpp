@@ -27,7 +27,8 @@ Datadog::SampleManager::set_timeline(bool enable)
     Datadog::Sample::set_timeline(enable);
 }
 
-Datadog::Sample* Datadog::SampleManager::start_sample()
+Datadog::Sample*
+Datadog::SampleManager::start_sample()
 {
     {
         const std::lock_guard<std::mutex> lock(pool_mutex);
@@ -54,7 +55,6 @@ Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
         sample_pool.emplace_back(sample); // NOLINT(cppcoreguidelines-owning-memory)
     }
 }
-
 
 void
 Datadog::SampleManager::postfork_child()
