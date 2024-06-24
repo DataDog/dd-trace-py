@@ -92,8 +92,8 @@ def test_crashtracker_config_bytes():
 @pytest.mark.subprocess()
 def test_crashtracker_simple():
     import ctypes
-    import math
     import os
+    import random
     import select
     import socket
 
@@ -111,7 +111,7 @@ def test_crashtracker_simple():
     sock = None
     for i in range(5):
         port = 10000
-        port += math.random() * 10000
+        port += random.randint(0, 9999)
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("localhost", port))
