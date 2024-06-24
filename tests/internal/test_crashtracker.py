@@ -46,13 +46,17 @@ def test_crashtracker_config():
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
+    stdout_msg = ""
+    stderr_msg = ""
     if os.path.exists("stdout.log"):
         with open("stdout.log", "r") as f:
-            pytest.fail(f.read())
-
+            stdout_msg = f.read()
     if os.path.exists("stderr.log"):
         with open("stderr.log", "r") as f:
-            pytest.fail(f.read())
+            stderr_msg = f.read()
+
+    if stdout_msg or stderr_msg:
+        pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -79,32 +83,33 @@ def test_crashtracker_config_bytes():
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
+    stdout_msg = ""
+    stderr_msg = ""
     if os.path.exists("stdout.log"):
         with open("stdout.log", "r") as f:
-            pytest.fail(f.read())
-
+            stdout_msg = f.read()
     if os.path.exists("stderr.log"):
         with open("stderr.log", "r") as f:
-            pytest.fail(f.read())
+            stderr_msg = f.read()
+
+    if stdout_msg or stderr_msg:
+        pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_simple():
-    import ctypes
-    import os
-    import random
-    import select
-    import socket
-
-    import ddtrace.internal.core.crashtracker as crashtracker
-
     # This test does the following
     # 1. Finds a random port in the range 10000-20000 it can bind to (5 retries)
     # 2. Listens on that port for new connections
     # 3. Starts the crashtracker with the URL set to the port
     # 4. Crashes the process
     # 5. Verifies that the crashtracker sends a crash report to the server
+
+    import os
+    import random
+    import select
+    import socket
 
     # Part 1 and 2
     port = None
@@ -124,22 +129,24 @@ def test_crashtracker_simple():
     assert port is not None
     assert sock is not None
 
-    # Part 3
-    crashtracker.set_url("http://localhost:%d" % port)
-    crashtracker.set_service("my_favorite_service")
-    crashtracker.set_version("v0.0.0.0.0.0.1")
-    crashtracker.set_runtime("4kph")
-    crashtracker.set_runtime_version("v3.1.4.1")
-    crashtracker.set_library_version("v2.7.1.8")
-    crashtracker.set_stdout_filename("stdout.log")
-    crashtracker.set_stderr_filename("stderr.log")
-    crashtracker.set_alt_stack(False)
-    crashtracker.set_resolve_frames_full()
-    assert crashtracker.start()
-
-    # Part 4, Fork and crash
+    # Part 3 and 4, Fork, setup crashtracker, and crash
     pid = os.fork()
     if pid == 0:
+        import ctypes
+
+        import ddtrace.internal.core.crashtracker as crashtracker
+
+        crashtracker.set_url("http://localhost:%d" % port)
+        crashtracker.set_service("my_favorite_service")
+        crashtracker.set_version("v0.0.0.0.0.0.1")
+        crashtracker.set_runtime("4kph")
+        crashtracker.set_runtime_version("v3.1.4.1")
+        crashtracker.set_library_version("v2.7.1.8")
+        crashtracker.set_stdout_filename("stdout.log")
+        crashtracker.set_stderr_filename("stderr.log")
+        crashtracker.set_alt_stack(False)
+        crashtracker.set_resolve_frames_full()
+        crashtracker.start()
         ctypes.string_at(0)
         exit(0)  # Should not reach here
 
