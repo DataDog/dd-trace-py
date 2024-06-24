@@ -12,7 +12,7 @@ import ddtrace.profiling.profiler
 
 lock = threading.Lock()
 lock.acquire()
-test_lock_name = "simple_program_fork.py:13:lock"
+test_lock_name = "simple_program_fork.py:13"
 
 
 assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
@@ -34,7 +34,7 @@ if child_pid == 0:
 
     # We track this one though
     lock = threading.Lock()
-    test_lock_name = "simple_program_fork.py:36:lock"
+    test_lock_name = "simple_program_fork.py:36"
     assert test_lock_name not in set(e.lock_name for e in recorder.reset()[cthreading.ThreadingLockAcquireEvent])
     lock.acquire()
     events = recorder.reset()
