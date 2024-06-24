@@ -24,7 +24,7 @@ RUN python3 dl_wheels.py \
         --output-dir /build/pkgs \
         --verbose
 
-FROM alpine:3.18.3
+FROM alpine:3.20
 COPY --from=0 /build/pkgs /datadog-init/ddtrace_pkgs
 ARG UID=10000
 RUN addgroup -g 10000 -S datadog && \
