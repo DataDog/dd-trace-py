@@ -412,12 +412,29 @@ def _patch_protobuf_class(cls):
             pass
 
 
-def _on_grpc_response(response):
+def _on_grpc_response(message):
     if not _is_iast_enabled():
         return
 
-    msg_cls = type(response)
+    msg_cls = type(message)
     _patch_protobuf_class(msg_cls)
+
+
+def _on_grpc_server_response(message):
+    if not _is_iast_enabled():
+        return
+
+    from ddtrace.appsec._asm_request_context import set_waf_address
+    set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_MESSAGE, message)
+    _on_grpc_response(message)
+
+
+def _on_grpc_server_headers(headers):
+    if not _is_iast_enabled():
+        return
+
+    from ddtrace.appsec._asm_request_context import set_headers
+    set_headers(headers)
 
 
 def listen():
@@ -433,3 +450,6 @@ core.on("flask.patch", _on_flask_patch)
 
 core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
 core.on("grpc.response_message", _on_grpc_response)
+core.on("grpc.server.response_message", _on_grpc_server_response)
+# JJJ
+# core.on("gprc.server.headers", _on_grpc_server_headers)

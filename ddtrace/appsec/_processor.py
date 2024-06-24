@@ -137,6 +137,8 @@ def _get_rate_limiter() -> RateLimiter:
     return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT.TRACE_RATE_LIMIT)))
 
 
+_ALLOWED_SPANS = {SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC}
+
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
     rules: str = dataclasses.field(default_factory=get_rules)
@@ -222,7 +224,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib import trace_utils
 
-        if span.span_type != SpanTypes.WEB:
+        if span.span_type != _ALLOWED_SPANS:
             return
 
         if _asm_request_context.free_context_available():
@@ -282,7 +284,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP):
+        if span.span_type not in _ALLOWED_SPANS:
             return None
 
         if core.get_item(WAF_CONTEXT_NAMES.BLOCKED, span=span) or core.get_item(WAF_CONTEXT_NAMES.BLOCKED):
@@ -411,7 +413,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         try:
-            if span.span_type == SpanTypes.WEB:
+            if span.span_type in _ALLOWED_SPANS:
                 # Force to set respond headers at the end
                 headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
                 if headers_res:
@@ -431,7 +433,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # release asm context if it was created by the span
             _asm_request_context.unregister(span)
 
-            if span.span_type != SpanTypes.WEB:
+            if span.span_type not in _ALLOWED_SPANS:
                 return
 
             to_delete = []

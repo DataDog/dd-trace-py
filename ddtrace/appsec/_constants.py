@@ -158,6 +158,8 @@ class SPAN_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS = "http.response.status"
     RESPONSE_HEADERS_NO_COOKIES = RESPONSE_HEADERS
     RESPONSE_BODY = "http.response.body"
+    GRPC_SERVER_REQUEST_MESSAGE = "grpc.server.request.message"
+    GRPC_SERVER_REQUEST_METADATA = "grpc.server.request.metadata"
 
 
 class API_SECURITY(metaclass=Constant_Class):

@@ -51,7 +51,7 @@ def _handle_server_exception(server_context, span):
 def _wrap_response_iterator(response_iterator, server_context, span):
     try:
         for response in response_iterator:
-            core.dispatch("grpc.response_message", (response,))
+            core.dispatch("grpc.server.response_message", (response,))
             yield response
     except Exception:
         span.set_traceback()
@@ -70,6 +70,9 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def _fn(self, method_kind, behavior, args, kwargs):
         tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
+        print("JJJ headers: %s" % headers)
+        core.dispath("foo.bar.baz", ("foobar",))
+        print("JJJ after")
 
         trace_utils.activate_distributed_headers(tracer, int_config=config.grpc_server, request_headers=headers)
 
@@ -108,7 +111,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
                 response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)
             else:
                 # not iterator
-                core.dispatch("grpc.response_message", (response_or_iterator,))
+                core.dispatch("grpc.server.response_message", (response_or_iterator,))
         except Exception:
             span.set_traceback()
             _handle_server_exception(server_context, span)
