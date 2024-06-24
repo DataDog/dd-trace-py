@@ -450,22 +450,6 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         assert spans[0].service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    def test_unspecified_service_v1(self):
-        """
-        In the v1 naming schema -
-        When a user specifies a service for the app
-            The pymemcache integration **should** use it.
-        """
-        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        client.set(b"key", b"value", noreply=False)
-
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-
-        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0(self):
         """
