@@ -1340,7 +1340,6 @@ class Contrib_TestClass_For_Threats:
             username = user if mode == "identification" else _hash_user_id(user)
             user_id_hash = user_id if mode == "identification" else _hash_user_id(user_id)
             if asm_enabled and auto_events_enabled and mode != "disabled":
-                print(root_span()._meta)
                 if status_code == 401:
                     assert get_tag("appsec.events.users.login.failure.track") == "true"
                     assert get_tag("_dd.appsec.events.users.login.failure.auto.mode") == mode
@@ -1351,6 +1350,10 @@ class Contrib_TestClass_For_Threats:
                 else:
                     assert get_tag("appsec.events.users.login.success.track") == "true"
                     assert get_tag("usr.id") == user_id_hash
+            else:
+                assert get_tag("usr.id") is None
+                assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
+                assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
 
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:

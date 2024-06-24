@@ -142,7 +142,7 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_extended(client, test_spans, tracer):
+def test_django_login_sucess_identification(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -164,7 +164,7 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe(client, test_spans, tracer):
+def test_django_login_sucess_anonymization(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -249,7 +249,7 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_failure_extended_user_does_exist(client, test_spans, tracer):
+def test_django_login_failure_identification_user_does_exist(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -270,7 +270,7 @@ def test_django_login_failure_extended_user_does_exist(client, test_spans, trace
 
 
 @pytest.mark.django_db
-def test_django_login_failure_safe_user_does_exist(client, test_spans, tracer):
+def test_django_login_failure_anonymization_user_does_exist(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -291,7 +291,7 @@ def test_django_login_failure_safe_user_does_exist(client, test_spans, tracer):
 
 
 @pytest.mark.django_db
-def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer):
+def test_django_login_sucess_anonymization_but_user_set_login(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
@@ -319,7 +319,7 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
 
 
 @pytest.mark.django_db
-def test_django_login_failure_safe_but_user_set_login(client, test_spans, tracer):
+def test_django_login_failure_anonymization_but_user_set_login(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 

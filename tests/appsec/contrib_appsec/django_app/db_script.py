@@ -1,3 +1,5 @@
+# Description: This script is used to create a sqlite3 database
+# with the same schema as the one needed for the Django test app.
 import sqlite3
 
 
