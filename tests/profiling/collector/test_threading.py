@@ -368,8 +368,8 @@ def test_user_threads_have_native_id():
 def test_lock_enter_exit_events():
     r = recorder.Recorder()
     with collector_threading.ThreadingLockCollector(r, capture_pct=100):
-        lock = threading.Lock()
-        with lock:
+        th_lock = threading.Lock()
+        with th_lock:
             pass
     assert len(r.events[collector_threading.ThreadingLockAcquireEvent]) == 1
     assert len(r.events[collector_threading.ThreadingLockReleaseEvent]) == 1

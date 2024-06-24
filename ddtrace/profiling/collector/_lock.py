@@ -99,6 +99,28 @@ class _ProfiledLock(wrapt.ObjectProxy):
         return self.__wrapped__.__aexit__(*args, **kwargs)
 
     def _acquire(self, inner_func, *args, **kwargs):
+        # Get where the acquire was called and the variable name
+        acquire_loc_with_name = None
+        try:
+            frame = sys._getframe(2 if WRAPT_C_EXT else 3)
+            code = frame.f_code
+            acquire_loc_with_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+
+            var_name = None
+            for name, value in frame.f_globals.items():
+                if value == self:
+                    var_name = name
+            for name, value in frame.f_locals.items():
+                if value == self:
+                    var_name = name
+            if var_name:
+                acquire_loc_with_name += ":%s" % var_name
+
+        except Exception as e:
+            LOG.warning("Error getting frame: %s", e)
+
+        print("Acquire called from: %s" % acquire_loc_with_name)
+
         if not self._self_capture_sampler.capture():
             return inner_func(*args, **kwargs)
 
