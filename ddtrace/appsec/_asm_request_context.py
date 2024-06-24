@@ -542,9 +542,7 @@ def _set_headers_and_response(response, headers, *_):
     if not asm_config._asm_enabled:
         return
 
-    from ddtrace.appsec._utils import _appsec_apisec_features_is_active
-
-    if _appsec_apisec_features_is_active():
+    if asm_config._api_security_feature_active:
         if headers:
             # start_response was not called yet, set the HTTP response headers earlier
             if isinstance(headers, dict):
