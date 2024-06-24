@@ -96,12 +96,13 @@ class ASMConfig(Env):
                 removal_version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
-    _auto_user_instrumentation_mode = Env.var(
+    _auto_user_instrumentation_local_mode = Env.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
         default="",
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
+    _auto_user_instrumentation_rc_mode: Optional[str] = None
     _auto_user_instrumentation_enabled = Env.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
 
     _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
@@ -167,7 +168,8 @@ class ASMConfig(Env):
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_automatic_login_events_mode",
-        "_auto_user_instrumentation_mode",
+        "_auto_user_instrumentation_local_mode",
+        "_auto_user_instrumentation_rc_mode",
         "_auto_user_instrumentation_enabled",
         "_user_model_login_field",
         "_user_model_email_field",
@@ -199,8 +201,8 @@ class ASMConfig(Env):
         # Is one click available?
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
         # Only for deprecation phase
-        if self._auto_user_instrumentation_mode == "":
-            self._auto_user_instrumentation_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
+        if self._auto_user_instrumentation_local_mode == "":
+            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode or LOGIN_EVENTS_MODE.IDENT
 
     def reset(self):
         """For testing puposes, reset the configuration to its default values given current environment variables."""
@@ -213,7 +215,9 @@ class ASMConfig(Env):
     @property
     def _user_event_mode(self) -> str:
         if self._asm_enabled and self._auto_user_instrumentation_enabled:
-            return self._auto_user_instrumentation_mode
+            if self._auto_user_instrumentation_rc_mode is not None:
+                return self._auto_user_instrumentation_rc_mode
+            return self._auto_user_instrumentation_local_mode
         return LOGIN_EVENTS_MODE.DISABLED
 
 
