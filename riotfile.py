@@ -2480,6 +2480,7 @@ venv = Venv(
                 "psutil": latest,
                 "pytest-randomly": latest,
                 "numexpr": latest,
+                "greenlet": "==3.0.3",
             },
             venvs=[
                 Venv(
