@@ -8,6 +8,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from uuid import uuid4
 
+import ddtrace
 from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
@@ -156,7 +157,7 @@ class CIVisibility(Service):
                 # Create a new CI tracer
                 self.tracer = Tracer(context_provider=CIContextProvider())
             else:
-                self.tracer = Tracer()
+                self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
