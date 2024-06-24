@@ -442,7 +442,7 @@ class Config(object):
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
 
         self._inferred_service = get_inferred_service(default=DEFAULT_SPAN_SERVICE_NAME)
-        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", DEFAULT_SPAN_SERVICE_NAME)))
+        self.service = os.getenv("DD_SERVICE", default=(self.tags.get("service", self._inferred_service)))
 
         if self.service is None and in_gcp_function():
             self.service = os.environ.get("K_SERVICE", os.environ.get("FUNCTION_NAME"))
