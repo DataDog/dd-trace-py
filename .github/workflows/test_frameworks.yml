@@ -29,18 +29,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Bottle 0.12.19 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -109,10 +109,10 @@ jobs:
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Sanic 22.12 (with ${{ matrix.suffix }})
     runs-on: ubuntu-20.04
     needs: needs-run
@@ -155,18 +155,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: DI profiler
-            expl_profiler: 1
-            expl_coverage: 0
-            profiling: 1
-            iast: 0
-            appsec: 0
-          - suffix: DI coverage
-            expl_profiler: 0
-            expl_coverage: 1
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: DI profiler
+          #   expl_profiler: 1
+          #   expl_coverage: 0
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
+          # - suffix: DI coverage
+          #   expl_profiler: 0
+            # expl_coverage: 1
+            # profiling: 1
+            # iast: 0
+            # appsec: 0
           # Disabled while the bug is investigated: APPSEC-53222
           # - suffix: IAST
           #   expl_profiler: 0
@@ -267,18 +267,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Graphene 3.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -331,18 +331,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: FastAPI 0.92 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -395,18 +395,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Flask 1.1.4 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -467,9 +467,9 @@ jobs:
           - suffix: IAST
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   iast: 0
+          #   appsec: 1
     name: Httpx 0.22.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -516,18 +516,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Mako 1.3.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -585,10 +585,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
@@ -648,18 +648,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Requests 2.26.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -712,18 +712,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: AsyncPG 0.27.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -773,9 +773,9 @@ jobs:
           - suffix: IAST
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   iast: 0
+          #   appsec: 1
     name: gunicorn 20.1.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -815,18 +815,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
           - suffix: IAST
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: uwsgi 2.0.21 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -900,10 +900,10 @@ jobs:
             profiling: 0
             iast: 1
             appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Beautifulsoup 4.12.3 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
