@@ -106,6 +106,12 @@ set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_link_libraries(crashtracker_exe PRIVATE
     dd_wrapper
 )
+
+# See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
+if (INPLACE_LIB_INSTALL_DIR)
+    set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
+endif()
+
 if (LIB_INSTALL_DIR)
     install(TARGETS crashtracker_exe
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
