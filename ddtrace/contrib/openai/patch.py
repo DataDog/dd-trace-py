@@ -54,9 +54,6 @@ if OPENAI_VERSION >= (1, 0, 0):
         "chat.Completions": {
             "create": _endpoint_hooks._ChatCompletionHook,
         },
-        "edits.Edits": {
-            "create": _endpoint_hooks._EditHook,
-        },
         "images.Images": {
             "generate": _endpoint_hooks._ImageCreateHook,
             "edit": _endpoint_hooks._ImageEditHook,
@@ -81,13 +78,6 @@ if OPENAI_VERSION >= (1, 0, 0):
             "delete": _endpoint_hooks._FileDeleteHook,
             "retrieve_content": _endpoint_hooks._FileDownloadHook,
         },
-        "fine_tunes.FineTunes": {
-            "create": _endpoint_hooks._FineTuneCreateHook,
-            "retrieve": _endpoint_hooks._FineTuneRetrieveHook,
-            "list": _endpoint_hooks._FineTuneListHook,
-            "cancel": _endpoint_hooks._FineTuneCancelHook,
-            "list_events": _endpoint_hooks._FineTuneListEventsHook,
-        },
     }
 else:
     _RESOURCES = {
@@ -100,9 +90,6 @@ else:
         },
         "chat_completion.ChatCompletion": {
             "create": _endpoint_hooks._ChatCompletionHook,
-        },
-        "edit.Edit": {
-            "create": _endpoint_hooks._EditHook,
         },
         "image.Image": {
             "create": _endpoint_hooks._ImageCreateHook,
@@ -125,14 +112,6 @@ else:
             "create": _endpoint_hooks._FileCreateHook,
             "delete": _endpoint_hooks._DeleteHook,
             "download": _endpoint_hooks._FileDownloadHook,
-        },
-        "fine_tune.FineTune": {
-            # FineTune.list()/retrieve() share the same underlying method as Model.list() and Model.retrieve()
-            # FineTune.delete() share the same underlying method as File.delete()
-            # which means they are already wrapped
-            # FineTune.list_events does not have an async version, so have to wrap it separately
-            "create": _endpoint_hooks._FineTuneCreateHook,
-            "cancel": _endpoint_hooks._FineTuneCancelHook,
         },
     }
 
@@ -189,12 +168,6 @@ def patch():
                 async_method = deep_getattr(openai.api_resources, "%s.a%s" % (resource, method_name))
                 _wrap_classmethod(sync_method, _patched_endpoint(openai, integration, endpoint_hook))
                 _wrap_classmethod(async_method, _patched_endpoint_async(openai, integration, endpoint_hook))
-
-        # FineTune.list_events is the only traced endpoint that does not have an async version, so have to wrap it here.
-        _wrap_classmethod(
-            openai.api_resources.fine_tune.FineTune.list_events,
-            _patched_endpoint(openai, integration, _endpoint_hooks._FineTuneListEventsHook),
-        )
 
     openai.__datadog_patch = True
 
