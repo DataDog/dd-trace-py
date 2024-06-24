@@ -162,3 +162,74 @@ def test_crashtracker_simple():
 
     data = conn.recv(1024)
     assert data
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_simple_fork():
+    # This is similar to the simple test, except crashtracker initialization is done
+    # in the parent
+
+    import os
+    import random
+    import select
+    import socket
+    import time
+
+    import ddtrace.internal.core.crashtracker as crashtracker
+
+    # Part 1 and 2
+    port = None
+    sock = None
+    for i in range(5):
+        port = 10000
+        port += random.randint(0, 9999)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("localhost", port))
+            sock.listen(1)
+            break
+        except Exception:
+            port = None
+            sock = None
+
+    assert port is not None
+    assert sock is not None
+
+    # Part 3
+    crashtracker.set_url("http://localhost:%d" % port)
+    crashtracker.set_service("my_favorite_service")
+    crashtracker.set_version("v0.0.0.0.0.0.1")
+    crashtracker.set_runtime("4kph")
+    crashtracker.set_runtime_version("v3.1.4.1")
+    crashtracker.set_library_version("v2.7.1.8")
+    crashtracker.set_stdout_filename("stdout.log")
+    crashtracker.set_stderr_filename("stderr.log")
+    crashtracker.set_alt_stack(False)
+    crashtracker.set_resolve_frames_full()
+    crashtracker.start()
+
+    # crashtracker initialization involves doing a fork+exec sequence, plus issuing some syscalls, so let's take
+    # a short nap to make sure it's available before we call fork.
+    time.sleep(10)
+
+    # Part 4, Fork, setup crashtracker, and crash
+    pid = os.fork()
+    if pid == 0:
+        import ctypes
+
+        ctypes.string_at(0)
+        exit(0)  # Should not reach here
+
+    # Part 5
+    # Check to see if the listening socket was triggered, if so accept the connection
+    # then check to see if the resulting connection is readable
+    rlist, _, _ = select.select([sock], [], [], 5.0)  # 5 second timeout
+    assert rlist
+
+    conn, _ = sock.accept()
+    rlist, _, _ = select.select([conn], [], [], 5.0)
+    assert rlist
+
+    data = conn.recv(1024)
+    assert data
