@@ -488,6 +488,8 @@ jobs:
     <<: *machine_executor
     parallelism: 5
     steps:
+      # DEV: We need to have at least 1 step or else CircleCI complains
+      - run: echo "Running IAST packages"
       - when:
           condition:
             equal: ["main", "<<pipeline.git.branch>>"]
