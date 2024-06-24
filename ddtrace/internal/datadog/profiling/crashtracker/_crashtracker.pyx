@@ -131,7 +131,7 @@ def set_resolve_frames_full() -> None:
 
 
 @not_implemented
-def start() -> None:
+def start() -> bool:
     # The file is "crashtracker_exe" in the same directory as the libdd_wrapper.so
     exe_dir = os.path.dirname(__file__)
     crashtracker_path = os.path.join(exe_dir, "crashtracker_exe")
@@ -143,3 +143,4 @@ def start() -> None:
     # We don't have a good place to report on the failure for now.
     if bin_exists:
         crashtracker_start()
+    return bin_exists
