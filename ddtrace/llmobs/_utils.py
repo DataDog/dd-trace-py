@@ -86,3 +86,7 @@ def _inject_llmobs_parent_id(span_context):
     else:
         llmobs_parent_id = _get_llmobs_parent_id(span)
     span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id or "undefined"
+
+
+def _unserializable_default_repr(obj):
+    return "[Unserializable object: {}]".format(repr(obj))
