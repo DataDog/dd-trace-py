@@ -177,8 +177,6 @@ Datadog::Crashtracker::start()
     auto tags = get_tags();
     auto metadata = get_metadata(tags);
 
-    std::cerr << "Starting crash tracker" << std::endl;
-
     auto result = ddog_prof_Crashtracker_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
     if (result.tag != DDOG_PROF_CRASHTRACKER_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
