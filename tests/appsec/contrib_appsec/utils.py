@@ -1294,6 +1294,64 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(root_span) == []
                 assert get_tag("rasp.request.done") == endpoint
 
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("auto_events_enabled", [True, False])
+    @pytest.mark.parametrize("local_mode", ["disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize("rc_mode", [None, "disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize(
+        ("user", "password", "status_code", "user_id"),
+        [
+            ("test", "1234", 200, "social-security-id"),
+            ("testuuid", "12345", 401, "591dc126-8431-4d0f-9509-b23318d3dce4"),
+            ("zouzou", "12345", 401, ""),
+        ],
+    )
+    def test_auto_user_events(
+        self,
+        interface,
+        root_span,
+        get_tag,
+        asm_enabled,
+        auto_events_enabled,
+        local_mode,
+        rc_mode,
+        user,
+        password,
+        status_code,
+        user_id,
+    ):
+        from ddtrace.appsec._utils import _hash_user_id
+
+        if interface.name != "django":
+            raise pytest.skip("only django have support for auto user events")
+        with override_global_config(
+            dict(
+                _asm_enabled=asm_enabled,
+                _auto_user_instrumentation_local_mode=local_mode,
+                _auto_user_instrumentation_rc_mode=rc_mode,
+                _auto_user_instrumentation_enabled=auto_events_enabled,
+            )
+        ):
+            mode = rc_mode if rc_mode is not None else local_mode
+            self.update_tracer(interface)
+            response = interface.client.get(f"/login/?username={user}&password={password}")
+            assert self.status(response) == status_code
+            assert get_tag("http.status_code") == str(status_code)
+            username = user if mode == "identification" else _hash_user_id(user)
+            user_id_hash = user_id if mode == "identification" else _hash_user_id(user_id)
+            if asm_enabled and auto_events_enabled and mode != "disabled":
+                print(root_span()._meta)
+                if status_code == 401:
+                    assert get_tag("appsec.events.users.login.failure.track") == "true"
+                    assert get_tag("_dd.appsec.events.users.login.failure.auto.mode") == mode
+                    assert get_tag("appsec.events.users.login.failure.usr.id") == (
+                        user_id_hash if user_id else username
+                    )
+                    assert get_tag("appsec.events.users.login.failure.usr.exists") == str(user == "testuuid").lower()
+                else:
+                    assert get_tag("appsec.events.users.login.success.track") == "true"
+                    assert get_tag("usr.id") == user_id_hash
+
     def test_iast(self, interface, root_span, get_tag):
         if interface.name == "fastapi" and asm_config._iast_enabled:
             raise pytest.xfail("fastapi does not fully support IAST for now")
