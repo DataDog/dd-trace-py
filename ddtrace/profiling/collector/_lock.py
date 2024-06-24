@@ -90,27 +90,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_export_libdd_enabled = export_libdd_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        var_name = self._get_var_name()
-
-        self._self_name = "%s:%d:%s" % (
-            os.path.basename(code.co_filename),
-            frame.f_lineno,
-            var_name,
-        )
-
-    def _get_var_name(self):
-        # We expect _get_var_name, __init__, and the caller to be in the stack
-        # trace. If we're using the Python implementation of wrapt, we need to
-        # skip one more frame.
-        frame = sys._getframe(2 if WRAPT_C_EXT else 3)
-        var_name = None
-        for name, value in frame.f_globals.items():
-            if value == self.__wrapped__:
-                var_name = name
-        for name, value in frame.f_locals.items():
-            if value == self.__wrapped__:
-                var_name = name
-        return var_name if var_name else "<anonymous>"
+        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
     def __aenter__(self):
         return self.__wrapped__.__aenter__()
