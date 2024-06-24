@@ -209,10 +209,6 @@ def test_crashtracker_simple_fork():
     crashtracker.set_resolve_frames_full()
     crashtracker.start()
 
-    # crashtracker initialization involves doing a fork+exec sequence, plus issuing some syscalls, so let's take
-    # a short nap to make sure it's available before we call fork.
-    time.sleep(10)
-
     # Part 4, Fork, setup crashtracker, and crash
     pid = os.fork()
     if pid == 0:
