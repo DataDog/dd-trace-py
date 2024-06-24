@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    For new features such as a new integration or component. Use present tense with the following format:
-    Format: <scope>: This introduces <new_feature_or_component>.
+    Database Monitoring: Adds Database Monitoring (DBM) trace propagation for postgres
+    databases used through Django.

@@ -82,6 +82,14 @@ _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
 
+DB_CONN_ATTR_BY_TAG = {
+    net.TARGET_HOST: "HOST",
+    net.TARGET_PORT: "PORT",
+    db.USER: "USER",
+    db.NAME: "NAME",
+}
+
+
 def get_version():
     # type: () -> str
     import django
@@ -107,16 +115,10 @@ def patch_conn(django, conn):
                 psycopg_cursor_cls = None
                 Psycopg2TracedCursor = None
 
-    CONN_ATTR_BY_TAG = {
-        net.TARGET_HOST: "HOST",
-        net.TARGET_PORT: "PORT",
-        db.USER: "USER",
-        db.NAME: "NAME",
-    }
-
     tags = {}
-    for tag, attr in CONN_ATTR_BY_TAG.items():
-        if attr in getattr(conn, "settings_dict", {}):
+    settings_dict = getattr(conn, "settings_dict", {})
+    for tag, attr in DB_CONN_ATTR_BY_TAG.items():
+        if attr in settings_dict:
             tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
 
     conn._datadog_tags = tags
@@ -133,9 +135,14 @@ def patch_conn(django, conn):
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)
-        tags = {"django.db.vendor": vendor, "django.db.alias": alias, **getattr(conn, "_datadog_tags", {})}
+
+        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
+        tags.update(getattr(conn, "_datadog_tags", {}))
+
         pin = Pin(service, tags=tags, tracer=pin.tracer)
+
         cursor = func(*args, **kwargs)
+
         traced_cursor_cls = dbapi.TracedCursor
         try:
             if cursor.cursor.__class__.__module__.startswith("psycopg2."):

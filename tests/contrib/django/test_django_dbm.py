@@ -14,6 +14,9 @@ from tests.utils import override_global_config
 from ...contrib.config import POSTGRES_CONFIG
 
 
+# DBM should normally be enabled on tracer init, but since we don't want DBM enabled for every Django test, we
+# leave it disabled and use `override_dbm_config` instead. However, we still need to add these core hooks that 
+# would normally be added when the tracer is initialized and DBM enabled.
 core.on("django-postgres.execute", handle_dbm_injection, "result")
 
 
