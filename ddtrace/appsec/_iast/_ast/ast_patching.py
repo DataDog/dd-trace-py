@@ -64,6 +64,13 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "zipp",
     ## This is a workaround for Sanic failures:
     "sanic",
+    "openssl",
+    "rich",
+    "httpx",
+    "websockets",
+    "uvicorn",
+    "anyio",
+    "httpcore",
 )
 
 
