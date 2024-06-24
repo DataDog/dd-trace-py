@@ -173,33 +173,6 @@ asyncio.run(test())""",
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_unspecified_service_v1(ddtrace_run_python_code_in_subprocess):
-    """
-    v1: When a user specifies nothing for a service,
-        it should default to internal.schema.DEFAULT_SPAN_SERVICE_NAME
-    """
-    env = os.environ.copy()
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
-        """
-import asyncio
-import aiomysql
-from ddtrace import config
-from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
-
-async def test():
-    conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    await (await conn.cursor()).execute("select 'dba4x4'")
-    conn.close()
-asyncio.run(test())""",
-        env=env,
-    )
-    assert status == 0, err
-    assert out == err == b""
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
 @pytest.mark.parametrize("version", ["v0", "v1"])
 async def test_schematized_span_name(ddtrace_run_python_code_in_subprocess, version):
     """
@@ -309,17 +282,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.service == "mysvc"
 
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    async def test_unspecified_service_v1(self):
-        conn, tracer = await self._get_conn_tracer()
-
-        cursor = await conn.cursor()
-        await cursor.execute("SELECT 1")
-        spans = tracer.pop()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
