@@ -43,7 +43,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "freezegun",  # Testing utilities for time manipulation
     "hypothesis",
     "importlib_metadata",
-    "iniconfig",
     "inspect",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous",
     "opentelemetry-api",

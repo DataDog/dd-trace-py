@@ -709,7 +709,6 @@ PACKAGES = [
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
         test_propagation=True,
-        fixme_propagation_fails=True,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(
