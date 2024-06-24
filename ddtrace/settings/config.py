@@ -12,6 +12,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.compat import get_mp_context
+from ddtrace.internal.compat import gevent_is_patched
 from ddtrace.internal.serverless import in_azure_function_consumption_plan
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -334,7 +335,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    _extra_services_queue = None if in_aws_lambda() else get_mp_context().Queue(512)
+    _extra_services_queue = None if in_aws_lambda() or gevent_is_patched() else get_mp_context().Queue(512)
 
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
@@ -577,7 +578,7 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if self._remote_config_enabled and service_name != self.service:
+        if self._remote_config_enabled and service_name != self.service and not gevent_is_patched():
             try:
                 self._extra_services_queue.put_nowait(service_name)
             except Exception:  # nosec
@@ -587,13 +588,15 @@ class Config(object):
         # type: () -> set[str]
         if self._extra_services_queue is None:
             return set()
-        try:
-            while True:
-                self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
-                if len(self._extra_services) > 64:
-                    self._extra_services.pop()
-        except Exception:  # nosec
-            pass
+
+        if not gevent_is_patched():
+            try:
+                while True:
+                    self._extra_services.add(self._extra_services_queue.get(timeout=0.002))
+                    if len(self._extra_services) > 64:
+                        self._extra_services.pop()
+            except Exception:  # nosec
+                pass
         return self._extra_services
 
     def get_from(self, obj):

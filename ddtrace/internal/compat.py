@@ -495,3 +495,12 @@ def get_mp_context():
     import multiprocessing
 
     return multiprocessing.get_context("fork" if sys.platform != "win32" else "spawn")
+
+
+def gevent_is_patched():
+    if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
+        import gevent.monkey  # noqa:F401
+
+        if gevent.monkey.is_module_patched("threading"):
+            return True
+    return False
