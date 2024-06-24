@@ -26,6 +26,7 @@ def test_crashtracker_available():
 @pytest.mark.subprocess()
 def test_crashtracker_config():
     import pytest
+
     import ddtrace.internal.core.crashtracker as crashtracker
 
     try:
@@ -48,6 +49,7 @@ def test_crashtracker_config():
 @pytest.mark.subprocess()
 def test_crashtracker_config_bytes():
     import pytest
+
     import ddtrace.internal.core.crashtracker as crashtracker
 
     try:
