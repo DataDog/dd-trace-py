@@ -18,10 +18,21 @@ pattern = r"[\"':;,]"
 
 def _path_to_module(path):
     # normalize path, split off .py extension, and replace '/' with '.'
+    top_level_module = []
+
+    path = os.path.abspath(path)
     path = os.path.normpath(path)
-    module_path = os.path.splitext(path)[0]
-    module_path = module_path.replace(os.sep, ".")
-    return module_path
+    base = os.path.basename(path)
+    top_level_module.append(os.path.splitext(base)[0])
+
+    curdir = os.path.dirname(path)
+    init_path = Path(os.path.join(curdir, "__init__.py")).resolve()
+    while curdir != "/" and init_path.exists():
+        top_level_module.append(os.path.basename(curdir))
+        curdir = os.path.dirname(curdir)
+        init_path = Path(os.path.join(curdir, "__init__.py")).resolve()
+
+    return ".".join(top_level_module[::-1])
 
 
 def _get_entrypoint_path_and_module():

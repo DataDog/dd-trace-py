@@ -8,6 +8,7 @@ from . import schematize_service_name
 class BaseServiceProcessor(TraceProcessor):
     def __init__(self):
         self._global_service = schematize_service_name((config.service or "").lower())
+        self._inferred_service = config._inferred_service
 
     def process_trace(self, trace):
         if not trace:

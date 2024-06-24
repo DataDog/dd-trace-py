@@ -238,8 +238,8 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("global_service_name", [None, "mysvc"])
 def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subprocess, schema_version, global_service_name):
     expected_service_name = {
-        None: global_service_name or "",
-        "v0": global_service_name or "",
+        None: global_service_name or "test",
+        "v0": global_service_name or "test",
         "v1": global_service_name or _DEFAULT_SPAN_SERVICE_NAMES["v1"],
     }[schema_version]
     code = """
@@ -274,7 +274,7 @@ async def test(scope, tracer, test_spans):
     assert len(spans[0]) == 1
     request_span = spans[0][0]
     service = "{}"
-    assert request_span.service == (service or None)
+    assert request_span.service == service
 
 if __name__ == "__main__":
     import sys
@@ -287,6 +287,7 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = global_service_name
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err, out)
     assert err == b""

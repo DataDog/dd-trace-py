@@ -31,31 +31,37 @@ def mock_search_files(mocker):
 
 
 @pytest.mark.parametrize(
-    "cmdline, expected_entrypoint",
+    "cmdline, other_existant_files, expected_entrypoint",
     [
-        (["python", "-m", "tests.contrib"], "tests.contrib"),
-        (["python", "-m", "tests"], "tests"),
-        (["python", "some_dir/script.py"], "some_dir.script"),
-        (["python", "script.py"], "script"),
-        (["python", "non-existent-file.py"], None),
-        (["python", "-c", 'print("Hello World")'], None),
-        (["/usr/bin/python3", "-m", "ddtrace.contrib"], "ddtrace.contrib"),
-        (["/usr/bin/python3", "script.py"], "script"),
-        (["ddtrace-run", "python", "-m", "tests.contrib.django"], "tests.contrib.django"),
-        (["ddtrace-run", "python3", "script.py"], "script"),
-        (["ddtrace-run", "flask", "run"], None),
-        (["flask", "run"], None),
-        (["django-admin", "runserver"], None),
-        (["gunicorn", "test.contrib"], None),
-        (["uvicorn", "myapp.asgi:app"], None),
+        (["python", "-m", "tests.contrib"], [], "tests.contrib"),
+        (["python", "-m", "tests"], [], "tests"),
+        (["python", "some_dir/script.py"], [], "script"),
+        (["python", "some_dir/script.py"], ["some_dir/__init__.py"], "some_dir.script"),
+        (["python", "script.py"], [], "script"),
+        (["python", "non-existent-file.py"], [], None),
+        (["python", "-c", 'print("Hello World")'], [], None),
+        (["/usr/bin/python3", "-m", "ddtrace.contrib"], [], "ddtrace.contrib"),
+        (["/usr/bin/python3", "script.py"], [], "script"),
+        (["ddtrace-run", "python", "-m", "tests.contrib.django"], [], "tests.contrib.django"),
+        (["ddtrace-run", "python3", "script.py"], [], "script"),
+        (["ddtrace-run", "flask", "run"], [], None),
+        (["flask", "run"], [], None),
+        (["django-admin", "runserver"], [], None),
+        (["gunicorn", "test.contrib"], [], None),
+        (["uvicorn", "myapp.asgi:app"], [], None),
     ],
 )
-def test_get_entrypoint_path(mock_psutil_process, cmdline, expected_entrypoint):
+def test_get_entrypoint_path(mock_psutil_process, cmdline, other_existant_files, expected_entrypoint):
     mock_psutil_process(cmdline)
 
-    with patch("pathlib.Path.exists") as mock_exists:
+    def mock_file_exists(self):
+        my_path = str(self)
+        return any(my_path.endswith(file) for file in other_existant_files) or my_path.endswith("script.py")
+
+    with patch.object(Path, "exists", mock_file_exists):
         # Make exists() return True for all paths ending with 'script.py'
-        mock_exists.side_effect = lambda: any(arg.endswith("script.py") for arg in cmdline)
+        if other_existant_files:
+            breakpoint()
         _, entrypoint_module = _get_entrypoint_path_and_module()
         assert entrypoint_module == expected_entrypoint
 
