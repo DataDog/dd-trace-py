@@ -6,6 +6,14 @@ variables:
   needs: []
   tags: ["runner:apm-k8s-same-cpu"]
   timeout: 1h
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure
+      - scheduler_failure
+      - api_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
@@ -60,6 +68,7 @@ baseline:
   variables:
     DD_BENCHMARKS_CONFIGURATION: baseline
     BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
 
 
