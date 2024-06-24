@@ -99,6 +99,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
         )
 
     def _get_var_name(self):
+        # We expect _get_var_name, __init__, and the caller to be in the stack
+        # trace. If we're using the Python implementation of wrapt, we need to
+        # skip one more frame.
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         var_name = None
         for name, value in frame.f_globals.items():
