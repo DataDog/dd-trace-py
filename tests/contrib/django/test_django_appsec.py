@@ -108,7 +108,9 @@ def test_django_login_events_disabled_explicitly(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.DISABLED)):
+    with override_global_config(
+        dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.DISABLED)
+    ):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -126,7 +128,7 @@ def test_django_login_events_disabled_noappsec(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=False, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.ANON)):
+    with override_global_config(dict(_asm_enabled=False, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON)):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -144,7 +146,7 @@ def test_django_login_sucess_extended(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.IDENT)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)):
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
@@ -166,7 +168,7 @@ def test_django_login_sucess_safe(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.ANON)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON)):
         test_user = User.objects.create(username="fred2")
         test_user.set_password("secret")
         test_user.save()
@@ -188,7 +190,9 @@ def test_django_login_sucess_disabled(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.DISABLED)):
+    with override_global_config(
+        dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.DISABLED)
+    ):
         test_user = User.objects.create(username="fred")
         test_user.set_password("secret")
         test_user.save()
@@ -203,7 +207,7 @@ def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.IDENT)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)):
         test_user = User.objects.create(username="AnonymousUser")
         test_user.set_password("secret")
         test_user.save()
@@ -233,7 +237,7 @@ def test_django_login_sucess_ident_is_default_if_missing(client, test_spans, tra
 def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
     from django.contrib.auth import get_user
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.IDENT)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)):
         assert not get_user(client).is_authenticated
         client.login(username="missing", password="secret2")
         assert not get_user(client).is_authenticated
@@ -249,7 +253,7 @@ def test_django_login_failure_extended_user_does_exist(client, test_spans, trace
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.IDENT)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT)):
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
@@ -270,7 +274,7 @@ def test_django_login_failure_safe_user_does_exist(client, test_spans, tracer):
     from django.contrib.auth import get_user
     from django.contrib.auth.models import User
 
-    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.ANON)):
+    with override_global_config(dict(_asm_enabled=True, _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON)):
         test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
         test_user.set_password("secret")
         test_user.save()
@@ -295,7 +299,7 @@ def test_django_login_sucess_safe_but_user_set_login(client, test_spans, tracer)
         dict(
             _asm_enabled=True,
             _user_model_login_field="username",
-            _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.ANON,
+            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
         )
     ):
         test_user = User.objects.create(username="fred2")
@@ -323,7 +327,7 @@ def test_django_login_failure_safe_but_user_set_login(client, test_spans, tracer
         dict(
             _asm_enabled=True,
             _user_model_login_field="username",
-            _auto_user_instrumentation_mode=LOGIN_EVENTS_MODE.ANON,
+            _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.ANON,
         )
     ):
         test_user = User.objects.create(username="fred2")
