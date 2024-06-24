@@ -64,7 +64,7 @@ def test_processor_creates_llmobs_span_event():
     with override_global_config(dict(_llmobs_ml_app="unnamed-ml-app")):
         mock_llmobs_span_writer = mock.MagicMock()
         trace_filter = LLMObsTraceProcessor(llmobs_span_writer=mock_llmobs_span_writer)
-        root_llm_span = Span(name="root", span_type=SpanTypes.LLM)
+        root_llm_span = Span(name="root", span_type=SpanTypes.LLM, service="ddtrace")
         root_llm_span.set_tag_str(SPAN_KIND, "llm")
         trace = [root_llm_span]
         trace_filter.process_trace(trace)
