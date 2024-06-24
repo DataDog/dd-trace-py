@@ -174,7 +174,6 @@ def test_crashtracker_simple_fork():
     import random
     import select
     import socket
-    import time
 
     import ddtrace.internal.core.crashtracker as crashtracker
 
