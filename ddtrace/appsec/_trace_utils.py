@@ -114,11 +114,13 @@ def track_user_login_success_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
+    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+    if real_mode == LOGIN_EVENTS_MODE.DISABLED:
+        return
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
 
-    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
 
@@ -143,13 +145,15 @@ def track_user_login_failure_event(
     :param metadata: a dictionary with additional metadata information to be stored with the event
     """
 
+    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+    if real_mode == LOGIN_EVENTS_MODE.DISABLED:
+        return
     span = _track_user_login_common(tracer, False, metadata, login_events_mode)
     if not span:
         return
     if exists is not None:
         exists_str = "true" if exists else "false"
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.EXISTS), exists_str)
-    real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if user_id:
         if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             user_id = _hash_user_id(user_id)

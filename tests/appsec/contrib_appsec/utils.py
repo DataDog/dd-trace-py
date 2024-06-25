@@ -1322,8 +1322,6 @@ class Contrib_TestClass_For_Threats:
     ):
         from ddtrace.appsec._utils import _hash_user_id
 
-        if interface.name != "django":
-            raise pytest.skip("only django have support for auto user events")
         with override_global_config(
             dict(
                 _asm_enabled=asm_enabled,
