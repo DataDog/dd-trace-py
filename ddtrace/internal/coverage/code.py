@@ -107,11 +107,14 @@ class ModuleCodeCollector(BaseModuleWatchdog):
             if line not in ctx_lines:
                 ctx_lines.add(line)
 
-        if is_module_level:
-            self._module_level_covered[path].add(line)
+        # Module-level dependencies depend on import-time behavior (before coverage is started), so collection
+        # happens regardless of context or global enablement of coverage
+        if self._collect_module_dependencies:
+            if is_module_level:
+                self._module_level_covered[path].add(line)
 
-        if import_module_name is not None:
-            self._module_dependencies[path].add(import_module_name)
+            if import_module_name:
+                self._module_dependencies[path].add(import_module_name)
 
     @classmethod
     def absorb_data_json(cls, data_json: str):
@@ -271,7 +274,7 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if cls._instance is None:
             return []
         files = []
-        covered = cls._instance._get_covered_lines(include_imported=True)
+        covered = cls._instance._get_covered_lines(include_imported=include_imported)
 
         for abs_path_str, lines in covered.items():
             abs_path = Path(abs_path_str)
@@ -323,6 +326,10 @@ class ModuleCodeCollector(BaseModuleWatchdog):
         if code in self.seen:
             return code
         self.seen.add(code)
+
+        # Any
+        if self._collect_module_dependencies and _module.__name__ not in self._module_names_to_files:
+            self._module_names_to_files[_module.__name__] = code.co_filename
 
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, self._collect_module_dependencies)
         # Don't re-instrument the code that was just instrumented

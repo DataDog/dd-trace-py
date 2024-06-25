@@ -1,97 +1,107 @@
+"""This file includes various tests that exercise the internal coverage collection module
+
+Tests use the subprocess pytest mark to ensure that coverage collection happens in a clean environment.
+
+Tests that cover import-time dependencies are meant to catch issues (important to the Intelligent Test Runner) with
+lines that code technically depends on (eg: imported functions, classes, or constants), but are executed at import
+time rather than at code execution time.
+"""
+
 import pytest
 
 
 @pytest.mark.subprocess
-def test_coverage_nested_contexts():
+def test_coverage_import_time_lib():
     import os
     from pathlib import Path
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
 
-    install(include_paths=[Path(os.getcwd() + "/tests/coverage/included_path/")])
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    with ModuleCodeCollector.CollectInContext() as outer_collector:
-        from tests.coverage.included_path.callee import called_in_context_main
+    install(include_paths=[include_path], collect_module_dependencies=True)
 
-        called_in_context_main(1, 2)
-
-        print(f"Outer collector lines: {outer_collector.get_covered_lines()}")
-
-        with ModuleCodeCollector.CollectInContext() as inner_collector:
-            from tests.coverage.included_path.callee import called_in_context_nested
-
-            called_in_context_nested(1, 2)
-
-        print(f"Inner collector lines: {inner_collector.get_covered_lines()}")
-
-    inner_lines = inner_collector.get_covered_lines()
-    outer_lines = outer_collector.get_covered_lines()
-    assert inner_lines == {}, f"Inner collector lines mismatch: {inner_lines=} {outer_lines=}"
-    assert outer_lines == {}, f"Outer collector lines mismatch: {outer_lines}"
-
-
-# @pytest.mark.subprocess
-def test_coverage_at_import_time():
-    """This tests that import-time dependencies are correctly covered when used by callers.
-
-    For example, in the following code, when test_my_constant() is run, its coverage should include the lines in
-    my_module where MY_CONSTANT is defined:
-
-    from my_module import MY_CONSTANT
-
-    def test_my_constant():
-        assert MY_CONSTANT == "my constant"
-    """
-
-    import os
-    from pathlib import Path
-
-    from ddtrace.internal.coverage.code import ModuleCodeCollector
-    from ddtrace.internal.coverage.installer import install
-
-    install(include_paths=[Path(os.getcwd() + "/tests/coverage/included_path/")], collect_module_dependencies=True)
-
-    # Import modules prior to starting coverage so they are not re-imported at runtime
-    from tests.coverage.included_path.callee import called_in_session_import_time
+    from tests.coverage.included_path.import_time_callee import called_in_session_import_time
 
     ModuleCodeCollector.start_coverage()
-
     called_in_session_import_time()
     ModuleCodeCollector.stop_coverage()
 
-    from pprint import pprint
+    lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
+    covered_with_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    )
 
-    print("\n\nMODULE DEPENDENCIES:\n")
-    pprint(ModuleCodeCollector._instance._module_dependencies)
-    print("\n\nMODULE NAMES TO FILES:\n")
-    pprint(ModuleCodeCollector._instance._module_names_to_files)
-    print("\n\nMODULE LEVEL COVERED:\n")
-    pprint(ModuleCodeCollector._instance._module_level_covered)
-    print("\n\n")
+    expected_lines = {
+        "tests/coverage/included_path/import_time_callee.py": {1, 2, 4, 7, 8, 10, 13, 15},
+        "tests/coverage/included_path/import_time_lib.py": {1, 3, 6, 7, 8},
+        "tests/coverage/included_path/nested_import_time_lib.py": {1, 4, 5, 6},
+    }
+    expected_covered = {
+        "tests/coverage/included_path/import_time_callee.py": {2, 4},
+        "tests/coverage/included_path/import_time_lib.py": {1, 3, 6, 7, 8},
+        "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
+    }
+    expected_covered_with_imports = {
+        "tests/coverage/included_path/import_time_callee.py": {1, 2, 4, 7, 13},
+        "tests/coverage/included_path/import_time_lib.py": {1, 3, 6, 7, 8},
+        "tests/coverage/included_path/nested_import_time_lib.py": {1, 4},
+    }
 
-    lines = dict(ModuleCodeCollector._instance.lines)
-    covered = dict(ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
-    covered_with_imports = dict(ModuleCodeCollector._instance._get_covered_lines(include_imported=True))
+    assert lines == expected_lines, f"Lines mismatch: {lines=} vs {expected_lines=}"
+    assert covered == expected_covered, f"Covered lines mismatch: {covered=} vs {expected_covered=}"
+    assert (
+        covered_with_imports == expected_covered_with_imports
+    ), f"Covered lines with imports mismatch: {covered_with_imports=} vs {expected_covered_with_imports=}"
 
-    expected_lines = {"potato": {1, 2, 3}}
-    expected_covered = {"topato": {1, 2, 3}}
 
-    pass_test = True
+@pytest.mark.subprocess
+def test_coverage_import_time_function():
+    import os
+    from pathlib import Path
 
-    if lines != expected_lines:
-        # print(f"Lines mismatch: {lines=} vs {expected_lines=}")
-        pass_test = False
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
 
-    if covered != expected_covered:
-        # print(f"Covered lines mismatch: {expected_covered=} vs {covered=}")
-        # print(f"Covered lines with imports mismatch: {expected_covered=} vs {covered_with_imports=}")
-        pass_test = False
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    import pprint
-    print(f"Covered lines vs covered with imports:")
-    pprint.pprint(covered)
-    print(f"\n\nvs\n\n")
-    pprint.pprint(covered_with_imports)
+    install(include_paths=[include_path], collect_module_dependencies=True)
 
-    assert pass_test
+    # The following constant is imported, but not used, so that, by the time it is also imported in
+    # calls_function_imported_in_function , it will be only be covered if the include_imported flag
+    # is set to True
+    from tests.coverage.included_path.imported_in_function_lib import module_level_constant  # noqa
+
+    from tests.coverage.included_path.import_time_callee import calls_function_imported_in_function
+
+    ModuleCodeCollector.start_coverage()
+    calls_function_imported_in_function()
+    ModuleCodeCollector.stop_coverage()
+
+    lines = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
+    covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
+    covered_with_imports = _get_relpath_dict(
+        cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
+    )
+
+    expected_lines = {
+        "tests/coverage/included_path/imported_in_function_lib.py": {1, 2, 3, 4, 7},
+        "tests/coverage/included_path/import_time_callee.py": {1, 2, 4, 7, 8, 10, 13, 15},
+    }
+    expected_covered = {"tests/coverage/included_path/import_time_callee.py": {8, 10}}
+    expected_covered_with_imports = {
+        "tests/coverage/included_path/import_time_callee.py": {1, 7, 8, 10, 13},
+        "tests/coverage/included_path/imported_in_function_lib.py": {1, 7},
+    }
+
+    assert lines == expected_lines, f"Lines mismatch: {lines=} vs {expected_lines=}"
+    assert covered == expected_covered, f"Covered lines mismatch: {covered=} vs {expected_covered=}"
+    assert (
+        covered_with_imports == expected_covered_with_imports
+    ), f"Covered lines with imports mismatch:{covered_with_imports=} vs {expected_covered_with_imports=}"

@@ -24,7 +24,7 @@ def instrument_all_lines(
     instrumented_abstract_code = Bytecode.from_code(code)
     instrumented_abstract_code.clear()
 
-    lines = set()
+    lines: t.Set[int] = set()
 
     is_module = collect_module_dependencies and code.co_name == "<module>"
 
@@ -42,11 +42,11 @@ def instrument_all_lines(
         # - Instructions that are not Instr instances (eg: labels)
         # - Instructions that have line numbers set to None
         if instr is not None:
-            if instr.name == "RESUME":
-                instrumented_abstract_code.append(instr)
-                continue
             if not isinstance(instr, Instr) or instr.lineno is None:
                 previous_line_instrs.append(instr)
+                continue
+            if instr.name == "RESUME":
+                instrumented_abstract_code.append(instr)
                 continue
 
         # If the current instruction is on a different line, or if the current instruction is the last one in the
@@ -78,13 +78,5 @@ def instrument_all_lines(
 
         if instr.name == "IMPORT_NAME" and collect_module_dependencies:
             previous_line_import = instr.arg
-
-    import dis
-
-    print("ORIG CODE")
-    dis.dis(abstract_code.to_code(), depth=0)
-    print("NEW CODE")
-    final_code = instrumented_abstract_code.to_code()
-    dis.dis(final_code, depth=0)
 
     return instrumented_abstract_code.to_code(), lines
