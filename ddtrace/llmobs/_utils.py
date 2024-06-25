@@ -89,4 +89,6 @@ def _inject_llmobs_parent_id(span_context):
 
 
 def _unserializable_default_repr(obj):
-    return "[Unserializable object: {}]".format(repr(obj))
+    default_repr = "[Unserializable object: {}]".format(repr(obj))
+    log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
+    return default_repr

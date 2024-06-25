@@ -347,7 +347,9 @@ def test_annotate_metadata_wrong_type_marks_with_placeholder_value(LLMObs, mock_
         metadata = json.loads(span.get_tag(METADATA))
         assert metadata is not None
         assert "[Unserializable object:" in metadata["unserializable"]
-
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 def test_annotate_metadata_wrong_type_no_repr_raises_warning(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
@@ -377,7 +379,9 @@ def test_annotate_tag_wrong_type(LLMObs, mock_logs):
         tags = json.loads(span.get_tag(TAGS))
         assert tags is not None
         assert "[Unserializable object:" in tags["unserializable"]
-
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 def test_annotate_tag_wrong_type_no_repr_raises_warning(LLMObs, mock_logs):
     with LLMObs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
@@ -433,7 +437,9 @@ def test_annotate_input_value_wrong_type(LLMObs, mock_logs):
         input_value = span.get_tag(INPUT_VALUE)
         assert input_value is not None
         assert "[Unserializable object:" in input_value
-
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 def test_annotate_input_value_wrong_type_no_repr_raises_warning(LLMObs, mock_logs):
     with LLMObs.workflow() as span:
@@ -551,7 +557,9 @@ def test_annotate_output_embedding_wrong_type(LLMObs, mock_logs):
         output_value = json.loads(span.get_tag(OUTPUT_VALUE))
         assert output_value is not None
         assert "[Unserializable object:" in output_value
-
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 def test_annotate_input_retrieval_wrong_type(LLMObs, mock_logs):
     with LLMObs.retrieval() as span:
@@ -559,7 +567,9 @@ def test_annotate_input_retrieval_wrong_type(LLMObs, mock_logs):
         input_value = json.loads(span.get_tag(INPUT_VALUE))
         assert input_value is not None
         assert "[Unserializable object:" in input_value
-
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 def test_annotate_document_no_text_raises_warning(LLMObs, mock_logs):
     with LLMObs.embedding(model_name="test_model") as span:
@@ -638,6 +648,9 @@ def test_annotate_output_value_wrong_type(LLMObs, mock_logs):
         output_value = json.loads(span.get_tag(OUTPUT_VALUE))
         assert output_value is not None
         assert "[Unserializable object:" in output_value
+        mock_logs.warning.assert_called_once_with(
+            "I/O object is not JSON serializable. Defaulting to placeholder value instead."
+        )
 
 
 def test_annotate_output_value_wrong_type_no_repr_raises_warning(LLMObs, mock_logs):
