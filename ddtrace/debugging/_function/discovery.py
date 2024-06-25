@@ -1,7 +1,9 @@
 from collections import defaultdict
 from collections import deque
+import gc
 from pathlib import Path
 
+from ddtrace.internal.utils.inspection import collect_code_objects
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
@@ -185,28 +187,35 @@ class FunctionDiscovery(defaultdict):
 
     def __init__(self, module: ModuleType) -> None:
         super().__init__(list)
-        self._module = module
-        self._fullname_index = {}
 
-        functions = _collect_functions(module)
-        seen_functions = set()
         module_path = origin(module)
         if module_path is None:
             # We are not going to collect anything because no code objects will
             # match the origin.
             return
 
-        for fname, function in functions.items():
-            if (
-                function not in seen_functions
-                and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
-            ):
-                # We only map line numbers for functions that actually belong to
-                # the module.
-                for lineno in linenos(cast(FunctionType, function)):
-                    self[lineno].append(function)
-            self._fullname_index[fname] = function
-            seen_functions.add(function)
+        self._module = module
+        self._fullname_index = _collect_functions(module)
+
+        # Create the line to function mapping
+        if hasattr(module, "__dd_code__"):
+            for code, _ in collect_code_objects(module.__dd_code__):
+                for f in (_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code):
+                    for lineno in linenos(cast(FunctionType, f)):
+                        self[lineno].append(f)
+        else:
+            # If the module was already loaded we don't have its code object
+            seen_functions = set()
+            for _, function in self._fullname_index.items():
+                if (
+                    function not in seen_functions
+                    and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
+                ):
+                    # We only map line numbers for functions that actually belong to
+                    # the module.
+                    for lineno in linenos(cast(FunctionType, function)):
+                        self[lineno].append(function)
+                seen_functions.add(function)
 
     def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
@@ -237,4 +246,6 @@ class FunctionDiscovery(defaultdict):
             return module.__function_discovery__
         except AttributeError:
             fd = module.__function_discovery__ = cls(module)  # type: ignore[attr-defined]
+            if hasattr(module, "__dd_code__"):
+                del module.__dd_code__
             return fd

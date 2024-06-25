@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections import deque
 import json
 import os
 from types import CodeType
@@ -13,6 +12,7 @@ from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.utils.inspection import collect_code_objects
 from ddtrace.vendor.contextvars import ContextVar
 
 
@@ -20,36 +20,6 @@ _original_exec = exec
 
 ctx_covered = ContextVar("ctx_covered", default=None)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
-
-
-def collect_code_objects(code: CodeType) -> t.Iterator[t.Tuple[CodeType, t.Optional[CodeType]]]:
-    # Topological sorting
-    q = deque([code])
-    g = {}
-    p = {}
-    leaves: t.Deque[CodeType] = deque()
-
-    # Build the graph and the parent map
-    while q:
-        c = q.popleft()
-        new_codes = g[c] = {_ for _ in c.co_consts if isinstance(_, CodeType)}
-        if not new_codes:
-            leaves.append(c)
-            continue
-        for new_code in new_codes:
-            p[new_code] = c
-        q.extend(new_codes)
-
-    # Yield the code objects in topological order
-    while leaves:
-        c = leaves.popleft()
-        parent = p.get(c)
-        yield c, parent
-        if parent is not None:
-            children = g[parent]
-            children.remove(c)
-            if not children:
-                leaves.append(parent)
 
 
 class ModuleCodeCollector(BaseModuleWatchdog):

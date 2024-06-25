@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
@@ -91,6 +92,12 @@ class DebuggerError(Exception):
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: Set[str] = set()
+
+    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        # Cache the module code object onto the module
+        _module.__dd_code__ = code  # type: ignore[attr-defined]
+
+        return super().transform(code, _module)
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
