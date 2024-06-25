@@ -491,7 +491,7 @@ jobs:
     steps:
       - when:
           condition:
-            equal: ["main", "<<pipeline.git.branch>>"]
+            << pipeline.git.branch >> == "main"
           steps:
             - run_test:
                 pattern: 'appsec_iast_packages'
