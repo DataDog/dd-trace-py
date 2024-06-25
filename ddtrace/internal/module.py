@@ -606,3 +606,10 @@ class ModuleWatchdog(BaseModuleWatchdog):
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._pre_exec_module_hooks.add((cond, hook))
+
+
+try:
+    from pip._vendor.distlib.resources import register_finder, ResourceFinder
+    register_finder(_ImportHookChainedLoader, ResourceFinder)
+except ImportError:
+    pass
