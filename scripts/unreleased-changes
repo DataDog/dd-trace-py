@@ -36,6 +36,17 @@ def get_unreleased_changes(branch: str) -> list[str]:
     changes = []
 
     unreleased_version = None
+    # The output from reno list will be:
+    #
+    # v1.2.3-13
+    #     releasenotes/unreleased-change
+    # v1.2.3
+    #     releasenotes/released-change ...
+    # v1.2.2
+    #     releasenotes/released-change ...
+    #
+    # We want to collect all the lines between the first version with a `vx.y.z-#` until
+    # the next version
     for line in results.splitlines():
         if line.startswith("v") and "-" in line:
             unreleased_version = line.strip()
