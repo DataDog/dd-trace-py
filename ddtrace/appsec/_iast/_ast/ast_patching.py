@@ -76,12 +76,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "uvicorn",
     "anyio",
     "httpcore",
-    # "openssl",
-    # "aiofiles",
-    # "async_generator",
-    # "_asyncio",
-    # "multidict",
-    ## Debug
 )
 
 
