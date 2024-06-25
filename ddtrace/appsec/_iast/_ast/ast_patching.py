@@ -80,6 +80,13 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "async_generator",
     "_asyncio",
     "multidict",
+    ## Debug
+    "certifi",
+    "idna",
+    "py",
+    "pyasn1",
+    "pygments",
+    "pylsqpack",
 )
 
 
