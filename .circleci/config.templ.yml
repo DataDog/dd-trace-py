@@ -488,14 +488,14 @@ jobs:
   appsec_iast_packages:
     <<: *machine_executor
     parallelism: 5
-    filters:
-      branches:
-        only:
-          - main
     steps:
-      - run_test:
-          pattern: 'appsec_iast_packages'
-          snapshot: true
+      when:
+        condition:
+          matches: { pattern: "main", value: << pipeline.git.branch >> }
+        steps:
+          run_test:
+            pattern: 'appsec_iast_packages'
+            snapshot: true
 
   appsec_integrations:
     <<: *machine_executor
